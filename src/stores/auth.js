@@ -1,37 +1,44 @@
-import { writable } from 'svelte/store';
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { apiCall, API_ENDPOINTS } from '@/utils/api'
+import router from '@/router'
 
-// Create a writable store for authentication
-const authStore = writable({
-    user: null,
-    isAuthenticated: false
-});
+export const useAuthStore = defineStore('auth', () => {
+    // State
+    const user = ref(JSON.parse(sessionStorage.getItem('user')) || null)
+    const token = ref(sessionStorage.getItem('authToken') || null)
 
-// Function to set user information
-export const setUser = (user) => {
-    authStore.set({ user, isAuthenticated: true });
-};
+    // Getters
+    const isAuthenticated = computed(() => !!token.value)
+    const userRole = computed(() => user.value?.role || '')
 
-// Function to clear user information
-export const logout = () => {
-    authStore.set({ user: null, isAuthenticated: false });
-};
+    // Actions
+    async function login(credentials) {
+        try {
+            // Sesuaikan endpoint ini dengan backend Python Anda
+            const response = await apiCall('POST', API_ENDPOINTS.AUTH_LOGIN, credentials)
+            
+            // Asumsi response backend: { token: '...', user: { email: '...', role: '...' } }
+            token.value = response.token
+            user.value = response.user
 
-// Function to get the current user
-export const getUser = () => {
-    let currentUser;
-    authStore.subscribe((value) => {
-        currentUser = value.user;
-    });
-    return currentUser;
-};
+            // Simpan ke Session Storage agar tahan refresh
+            sessionStorage.setItem('authToken', response.token)
+            sessionStorage.setItem('user', JSON.stringify(response.user))
 
-// Function to check authentication status
-export const isAuthenticated = () => {
-    let status;
-    authStore.subscribe((value) => {
-        status = value.isAuthenticated;
-    });
-    return status;
-};
+            return true
+        } catch (error) {
+            console.error('Login failed:', error)
+            throw error
+        }
+    }
 
-export default authStore;
+    function logout() {
+        token.value = null
+        user.value = null
+        sessionStorage.clear()
+        router.push('/login')
+    }
+
+    return { user, token, isAuthenticated, userRole, login, logout }
+})
