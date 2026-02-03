@@ -9,7 +9,7 @@
 <script setup>
   import { computed } from 'vue'
   import { useAuthStore } from '@/stores/auth'
-  import Header from '@/components/Header.vue'
+  import Header from './components/Header.vue'
 
   const authStore = useAuthStore()
 
