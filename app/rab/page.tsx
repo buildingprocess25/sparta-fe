@@ -1,0 +1,519 @@
+"use client"
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+import { ChevronLeft, Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell } from 'lucide-react';
+
+import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
+import { checkRevisionStatus, fetchPricesData, submitRABData } from '@/lib/api';
+
+const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
+
+export default function RABPage() {
+  const router = useRouter();
+  
+  // --- STATE FORM DASAR ---
+  const [formData, setFormData] = useState({
+    namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
+    proyek: '', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
+    luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: ''
+  });
+
+  const [availableCabang, setAvailableCabang] = useState<string[]>([]);
+  const [prices, setPrices] = useState<any>({});
+  const [tableRows, setTableRows] = useState<any[]>([]);
+  
+  const [rejectedList, setRejectedList] = useState<any[]>([]);
+  const [revisionDataToLoad, setRevisionDataToLoad] = useState<any>(null);
+  const [hasPromptedRevisionFor, setHasPromptedRevisionFor] = useState<string>(''); 
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<{title: string, desc: string, type: 'info' | 'error' | 'success' | 'warning'}>({ title: "", desc: "", type: "info" });
+  
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [revisionListDialogOpen, setRevisionListDialogOpen] = useState(false);
+
+  // --- 1. INISIALISASI SESI & CEK STATUS REVISI ---
+  useEffect(() => {
+    const userCabang = sessionStorage.getItem('loggedInUserCabang')?.toUpperCase();
+    const userEmail = sessionStorage.getItem('loggedInUserEmail');
+
+    if (!userCabang) {
+      router.push('/auth');
+      return;
+    }
+    
+    setAvailableCabang(BRANCH_GROUPS[userCabang] || [userCabang]);
+    let defaultLokasiCabang = userCabang === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[userCabang] || "KODE");
+
+    setFormData(prev => ({ ...prev, cabang: userCabang, lokasiCabang: defaultLokasiCabang }));
+
+    if (userEmail && userCabang) {
+        checkRevisionStatus(userEmail, userCabang).then(result => {
+            if (result.rejected_submissions && result.rejected_submissions.length > 0) {
+                setRejectedList(result.rejected_submissions);
+                const codes = result.rejected_submissions.map((i: any) => i['Nomor Ulok']).join(', ');
+                showAlert("Pemberitahuan Revisi", `Ditemukan pengajuan RAB Anda yang dikembalikan/ditolak untuk Ulok: ${codes}.`, "warning");
+            }
+        }).catch(err => console.log("Gagal periksa revisi", err));
+    }
+  }, [router]);
+
+  // --- 2. FETCH HARGA OTOMATIS ---
+  useEffect(() => {
+    if (formData.cabang && formData.lingkupPekerjaan) {
+        fetchPricesData(formData.cabang, formData.lingkupPekerjaan)
+            .then(data => {
+                setPrices(data);
+                if (!revisionDataToLoad) setTableRows([]); 
+            })
+            .catch(err => showAlert("Error", err.message, "error"));
+    }
+  }, [formData.cabang, formData.lingkupPekerjaan]);
+
+  // --- 3. DETEKSI OTOMATIS DATA REVISI ---
+  const getUlokString = () => `${formData.lokasiCabang}${formData.lokasiTanggal}${formData.lokasiManual}${formData.isRenovasi ? 'R' : ''}`;
+
+  useEffect(() => {
+    const ulok = getUlokString();
+    const scope = formData.lingkupPekerjaan;
+
+    if (ulok.length >= 12 && scope && rejectedList.length > 0) {
+        const match = rejectedList.find(item => {
+            const itemUlok = (item['Nomor Ulok'] || '').replace(/-/g, '');
+            const itemScope = item['Lingkup_Pekerjaan'] || item['Lingkup Pekerjaan'];
+            return itemUlok === ulok && itemScope === scope;
+        });
+
+        const promptKey = `${ulok}-${scope}`;
+        if (match && hasPromptedRevisionFor !== promptKey && !revisionDataToLoad) {
+            setRevisionDataToLoad(match);
+            setHasPromptedRevisionFor(promptKey); 
+        }
+    }
+  }, [formData.lokasiCabang, formData.lokasiTanggal, formData.lokasiManual, formData.isRenovasi, formData.lingkupPekerjaan, rejectedList, hasPromptedRevisionFor]);
+
+  // --- 4. EKSEKUSI AUTO-FILL DATA REVISI ---
+  const handleLoadRevision = async () => {
+      if (!revisionDataToLoad) return;
+      const data = revisionDataToLoad;
+      const scope = formData.lingkupPekerjaan;
+      
+      setRevisionDataToLoad(null);
+      setIsLoading(true);
+
+      try {
+          const fetchedPrices = await fetchPricesData(formData.cabang, scope);
+          setPrices(fetchedPrices);
+
+          setFormData(prev => ({
+              ...prev,
+              namaToko: data["nama_toko"] || data["Nama_Toko"] || prev.namaToko,
+              proyek: data["Proyek"] || prev.proyek,
+              alamat: data["Alamat"] || prev.alamat,
+              kategoriLokasi: data["Kategori_Lokasi"] || prev.kategoriLokasi,
+              durasiPekerjaan: data["Durasi_Pekerjaan"] || prev.durasiPekerjaan,
+              luasAreaParkir: data["Luas Area Parkir"]?.toString() || prev.luasAreaParkir,
+              luasAreaSales: data["Luas Area Sales"]?.toString() || prev.luasAreaSales,
+              luasGudang: data["Luas Gudang"]?.toString() || prev.luasGudang,
+              luasBangunan: data["Luas Bangunan"]?.toString() || prev.luasBangunan,
+              luasAreaTerbuka: data["Luas Area Terbuka"]?.toString() || prev.luasAreaTerbuka,
+          }));
+
+          const details = typeof data["Item_Details_JSON"] === 'string' ? JSON.parse(data["Item_Details_JSON"]) : (data["Item_Details_JSON"] || data);
+          
+          const newRows = [];
+          for (let i = 1; i <= 200; i++) {
+              if (details[`Jenis_Pekerjaan_${i}`]) {
+                  const category = details[`Kategori_Pekerjaan_${i}`];
+                  const jobName = details[`Jenis_Pekerjaan_${i}`];
+                  
+                  const itemPriceRef = fetchedPrices[category]?.find((x: any) => x["Jenis Pekerjaan"] === jobName);
+                  const isMatCond = itemPriceRef ? itemPriceRef["Harga Material"] === "Kondisional" : false;
+                  const isUpahCond = itemPriceRef ? itemPriceRef["Harga Upah"] === "Kondisional" : false;
+
+                  newRows.push({
+                      id: Date.now() + i + Math.random(),
+                      category: category,
+                      jenisPekerjaan: jobName,
+                      satuan: details[`Satuan_Item_${i}`] || itemPriceRef?.["Satuan"],
+                      volume: parseFloat(details[`Volume_Item_${i}`]) || 0,
+                      hargaMaterial: parseFloat(details[`Harga_Material_Item_${i}`]) || 0,
+                      hargaUpah: parseFloat(details[`Harga_Upah_Item_${i}`]) || 0,
+                      isKondisional: isMatCond || isUpahCond
+                  });
+              }
+          }
+          setTableRows(newRows);
+          showAlert("Berhasil", "Data revisi berhasil dimuat ke dalam form.", "success");
+      } catch (err) {
+          showAlert("Error", "Terjadi kesalahan saat memuat data revisi.", "error");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  // --- 5. KALKULASI REAKTIF ---
+  const luasTerbangunan = useMemo(() => {
+    return (parseFloat(formData.luasBangunan) || 0) + ((parseFloat(formData.luasAreaTerbuka) || 0) / 2);
+  }, [formData.luasBangunan, formData.luasAreaTerbuka]);
+
+  const totalEstimasi = useMemo(() => {
+    return tableRows.reduce((acc, row) => acc + (row.volume * (row.hargaMaterial + row.hargaUpah)), 0);
+  }, [tableRows]);
+  
+  const pembulatan = Math.floor(totalEstimasi / 10000) * 10000;
+  const ppn = pembulatan * 0.11;
+  const grandTotal = pembulatan + ppn;
+
+  // --- 6. HANDLER INPUT NORMAL ---
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    let finalValue = type === 'checkbox' ? checked : value;
+    if (name === 'lokasiManual') {
+        finalValue = formData.isRenovasi ? String(finalValue).replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : String(finalValue).replace(/[^0-9]/g, '');
+    }
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => setFormData(prev => ({ ...prev, [name]: value }));
+
+  const addRow = (category: string) => {
+    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: 0, hargaMaterial: 0, hargaUpah: 0, isKondisional: false }]);
+  };
+
+  const removeRow = (id: number) => setTableRows(prev => prev.filter(row => row.id !== id));
+
+  const updateRow = (id: number, field: string, value: any) => {
+    setTableRows(prev => prev.map(row => {
+      if (row.id === id) {
+        let updatedRow = { ...row, [field]: value };
+        if (field === 'jenisPekerjaan' && value) {
+            const itemData = prices[row.category]?.find((item: any) => item["Jenis Pekerjaan"] === value);
+            if (itemData) {
+                updatedRow.satuan = itemData["Satuan"];
+                const isMatCond = itemData["Harga Material"] === "Kondisional";
+                const isUpahCond = itemData["Harga Upah"] === "Kondisional";
+                
+                updatedRow.isKondisional = isMatCond || isUpahCond;
+                updatedRow.hargaMaterial = isMatCond ? 0 : parseFloat(itemData["Harga Material"]) || 0;
+                updatedRow.hargaUpah = (isMatCond || isUpahCond) ? 0 : parseFloat(itemData["Harga Upah"]) || 0;
+                if (updatedRow.satuan === 'Ls') updatedRow.volume = 1;
+            }
+        }
+        return updatedRow;
+      }
+      return row;
+    }));
+  };
+
+  // --- 7. SUBMIT DATA MENGGUNAKAN API SERVICE ---
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (luasTerbangunan <= 0) return showAlert("Peringatan", "Luas Terbangunan tidak boleh kosong.", "error");
+    if (formData.lokasiCabang.length < 4 || formData.lokasiTanggal.length !== 4 || formData.lokasiManual.length !== 4) return showAlert("Peringatan", "Format Nomor Ulok belum lengkap.", "error");
+
+    setIsLoading(true);
+
+    const payloadData: any = {
+        Nama_Toko: formData.namaToko, nama_toko: formData.namaToko, "Nomor Ulok": getUlokString(),
+        Proyek: formData.proyek, Alamat: formData.alamat, Cabang: formData.cabang,
+        Lingkup_Pekerjaan: formData.lingkupPekerjaan, Kategori_Lokasi: formData.kategoriLokasi,
+        Durasi_Pekerjaan: formData.durasiPekerjaan, "Luas Area Parkir": parseFloat(formData.luasAreaParkir) || 0,
+        "Luas Area Sales": parseFloat(formData.luasAreaSales) || 0, "Luas Gudang": parseFloat(formData.luasGudang) || 0,
+        "Luas Bangunan": parseFloat(formData.luasBangunan) || 0, "Luas Area Terbuka": parseFloat(formData.luasAreaTerbuka) || 0,
+        "Luas Terbangunan": luasTerbangunan.toFixed(2), Email_Pembuat: sessionStorage.getItem("loggedInUserEmail") || "",
+        "Grand Total": grandTotal
+    };
+
+    let idx = 1;
+    tableRows.forEach(row => {
+        if (row.jenisPekerjaan && row.volume > 0) {
+            payloadData[`Kategori_Pekerjaan_${idx}`] = row.category;
+            payloadData[`Jenis_Pekerjaan_${idx}`] = row.jenisPekerjaan;
+            payloadData[`Satuan_Item_${idx}`] = row.satuan;
+            payloadData[`Volume_Item_${idx}`] = row.volume;
+            payloadData[`Harga_Material_Item_${idx}`] = row.hargaMaterial;
+            payloadData[`Harga_Upah_Item_${idx}`] = row.hargaUpah;
+            payloadData[`Total_Material_Item_${idx}`] = row.volume * row.hargaMaterial;
+            payloadData[`Total_Upah_Item_${idx}`] = row.volume * row.hargaUpah;
+            payloadData[`Total_Harga_Item_${idx}`] = row.volume * (row.hargaMaterial + row.hargaUpah);
+            idx++;
+        }
+    });
+
+    try {
+        await submitRABData(payloadData);
+        const params = new URLSearchParams({ ulok: getUlokString(), lingkup: formData.lingkupPekerjaan, locked: 'true' });
+        setTimeout(() => { router.push(`/gantt?${params.toString()}`); }, 1000);
+    } catch (err: any) {
+        setIsLoading(false);
+        showAlert("Error", err.message, "error");
+    }
+  };
+
+  const showAlert = (title: string, desc: string, type: "info" | "error" | "success" | "warning") => {
+    setAlertMessage({ title, desc, type }); setAlertOpen(true);
+  };
+
+  const getAlertStyle = () => {
+    if (alertMessage.type === 'error') return { bgIcon: 'bg-red-100 text-red-600', btn: 'bg-red-600 hover:bg-red-700' };
+    if (alertMessage.type === 'warning') return { bgIcon: 'bg-amber-100 text-amber-600', btn: 'bg-amber-500 hover:bg-amber-600' };
+    if (alertMessage.type === 'success') return { bgIcon: 'bg-green-100 text-green-600', btn: 'bg-green-600 hover:bg-green-700' };
+    return { bgIcon: 'bg-blue-100 text-blue-600', btn: 'bg-blue-600 hover:bg-blue-700' };
+  };
+
+  const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : [];
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans pb-12">
+      <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20 border-b border-red-900">
+        <div className="flex items-center">
+            <Link href="/dashboard" className="mr-4 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
+            <div className="flex items-center gap-3">
+              <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-10 drop-shadow-md" />
+              <div className="h-6 w-px bg-white/30 hidden md:block"></div>
+              <h1 className="text-lg md:text-xl font-bold drop-shadow-md">Rencana Anggaran Biaya</h1>
+            </div>
+        </div>
+        <div className="relative">
+            <button onClick={() => setRevisionListDialogOpen(true)} className="relative p-2 rounded-full hover:bg-white/20 transition-colors focus:outline-none" title="Lihat Daftar Revisi">
+                <Bell className="w-6 h-6 drop-shadow-md" />
+                {rejectedList.length > 0 && (
+                    <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-yellow-500 border-2 border-red-700 rounded-full">
+                        {rejectedList.length}
+                    </span>
+                )}
+            </button>
+        </div>
+      </header>
+
+      <main className="max-w-350 mx-auto p-4 md:p-8 mt-4">
+        <form onSubmit={handleSubmit}>
+          <Card className="mb-8 shadow-sm">
+            <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Data & Identitas Proyek</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
+              <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className="bg-white" required /></div>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Checkbox id="isRenovasi" checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c}))} />
+                  <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
+                </div>
+                <div className="flex gap-2 items-center">
+                   <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
+                   <span className="font-bold text-slate-400">-</span>
+                   <Input name="lokasiTanggal" placeholder="YYMM" className="w-[30%] bg-white" maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
+                   <span className="font-bold text-slate-400">-</span>
+                   <Input name="lokasiManual" placeholder={formData.isRenovasi ? "C0B4" : "0001"} className="w-[40%] bg-white uppercase" maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
+                   {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
+                </div>
+              </div>
+              <div className="space-y-2"><Label>Proyek <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('proyek', val)} value={formData.proyek} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Jenis Proyek --" /></SelectTrigger><SelectContent><SelectItem value="Alfamart Reguler">Reguler</SelectItem><SelectItem value="Franchise">Franchise</SelectItem><SelectItem value="Renovasi">Renovasi</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Cabang <span className="text-red-500">*</span></Label><Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} /></div>
+              <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2 lg:col-span-3"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('durasiPekerjaan', val)} value={formData.durasiPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Durasi --" /></SelectTrigger><SelectContent>{['10','14','20','30','35','40','48'].map(d => <SelectItem key={d} value={d}>{d} Hari</SelectItem>)}</SelectContent></Select></div>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-8 shadow-sm">
+            <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Dimensi & Ukuran Proyek</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pt-6">
+              <div className="space-y-2"><Label>Luas Bangunan (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasBangunan" value={formData.luasBangunan} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Area Terbuka (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasAreaTerbuka" value={formData.luasAreaTerbuka} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Area Sales (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasAreaSales" value={formData.luasAreaSales} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Gudang (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasGudang" value={formData.luasGudang} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Area Parkir (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasAreaParkir" value={formData.luasAreaParkir} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label className="text-blue-700 font-bold">Luas Terbangunan (m²) <span className="text-xs font-normal text-slate-400">(Auto)</span></Label><Input readOnly value={luasTerbangunan > 0 ? luasTerbangunan.toFixed(2) : ''} className="bg-blue-50 border-blue-200 font-bold text-blue-800 cursor-not-allowed" placeholder="0.00" tabIndex={-1} /></div>
+            </CardContent>
+          </Card>
+
+          {activeCategories.length > 0 && (
+            <div className="space-y-6 mb-8">
+              <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block">Detail Bill of Quantities (BoQ)</h2>
+              {activeCategories.map((category) => {
+                const itemsInCategory = tableRows.filter(r => r.category === category);
+                const subTotal = itemsInCategory.reduce((acc, row) => acc + (row.volume * (row.hargaMaterial + row.hargaUpah)), 0);
+                const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
+
+                return (
+                  <Card key={category} className="overflow-hidden border-slate-200 shadow-sm">
+                    <div className="bg-slate-100 p-4 border-b flex justify-between items-center">
+                      <h3 className="font-bold text-red-700">{category}</h3>
+                      <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-red-200 text-red-600 hover:bg-red-50" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item</Button>
+                    </div>
+                    {itemsInCategory.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left border-collapse min-w-275">
+                          <thead className="bg-red-50 text-red-700 text-xs text-center border-b border-red-200">
+                            <tr>
+                              <th rowSpan={2} className="p-2 border border-red-100 w-10">No</th>
+                              <th rowSpan={2} className="p-2 border border-red-100 min-w-50">Jenis Pekerjaan</th>
+                              <th rowSpan={2} className="p-2 border border-red-100 w-16">Satuan</th>
+                              <th rowSpan={2} className="p-2 border border-red-100 w-24">Volume (a)</th>
+                              <th colSpan={2} className="p-2 border border-red-100">Harga Satuan (Rp)</th>
+                              <th colSpan={2} className="p-2 border border-red-100">Total Harga Satuan (Rp)</th>
+                              <th rowSpan={2} className="p-2 border border-red-100 w-36">Total Harga (Rp)<br/><span className="font-normal">(f=d+e)</span></th>
+                              <th rowSpan={2} className="p-2 border border-red-100 w-16">Aksi</th>
+                            </tr>
+                            <tr>
+                              <th className="p-2 border border-red-100 w-32 bg-red-50/50">Material (b)</th><th className="p-2 border border-red-100 w-32 bg-red-50/50">Upah (c)</th>
+                              <th className="p-2 border border-red-100 w-32 bg-red-50/50">Material (d=a×b)</th><th className="p-2 border border-red-100 w-32 bg-red-50/50">Upah (e=a×c)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {itemsInCategory.map((row, index) => (
+                              <tr key={row.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                                <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500">{index + 1}</td>
+                                <td className="p-2 border-r border-slate-100">
+                                  <select className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
+                                    <option value="">-- Pilih --</option>
+                                    {prices[category]?.map((p: any) => {
+                                        const jobName = p["Jenis Pekerjaan"];
+                                        const isSelectedElsewhere = selectedJobs.includes(jobName) && row.jenisPekerjaan !== jobName;
+                                        return <option key={jobName} value={jobName} title={jobName} disabled={isSelectedElsewhere} className={isSelectedElsewhere ? "text-slate-300 bg-slate-50" : ""}>{jobName}</option>;
+                                    })}
+                                  </select>
+                                </td>
+                                <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium">{row.satuan}</td>
+                                <td className="p-2 border-r border-slate-100"><Input type="number" step="any" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume || ''} onChange={(e) => updateRow(row.id, 'volume', parseFloat(e.target.value) || 0)} readOnly={row.satuan === 'Ls'} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="number" step="any" className="h-9 px-2 text-right transition-colors text-xs bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" value={row.hargaMaterial || ''} readOnly tabIndex={-1} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="number" step="any" className={`h-9 px-2 text-right transition-colors text-xs ${!row.isKondisional ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah || ''} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value) || 0)} readOnly={!row.isKondisional} /></td>
+                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs">{toRupiah(row.volume * row.hargaMaterial)}</td>
+                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs">{toRupiah(row.volume * row.hargaUpah)}</td>
+                                <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
+                                <td className="p-2 text-center"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                            <tr><td colSpan={8} className="p-3 text-right font-bold text-slate-600">Sub Total {category}:</td><td className="p-3 text-right font-bold text-red-700 whitespace-nowrap">{toRupiah(subTotal)}</td><td></td></tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="bg-[#fff9e6] border-2 border-[#ffc107] p-6 md:p-8 rounded-2xl shadow-sm mb-8">
+              <div className="flex justify-between items-center mb-3"><span className="text-slate-600 font-medium">Total Estimasi:</span><span className="font-semibold text-lg text-slate-800">{toRupiah(totalEstimasi)}</span></div>
+              <div className="flex justify-between items-center mb-3"><span className="text-slate-600 font-medium">Pembulatan <span className="text-xs">(ke bawah)</span>:</span><span className="font-semibold text-lg text-slate-800">{toRupiah(pembulatan)}</span></div>
+              <div className="flex justify-between items-center mb-6"><span className="text-slate-600 font-medium">PPN (11%):</span><span className="font-semibold text-lg text-slate-800">{toRupiah(ppn)}</span></div>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-t border-yellow-300 pt-6 gap-4"><span className="text-xl md:text-2xl font-bold text-slate-800">GRAND TOTAL</span><span className="text-3xl md:text-4xl font-extrabold text-red-600">{toRupiah(grandTotal)}</span></div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-4 sticky bottom-4 z-10 p-4 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200">
+            <Button type="submit" disabled={isLoading || activeCategories.length === 0} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 shadow-md transition-all">
+              {isLoading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sedang Mengirim Data...</> : <><Save className="w-5 h-5 mr-2" /> Simpan & Lanjut ke Gantt Chart</>}
+            </Button>
+            <Button type="button" variant="outline" className="w-full md:w-1/3 h-14 text-lg font-semibold bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-red-600" onClick={() => setResetDialogOpen(true)}>
+              Reset Ulang Form
+            </Button>
+          </div>
+        </form>
+      </main>
+
+      {/* PERBAIKAN: MODAL DAFTAR NOTIFIKASI REVISI (Menghapus <p> dan <ul>) */}
+      <AlertDialog open={revisionListDialogOpen} onOpenChange={setRevisionListDialogOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-md max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 border-b pb-3 mb-3">
+               <div className="bg-amber-100 text-amber-600 p-2 rounded-full">
+                  <Bell className="w-6 h-6" />
+               </div>
+               <AlertDialogTitle className="text-lg">Daftar Pekerjaan Revisi</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-left text-slate-600">
+              {rejectedList.length > 0 ? (
+                  <span className="block space-y-4">
+                      <span className="block text-sm">Berikut adalah daftar Nomor Ulok yang dikembalikan dan perlu Anda revisi/ajukan ulang:</span>
+                      <span className="flex flex-col space-y-3">
+                          {rejectedList.map((item, idx) => (
+                              <span key={idx} className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex flex-col">
+                                  <span className="font-bold text-slate-800 text-base">{item['Nomor Ulok']}</span>
+                                  <span className="text-sm text-slate-500">Lingkup: {item['Lingkup_Pekerjaan'] || item['Lingkup Pekerjaan']}</span>
+                              </span>
+                          ))}
+                      </span>
+                      <span className="block text-xs italic text-slate-400">
+                          *Ketikkan Nomor Ulok dan pilih Lingkup Pekerjaan yang sesuai di form untuk memuat data ini secara otomatis.
+                      </span>
+                  </span>
+              ) : (
+                  <span className="block text-center py-6 text-slate-500">Hebat! Tidak ada data pekerjaan yang perlu direvisi saat ini.</span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogAction className="w-full bg-slate-800 hover:bg-slate-900" onClick={() => setRevisionListDialogOpen(false)}>Tutup Notifikasi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* MODAL ALERT UMUM */}
+      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-sm text-center">
+          <AlertDialogHeader>
+            <div className={`mx-auto w-16 h-16 flex items-center justify-center rounded-full mb-4 ${getAlertStyle().bgIcon}`}>
+              {alertMessage.type === 'warning' ? <AlertTriangle className="w-8 h-8" /> : <Info className="w-8 h-8" />}
+            </div>
+            <AlertDialogTitle className="text-center">{alertMessage.title}</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">{alertMessage.desc}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center">
+            <AlertDialogAction className={`w-full ${getAlertStyle().btn}`} onClick={() => setAlertOpen(false)}>Mengerti</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* MODAL KONFIRMASI LOAD REVISI SAAT NGETIK ULOK */}
+      <AlertDialog open={!!revisionDataToLoad} onOpenChange={(open) => { if (!open) setRevisionDataToLoad(null); }}>
+        <AlertDialogContent className="rounded-2xl max-w-sm text-center">
+          <AlertDialogHeader>
+            <div className="mx-auto w-16 h-16 flex items-center justify-center rounded-full mb-4 bg-amber-100 text-amber-600"><AlertTriangle className="w-8 h-8" /></div>
+            <AlertDialogTitle className="text-center">Data Revisi Ditemukan</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              Ditemukan data REVISI untuk Ulok <strong>{revisionDataToLoad?.['Nomor Ulok']}</strong> ({formData.lingkupPekerjaan}). <br/><br/>Apakah Anda ingin memuat data ini?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-col space-y-2 sm:space-y-0 sm:flex-row sm:space-x-2">
+            <AlertDialogCancel className="w-full sm:w-1/2 mt-0" onClick={() => setRevisionDataToLoad(null)}>Abaikan</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLoadRevision} className="w-full sm:w-1/2 bg-amber-500 hover:bg-amber-600">Ya, Muat Data</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* MODAL KONFIRMASI RESET FORM */}
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Konfirmasi Reset Form</AlertDialogTitle>
+            <AlertDialogDescription>Apakah Anda yakin ingin mereset seluruh data form ini?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setResetDialogOpen(false)}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => window.location.reload()} className="bg-red-600 hover:bg-red-700 text-white">Ya, Reset Form</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+    </div>
+  );
+}
