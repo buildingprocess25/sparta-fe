@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,8 +11,19 @@ import { ChevronLeft, Lock, Send, Loader2, Info, Plus, Trash2 } from 'lucide-rea
 import { fetchGanttData } from '@/lib/api';
 import { API_URL } from '@/lib/constants'; 
 
-// Fungsi format Rupiah (jika dibutuhkan)
-const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
+// --- ATURAN PENGAWASAN (SUPERVISION RULES) ---
+const SUPERVISION_RULES: Record<number, number[]> = {
+    10: [2, 5, 8, 10],
+    14: [2, 7, 10, 14],
+    20: [2, 12, 16, 20],
+    30: [2, 7, 14, 18, 23, 30],
+    35: [2, 7, 17, 22, 28, 35],
+    40: [2, 7, 17, 25, 33, 40],
+    48: [2, 10, 25, 32, 41, 48]
+};
+
+const DAY_WIDTH = 40;
+const ROW_HEIGHT = 50;
 
 // --- FUNGSI HELPER ---
 function extractUlokAndLingkup(value: string) {
@@ -27,416 +38,815 @@ function extractUlokAndLingkup(value: string) {
     return { ulokClean, lingkupClean: lingkupUpper === "ME" ? "ME" : "Sipil" };
 }
 
+function parseDateDDMMYYYY(dateStr: string) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+        return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    }
+    return null;
+}
+
+function formatDateID(date: Date) {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+}
+
 // --- KOMPONEN UTAMA GANTT ---
 function GanttBoard() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  
-  // URL Params
-  const urlUlok = searchParams.get('ulok');
-  const urlLingkup = searchParams.get('lingkup');
-
-  // State Session & Role
-  const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
-  const [userRole, setUserRole] = useState('');
-  
-  // State Data Proyek
-  const [selectedUlok, setSelectedUlok] = useState(urlUlok || '');
-  const [projectData, setProjectData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isProjectLocked, setIsProjectLocked] = useState(false);
-  const [availableProjects, setAvailableProjects] = useState<any[]>([]);
-
-  // State Data Tabel / Tasks (Dinamis dari RAB)
-  const [tasks, setTasks] = useState<any[]>([]);
-
-  useEffect(() => {
-    const role = sessionStorage.getItem('userRole');
-    const cabang = sessionStorage.getItem('loggedInUserCabang'); 
-    const email = sessionStorage.getItem('loggedInUserEmail'); 
-
-    if (!role) {
-      alert("Sesi Anda telah habis. Silakan login kembali.");
-      router.push('/auth');
-      return;
-    }
-
-    setUserRole(role);
-    let currentAppMode: 'kontraktor' | 'pic' = 'kontraktor';
-    const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT'];
+    const router = useRouter();
+    const searchParams = useSearchParams();
     
-    if (role === 'KONTRAKTOR') {
-        currentAppMode = 'kontraktor';
-        setAppMode('kontraktor');
-    } else if (picRoles.includes(role.toUpperCase())) {
-        currentAppMode = 'pic';
-        setAppMode('pic');
-    } else {
-        alert("Anda tidak memiliki akses.");
-        router.push('/dashboard');
-        return;
-    }
+    const urlUlok = searchParams.get('ulok');
+    const urlLingkup = searchParams.get('lingkup');
 
-    if (urlUlok) {
-        loadGanttData(urlUlok);
-    } 
-    else {
-        const cleanBaseUrl = API_URL.replace(/\/$/, ""); 
+    const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
+    const [userRole, setUserRole] = useState('');
+    
+    const [selectedUlok, setSelectedUlok] = useState(urlUlok || '');
+    const [projectData, setProjectData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isProjectLocked, setIsProjectLocked] = useState(false);
+    const [availableProjects, setAvailableProjects] = useState<any[]>([]);
+
+    // State Tabel / Tasks
+    const [tasks, setTasks] = useState<any[]>([]);
+    const [isApplying, setIsApplying] = useState(false);
+
+    // State Delay (PIC)
+    const [delayTaskIdx, setDelayTaskIdx] = useState<string>('');
+    const [delayDays, setDelayDays] = useState<number>(0);
+    const [rawDayGanttData, setRawDayGanttData] = useState<any[]>([]);
+
+    useEffect(() => {
+        const role = sessionStorage.getItem('userRole');
+        const cabang = sessionStorage.getItem('loggedInUserCabang'); 
+        const email = sessionStorage.getItem('loggedInUserEmail'); 
+
+        if (!role) {
+            alert("Sesi Anda telah habis. Silakan login kembali.");
+            router.push('/auth');
+            return;
+        }
+
+        setUserRole(role);
+        let currentAppMode: 'kontraktor' | 'pic' = 'kontraktor';
+        const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT'];
         
-        // PERBAIKAN: Menambahkan /api/ di depan nama endpoint agar sesuai dengan backend Python Anda
-        let targetUrl = currentAppMode === 'kontraktor' 
+        if (role === 'KONTRAKTOR') {
+            currentAppMode = 'kontraktor';
+            setAppMode('kontraktor');
+        } else if (picRoles.includes(role.toUpperCase())) {
+            currentAppMode = 'pic';
+            setAppMode('pic');
+        } else {
+            alert("Anda tidak memiliki akses.");
+            router.push('/dashboard');
+            return;
+        }
+
+        if (urlUlok) {
+            loadGanttData(urlUlok);
+        } 
+        else {
+            const cleanBaseUrl = API_URL.replace(/\/$/, ""); 
+            let targetUrl = currentAppMode === 'kontraktor' 
             ? `${cleanBaseUrl}/api/get_ulok_by_email?email=${encodeURIComponent(email || '')}`
             : `${cleanBaseUrl}/api/get_ulok_by_cabang_pic?cabang=${encodeURIComponent(cabang || '')}`;
 
-        fetch(targetUrl)
-            .then(async (res) => {
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    return res.json();
-                } else {
-                    const text = await res.text();
-                    throw new Error(`Endpoint salah (HTML Error). URL: ${targetUrl} | Res: ${text.substring(0, 100)}...`);
-                }
-            })
+            fetch(targetUrl)
+            .then(res => res.json())
             .then(data => {
                 const list = data.data || data.projects || (Array.isArray(data) ? data : []);
                 setAvailableProjects(list);
             })
-            .catch(err => console.error("Gagal memuat list dropdown:", err.message));
-    }
-  }, [router, urlUlok]);
+            .catch(err => console.error("Gagal memuat list:", err));
+        }
+    }, [router, urlUlok]);
 
-  // --- FUNGSI LOAD DATA GRAFIK & PARSING TASKS DINAMIS DARI RAB ---
-  const loadGanttData = async (selectedValue: string) => {
-      if(!selectedValue) return;
-      setIsLoading(true);
-      
-      try {
-          const { ulokClean, lingkupClean } = extractUlokAndLingkup(selectedValue);
-          const finalUlok = urlUlok || ulokClean;
-          const finalLingkup = urlLingkup || lingkupClean || "Sipil";
+    const loadGanttData = async (selectedValue: string) => {
+        if(!selectedValue) return;
+        setIsLoading(true);
+        
+        try {
+            const { ulokClean, lingkupClean } = extractUlokAndLingkup(selectedValue);
+            const finalUlok = urlUlok || ulokClean;
+            const finalLingkup = urlLingkup || lingkupClean || "Sipil";
 
-          // Fetch API
-          const data = await fetchGanttData(finalUlok, finalLingkup);
-          
-          // 1. SET PROJECT INFO
-          const rab = data.rab || {};
-          const duration = parseInt(rab.Durasi_Pekerjaan || 0);
-          setProjectData({
-              ulokClean: finalUlok, 
-              store: rab.Nama_Toko || rab.nama_toko || "Data Toko Ditemukan", 
-              work: finalLingkup, 
-              duration: duration
-          });
+            const data = await fetchGanttData(finalUlok, finalLingkup);
+            
+            const rab = data.rab || {};
+            const duration = parseInt(rab.Durasi_Pekerjaan || 0);
+            
+            let projectStart = new Date();
+            let earliestDate: Date | null = null;
+            
+            if (data.day_gantt_data && data.day_gantt_data.length > 0) {
+                setRawDayGanttData(data.day_gantt_data);
+                data.day_gantt_data.forEach((entry: any) => {
+                    const parsed = parseDateDDMMYYYY(entry.h_awal);
+                    if (parsed && (!earliestDate || parsed < earliestDate)) earliestDate = parsed;
+                });
+            }
+            if (earliestDate) projectStart = earliestDate;
 
-          // 2. CEK STATUS TERKUNCI
-          const status = String(data.gantt_data?.Status || '').toLowerCase();
-          setIsProjectLocked(['terkunci', 'locked', 'published'].includes(status));
+            setProjectData({
+                ulokClean: finalUlok, 
+                store: rab.Nama_Toko || rab.nama_toko || "Data Toko Ditemukan", 
+                work: finalLingkup, 
+                duration: duration,
+                startDate: projectStart.toISOString().split('T')[0]
+            });
 
-          // 3. EKSTRAK KATEGORI PEKERJAAN MURNI DARI RAB
-          let generatedTasks: any[] = [];
-          
-          if (data.filtered_categories && data.filtered_categories.length > 0) {
-              generatedTasks = data.filtered_categories.map((catName: string, idx: number) => ({
-                  id: idx + 1,
-                  name: catName,
-                  dependencies: [],
-                  ranges: [{ start: '', end: '' }]
-              }));
-          } 
-          else if (data.rab) {
-              const rabKeys = Object.keys(data.rab);
-              const kategoriKeys = rabKeys.filter(k => k.startsWith('Kategori_Pekerjaan_') || k.startsWith('Kategori_'));
-              
-              if (kategoriKeys.length > 0) {
-                  const rawCategories = kategoriKeys.map(k => data.rab[k]).filter(Boolean);
-                  const uniqueCategories = Array.from(new Set(rawCategories));
-                  
-                  generatedTasks = uniqueCategories.map((catName: any, idx: number) => ({
-                      id: idx + 1,
-                      name: String(catName),
-                      dependencies: [],
-                      ranges: [{ start: '', end: '' }]
-                  }));
-              }
-          }
+            const status = String(data.gantt_data?.Status || '').toLowerCase();
+            setIsProjectLocked(['terkunci', 'locked', 'published'].includes(status));
 
-          setTasks(generatedTasks);
+            // Map Kategori
+            let generatedTasks: any[] = [];
+            if (data.filtered_categories && data.filtered_categories.length > 0) {
+                generatedTasks = data.filtered_categories.map((catName: string, idx: number) => ({
+                    id: idx + 1, name: catName, dependencies: [], ranges: [], keterlambatan: 0
+                }));
+            } 
 
-      } catch (err) {
-          console.error(err);
-      } finally {
-          setIsLoading(false);
-      }
-  };
+            // Map Ranges dari day_gantt_data
+            const categoryRangesMap: any = {};
+            if (data.day_gantt_data) {
+                const msPerDay = 1000 * 60 * 60 * 24;
+                data.day_gantt_data.forEach((entry: any) => {
+                    const startDate = parseDateDDMMYYYY(entry.h_awal);
+                    const endDate = parseDateDDMMYYYY(entry.h_akhir);
+                    if (startDate && endDate) {
+                        const startDay = Math.round((startDate.getTime() - projectStart.getTime()) / msPerDay) + 1;
+                        const endDay = Math.round((endDate.getTime() - projectStart.getTime()) / msPerDay) + 1;
+                        const key = (entry.Kategori || '').toLowerCase().trim();
+                        if(!categoryRangesMap[key]) categoryRangesMap[key] = [];
+                        categoryRangesMap[key].push({
+                            start: startDay > 0 ? startDay : 1,
+                            end: endDay > 0 ? endDay : 1,
+                            duration: endDay - startDay + 1,
+                            keterlambatan: parseInt(entry.keterlambatan || 0)
+                        });
+                    }
+                });
+            }
 
-  // --- HANDLER INPUT TABEL ---
-  const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start'|'end', value: string) => {
-      setTasks(prev => prev.map(t => {
-          if(t.id === taskId) {
-              const newRanges = [...t.ranges];
-              newRanges[rangeIdx][field] = value;
-              return {...t, ranges: newRanges};
-          }
-          return t;
-      }));
-  };
+            // Map Dependency
+            const depMap: any = {};
+            if (data.dependency_data) {
+                data.dependency_data.forEach((dep: any) => {
+                    const child = String(dep.Kategori_Terikat).toLowerCase().trim();
+                    const parent = String(dep.Kategori).toLowerCase().trim();
+                    if(!depMap[child]) depMap[child] = [];
+                    depMap[child].push(parent);
+                });
+            }
 
-  const addRange = (taskId: number) => {
-      setTasks(prev => prev.map(t => {
-          if(t.id === taskId) {
-              return {...t, ranges: [...t.ranges, {start: '', end: ''}]};
-          }
-          return t;
-      }));
-  };
+            generatedTasks = generatedTasks.map(task => {
+                const tName = task.name.toLowerCase().trim();
+                
+                // Temukan ranges
+                let matchedRanges = [];
+                for(const key in categoryRangesMap) {
+                    if(tName.includes(key) || key.includes(tName)) { matchedRanges = categoryRangesMap[key]; break; }
+                }
 
-  const removeRange = (taskId: number, rangeIdx: number) => {
-      setTasks(prev => prev.map(t => {
-          if(t.id === taskId) {
-              const newRanges = t.ranges.filter((_, i) => i !== rangeIdx);
-              return {...t, ranges: newRanges};
-          }
-          return t;
-      }));
-  };
+                // Temukan dependencies (Parent IDs)
+                let parentIds: number[] = [];
+                if (depMap[tName]) {
+                    depMap[tName].forEach((parentName: string) => {
+                        const parentObj = generatedTasks.find(t => t.name.toLowerCase().trim() === parentName);
+                        if(parentObj) parentIds.push(parentObj.id);
+                    });
+                }
 
-  const handleDependencyChange = (taskId: number, parentId: string) => {
-      setTasks(prev => prev.map(t => {
-          if(t.id === taskId) {
-              return {...t, dependencies: parentId ? [parseInt(parentId)] : []};
-          }
-          return t;
-      }));
-  };
+                return { ...task, ranges: matchedRanges.length > 0 ? matchedRanges : [{start: '', end: '', keterlambatan: 0}], dependencies: parentIds };
+            });
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans pb-12">
-      {/* HEADER */}
-      <header className="flex items-center justify-between p-4 md:px-8 bg-gradient-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
-            <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-10 drop-shadow-md" />
-            <div className="h-6 w-px bg-white/30 hidden md:block"></div>
-            <h1 className="text-lg md:text-xl font-bold">Gantt Chart Interaktif</h1>
+            setTasks(generatedTasks);
+
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+  // --- HANDLER TABEL INPUT ---
+    const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start'|'end', value: string) => {
+        setTasks(prev => prev.map(t => {
+            if(t.id === taskId) {
+                const newRanges = [...t.ranges];
+                newRanges[rangeIdx][field] = value;
+                return {...t, ranges: newRanges};
+            }
+            return t;
+        }));
+    };
+
+    const handleDependencyChange = (taskId: number, parentIdStr: string) => {
+        setTasks(prev => prev.map(t => {
+            if(t.id === taskId) {
+                return {...t, dependencies: parentIdStr ? [parseInt(parentIdStr)] : []};
+            }
+            return t;
+        }));
+    };
+
+    const addRange = (taskId: number) => {
+        setTasks(prev => prev.map(t => {
+            if(t.id === taskId) {
+                return {...t, ranges: [...t.ranges, {start: '', end: '', keterlambatan: 0}]};
+            }
+            return t;
+        }));
+    };
+
+    const removeRange = async (taskId: number, rangeIdx: number) => {
+        const taskObj = tasks.find(t => t.id === taskId);
+        if (!taskObj) return;
+
+        const rangeToRemove = taskObj.ranges[rangeIdx];
+        
+        // Jika range sudah memiliki nilai start/end, tanyakan konfirmasi & hapus dari server API
+        if (rangeToRemove.start && rangeToRemove.end) {
+            const isConfirmed = window.confirm("Hapus periode ini? Jika sudah disimpan, data ini akan dihapus dari server.");
+            if (!isConfirmed) return;
+
+            try {
+                const cleanBaseUrl = API_URL.replace(/\/$/, "");
+                
+                // 1. CARI TANGGAL ASLI DARI DATABASE (Mencegah beda format / "Failed to fetch")
+                let dateStartStr = "";
+                let dateEndStr = "";
+                let foundMatch = false;
+
+                if (rawDayGanttData && rawDayGanttData.length > 0) {
+                    const rawDataList = rawDayGanttData.filter((d: any) => 
+                        (d.Kategori || "").toLowerCase().trim() === taskObj.name.toLowerCase().trim()
+                    );
+                    // Ambil data yang berurutan sesuai index
+                    if (rawDataList[rangeIdx]) {
+                        dateStartStr = rawDataList[rangeIdx].h_awal;
+                        dateEndStr = rawDataList[rangeIdx].h_akhir;
+                        foundMatch = true;
+                    }
+                }
+
+                // 2. JIKA DATA BARU (Belum ada di DB), HITUNG MANUAL
+                if (!foundMatch) {
+                    const pStart = new Date(projectData.startDate);
+                    const dS = new Date(pStart); dS.setDate(pStart.getDate() + parseInt(rangeToRemove.start) - 1);
+                    const dE = new Date(pStart); dE.setDate(pStart.getDate() + parseInt(rangeToRemove.end) - 1);
+                    dateStartStr = formatDateID(dS);
+                    dateEndStr = formatDateID(dE);
+                }
+
+                // 3. CEK VALIDASI (Pencegah Error Server)
+                if (dateStartStr.includes("NaN") || dateEndStr.includes("NaN")) {
+                    console.warn("Format tanggal belum sempurna, mengabaikan hapus ke server...");
+                } else {
+                    const payload = {
+                        "nomor_ulok": projectData.ulokClean,
+                        "lingkup_pekerjaan": projectData.work.toUpperCase(),
+                        "remove_kategori_data": [{
+                            "Kategori": taskObj.name,
+                            "h_awal": dateStartStr,
+                            "h_akhir": dateEndStr
+                        }]
+                    };
+
+                    // Tembak endpoint API untuk hapus baris di server
+                    const response = await fetch(`${cleanBaseUrl}/api/gantt/day/insert`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    // Jika server merespon dengan kegagalan HTTP
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        throw new Error(`Server Error (${response.status}): ${errText}`);
+                    }
+                }
+                
+            } catch (err: any) {
+                console.error("Gagal menghapus data di server:", err);
+                alert("Gagal menghapus di server: " + err.message);
+                return; // STOP di sini, jangan hapus UI jika server gagal agar data tetap sinkron
+            }
+        }
+
+        // Hapus UI inputan secara real-time
+        setTasks(prev => prev.map(t => {
+            if(t.id === taskId) {
+                const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
+                // Sisakan minimal 1 baris kosong jika semua baris dihapus
+                if (newRanges.length === 0) newRanges.push({start: '', end: '', keterlambatan: 0});
+                return {...t, ranges: newRanges};
+            }
+            return t;
+        }));
+    };
+
+  // --- API SUBMIT FUNCTIONS ---
+    const handleSaveData = async (status: 'Active' | 'Terkunci') => {
+        setIsApplying(true);
+        try {
+            const cleanBaseUrl = API_URL.replace(/\/$/, "");
+            const email = sessionStorage.getItem('loggedInUserEmail') || "-";
+            const cabang = sessionStorage.getItem('loggedInUserCabang') || "-";
+            
+            const payload: any = {
+                "Nomor Ulok": projectData.ulokClean,
+                "Lingkup_Pekerjaan": projectData.work.toUpperCase(),
+                "Status": status,
+                "Email_Pembuat": email,
+                "Nama_Toko": projectData.store,
+                "Proyek": "Reguler",
+                "Alamat": "-",
+                "Cabang": cabang,
+                "Nama_Kontraktor": "PT KONTRAKTOR",
+            };
+
+            const dayPayload: any[] = [];
+            const depPayload: any[] = [];
+            const pStart = new Date(projectData.startDate);
+
+            tasks.forEach(t => {
+                payload[`Kategori_${t.id}`] = t.name;
+                
+                if(t.ranges && t.ranges[0] && t.ranges[0].start) {
+                    const startDay = parseInt(t.ranges[0].start);
+                    const endDay = parseInt(t.ranges[t.ranges.length-1].end);
+                    
+                    const dS = new Date(pStart); dS.setDate(pStart.getDate() + startDay - 1);
+                    const dE = new Date(pStart); dE.setDate(pStart.getDate() + endDay - 1);
+                    
+                    payload[`Hari_Mulai_Kategori_${t.id}`] = dS.toISOString().split('T')[0];
+                    payload[`Hari_Selesai_Kategori_${t.id}`] = dE.toISOString().split('T')[0];
+                    payload[`Keterlambatan_Kategori_${t.id}`] = "0";
+
+                    t.ranges.forEach((r: any) => {
+                        if(!r.start || !r.end) return;
+                        const rdS = new Date(pStart); rdS.setDate(pStart.getDate() + parseInt(r.start) - 1);
+                        const rdE = new Date(pStart); rdE.setDate(pStart.getDate() + parseInt(r.end) - 1);
+                        dayPayload.push({
+                            "Nomor Ulok": projectData.ulokClean,
+                            "Lingkup_Pekerjaan": projectData.work.toUpperCase(),
+                            "Kategori": t.name,
+                            "h_awal": formatDateID(rdS),
+                            "h_akhir": formatDateID(rdE)
+                        });
+                    });
+                }
+
+                if(t.dependencies && t.dependencies.length > 0) {
+                    t.dependencies.forEach((pId: number) => {
+                        const pTask = tasks.find(pt => pt.id === pId);
+                        if(pTask) {
+                            depPayload.push({
+                                "Kategori": pTask.name.toUpperCase(),
+                                "Kategori_Terikat": t.name.toUpperCase()
+                            });
+                        }
+                    });
+                }
+            });
+
+            await fetch(`${cleanBaseUrl}/api/gantt/insert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if(dayPayload.length > 0) await fetch(`${cleanBaseUrl}/api/gantt/day/insert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dayPayload) });
+            if(depPayload.length > 0) {
+                await fetch(`${cleanBaseUrl}/api/gantt/dependency/insert`, { 
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ "nomor_ulok": projectData.ulokClean, "lingkup_pekerjaan": projectData.work.toUpperCase(), "dependency_data": depPayload }) 
+                });
+            }
+            if(status === 'Terkunci') {
+                alert("Berhasil! Jadwal telah dikunci.");
+                router.push('/dashboard');
+            } else {
+                alert("Draft berhasil disimpan.");
+                loadGanttData(selectedUlok); // ✅ PERBAIKAN DI SINI
+            }
+        } catch (e) {
+            alert("Gagal menyimpan data.");
+            console.error(e);
+        } finally {
+            setIsApplying(false);
+        }
+    };
+
+    const handlePICDelaySave = async () => {
+        if(!delayTaskIdx || delayDays < 0) return alert("Pilih tahapan dan masukkan jumlah hari yang valid.");
+        const item = rawDayGanttData[parseInt(delayTaskIdx)];
+        if(!item) return;
+
+        try {
+            const cleanBaseUrl = API_URL.replace(/\/$/, "");
+            const payload = {
+                nomor_ulok: projectData.ulokClean,
+                lingkup_pekerjaan: projectData.work.toUpperCase(),
+                kategori: item.Kategori.toUpperCase(),
+                h_awal: item.h_awal,
+                h_akhir: item.h_akhir,
+                keterlambatan: delayDays
+            };
+            await fetch(`${cleanBaseUrl}/api/gantt/day/keterlambatan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            alert("Keterlambatan diterapkan.");
+            
+            loadGanttData(selectedUlok); // ✅ PERBAIKAN DI SINI
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+  // --- LOGIKA KALKULASI GRAFIK (RIPPLE EFFECT) ---
+    const chartData = useMemo(() => {
+        if (!projectData || tasks.length === 0) return null;
+
+        let processedTasks = [...tasks];
+        let maxTaskEndDay = 0;
+        let effectiveEndDates: Record<number, number> = {};
+
+        // Hitung Shift (Pergeseran) & Durasi Maksimal
+        processedTasks.forEach(task => {
+            let maxShift = 0;
+            if (task.dependencies && task.dependencies.length > 0) {
+                task.dependencies.forEach((parentId: number) => {
+                    const parentTask = processedTasks.find(t => t.id === parentId);
+                    if (parentTask) {
+                        const parentShift = parentTask.computed?.shift || 0;
+                        const pRanges = parentTask.ranges || [];
+                        const parentDelay = pRanges.length > 0 ? (parseInt(pRanges[pRanges.length-1].keterlambatan) || 0) : 0;
+                        const potentialShift = parentShift + parentDelay;
+                        if (potentialShift > maxShift) maxShift = potentialShift;
+                    }
+                });
+            }
+            
+            task.computed = { shift: maxShift };
+
+            const ranges = task.ranges || [];
+            if (ranges.length > 0 && ranges[0].start) {
+                const lastRange = ranges[ranges.length - 1];
+                effectiveEndDates[task.id] = parseInt(lastRange.end) + maxShift + (parseInt(lastRange.keterlambatan) || 0);
+                
+                ranges.forEach((r: any) => {
+                    const endVal = parseInt(r.end) + maxShift + (parseInt(r.keterlambatan) || 0);
+                    if(endVal > maxTaskEndDay) maxTaskEndDay = endVal;
+                });
+            }
+        });
+        const totalDaysToRender = Math.max(projectData.duration, maxTaskEndDay) + 5;
+        const totalChartWidth = totalDaysToRender * DAY_WIDTH;
+        const svgHeight = processedTasks.length * ROW_HEIGHT;
+        // Hitung Hari Pengawasan
+        const supervisionDays: Record<number, boolean> = {};
+        const rules = SUPERVISION_RULES[projectData.duration];
+        if (rules) rules.forEach(d => supervisionDays[d] = true);
+        // Hitung Koordinat Garis SVG
+        let taskCoordinates: Record<number, any> = {};
+        processedTasks.forEach((task, idx) => {
+            const shift = task.computed.shift || 0;
+            const ranges = task.ranges || [];
+            if(ranges.length > 0 && ranges[0].start) {
+                const maxEnd = Math.max(...ranges.map((r:any) => parseInt(r.end) + shift + (parseInt(r.keterlambatan) || 0)));
+                const minStart = Math.min(...ranges.map((r:any) => parseInt(r.start) + shift));
+                taskCoordinates[task.id] = {
+                    centerY: (idx * ROW_HEIGHT) + (ROW_HEIGHT / 2),
+                    endX: maxEnd * DAY_WIDTH,
+                    startX: (minStart - 1) * DAY_WIDTH
+                };
+            }
+        });
+        let svgLines = [];
+        for (let i=0; i < processedTasks.length; i++) {
+            const task = processedTasks[i];
+            if(task.dependencies && task.dependencies.length > 0) {
+                for (let pId of task.dependencies) {
+                    const parent = taskCoordinates[pId];
+                    const me = taskCoordinates[task.id];
+                    if(parent && me && parent.endX !== undefined && me.startX !== undefined) {
+                        const startX = parent.endX, startY = parent.centerY;
+                        const endX = me.startX, endY = me.centerY;
+                        let tension = (endX - startX) < 40 ? 60 : 40;
+                        if ((endX - startX) < 0) tension = 100;
+                        const path = `M ${startX} ${startY} C ${startX + tension} ${startY}, ${endX - tension} ${endY}, ${endX} ${endY}`;
+                        svgLines.push(
+                            <g key={`${pId}-${task.id}`}>
+                                <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
+                                <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                            </g>
+                        );
+                    }
+                }
+            }
+        }
+        return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines };
+    }, [tasks, projectData]);
+
+    return (
+        <div className="min-h-screen bg-slate-50 font-sans pb-12">
+        {/* HEADER */}
+        <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20">
+            <div className="flex items-center gap-3">
+                <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
+                <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-10 drop-shadow-md" />
+                <div className="h-6 w-px bg-white/30 hidden md:block"></div>
+                <h1 className="text-lg md:text-xl font-bold">Gantt Chart Interaktif</h1>
+            </div>
+            <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm">
+                {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
+            </Badge>
+        </header>
+
+        <main className="p-4 md:p-8 max-w-400 mx-auto mt-2">
+            {/* KONTROL PENCARIAN & INFO PROYEK */}
+            <div className="flex flex-col lg:flex-row gap-6 mb-6">
+                <Card className="w-full lg:w-1/3 shadow-sm">
+                    <CardContent className="p-6">
+                        <div className="space-y-3">
+                            <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
+                            {urlUlok ? (
+                                <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
+                                    <span>{urlUlok}</span><Lock className="w-5 h-5 text-slate-400" />
+                                </div>
+                            ) : (
+                                <select 
+                                    className="w-full p-3 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
+                                    value={selectedUlok}
+                                    onChange={(e) => { setSelectedUlok(e.target.value); loadGanttData(e.target.value); }}
+                                >
+                                    <option value="">-- Pilih Proyek Anda --</option>
+                                    {availableProjects.map((proj, idx) => {
+                                        const ulokValue = proj.value || proj['Nomor Ulok'] || proj.ulokClean || (typeof proj === 'string' ? proj : '');
+                                        const textLabel = proj.label || proj['Nama_Toko'] || proj.store || ulokValue;
+                                        return <option key={idx} value={ulokValue}>{textLabel}</option>;
+                                    })}
+                                </select>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {projectData && (
+                    <Card className="w-full lg:w-2/3 bg-blue-50 border-blue-200 shadow-sm">
+                        <CardContent className="p-6 flex flex-wrap gap-x-10 gap-y-6 items-center">
+                            <div><p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Nama Toko</p><p className="text-xl font-bold text-blue-900">{projectData.store}</p></div>
+                            <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
+                            <div><p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Lingkup</p><p className="text-xl font-bold text-blue-900">{projectData.work}</p></div>
+                            <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
+                            <div><p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Durasi</p><p className="text-xl font-bold text-blue-900">{projectData.duration} Hari</p></div>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+
+            {/* TEMPAT RENDER TABEL INPUT KONTRAKTOR DINAMIS */}
+            {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
+                    <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
+                        <div>
+                            <h2 className="font-bold text-slate-800 text-lg">Input Jadwal & Keterikatan (Dependencies)</h2>
+                            <p className="text-sm text-slate-500">Item pekerjaan ditarik otomatis dari form RAB yang telah disubmit.</p>
+                        </div>
+                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{tasks.length} Item Pekerjaan</Badge>
+                    </div>
+                    
+                    {tasks.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left border-collapse min-w-225">
+                                <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
+                                    <tr>
+                                        <th className="p-4 w-12 text-center border-r">No</th>
+                                        <th className="p-4 w-[30%] border-r">Tahapan Pekerjaan</th>
+                                        <th className="p-4 w-[25%] border-r">Keterikatan (Bisa dikerjakan setelah..)</th>
+                                        <th className="p-4">Durasi (Hari Ke-)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tasks.map(task => (
+                                        <tr key={task.id} className="border-b hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-4 text-center font-bold text-slate-500 border-r">{task.id}</td>
+                                            <td className="p-4 font-semibold text-slate-800 border-r">{task.name}</td>
+                                            
+                                            <td className="p-4 border-r">
+                                                <select 
+                                                    className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-xs"
+                                                    value={task.dependencies[0] || ''}
+                                                    onChange={(e) => handleDependencyChange(task.id, e.target.value)}
+                                                >
+                                                    <option value="">- Tidak Ada (Dikerjakan paralel) -</option>
+                                                    {tasks.filter(t => t.id < task.id).map(opt => (
+                                                        <option key={opt.id} value={opt.id}>{opt.id}. {opt.name}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                            <td className="p-4 space-y-2">
+                                                {task.ranges.map((r: any, idx: number) => (
+                                                    <div key={idx} className="flex items-center gap-2 mb-2">
+                                                        <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
+                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
+                                                            <input 
+                                                                type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
+                                                                value={r.start} onChange={(e) => handleRangeChange(task.id, idx, 'start', e.target.value)}
+                                                                placeholder="Start" min="1" max={projectData?.duration || 99}
+                                                            />
+                                                        </div>
+                                                        <span className="text-slate-400 text-xs">➜</span>
+                                                        <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
+                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
+                                                            <input 
+                                                                type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
+                                                                value={r.end} onChange={(e) => handleRangeChange(task.id, idx, 'end', e.target.value)}
+                                                                placeholder="End" min="1" max={projectData?.duration || 99}
+                                                            />
+                                                        </div>
+                                                        
+                                                        {/* Tombol Hapus: Munculkan icon Trash */}
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => removeRange(task.id, idx)} 
+                                                            className="text-red-500 hover:bg-red-50 p-1.5 rounded border border-transparent hover:border-red-200 transition-colors"
+                                                            title="Hapus Periode"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                
+                                                {/* Tombol Tambah Periode */}
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => addRange(task.id)} 
+                                                    className="text-xs text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-1 flex items-center"
+                                                >
+                                                    <Plus className="w-3 h-3 mr-1" /> Tambah Periode Terputus
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center text-slate-500">
+                            <p className="font-semibold mb-1">Data Pekerjaan Kosong</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* TEMPAT RENDER FORM KETERLAMBATAN PIC */}
+            {!isLoading && selectedUlok && appMode === 'pic' && isProjectLocked && tasks.length > 0 && (
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
+                    <h3 className="font-bold text-amber-700 mb-4 flex items-center"><Info className="w-5 h-5 mr-2" /> Input Keterlambatan Pengawasan</h3>
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 space-y-2 w-full">
+                            <label className="text-sm font-semibold text-slate-600">Pilih Tahapan yang Terlambat</label>
+                            <select 
+                                className="w-full p-3 border border-slate-300 rounded-md bg-slate-50 focus:bg-white outline-none"
+                                value={delayTaskIdx}
+                                onChange={(e) => {
+                                    setDelayTaskIdx(e.target.value);
+                                    if(e.target.value !== '') setDelayDays(parseInt(rawDayGanttData[parseInt(e.target.value)]?.keterlambatan || 0));
+                                }}
+                            >
+                                <option value="">-- Pilih Tahapan (Dari Data Tersimpan) --</option>
+                                {rawDayGanttData.map((d, idx) => (
+                                    <option key={idx} value={idx}>{d.Kategori} ({d.h_awal} - {d.h_akhir})</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="w-full md:w-32 space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Jml Hari (+)</label>
+                            <input type="number" className="w-full p-3 border border-slate-300 rounded-md font-bold text-slate-800 text-center outline-none focus:border-amber-500" value={delayDays} onChange={(e) => setDelayDays(parseInt(e.target.value)||0)} min="0" />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* GRAFIK GANTT CHART */}
+            <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
+                <div className="p-4 bg-slate-100 border-b flex justify-center gap-6 text-sm font-medium">
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Sesuai Target</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-sky-200 border border-sky-300 rounded shadow-inner"></div> Masa Pengawasan</div>
+                </div>
+                
+                <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
+                    {isLoading ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
+                            <Loader2 className="w-12 h-12 animate-spin text-red-600 mb-4" />
+                            <p className="font-semibold text-slate-700">Mempersiapkan Jadwal Proyek...</p>
+                        </div>
+                    ) : chartData ? (
+                        <div>
+                            {/* HEADER HARI */}
+                            <div className="flex sticky top-0 bg-white z-40 border-b border-slate-200 shadow-sm">
+                                <div className="w-62.5 shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r border-slate-200 sticky left-0 z-50">Tahapan</div>
+                                <div className="flex" style={{ width: chartData.totalChartWidth }}>
+                                    {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
+                                        const isSup = chartData.supervisionDays[i+1];
+                                        return (
+                                            <div key={i} className={`shrink-0 text-center border-r border-slate-100 py-1 text-xs font-bold ${isSup ? 'bg-sky-200 text-sky-900 border-b-2 border-sky-500' : 'bg-slate-50 text-slate-500'}`} style={{ width: DAY_WIDTH }}>
+                                                {i+1}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                            
+                            {/* BODY CHART */}
+                            <div className="relative">
+                                {chartData.processedTasks.map((task: any, idx: number) => {
+                                    const shift = task.computed.shift || 0;
+                                    return (
+                                        <div key={task.id} className="flex border-b border-slate-50 hover:bg-slate-50/50" style={{ height: ROW_HEIGHT }}>
+                                            <div className="w-62.5 shrink-0 px-2.5 py-1 bg-white border-r border-slate-200 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.02)] flex flex-col justify-center">
+                                                <span className="text-[13px] font-semibold text-slate-800 leading-tight">{task.name}</span>
+                                            </div>
+                                            <div className="relative" style={{ width: chartData.totalChartWidth }}>
+                                                {task.ranges && task.ranges.map((r: any, rIdx: number) => {
+                                                    if(!r.start || !r.end) return null;
+                                                    const s = parseInt(r.start) + shift;
+                                                    const e = parseInt(r.end) + shift;
+                                                    const dur = e - s + 1;
+                                                    const delay = parseInt(r.keterlambatan) || 0;
+                                                    return (
+                                                        <React.Fragment key={rIdx}>
+                                                            <div 
+                                                                className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
+                                                                style={{ left: (s - 1) * DAY_WIDTH, width: dur * DAY_WIDTH - 1 }}
+                                                            >
+                                                                {dur} Hari
+                                                            </div>
+                                                            {delay > 0 && (
+                                                                <div 
+                                                                    className="absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
+                                                                    style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
+                                                                >
+                                                                    +{delay}
+                                                                </div>
+                                                            )}
+                                                        </React.Fragment>
+                                                    )
+                                                })}
+                                                {/* Supervision Markers */}
+                                                {Object.keys(chartData.supervisionDays).map(day => (
+                                                    <div key={day} className="absolute top-10 w-7.5 h-1 bg-sky-500 rounded-full z-15 ml-1" style={{ left: (parseInt(day) - 1) * DAY_WIDTH }}></div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+
+                                {/* SVG LINES */}
+                                <svg className="absolute top-0 pointer-events-none z-30" style={{ left: 250, width: chartData.totalChartWidth, height: chartData.svgHeight }}>
+                                    <defs>
+                                        <marker id="depArrow" viewBox="0 0 10 6" refX="7" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+                                            <path d="M0,0 L10,3 L0,6 Z" className="fill-blue-500" />
+                                        </marker>
+                                    </defs>
+                                    {chartData.svgLines}
+                                </svg>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                            <p>Silakan pilih proyek / ulok di atas untuk mulai</p>
+                        </div>
+                    )}
+                </div>
+            </Card>
+
+            {/* BOTTOM ACTIONS */}
+            {projectData && !isLoading && tasks.length > 0 && (
+                <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
+                    {appMode === 'kontraktor' && !isProjectLocked && (
+                        <>
+                            <Button variant="outline" onClick={() => handleSaveData('Active')} disabled={isApplying} className="h-12 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-6 w-full md:w-auto">
+                                {isApplying ? <Loader2 className="w-5 h-5 animate-spin mr-2"/> : "Simpan Draft"}
+                            </Button>
+                            <Button onClick={() => handleSaveData('Terkunci')} disabled={isApplying} className="h-12 bg-red-600 hover:bg-red-700 shadow-md font-bold px-8 text-[15px] w-full md:w-auto">
+                                <Lock className="w-5 h-5 mr-2" /> {isApplying ? "Menyimpan..." : "Kunci & Publish Jadwal"}
+                            </Button>
+                        </>
+                    )}
+                    {appMode === 'pic' && isProjectLocked && (
+                        <Button onClick={handlePICDelaySave} className="h-12 bg-blue-600 hover:bg-blue-700 shadow-md font-bold px-8 text-[15px] w-full md:w-auto">
+                            <Send className="w-5 h-5 mr-2" /> Simpan Update Keterlambatan
+                        </Button>
+                    )}
+                </div>
+            )}
+        </main>
         </div>
-        <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm">
-            {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
-        </Badge>
-      </header>
-
-      <main className="p-4 md:p-8 max-w-[1600px] mx-auto mt-2">
-          {/* KONTROL PENCARIAN & INFO PROYEK */}
-          <div className="flex flex-col lg:flex-row gap-6 mb-6">
-              
-              <Card className="w-full lg:w-1/3 shadow-sm">
-                  <CardContent className="p-6">
-                      <div className="space-y-3">
-                          <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
-                          {urlUlok ? (
-                              <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
-                                  <span>{urlUlok}</span><Lock className="w-5 h-5 text-slate-400" />
-                              </div>
-                          ) : (
-                              <select 
-                                className="w-full p-3 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
-                                value={selectedUlok}
-                                onChange={(e) => { setSelectedUlok(e.target.value); loadGanttData(e.target.value); }}
-                              >
-                                  <option value="">-- Pilih Proyek Anda --</option>
-                                  {availableProjects.map((proj, idx) => {
-                                      const ulokValue = proj.value || proj['Nomor Ulok'] || proj.ulokClean || (typeof proj === 'string' ? proj : '');
-                                      const textLabel = proj.label || proj['Nama_Toko'] || proj.store || ulokValue;
-                                      return <option key={idx} value={ulokValue}>{textLabel}</option>;
-                                  })}
-                              </select>
-                          )}
-                      </div>
-                  </CardContent>
-              </Card>
-
-              {/* INFORMASI PROYEK */}
-              {projectData && (
-                  <Card className="w-full lg:w-2/3 bg-blue-50 border-blue-200 shadow-sm">
-                      <CardContent className="p-6 flex flex-wrap gap-x-10 gap-y-6 items-center">
-                          <div>
-                              <p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Nama Toko</p>
-                              <p className="text-xl font-bold text-blue-900">{projectData.store}</p>
-                          </div>
-                          <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
-                          <div>
-                              <p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Lingkup</p>
-                              <p className="text-xl font-bold text-blue-900">{projectData.work}</p>
-                          </div>
-                          <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
-                          <div>
-                              <p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Durasi</p>
-                              <p className="text-xl font-bold text-blue-900">{projectData.duration} Hari</p>
-                          </div>
-                      </CardContent>
-                  </Card>
-              )}
-          </div>
-
-          {/* TEMPAT RENDER TABEL INPUT KONTRAKTOR DINAMIS */}
-          {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
-                  <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
-                      <div>
-                        <h2 className="font-bold text-slate-800 text-lg">Input Jadwal & Keterikatan (Dependencies)</h2>
-                        <p className="text-sm text-slate-500">Item pekerjaan ditarik otomatis dari form RAB yang telah disubmit.</p>
-                      </div>
-                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{tasks.length} Item Pekerjaan</Badge>
-                  </div>
-                  
-                  {tasks.length > 0 ? (
-                      <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left border-collapse min-w-[900px]">
-                              <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
-                                  <tr>
-                                      <th className="p-4 w-12 text-center border-r">No</th>
-                                      <th className="p-4 w-[30%] border-r">Tahapan Pekerjaan</th>
-                                      <th className="p-4 w-[25%] border-r">Keterikatan (Bisa dikerjakan setelah..)</th>
-                                      <th className="p-4">Durasi (Hari Ke-)</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {tasks.map(task => (
-                                      <tr key={task.id} className="border-b hover:bg-slate-50/50 transition-colors">
-                                          <td className="p-4 text-center font-bold text-slate-500 border-r">{task.id}</td>
-                                          <td className="p-4 font-semibold text-slate-800 border-r">{task.name}</td>
-                                          
-                                          <td className="p-4 border-r">
-                                              <select 
-                                                  className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-xs"
-                                                  value={task.dependencies[0] || ''}
-                                                  onChange={(e) => handleDependencyChange(task.id, e.target.value)}
-                                              >
-                                                  <option value="">- Tidak Ada (Dikerjakan paralel) -</option>
-                                                  {tasks.filter(t => t.id < task.id).map(opt => (
-                                                      <option key={opt.id} value={opt.id}>{opt.id}. {opt.name}</option>
-                                                  ))}
-                                              </select>
-                                          </td>
-                                          
-                                          <td className="p-4 space-y-2">
-                                              {task.ranges.map((r: any, idx: number) => (
-                                                  <div key={idx} className="flex items-center gap-2">
-                                                      <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
-                                                          <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
-                                                          <input 
-                                                              type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
-                                                              value={r.start} onChange={(e) => handleRangeChange(task.id, idx, 'start', e.target.value)}
-                                                              placeholder="Start" min="1" max={projectData?.duration || 99}
-                                                          />
-                                                      </div>
-                                                      <span className="text-slate-400 text-xs">➜</span>
-                                                      <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
-                                                          <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
-                                                          <input 
-                                                              type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
-                                                              value={r.end} onChange={(e) => handleRangeChange(task.id, idx, 'end', e.target.value)}
-                                                              placeholder="End" min="1" max={projectData?.duration || 99}
-                                                          />
-                                                      </div>
-                                                      {idx > 0 && (
-                                                          <button type="button" onClick={() => removeRange(task.id, idx)} className="text-red-500 hover:bg-red-50 p-1.5 rounded border border-transparent hover:border-red-200 transition-colors">
-                                                              <Trash2 className="w-4 h-4" />
-                                                          </button>
-                                                      )}
-                                                  </div>
-                                              ))}
-                                              <button type="button" onClick={() => addRange(task.id)} className="text-xs text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-2 flex items-center">
-                                                  <Plus className="w-3 h-3 mr-1" /> Tambah Periode Terputus
-                                              </button>
-                                          </td>
-                                      </tr>
-                                  ))}
-                              </tbody>
-                          </table>
-                      </div>
-                  ) : (
-                      <div className="p-8 text-center text-slate-500">
-                          <p className="font-semibold mb-1">Data Pekerjaan Kosong</p>
-                          <p className="text-sm">Tidak ditemukan data kategori pekerjaan dari RAB proyek ini. Pastikan form RAB telah diisi dengan benar.</p>
-                      </div>
-                  )}
-              </div>
-          )}
-
-          {/* TEMPAT RENDER FORM KETERLAMBATAN PIC */}
-          {!isLoading && selectedUlok && appMode === 'pic' && isProjectLocked && tasks.length > 0 && (
-             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
-                 <h3 className="font-bold text-amber-700 mb-4 flex items-center"><Info className="w-5 h-5 mr-2" /> Input Keterlambatan Pengawasan</h3>
-                 <div className="flex flex-col md:flex-row gap-4 items-end">
-                     <div className="flex-1 space-y-2 w-full">
-                         <label className="text-sm font-semibold text-slate-600">Pilih Tahapan yang Terlambat</label>
-                         <select className="w-full p-3 border border-slate-300 rounded-md bg-slate-50 focus:bg-white outline-none">
-                            <option value="">-- Pilih Tahapan --</option>
-                            {tasks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                         </select>
-                     </div>
-                     <div className="w-full md:w-32 space-y-2">
-                         <label className="text-sm font-semibold text-slate-600">Jml Hari (+)</label>
-                         <input type="number" className="w-full p-3 border border-slate-300 rounded-md font-bold text-slate-800 text-center outline-none focus:border-amber-500" placeholder="0" min="0" />
-                     </div>
-                 </div>
-             </div>
-          )}
-
-          {/* TEMPAT RENDER GRAFIK GANTT CHART */}
-          <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
-              <div className="p-4 bg-slate-100 border-b flex justify-center gap-6 text-sm font-medium">
-                  <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Sesuai Target</div>
-                  <div className="flex items-center gap-2"><div className="w-4 h-4 bg-gradient-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
-                  <div className="flex items-center gap-2"><div className="w-4 h-4 bg-sky-200 border border-sky-300 rounded shadow-inner"></div> Masa Pengawasan</div>
-              </div>
-              
-              <div className="p-0 overflow-x-auto min-h-[400px] relative bg-white" id="ganttChartContainer">
-                  {isLoading ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
-                          <Loader2 className="w-12 h-12 animate-spin text-red-600 mb-4" />
-                          <p className="font-semibold text-slate-700">Mempersiapkan Jadwal Proyek...</p>
-                      </div>
-                  ) : !selectedUlok ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
-                           <p>Silakan pilih proyek / ulok di atas untuk mulai</p>
-                      </div>
-                  ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
-                           <p className="text-lg font-bold text-slate-600 mb-2">Area Tampilan Grafik</p>
-                           <p className="text-sm text-center max-w-md">Tabel Input Dinamis dari RAB sudah aktif. <br/> Anda dapat mengisi form tanggal dan keterikatan di atas.</p>
-                      </div>
-                  )}
-              </div>
-          </Card>
-
-          {/* BOTTOM ACTIONS */}
-          {projectData && !isLoading && tasks.length > 0 && (
-              <div className="sticky bottom-4 z-10 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
-                  
-                  {appMode === 'kontraktor' && !isProjectLocked && (
-                      <>
-                        <Button variant="outline" className="h-12 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-6 w-full md:w-auto">
-                            Simpan Draft
-                        </Button>
-                        <Button className="h-12 bg-red-600 hover:bg-red-700 shadow-md font-bold px-8 text-[15px] w-full md:w-auto">
-                            <Lock className="w-5 h-5 mr-2" /> Kunci & Publish Jadwal
-                        </Button>
-                      </>
-                  )}
-
-                  {appMode === 'pic' && isProjectLocked && (
-                      <Button className="h-12 bg-blue-600 hover:bg-blue-700 shadow-md font-bold px-8 text-[15px] w-full md:w-auto">
-                          <Send className="w-5 h-5 mr-2" /> Simpan Update Keterlambatan
-                      </Button>
-                  )}
-              </div>
-          )}
-
-      </main>
-    </div>
-  );
+    );
 }
 
 export default function Page() {

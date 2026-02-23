@@ -51,6 +51,7 @@ const ROLE_CONFIG: Record<string, string[]> = {
 
 export default function DashboardPage() {
     const router = useRouter();
+    const [userInfo, setUserInfo] = useState({ name: '', role: '', cabang: '' });
     const [allowedMenus, setAllowedMenus] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
@@ -81,6 +82,12 @@ export default function DashboardPage() {
         setAllowedMenus(filteredMenus);
         setIsLoading(false);
 
+        const email = sessionStorage.getItem('loggedInUserEmail') || '';
+        setUserInfo({
+            name: email.split('@')[0].toUpperCase(),
+            role: sessionStorage.getItem('userRole') || '',
+            cabang: sessionStorage.getItem('loggedInUserCabang') || ''
+        });
     }, [router]);
 
     const handleLogout = () => {
@@ -94,46 +101,38 @@ export default function DashboardPage() {
         <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-12">
         
         {/* HEADER BARU */}
-        <header className="flex flex-col md:flex-row items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-10">
-            
-            {/* Kiri: Group Logo dan Title */}
-            <div className="flex items-center gap-3 md:gap-5 w-full md:w-auto justify-center md:justify-start mb-4 md:mb-0">
-            {/* Logo Alfamart (Transparan & Drop Shadow) */}
-            <img 
-                src="/assets/Alfamart-Emblem.png" 
-                alt="Alfamart Logo" 
-                className="h-10 md:h-12 object-contain drop-shadow-md" 
-            />
-            
-            {/* Garis Pemisah (Hanya muncul di Desktop) */}
-            <div className="h-8 w-px bg-white/30 hidden md:block"></div>
-            
-            {/* Judul */}
-            <h1 className="text-xl md:text-2xl font-extrabold tracking-widest drop-shadow-md">
-                SPARTA
-            </h1>
-            
-            {/* Garis Pemisah (Hanya muncul di Desktop) */}
-            <div className="h-8 w-px bg-white/30 hidden md:block"></div>
+        <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
+                {/* KIRI: Logo & Judul */}
+                <div className="flex items-center gap-3 md:gap-5">
+                    <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
+                    <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block"></div>
+                    <h1 className="text-lg md:text-2xl font-bold md:font-extrabold tracking-widest drop-shadow-md">
+                        SPARTA
+                    </h1>
+                    {/* Logo Building hanya di Dashboard, di halaman lain bisa dihapus */}
+                    <img src="/assets/Building-Logo.png" alt="BM Logo" className="h-8 md:h-12 hidden sm:block object-contain drop-shadow-md" />
+                </div>
 
-            {/* Logo Building (Transparan & Drop Shadow) */}
-            <img 
-                src="/assets/Building-Logo.png" 
-                alt="BM Logo" 
-                className="h-10 md:h-12 hidden sm:block object-contain drop-shadow-md" 
-            />
-            </div>
-            
-            {/* Kanan: Logout Button */}
-            <Button 
-            variant="outline" 
-            onClick={() => setLogoutDialogOpen(true)}
-            className="bg-black/10 hover:bg-white hover:text-red-700 text-white border-white/30 w-full md:w-auto transition-all shadow-sm backdrop-blur-sm"
-            >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-            </Button>
-        </header>
+                {/* TENGAH: Info User (Ide Anda) - Disembunyikan di HP layar sangat kecil agar tidak bertumpuk */}
+                {userInfo.name && (
+                    <div className="hidden md:flex flex-col items-center justify-center absolute left-1/2 transform -translate-x-1/2 text-center w-full max-w-75 pointer-events-none">
+                        <span className="text-[13px] md:text-sm font-bold text-white drop-shadow-md truncate w-full">
+                            {userInfo.name}
+                        </span>
+                        <span className="text-[10px] md:text-xs font-medium text-red-50 bg-black/20 px-3 py-0.5 rounded-full mt-0.5 backdrop-blur-sm border border-white/10 shadow-inner truncate max-w-[90%]">
+                            {userInfo.role} | {userInfo.cabang}
+                        </span>
+                    </div>
+                )}
+                
+                {/* KANAN: Tombol Aksi (Logout / Kembali / Notifikasi) */}
+                <div className="flex items-center gap-2 relative z-10">
+                    <Button variant="outline" onClick={() => setLogoutDialogOpen(true)} className="bg-black/10 hover:bg-white hover:text-red-700 text-white border-white/30 transition-all shadow-sm backdrop-blur-sm h-9 px-3 md:px-4">
+                        <LogOut className="w-4 h-4 md:mr-2" />
+                        <span className="hidden md:inline">Logout</span>
+                    </Button>
+                </div>
+            </header>
 
         {/* MAIN CONTENT */}
         <main className="max-w-7xl mx-auto p-4 md:p-8 mt-2">
