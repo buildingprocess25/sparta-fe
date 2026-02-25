@@ -304,3 +304,45 @@ export const submitSPKData = async (payload: any) => {
     }
     return result;
 };
+
+// =========================================================
+// 6. ENDPOINT PIC PENGAWASAN
+// =========================================================
+const PENGAWASAN_API_URL = "https://pengawasan-tambahspk.onrender.com/api/form";
+
+export const fetchPengawasanUlok = async (cabang: string) => {
+    return safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getKodeUlokByCabang=true&cabang=${encodeURIComponent(cabang)}`);
+};
+
+export const fetchPengawasanPic = async (cabang: string) => {
+    return safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&cabang=${encodeURIComponent(cabang)}`);
+};
+
+export const fetchPengawasanToko = async (ulok: string) => {
+    return safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getNamaToko=true&kode_ulok=${encodeURIComponent(ulok)}`);
+};
+
+export const fetchPengawasanSpkDetails = async (ulok: string) => {
+    return safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getSpkDetails=true&kode_ulok=${encodeURIComponent(ulok)}`);
+};
+
+export const fetchPengawasanSpkUrls = async (ulok: string) => {
+    return safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getAllSpkUrls=true&kode_ulok=${encodeURIComponent(ulok)}`);
+};
+
+export const fetchPengawasanRabUrls = async (ulok: string) => {
+    return safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getAllRabUrls=true&kode_ulok=${encodeURIComponent(ulok)}`);
+};
+
+export const submitPengawasanData = async (payload: any) => {
+    const res = await fetch(PENGAWASAN_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (result.status !== "success") {
+        throw new Error(result.message || "Gagal menyimpan data pengawasan.");
+    }
+    return result;
+};
