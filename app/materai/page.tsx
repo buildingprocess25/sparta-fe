@@ -216,7 +216,7 @@ export default function MateraiPage() {
 
                 {/* ================= VIEW: BUAT DOKUMEN ================= */}
                 {activeView === 'buat' && (
-                    <Card className="animate-in fade-in zoom-in-95 duration-300">
+                    <Card className="m-10 animate-in fade-in zoom-in-95 duration-300">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                             <h2 className="text-xl font-bold text-slate-800">Form Upload Dokumen</h2>
                             <Button variant="outline" onClick={() => setActiveView('menu')}>Kembali</Button>

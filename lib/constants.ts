@@ -1,3 +1,4 @@
+export const OPNAME_API_URL = "https://opnamebnm-mgbe.onrender.com";
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sparta-backend-5hdj.onrender.com";
 
 export const SIPIL_CATEGORIES = [
