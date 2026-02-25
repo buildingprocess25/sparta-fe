@@ -346,3 +346,51 @@ export const submitPengawasanData = async (payload: any) => {
     }
     return result;
 };
+
+// =========================================================
+// 7. ENDPOINT PENYIMPANAN DOKUMEN TOKO
+// =========================================================
+
+export const fetchDokumenToko = async (cabang: string) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    let url = `${cleanUrl}/api/doc/list`;
+    if (cabang && cabang.toLowerCase() !== "head office") {
+        url += `?cabang=${encodeURIComponent(cabang)}`;
+    }
+    return safeFetchJSON(url);
+};
+
+export const submitDokumenToko = async (payload: any) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    const res = await fetch(`${cleanUrl}/api/doc/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload), // Menggunakan JSON Base64, bukan FormData
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || result.message || "Gagal menyimpan dokumen.");
+    return result;
+};
+
+export const updateDokumenToko = async (id: string | number, payload: any) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    const res = await fetch(`${cleanUrl}/api/doc/update/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || result.message || "Gagal mengupdate dokumen.");
+    return result;
+};
+
+export const deleteDokumenToko = async (kode_toko: string) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    const res = await fetch(`${cleanUrl}/api/doc/delete/${encodeURIComponent(kode_toko)}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" }
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || result.message || "Gagal menghapus dokumen.");
+    return result;
+};
