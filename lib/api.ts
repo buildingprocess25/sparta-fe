@@ -266,3 +266,41 @@ export const submitILData = async (formData: FormData) => {
     }
     return result;
 };
+
+// =========================================================
+// 5. ENDPOINT SURAT PERINTAH KERJA (SPK)
+// =========================================================
+
+export const fetchApprovedRabs = async (cabang: string) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    // PERBAIKAN: Menggunakan endpoint yang benar sesuai backend Python Anda
+    return safeFetchJSON(`${cleanUrl}/api/get_approved_rab?cabang=${encodeURIComponent(cabang)}`);
+};
+
+export const fetchKontraktorList = async (cabang: string) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    return safeFetchJSON(`${cleanUrl}/api/get_kontraktor?cabang=${encodeURIComponent(cabang)}`);
+};
+
+export const checkSpkStatus = async (ulok: string, lingkup: string) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    try {
+        return await safeFetchJSON(`${cleanUrl}/api/get_spk_status?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`);
+    } catch (e) {
+        return null; // Jika 404 / tidak ada, berarti SPK ini baru (belum pernah disubmit)
+    }
+};
+
+export const submitSPKData = async (payload: any) => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    const res = await fetch(`${cleanUrl}/api/submit_spk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok || result.status !== "success") {
+        throw new Error(result.message || "Gagal menyimpan data SPK.");
+    }
+    return result;
+};
