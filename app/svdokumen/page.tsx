@@ -369,7 +369,7 @@ export default function DokumenPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
-            <header className="flex items-center justify-between p-4 md:px-8 bg-gradient-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20 relative">
+            <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
                 <div className="flex items-center gap-3 md:gap-5">
                     <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
                     <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
@@ -378,7 +378,7 @@ export default function DokumenPage() {
                 </div>
 
                 {userInfo.name && (
-                    <div className="hidden md:flex flex-col items-center justify-center absolute left-1/2 transform -translate-x-1/2 text-center w-full max-w-[300px] pointer-events-none">
+                    <div className="hidden md:flex flex-col items-center justify-center absolute left-1/2 transform -translate-x-1/2 text-center w-full max-w-75 pointer-events-none">
                         <span className="text-sm font-bold text-white drop-shadow-md truncate w-full">{userInfo.name}</span>
                         <span className="text-xs font-medium text-red-50 bg-black/20 px-3 py-0.5 rounded-full mt-0.5 backdrop-blur-sm border border-white/10 shadow-inner truncate max-w-[90%]">
                             {userInfo.role} | {userInfo.cabang}
@@ -387,7 +387,7 @@ export default function DokumenPage() {
                 )}
             </header>
 
-            <main className="max-w-[1400px] mx-auto p-4 md:p-8 mt-4">
+            <main className="max-w-350 mx-auto p-4 md:p-8 mt-4">
                 
                 {/* VIEW 1: LIST DATA */}
                 {activeView === 'list' && (
