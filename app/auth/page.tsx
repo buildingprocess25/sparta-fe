@@ -9,8 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff, ChevronLeft } from 'lucide-react';
 
+// Import base URL dari constants
+import { API_URL } from '@/lib/constants';
+
+// URL Google Apps Script tetap di sini karena spesifik hanya untuk file ini (logging)
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
-const PYTHON_API_LOGIN_URL = "https://sparta-backend-5hdj.onrender.com/api/login";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -47,8 +50,12 @@ export default function LoginPage() {
     setMessage({ text: "Logging in...", type: "info" });
 
     try {
+      // Menggunakan API_URL dari constants.ts (memastikan tidak ada slash ganda di akhir)
+      const cleanBaseUrl = API_URL.replace(/\/$/, "");
+      const loginEndpoint = `${cleanBaseUrl}/api/login`;
+
       // Kirim request ke backend Python
-      const response = await fetch(PYTHON_API_LOGIN_URL, {
+      const response = await fetch(loginEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email, cabang: password }),
@@ -72,11 +79,10 @@ export default function LoginPage() {
 
         // Redirect ke dashboard menggunakan Next.js Router
         setTimeout(() => {
-          router.push("/dashboard"); // Pastikan folder app/dashboard/page.tsx sudah ada nanti
+          router.push("/dashboard"); 
         }, 900);
 
       } else {
-        // Handle gagal login sesuai logika script.js lama
         const errorMessage = result.message ? result.message.toLowerCase() : "";
         let errorText = result.message || "Login gagal!";
 
@@ -100,7 +106,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-800">
-      <Card className="w-full max-w-100 p-2 md:p-4 shadow-xl border-0 md:border md:border-slate-200">
+      <Card className="w-full max-w-[400px] p-2 md:p-4 shadow-xl border-0 md:border md:border-slate-200">
         <CardHeader className="relative pb-2 text-center">
           {/* Tombol Kembali */}
           <Link 
@@ -142,7 +148,7 @@ export default function LoginPage() {
 
             {/* Input Password */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-600 font-medium">Password</Label>
+              <Label htmlFor="password" className="text-slate-600 font-medium">Password (Cabang)</Label>
               <div className="relative">
                 <Input 
                   id="password" 
@@ -150,7 +156,6 @@ export default function LoginPage() {
                   placeholder="Masukkan kata sandi Anda" 
                   required 
                   value={password}
-                  // Memaksa input menjadi huruf besar (UPPERCASE) persis seperti script.js Anda
                   onChange={(e) => setPassword(e.target.value.toUpperCase())}
                   className="h-11 pr-10 tracking-widest"
                 />
@@ -168,7 +173,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Tombol Submit - Memakai warna primary biru Alfamart berdasarkan style.css Anda */}
+            {/* Tombol Submit */}
             <Button 
               type="submit" 
               disabled={isLoading}
