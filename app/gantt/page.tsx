@@ -25,17 +25,41 @@ const SUPERVISION_RULES: Record<number, number[]> = {
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 
-// --- FUNGSI HELPER ---
+// --- FUNGSI HELPER BARU (PERBAIKAN FORMAT STRIP) ---
+function formatUlokWithDash(ulok: string) {
+    if (!ulok) return "";
+    // Jika sudah ada strip, biarkan saja
+    if (ulok.includes("-")) return ulok;
+    
+    // Format Z00126028989 -> Z001-2602-8989
+    const clean = ulok.replace(/[^a-zA-Z0-9]/g, '');
+    if (clean.length === 11 || clean.length === 12) {
+        return `${clean.substring(0,4)}-${clean.substring(4,8)}-${clean.substring(8)}`;
+    }
+    return ulok;
+}
+
 function extractUlokAndLingkup(value: string) {
     if (!value) return { ulokClean: "", lingkupClean: "" };
-    const trimmed = String(value).trim();
-    const parts = trimmed.split("-");
-    if (parts.length < 2) return { ulokClean: trimmed, lingkupClean: "" };
+    let trimmed = String(value).trim();
+    let lingkupClean = "";
     
-    const lingkupRaw = parts.pop() || "";
-    const ulokClean = parts.join("-");
-    const lingkupUpper = lingkupRaw.replace(/[^a-zA-Z]/g, "").toUpperCase();
-    return { ulokClean, lingkupClean: lingkupUpper === "ME" ? "ME" : "Sipil" };
+    if (trimmed.includes("(")) {
+        const parts = trimmed.split("(");
+        trimmed = parts[0].trim();
+        lingkupClean = parts[1].replace(")", "").toUpperCase().trim() === "ME" ? "ME" : "SIPIL";
+    } else if (trimmed.toUpperCase().endsWith(" - SIPIL") || trimmed.toUpperCase().endsWith(" - ME")) {
+        const parts = trimmed.split(" - ");
+        lingkupClean = parts.pop()?.toUpperCase().trim() === "ME" ? "ME" : "SIPIL";
+        trimmed = parts.join(" - ").trim();
+    } else if (trimmed.toUpperCase().endsWith("-SIPIL") || trimmed.toUpperCase().endsWith("-ME")) {
+        const parts = trimmed.split("-");
+        lingkupClean = parts.pop()?.toUpperCase().trim() === "ME" ? "ME" : "SIPIL";
+        trimmed = parts.join("-").trim();
+    }
+    
+    // Panggil formatter untuk memastikan ulok memiliki strip
+    return { ulokClean: formatUlokWithDash(trimmed), lingkupClean };
 }
 
 function parseDateDDMMYYYY(dateStr: string) {
@@ -65,7 +89,9 @@ function GanttBoard() {
     const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
     const [userRole, setUserRole] = useState('');
     
-    const [selectedUlok, setSelectedUlok] = useState(urlUlok || '');
+    // Perbaikan: Pastikan urlUlok yang masuk diformat pakai strip jika perlu
+    const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
+    
     const [projectData, setProjectData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isProjectLocked, setIsProjectLocked] = useState(false);
@@ -132,8 +158,10 @@ function GanttBoard() {
         
         try {
             const { ulokClean, lingkupClean } = extractUlokAndLingkup(selectedValue);
-            const finalUlok = urlUlok || ulokClean;
-            const finalLingkup = urlLingkup || lingkupClean || "Sipil";
+            
+            // Prioritaskan hasil parsing yang sudah bersih & diformat
+            const finalUlok = ulokClean || formatUlokWithDash(urlUlok || "");
+            const finalLingkup = lingkupClean || urlLingkup || "SIPIL";
 
             const data = await fetchGanttData(finalUlok, finalLingkup);
             
@@ -171,7 +199,7 @@ function GanttBoard() {
                 }));
             } 
 
-            // Map Ranges dari day_gantt_data
+            // Map Ranges
             const categoryRangesMap: any = {};
             if (data.day_gantt_data) {
                 const msPerDay = 1000 * 60 * 60 * 24;
@@ -206,14 +234,11 @@ function GanttBoard() {
 
             generatedTasks = generatedTasks.map(task => {
                 const tName = task.name.toLowerCase().trim();
-                
-                // Temukan ranges
                 let matchedRanges = [];
                 for(const key in categoryRangesMap) {
                     if(tName.includes(key) || key.includes(tName)) { matchedRanges = categoryRangesMap[key]; break; }
                 }
 
-                // Temukan dependencies (Parent IDs)
                 let parentIds: number[] = [];
                 if (depMap[tName]) {
                     depMap[tName].forEach((parentName: string) => {
@@ -227,8 +252,11 @@ function GanttBoard() {
 
             setTasks(generatedTasks);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            alert(`Sistem: ${err.message}`);
+            setProjectData(null);
+            setTasks([]);
         } finally {
             setIsLoading(false);
         }
@@ -270,7 +298,6 @@ function GanttBoard() {
 
         const rangeToRemove = taskObj.ranges[rangeIdx];
         
-        // Jika range sudah memiliki nilai start/end, tanyakan konfirmasi & hapus dari server API
         if (rangeToRemove.start && rangeToRemove.end) {
             const isConfirmed = window.confirm("Hapus periode ini? Jika sudah disimpan, data ini akan dihapus dari server.");
             if (!isConfirmed) return;
@@ -278,7 +305,6 @@ function GanttBoard() {
             try {
                 const cleanBaseUrl = API_URL.replace(/\/$/, "");
                 
-                // 1. CARI TANGGAL ASLI DARI DATABASE (Mencegah beda format / "Failed to fetch")
                 let dateStartStr = "";
                 let dateEndStr = "";
                 let foundMatch = false;
@@ -287,7 +313,6 @@ function GanttBoard() {
                     const rawDataList = rawDayGanttData.filter((d: any) => 
                         (d.Kategori || "").toLowerCase().trim() === taskObj.name.toLowerCase().trim()
                     );
-                    // Ambil data yang berurutan sesuai index
                     if (rawDataList[rangeIdx]) {
                         dateStartStr = rawDataList[rangeIdx].h_awal;
                         dateEndStr = rawDataList[rangeIdx].h_akhir;
@@ -295,7 +320,6 @@ function GanttBoard() {
                     }
                 }
 
-                // 2. JIKA DATA BARU (Belum ada di DB), HITUNG MANUAL
                 if (!foundMatch) {
                     const pStart = new Date(projectData.startDate);
                     const dS = new Date(pStart); dS.setDate(pStart.getDate() + parseInt(rangeToRemove.start) - 1);
@@ -304,10 +328,7 @@ function GanttBoard() {
                     dateEndStr = formatDateID(dE);
                 }
 
-                // 3. CEK VALIDASI (Pencegah Error Server)
-                if (dateStartStr.includes("NaN") || dateEndStr.includes("NaN")) {
-                    console.warn("Format tanggal belum sempurna, mengabaikan hapus ke server...");
-                } else {
+                if (!dateStartStr.includes("NaN") && !dateEndStr.includes("NaN")) {
                     const payload = {
                         "nomor_ulok": projectData.ulokClean,
                         "lingkup_pekerjaan": projectData.work.toUpperCase(),
@@ -318,14 +339,12 @@ function GanttBoard() {
                         }]
                     };
 
-                    // Tembak endpoint API untuk hapus baris di server
                     const response = await fetch(`${cleanBaseUrl}/api/gantt/day/insert`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
                     
-                    // Jika server merespon dengan kegagalan HTTP
                     if (!response.ok) {
                         const errText = await response.text();
                         throw new Error(`Server Error (${response.status}): ${errText}`);
@@ -335,15 +354,13 @@ function GanttBoard() {
             } catch (err: any) {
                 console.error("Gagal menghapus data di server:", err);
                 alert("Gagal menghapus di server: " + err.message);
-                return; // STOP di sini, jangan hapus UI jika server gagal agar data tetap sinkron
+                return;
             }
         }
 
-        // Hapus UI inputan secara real-time
         setTasks(prev => prev.map(t => {
             if(t.id === taskId) {
                 const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
-                // Sisakan minimal 1 baris kosong jika semua baris dihapus
                 if (newRanges.length === 0) newRanges.push({start: '', end: '', keterlambatan: 0});
                 return {...t, ranges: newRanges};
             }
@@ -429,7 +446,7 @@ function GanttBoard() {
                 router.push('/dashboard');
             } else {
                 alert("Draft berhasil disimpan.");
-                loadGanttData(selectedUlok); // ✅ PERBAIKAN DI SINI
+                loadGanttData(selectedUlok);
             }
         } catch (e) {
             alert("Gagal menyimpan data.");
@@ -457,7 +474,7 @@ function GanttBoard() {
             await fetch(`${cleanBaseUrl}/api/gantt/day/keterlambatan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             alert("Keterlambatan diterapkan.");
             
-            loadGanttData(selectedUlok); // ✅ PERBAIKAN DI SINI
+            loadGanttData(selectedUlok); 
         } catch (err) {
             console.error(err);
         }
@@ -471,7 +488,6 @@ function GanttBoard() {
         let maxTaskEndDay = 0;
         let effectiveEndDates: Record<number, number> = {};
 
-        // Hitung Shift (Pergeseran) & Durasi Maksimal
         processedTasks.forEach(task => {
             let maxShift = 0;
             if (task.dependencies && task.dependencies.length > 0) {
@@ -503,11 +519,10 @@ function GanttBoard() {
         const totalDaysToRender = Math.max(projectData.duration, maxTaskEndDay) + 5;
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
         const svgHeight = processedTasks.length * ROW_HEIGHT;
-        // Hitung Hari Pengawasan
         const supervisionDays: Record<number, boolean> = {};
         const rules = SUPERVISION_RULES[projectData.duration];
         if (rules) rules.forEach(d => supervisionDays[d] = true);
-        // Hitung Koordinat Garis SVG
+        
         let taskCoordinates: Record<number, any> = {};
         processedTasks.forEach((task, idx) => {
             const shift = task.computed.shift || 0;
@@ -551,8 +566,7 @@ function GanttBoard() {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
-        {/* HEADER */}
-        <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20">
+        <header className="flex items-center justify-between p-4 md:px-8 bg-gradient-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20">
             <div className="flex items-center gap-3">
                 <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
                 <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-10 drop-shadow-md" />
@@ -564,8 +578,7 @@ function GanttBoard() {
             </Badge>
         </header>
 
-        <main className="p-4 md:p-8 max-w-400 mx-auto mt-2">
-            {/* KONTROL PENCARIAN & INFO PROYEK */}
+        <main className="p-4 md:p-8 max-w-[1400px] mx-auto mt-2">
             <div className="flex flex-col lg:flex-row gap-6 mb-6">
                 <Card className="w-full lg:w-1/3 shadow-sm">
                     <CardContent className="p-6">
@@ -573,7 +586,7 @@ function GanttBoard() {
                             <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
                             {urlUlok ? (
                                 <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
-                                    <span>{urlUlok}</span><Lock className="w-5 h-5 text-slate-400" />
+                                    <span>{selectedUlok}</span><Lock className="w-5 h-5 text-slate-400" />
                                 </div>
                             ) : (
                                 <select 
@@ -583,9 +596,15 @@ function GanttBoard() {
                                 >
                                     <option value="">-- Pilih Proyek Anda --</option>
                                     {availableProjects.map((proj, idx) => {
-                                        const ulokValue = proj.value || proj['Nomor Ulok'] || proj.ulokClean || (typeof proj === 'string' ? proj : '');
-                                        const textLabel = proj.label || proj['Nama_Toko'] || proj.store || ulokValue;
-                                        return <option key={idx} value={ulokValue}>{textLabel}</option>;
+                                        const rawUlok = proj.value || proj['Nomor Ulok'] || proj.ulokClean || (typeof proj === 'string' ? proj : '');
+                                        const cleanUlokDash = formatUlokWithDash(rawUlok);
+                                        const textLabel = proj.label || proj['Nama_Toko'] || proj.store || cleanUlokDash;
+                                        
+                                        const combinedValue = proj['Lingkup_Pekerjaan'] 
+                                            ? `${cleanUlokDash} (${proj['Lingkup_Pekerjaan']})`
+                                            : cleanUlokDash;
+
+                                        return <option key={idx} value={combinedValue}>{textLabel} {proj['Lingkup_Pekerjaan'] ? `(${proj['Lingkup_Pekerjaan']})` : ''}</option>;
                                     })}
                                 </select>
                             )}
@@ -606,7 +625,6 @@ function GanttBoard() {
                 )}
             </div>
 
-            {/* TEMPAT RENDER TABEL INPUT KONTRAKTOR DINAMIS */}
             {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
                     <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
@@ -619,7 +637,7 @@ function GanttBoard() {
                     
                     {tasks.length > 0 ? (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left border-collapse min-w-225">
+                            <table className="w-full text-sm text-left border-collapse min-w-[900px]">
                                 <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
                                     <tr>
                                         <th className="p-4 w-12 text-center border-r">No</th>
@@ -667,7 +685,6 @@ function GanttBoard() {
                                                             />
                                                         </div>
                                                         
-                                                        {/* Tombol Hapus: Munculkan icon Trash */}
                                                         <button 
                                                             type="button" 
                                                             onClick={() => removeRange(task.id, idx)} 
@@ -679,7 +696,6 @@ function GanttBoard() {
                                                     </div>
                                                 ))}
                                                 
-                                                {/* Tombol Tambah Periode */}
                                                 <button 
                                                     type="button" 
                                                     onClick={() => addRange(task.id)} 
@@ -701,7 +717,6 @@ function GanttBoard() {
                 </div>
             )}
 
-            {/* TEMPAT RENDER FORM KETERLAMBATAN PIC */}
             {!isLoading && selectedUlok && appMode === 'pic' && isProjectLocked && tasks.length > 0 && (
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
                     <h3 className="font-bold text-amber-700 mb-4 flex items-center"><Info className="w-5 h-5 mr-2" /> Input Keterlambatan Pengawasan</h3>
@@ -730,15 +745,14 @@ function GanttBoard() {
                 </div>
             )}
 
-            {/* GRAFIK GANTT CHART */}
             <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                 <div className="p-4 bg-slate-100 border-b flex justify-center gap-6 text-sm font-medium">
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Sesuai Target</div>
-                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-gradient-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-sky-200 border border-sky-300 rounded shadow-inner"></div> Masa Pengawasan</div>
                 </div>
                 
-                <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
+                <div className="p-0 overflow-x-auto min-h-[400px] relative bg-white pb-10" id="ganttChartContainer">
                     {isLoading ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
                             <Loader2 className="w-12 h-12 animate-spin text-red-600 mb-4" />
@@ -746,9 +760,8 @@ function GanttBoard() {
                         </div>
                     ) : chartData ? (
                         <div>
-                            {/* HEADER HARI */}
                             <div className="flex sticky top-0 bg-white z-40 border-b border-slate-200 shadow-sm">
-                                <div className="w-62.5 shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r border-slate-200 sticky left-0 z-50">Tahapan</div>
+                                <div className="w-[250px] shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r border-slate-200 sticky left-0 z-50">Tahapan</div>
                                 <div className="flex" style={{ width: chartData.totalChartWidth }}>
                                     {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
                                         const isSup = chartData.supervisionDays[i+1];
@@ -761,13 +774,12 @@ function GanttBoard() {
                                 </div>
                             </div>
                             
-                            {/* BODY CHART */}
                             <div className="relative">
                                 {chartData.processedTasks.map((task: any, idx: number) => {
                                     const shift = task.computed.shift || 0;
                                     return (
                                         <div key={task.id} className="flex border-b border-slate-50 hover:bg-slate-50/50" style={{ height: ROW_HEIGHT }}>
-                                            <div className="w-62.5 shrink-0 px-2.5 py-1 bg-white border-r border-slate-200 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.02)] flex flex-col justify-center">
+                                            <div className="w-[250px] shrink-0 px-2.5 py-1 bg-white border-r border-slate-200 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.02)] flex flex-col justify-center">
                                                 <span className="text-[13px] font-semibold text-slate-800 leading-tight">{task.name}</span>
                                             </div>
                                             <div className="relative" style={{ width: chartData.totalChartWidth }}>
@@ -780,14 +792,14 @@ function GanttBoard() {
                                                     return (
                                                         <React.Fragment key={rIdx}>
                                                             <div 
-                                                                className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
+                                                                className={`absolute top-[13px] h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-gradient-to-r from-orange-400 to-orange-500' : 'bg-gradient-to-r from-green-500 to-green-600'}`}
                                                                 style={{ left: (s - 1) * DAY_WIDTH, width: dur * DAY_WIDTH - 1 }}
                                                             >
                                                                 {dur} Hari
                                                             </div>
                                                             {delay > 0 && (
                                                                 <div 
-                                                                    className="absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
+                                                                    className="absolute top-[13px] h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-gradient-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
                                                                     style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
                                                                 >
                                                                     +{delay}
@@ -796,16 +808,14 @@ function GanttBoard() {
                                                         </React.Fragment>
                                                     )
                                                 })}
-                                                {/* Supervision Markers */}
                                                 {Object.keys(chartData.supervisionDays).map(day => (
-                                                    <div key={day} className="absolute top-10 w-7.5 h-1 bg-sky-500 rounded-full z-15 ml-1" style={{ left: (parseInt(day) - 1) * DAY_WIDTH }}></div>
+                                                    <div key={day} className="absolute top-10 w-[30px] h-1 bg-sky-500 rounded-full z-15 ml-1" style={{ left: (parseInt(day) - 1) * DAY_WIDTH }}></div>
                                                 ))}
                                             </div>
                                         </div>
                                     )
                                 })}
 
-                                {/* SVG LINES */}
                                 <svg className="absolute top-0 pointer-events-none z-30" style={{ left: 250, width: chartData.totalChartWidth, height: chartData.svgHeight }}>
                                     <defs>
                                         <marker id="depArrow" viewBox="0 0 10 6" refX="7" refY="3" markerWidth="8" markerHeight="6" orient="auto">
@@ -824,7 +834,6 @@ function GanttBoard() {
                 </div>
             </Card>
 
-            {/* BOTTOM ACTIONS */}
             {projectData && !isLoading && tasks.length > 0 && (
                 <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
                     {appMode === 'kontraktor' && !isProjectLocked && (

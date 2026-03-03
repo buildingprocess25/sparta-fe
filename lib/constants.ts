@@ -1,5 +1,41 @@
 export const OPNAME_API_URL = "https://opnamebnm-mgbe.onrender.com";
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sparta-backend-5hdj.onrender.com";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sparta-backend.onrender.com";
+import { 
+    FileText, Stamp, FileSignature, Users, CheckSquare, 
+    Camera, FilePlus, FolderArchive, BarChartHorizontal, AlertTriangle, Activity
+} from 'lucide-react';
+
+export const ALL_MENUS = [
+    { id: 'menu-rab', title: 'Penawaran Final', href: '/rab', icon: FileText },
+    { id: 'menu-materai', title: 'RAB Termaterai', href: '/materai', icon: Stamp },
+    { id: 'menu-spk', title: 'SPK', href: '/spk', icon: FileSignature },
+    { id: 'menu-pengawasan', title: 'Pengawasan', href: '/inputpic', icon: Users },
+    { id: 'menu-opname', title: 'Opname', href: '/opname', icon: CheckSquare },
+    { id: 'menu-dokumentasi', title: 'Dokumentasi', href: 'https://dokumentasi-bangunan.vercel.app/', icon: Camera, external: true },
+    { id: 'menu-tambahspk', title: 'Tambah SPK', href: '/tambahspk', icon: FilePlus },
+    { id: 'menu-svdokumen', title: 'Penyimpanan', href: '/svdokumen', icon: FolderArchive },
+    { id: 'menu-gantt', title: 'Gantt Chart', href: '/gantt', icon: BarChartHorizontal },
+    { id: 'menu-sp', title: 'Surat Peringatan', href: '#', icon: AlertTriangle, isAlert: true },
+    { id: 'menu-userlog', title: 'User Log', href: '/userlog', icon: Activity },
+];
+
+export const ROLE_CONFIG: Record<string, string[]> = {
+    'BRANCH BUILDING & MAINTENANCE MANAGER': [
+        'menu-spk', 'menu-pengawasan', 'menu-opname', 'menu-tambahspk', 'menu-gantt', 'menu-dokumentasi', 'menu-svdokumen', 'menu-sp'
+    ],
+    'BRANCH BUILDING SUPPORT DOKUMENTASI' : [
+        'menu-spk', 'menu-pengawasan', 'menu-opname', 'menu-tambahspk', 'menu-gantt', 'menu-dokumentasi', 'menu-svdokumen', 'menu-sp'
+    ],
+    'BRANCH BUILDING COORDINATOR': [
+        'menu-dokumentasi', 'menu-svdokumen','menu-gantt', 'menu-opname', 'menu-sp'
+    ],
+    'BRANCH BUILDING SUPPORT': [
+        'menu-dokumentasi', 'menu-opname', 'menu-gantt', 'menu-svdokumen', 'menu-sp'
+    ],
+    'KONTRAKTOR': [
+        'menu-rab', 'menu-materai', 'menu-opname', 'menu-gantt'
+    ]
+};
 
 export const SIPIL_CATEGORIES = [
     "PEKERJAAN PERSIAPAN", "PEKERJAAN BOBOKAN / BONGKARAN", "PEKERJAAN TANAH",
@@ -20,6 +56,7 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
     "SUMBAWA": ["LOMBOK", "SUMBAWA"],
     "MEDAN": ["MEDAN", "ACEH"],
     "ACEH": ["MEDAN", "ACEH"],
+    "LAMPUNG": ["LAMPUNG", "LAMPUNG_KOTABUMI"],
     "PALEMBANG": ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
     "BENGKULU": ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
     "BANGKA": ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
@@ -35,7 +72,7 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
 export const BRANCH_TO_ULOK: Record<string, string> = {
     "LUWU": "2VZ1", "KARAWANG": "1JZ1", "REMBANG": "2AZ1", "BANJARMASIN": "1GZ1",
     "PARUNG": "1MZ1", "TEGAL": "2PZ1", "GORONTALO": "2SZ1", "PONTIANAK": "1PZ1",
-    "LOMBOK": "1SZ1", "KOTABUMI": "1VZ1", "SERANG": "2GZ1", "CIANJUR": "2JZ1",
+    "LOMBOK": "1SZ1", "LAMPUNG_KOTABUMI": "LZ01", "SERANG": "2GZ1", "CIANJUR": "2JZ1",
     "BALARAJA": "TZ01", "SIDOARJO": "UZ01", "MEDAN": "WZ01", "BOGOR": "XZ01",
     "JEMBER": "YZ01", "BALI": "QZ01", "PALEMBANG": "PZ01", "KLATEN": "OZ01",
     "MAKASSAR": "RZ01", "PLUMBON": "VZ01", "PEKANBARU": "1AZ1", "JAMBI": "1DZ1",

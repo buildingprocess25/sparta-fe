@@ -58,7 +58,8 @@ export const submitRABData = async (payloadData: any) => {
 // 4. Ambil Data Gantt Chart
 export const fetchGanttData = async (ulok: string, lingkup: string) => {
     const cleanBaseUrl = API_URL.replace(/\/$/, "");
-    const url = `${cleanBaseUrl}/api/get_gantt_data?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`;
+    
+    const url = `${cleanBaseUrl}/api/get_gantt_data?nomor_ulok=${encodeURIComponent(ulok)}&lingkup_pekerjaan=${encodeURIComponent(lingkup)}`;
     
     console.log("🔗 Fetching Gantt Data:", url);
     
