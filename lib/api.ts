@@ -395,3 +395,11 @@ export const deleteDokumenToko = async (kode_toko: string) => {
     if (!res.ok) throw new Error(result.detail || result.message || "Gagal menghapus dokumen.");
     return result;
 };
+
+// =========================================================
+// 8. ENDPOINT MONITORING DASHBOARD
+// =========================================================
+export const fetchMonitoringData = async () => {
+    const cleanUrl = API_URL.replace(/\/$/, "");
+    return safeFetchJSON(`${cleanUrl}/api/opname/summary-data`);
+};

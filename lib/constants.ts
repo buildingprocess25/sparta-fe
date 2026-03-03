@@ -1,36 +1,38 @@
 export const OPNAME_API_URL = "https://opnamebnm-mgbe.onrender.com";
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sparta-backend.onrender.com";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sparta-backend-5hdj.onrender.com";
+
 import { 
     FileText, Stamp, FileSignature, Users, CheckSquare, 
-    Camera, FilePlus, FolderArchive, BarChartHorizontal, AlertTriangle, Activity
+    Camera, FilePlus, FolderArchive, BarChartHorizontal, AlertTriangle, Activity, PieChart
 } from 'lucide-react';
 
 export const ALL_MENUS = [
-    { id: 'menu-rab', title: 'Penawaran Final', href: '/rab', icon: FileText },
-    { id: 'menu-materai', title: 'RAB Termaterai', href: '/materai', icon: Stamp },
-    { id: 'menu-spk', title: 'SPK', href: '/spk', icon: FileSignature },
-    { id: 'menu-pengawasan', title: 'Pengawasan', href: '/inputpic', icon: Users },
-    { id: 'menu-opname', title: 'Opname', href: '/opname', icon: CheckSquare },
-    { id: 'menu-dokumentasi', title: 'Dokumentasi', href: 'https://dokumentasi-bangunan.vercel.app/', icon: Camera, external: true },
-    { id: 'menu-tambahspk', title: 'Tambah SPK', href: '/tambahspk', icon: FilePlus },
-    { id: 'menu-svdokumen', title: 'Penyimpanan', href: '/svdokumen', icon: FolderArchive },
-    { id: 'menu-gantt', title: 'Gantt Chart', href: '/gantt', icon: BarChartHorizontal },
-    { id: 'menu-sp', title: 'Surat Peringatan', href: '#', icon: AlertTriangle, isAlert: true },
-    { id: 'menu-userlog', title: 'User Log', href: '/userlog', icon: Activity },
+    { id: 'menu-rab', title: 'Penawaran Final Kontraktor', desc: 'Buat penawaran final.', href: '/rab', icon: FileText },
+    { id: 'menu-materai', title: 'Dokumen Final RAB Termaterai', desc: 'Buat dan lihat RAB Final Termaterai.', href: '/materai', icon: Stamp },
+    { id: 'menu-spk', title: 'Surat Perintah Kerja', desc: 'Form surat perintah kerja untuk kontraktor.', href: '/spk', icon: FileSignature },
+    { id: 'menu-pengawasan', title: 'PIC Pengawasan', desc: 'Form input pic pengawasan pekerjaan proyek.', href: '/inputpic', icon: Users },
+    { id: 'menu-opname', title: 'Opname', desc: 'Form opname proyek toko.', href: '/opname', icon: CheckSquare },
+    { id: 'menu-dokumentasi', title: 'Dokumentasi Bangunan Toko Baru', desc: 'Form dokumentasi foto bangunan.', href: 'https://dokumentasi-bangunan.vercel.app/', icon: Camera, external: true },
+    { id: 'menu-tambahspk', title: 'Tambahan Surat Perintah Kerja', desc: 'Form pertambahan hari surat perintah kerja.', href: '/tambahspk', icon: FilePlus },
+    { id: 'menu-svdokumen', title: 'Penyimpanan Dokumen Toko', desc: 'Form penyimpanan dokumen.', href: '/svdokumen', icon: FolderArchive },
+    { id: 'menu-gantt', title: 'Gantt Chart', desc: 'Progress pekerjaan toko.', href: '/gantt', icon: BarChartHorizontal },
+    { id: 'menu-sp', title: 'Surat Peringatan', desc: 'Form surat peringatan.', href: '#', icon: AlertTriangle, isAlert: true },
+    { id: 'menu-userlog', title: 'User Log', desc: 'Log aktivitas pengguna.', href: '/userlog', icon: Activity },
+    { id: 'menu-monitoring', title: 'Monitoring Dashboard', desc: 'Pantau grafik progres dan status proyek real-time.', href: '/monitoring', icon: PieChart },
 ];
 
 export const ROLE_CONFIG: Record<string, string[]> = {
     'BRANCH BUILDING & MAINTENANCE MANAGER': [
-        'menu-spk', 'menu-pengawasan', 'menu-opname', 'menu-tambahspk', 'menu-gantt', 'menu-dokumentasi', 'menu-svdokumen', 'menu-sp'
+        'menu-spk', 'menu-pengawasan', 'menu-opname', 'menu-tambahspk', 'menu-gantt', 'menu-dokumentasi', 'menu-svdokumen', 'menu-sp', 'menu-monitoring'
     ],
     'BRANCH BUILDING SUPPORT DOKUMENTASI' : [
-        'menu-spk', 'menu-pengawasan', 'menu-opname', 'menu-tambahspk', 'menu-gantt', 'menu-dokumentasi', 'menu-svdokumen', 'menu-sp'
+        'menu-spk', 'menu-pengawasan', 'menu-opname', 'menu-tambahspk', 'menu-gantt', 'menu-dokumentasi', 'menu-svdokumen', 'menu-sp', 'menu-monitoring'
     ],
     'BRANCH BUILDING COORDINATOR': [
-        'menu-dokumentasi', 'menu-svdokumen','menu-gantt', 'menu-opname', 'menu-sp'
+        'menu-dokumentasi', 'menu-svdokumen','menu-gantt', 'menu-opname', 'menu-sp', 'menu-monitoring'
     ],
     'BRANCH BUILDING SUPPORT': [
-        'menu-dokumentasi', 'menu-opname', 'menu-gantt', 'menu-svdokumen', 'menu-sp'
+        'menu-dokumentasi', 'menu-opname', 'menu-gantt', 'menu-svdokumen', 'menu-sp', 'menu-monitoring'
     ],
     'KONTRAKTOR': [
         'menu-rab', 'menu-materai', 'menu-opname', 'menu-gantt'

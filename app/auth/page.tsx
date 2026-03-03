@@ -106,7 +106,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-800">
-      <Card className="w-full max-w-[400px] p-2 md:p-4 shadow-xl border-0 md:border md:border-slate-200">
+      <Card className="w-full max-w-100 p-2 md:p-4 shadow-xl border-0 md:border md:border-slate-200">
         <CardHeader className="relative pb-2 text-center">
           {/* Tombol Kembali */}
           <Link 
