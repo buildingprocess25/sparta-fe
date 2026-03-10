@@ -52,32 +52,33 @@ export default function LoginPage() {
     try {
       // Menggunakan API_URL dari constants.ts (memastikan tidak ada slash ganda di akhir)
       const cleanBaseUrl = API_URL.replace(/\/$/, "");
-      const loginEndpoint = `${cleanBaseUrl}/api/login`;
+      
+      // 1. UBAH ENDPOINT KE /api/auth/login
+      const loginEndpoint = `${cleanBaseUrl}/api/auth/login`;
 
-      // Kirim request ke backend Python
+      // Kirim request ke backend
       const response = await fetch(loginEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email, cabang: password }),
+        
+        // 2. UBAH BODY JSON MENGGUNAKAN 'email_sat' dan 'cabang'
+        body: JSON.stringify({ email_sat: email, cabang: password }),
       });
 
       const result = await response.json();
 
       if (response.ok && result.status === "success") {
-        // Log keberhasilan (fire and forget)
         logLoginAttempt(email, password, "Success");
 
         const userRole = (result.role || "").toUpperCase();
         
         setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
 
-        // Simpan ke sessionStorage
         sessionStorage.setItem("authenticated", "true");
         sessionStorage.setItem("loggedInUserEmail", email);
         sessionStorage.setItem("userRole", userRole); 
         sessionStorage.setItem("loggedInUserCabang", password); 
 
-        // Redirect ke dashboard menggunakan Next.js Router
         setTimeout(() => {
           router.push("/dashboard"); 
         }, 900);
