@@ -9,7 +9,6 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-// Import Icon statis yang masih dipakai langsung di UI (LogOut, AlertTriangle)
 import { LogOut, AlertTriangle } from 'lucide-react';
 
 // IMPORT MENU DAN ROLE DARI CONSTANTS
@@ -29,28 +28,22 @@ export default function DashboardPage() {
         const userCabang = sessionStorage.getItem('loggedInUserCabang'); 
 
         if (!userRole) {
-            alert("Sesi Anda telah habis. Silakan login kembali.");
-            router.push('/auth');
+            router.push('/');
             return;
         }
 
-        // Tambahkan .trim() untuk memastikan tidak ada spasi tidak terlihat
         const currentRole = userRole.toUpperCase().trim(); 
         let allowedIds = ROLE_CONFIG[currentRole] ? [...ROLE_CONFIG[currentRole]] : [];
 
         const isHeadOffice = userCabang && userCabang.toUpperCase().trim() === 'HEAD OFFICE';
         const isContractor = currentRole.includes('KONTRAKTOR');
 
-        // PERBAIKAN: Jika role tidak terdaftar di ROLE_CONFIG (sehingga allowedIds kosong)
         if (allowedIds.length === 0) {
             if (isHeadOffice) {
-                // Jika user dari HEAD OFFICE jabatannya tidak ter-mapping spesifik (misal "ADMIN HO"), 
-                // berikan akses penuh setara MANAGER agar menu operasional tampil.
                 allowedIds = ROLE_CONFIG['BRANCH BUILDING & MAINTENANCE MANAGER'] 
                     ? [...ROLE_CONFIG['BRANCH BUILDING & MAINTENANCE MANAGER']] 
                     : [];
             } else {
-                // Jika dari cabang biasa tetapi jabatannya tidak dikenal, berikan akses dasar.
                 allowedIds = ROLE_CONFIG['BRANCH BUILDING SUPPORT'] 
                     ? [...ROLE_CONFIG['BRANCH BUILDING SUPPORT']] 
                     : [];
@@ -58,20 +51,20 @@ export default function DashboardPage() {
         }
 
         if (isHeadOffice && !isContractor) {
-            // Tambahkan menu userlog untuk Head Office jika belum ada
             if (!allowedIds.includes('menu-userlog')) {
                 allowedIds.push('menu-userlog');
             }
         }
 
-        // Tampilkan hanya menu yang diizinkan untuk role saat ini
         const filteredMenus = ALL_MENUS.filter(menu => allowedIds.includes(menu.id));
         setAllowedMenus(filteredMenus);
         setIsLoading(false);
 
         const email = sessionStorage.getItem('loggedInUserEmail') || '';
+        const namaLengkap = sessionStorage.getItem('nama_lengkap') || email.split('@')[0];
+
         setUserInfo({
-            name: email.split('@')[0].toUpperCase(),
+            name: namaLengkap.toUpperCase(),
             role: currentRole,
             cabang: userCabang ? userCabang.toUpperCase() : ''
         });
@@ -88,8 +81,7 @@ export default function DashboardPage() {
         <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-12">
         
         {/* HEADER */}
-        <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
-                {/* KIRI: Logo & Judul */}
+        <header className="flex items-center justify-between p-4 md:px-8 bg-gradient-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
                 <div className="flex items-center gap-3 md:gap-5">
                     <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
                     <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block"></div>
@@ -99,19 +91,20 @@ export default function DashboardPage() {
                     <img src="/assets/Building-Logo.png" alt="BM Logo" className="h-8 md:h-12 hidden sm:block object-contain drop-shadow-md" />
                 </div>
 
-                {/* TENGAH: Info User */}
+                {/* PERBAIKAN: Styling Navbar User Info */}
                 {userInfo.name && (
-                    <div className="hidden md:flex flex-col items-center justify-center absolute left-1/2 transform -translate-x-1/2 text-center w-full max-w-75 pointer-events-none">
-                        <span className="text-[13px] md:text-sm font-bold text-white drop-shadow-md truncate w-full">
+                    <div className="hidden md:flex flex-col items-center justify-center absolute left-1/2 transform -translate-x-1/2 text-center pointer-events-none w-auto max-w-[50vw]">
+                        {/* Hapus class 'truncate', biarkan nama memanjang wajar */}
+                        <span className="text-[13px] md:text-sm font-bold text-white drop-shadow-md text-center whitespace-normal break-words">
                             {userInfo.name}
                         </span>
-                        <span className="text-[10px] md:text-xs font-medium text-red-50 bg-black/20 px-3 py-0.5 rounded-full mt-0.5 backdrop-blur-sm border border-white/10 shadow-inner truncate max-w-[90%]">
+                        {/* Hapus 'truncate' dan 'max-w-[90%]', tambahkan 'whitespace-normal' dan 'leading-tight' agar jika super panjang, teksnya rapi tergulung ke bawah bukan terpotong */}
+                        <span className="text-[10px] md:text-xs font-medium text-red-50 bg-black/20 px-3 py-1 rounded-full mt-0.5 backdrop-blur-sm border border-white/10 shadow-inner text-center whitespace-normal break-words leading-tight">
                             {userInfo.role} | {userInfo.cabang}
                         </span>
                     </div>
                 )}
                 
-                {/* KANAN: Tombol Aksi */}
                 <div className="flex items-center gap-2 relative z-10">
                     <Button variant="outline" onClick={() => setLogoutDialogOpen(true)} className="bg-black/10 hover:bg-white hover:text-red-700 text-white border-white/30 transition-all shadow-sm backdrop-blur-sm h-9 px-3 md:px-4">
                         <LogOut className="w-4 h-4 md:mr-2" />
@@ -172,14 +165,13 @@ export default function DashboardPage() {
                     }
 
                     return (
-                    <Link key={menu.id} href={menu.href} className="block h-full outline-none focus:ring-2 focus:ring-red-500 rounded-xl">
-                        {CardContentArea}
-                    </Link>
+                        <Link key={menu.id} href={menu.href} className="block h-full outline-none focus:ring-2 focus:ring-red-500 rounded-xl">
+                            {CardContentArea}
+                        </Link>
                     );
                 })}
             </div>
 
-            {/* State Kosong */}
             {allowedMenus.length === 0 && !isLoading && (
             <div className="text-center p-10 bg-red-50 border border-red-200 rounded-2xl mt-8">
                 <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />

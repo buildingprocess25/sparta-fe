@@ -64,15 +64,20 @@ export default function LoginPage() {
       if (response.ok) {
         logLoginAttempt(email, password, "Success");
 
-        // 1. Tangkap nama jabatan asli dari API
+        // 1. Tangkap data dari response API
         const rawJabatan = 
-          result.jabatan || 
           result?.data?.jabatan || 
+          result.jabatan || 
           result?.user?.jabatan || 
-          result.role || 
-          result?.data?.role;
+          result?.data?.role ||
+          result.role;
           
         const jabatanFromAPI = String(rawJabatan).toUpperCase().trim();
+        
+        // PERBAIKAN: Tangkap nama lengkap dan cabang langsung dari response API
+        const namaLengkapFromAPI = result?.data?.nama_lengkap || "";
+        const cabangFromAPI = result?.data?.cabang || password; // Fallback ke input password jika kosong
+        const emailFromAPI = result?.data?.email_sat || email;
 
         // 2. FUNGSI PEMETAAN (MAPPING) JABATAN
         let mappedRole = jabatanFromAPI;
@@ -95,11 +100,14 @@ export default function LoginPage() {
 
         setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
 
-        // 3. Simpan mappedRole (yang sudah sesuai dengan constants.ts) ke sessionStorage
+        // 3. Simpan data yang komplit ke sessionStorage
         sessionStorage.setItem("authenticated", "true");
-        sessionStorage.setItem("loggedInUserEmail", email);
+        sessionStorage.setItem("loggedInUserEmail", emailFromAPI);
         sessionStorage.setItem("userRole", mappedRole);
-        sessionStorage.setItem("loggedInUserCabang", password); 
+        sessionStorage.setItem("loggedInUserCabang", cabangFromAPI); 
+        
+        // PERBAIKAN: Simpan nama lengkap ke session storage
+        sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
 
         setTimeout(() => {
           router.push("/dashboard"); 
