@@ -50,33 +50,55 @@ export default function LoginPage() {
     setMessage({ text: "Logging in...", type: "info" });
 
     try {
-      // Menggunakan API_URL dari constants.ts (memastikan tidak ada slash ganda di akhir)
       const cleanBaseUrl = API_URL.replace(/\/$/, "");
-      
-      // 1. UBAH ENDPOINT KE /api/auth/login
       const loginEndpoint = `${cleanBaseUrl}/api/auth/login`;
 
-      // Kirim request ke backend
       const response = await fetch(loginEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        
-        // 2. UBAH BODY JSON MENGGUNAKAN 'email_sat' dan 'cabang'
         body: JSON.stringify({ email_sat: email, cabang: password }),
       });
 
       const result = await response.json();
 
-      if (response.ok && result.status === "success") {
+      if (response.ok) {
         logLoginAttempt(email, password, "Success");
 
-        const userRole = (result.role || "").toUpperCase();
-        
+        // 1. Tangkap nama jabatan asli dari API
+        const rawJabatan = 
+          result.jabatan || 
+          result?.data?.jabatan || 
+          result?.user?.jabatan || 
+          result.role || 
+          result?.data?.role;
+          
+        const jabatanFromAPI = String(rawJabatan).toUpperCase().trim();
+
+        // 2. FUNGSI PEMETAAN (MAPPING) JABATAN
+        let mappedRole = jabatanFromAPI;
+
+        if (jabatanFromAPI.includes("MANAGER") || jabatanFromAPI === "BM") {
+            mappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
+        } 
+        else if (jabatanFromAPI.includes("DOKUMENTASI") || jabatanFromAPI === "BBSD") {
+            mappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
+        }
+        else if (jabatanFromAPI.includes("COORDINATOR") || jabatanFromAPI === "BBC") {
+            mappedRole = "BRANCH BUILDING COORDINATOR";
+        }
+        else if (jabatanFromAPI.includes("SUPPORT") || jabatanFromAPI === "BBS") {
+            mappedRole = "BRANCH BUILDING SUPPORT";
+        }
+        else if (jabatanFromAPI.includes("KONTRAKTOR")) {
+            mappedRole = "KONTRAKTOR";
+        }
+
         setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
 
+        // 3. Simpan mappedRole (yang sudah sesuai dengan constants.ts) ke sessionStorage
         sessionStorage.setItem("authenticated", "true");
         sessionStorage.setItem("loggedInUserEmail", email);
-        sessionStorage.setItem("userRole", userRole); 
+        sessionStorage.setItem("userRole", mappedRole);
         sessionStorage.setItem("loggedInUserCabang", password); 
 
         setTimeout(() => {

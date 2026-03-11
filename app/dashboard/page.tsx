@@ -34,14 +34,34 @@ export default function DashboardPage() {
             return;
         }
 
-        const currentRole = userRole.toUpperCase(); 
+        // Tambahkan .trim() untuk memastikan tidak ada spasi tidak terlihat
+        const currentRole = userRole.toUpperCase().trim(); 
         let allowedIds = ROLE_CONFIG[currentRole] ? [...ROLE_CONFIG[currentRole]] : [];
 
-        const isHeadOffice = userCabang && userCabang.toUpperCase() === 'HEAD OFFICE';
-        const isContractor = currentRole === 'KONTRAKTOR';
+        const isHeadOffice = userCabang && userCabang.toUpperCase().trim() === 'HEAD OFFICE';
+        const isContractor = currentRole.includes('KONTRAKTOR');
+
+        // PERBAIKAN: Jika role tidak terdaftar di ROLE_CONFIG (sehingga allowedIds kosong)
+        if (allowedIds.length === 0) {
+            if (isHeadOffice) {
+                // Jika user dari HEAD OFFICE jabatannya tidak ter-mapping spesifik (misal "ADMIN HO"), 
+                // berikan akses penuh setara MANAGER agar menu operasional tampil.
+                allowedIds = ROLE_CONFIG['BRANCH BUILDING & MAINTENANCE MANAGER'] 
+                    ? [...ROLE_CONFIG['BRANCH BUILDING & MAINTENANCE MANAGER']] 
+                    : [];
+            } else {
+                // Jika dari cabang biasa tetapi jabatannya tidak dikenal, berikan akses dasar.
+                allowedIds = ROLE_CONFIG['BRANCH BUILDING SUPPORT'] 
+                    ? [...ROLE_CONFIG['BRANCH BUILDING SUPPORT']] 
+                    : [];
+            }
+        }
 
         if (isHeadOffice && !isContractor) {
-            allowedIds.push('menu-userlog');
+            // Tambahkan menu userlog untuk Head Office jika belum ada
+            if (!allowedIds.includes('menu-userlog')) {
+                allowedIds.push('menu-userlog');
+            }
         }
 
         // Tampilkan hanya menu yang diizinkan untuk role saat ini
@@ -52,8 +72,8 @@ export default function DashboardPage() {
         const email = sessionStorage.getItem('loggedInUserEmail') || '';
         setUserInfo({
             name: email.split('@')[0].toUpperCase(),
-            role: sessionStorage.getItem('userRole') || '',
-            cabang: sessionStorage.getItem('loggedInUserCabang') || ''
+            role: currentRole,
+            cabang: userCabang ? userCabang.toUpperCase() : ''
         });
     }, [router]);
 
@@ -67,7 +87,7 @@ export default function DashboardPage() {
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-12">
         
-        {/* HEADER BARU */}
+        {/* HEADER */}
         <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
                 {/* KIRI: Logo & Judul */}
                 <div className="flex items-center gap-3 md:gap-5">
