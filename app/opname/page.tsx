@@ -15,7 +15,7 @@ import {
     fetchOpnameHistory, fetchOpnameRabData, fetchPicList, fetchPicKontraktorData, fetchPicKontraktorOpnameData
 } from '@/lib/api';
 
-import { OPNAME_API_URL } from '@/lib/constants';
+import { API_URL } from '@/lib/constants';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -72,7 +72,7 @@ const toBase64 = async (url: string) => {
             const res = await fetch(url); const blob = await res.blob();
             return new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result); reader.readAsDataURL(blob); });
         }
-        const cleanUrl = OPNAME_API_URL.replace(/\/$/, "");
+        const cleanUrl = API_URL.replace(/\/$/, "");
         const proxyUrl = `${cleanUrl}/api/image-proxy?url=${encodeURIComponent(url)}`;
         try {
             const response = await fetch(proxyUrl); if (!response.ok) throw new Error('Proxy failed');
@@ -111,10 +111,11 @@ export default function OpnamePage() {
         const role = sessionStorage.getItem("userRole");
         const email = sessionStorage.getItem("loggedInUserEmail") || '';
         const cabang = sessionStorage.getItem("loggedInUserCabang") || '';
+        const namaLengkap = sessionStorage.getItem("nama_lengkap") || email.split('@')[0];
 
         if (isAuth !== "true" || !role) { router.push('/auth'); return; }
 
-        setUserInfo({ name: email.split('@')[0].toUpperCase(), role, cabang, email });
+        setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email });
         const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT'];
         
         if (role === 'KONTRAKTOR') {
@@ -130,12 +131,10 @@ export default function OpnamePage() {
 
     // --- 2. FITUR ANTI-REFRESH: SIMPAN JEJAK STATE KE SESSION STORAGE ---
     useEffect(() => {
-        // Jika sedang di halaman utama, bersihkan jejak lama
         if (activeView === 'menu') {
             sessionStorage.removeItem('opname_lastView');
             sessionStorage.removeItem('opname_selectedProject');
         } else {
-            // Jika sedang masuk ke dalam, rekam jejaknya
             sessionStorage.setItem('opname_lastView', activeView);
             sessionStorage.setItem('opname_menuType', menuType);
             sessionStorage.setItem('opname_selectedLingkup', selectedLingkup);
@@ -162,7 +161,6 @@ export default function OpnamePage() {
             }
             setListData(combinedList);
 
-            // --- 3. FITUR ANTI-REFRESH: LOAD KEMBALI JEJAK TERAKHIR (JIKA ADA) ---
             const lastView = sessionStorage.getItem('opname_lastView');
             const savedProjStr = sessionStorage.getItem('opname_selectedProject');
             
@@ -171,7 +169,6 @@ export default function OpnamePage() {
                 const savedLingkup = sessionStorage.getItem('opname_selectedLingkup') || 'SIPIL';
                 setMenuType((sessionStorage.getItem('opname_menuType') as any) || 'input');
                 
-                // Route Otomatis ke halaman terakhir yang dibuka
                 if (lastView === 'detail') loadOpnameDetail(savedProj, savedLingkup);
                 else if (lastView === 'history') loadOpnameHistory(savedProj, savedLingkup);
                 else setActiveView('list');
@@ -551,16 +548,23 @@ export default function OpnamePage() {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
-            <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
-                <div className="flex items-center gap-3 md:gap-5">
-                    <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
-                    <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
-                    <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block"></div>
-                    <h1 className="text-lg md:text-2xl font-bold tracking-widest drop-shadow-md">Opname</h1>
-                </div>
+            
+            {/* HEADER (Desain Konsisten dengan Materai) */}
+            <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20">
                 
-                <div className="relative z-10">
-                    <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm">
+                {/* KIRI: Tombol Kembali, Logo & Judul */}
+                <div className="flex items-center gap-3">
+                    <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors">
+                        <ChevronLeft className="w-6 h-6" />
+                    </Link>
+                    <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-10 drop-shadow-md" />
+                    <div className="h-6 w-px bg-white/30 hidden md:block"></div>
+                    <h1 className="text-lg md:text-xl font-bold">Opname</h1>
+                </div>
+
+                {/* KANAN: Mode Indicator (tetap dipertahankan karena fitur opname membutuhkannya) */}
+                <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-black/10 text-white border-white/30 px-3 py-1 md:py-1.5 shadow-sm backdrop-blur-sm text-[10px] md:text-xs font-semibold">
                         {appMode === 'pic' ? 'MODE PIC' : 'MODE KONTRAKTOR'}
                     </Badge>
                 </div>
