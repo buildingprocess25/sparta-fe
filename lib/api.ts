@@ -4,7 +4,7 @@ import { API_URL, OPNAME_API_URL } from './constants';
 // 1. Cek Status Revisi
 export const checkRevisionStatus = async (email: string, cabang: string) => {
     try {
-        const cleanBaseUrl = API_URL.replace(/\/$/, "");
+        const cleanBaseUrl = "https://sparta-backend-5hdj.onrender.com".replace(/\/$/, "");
         const endpoint = cleanBaseUrl.endsWith('/api') 
             ? `${cleanBaseUrl}/check_status` 
             : `${cleanBaseUrl}/api/check_status`;
@@ -26,8 +26,17 @@ export const checkRevisionStatus = async (email: string, cabang: string) => {
 // 2. Ambil Data Harga Material/Upah
 export const fetchPricesData = async (cabang: string, lingkup: string) => {
     try {
-        const res = await fetch(`${API_URL}/get-data?cabang=${encodeURIComponent(cabang)}&lingkup=${encodeURIComponent(lingkup)}`);
-        if (!res.ok) throw new Error("Gagal mengambil data harga dari server.");
+        const baseUrl = "https://sparta-backend-5hdj.onrender.com";
+        const url = `${baseUrl}/get-data?cabang=${encodeURIComponent(cabang)}&lingkup=${encodeURIComponent(lingkup)}`;
+        
+        const res = await fetch(url, {
+            method: "GET", // Memastikan method GET digunakan
+        });
+        
+        if (!res.ok) {
+            throw new Error(`Gagal mengambil data harga dari server (Status: ${res.status}).`);
+        }
+        
         return await res.json();
     } catch (error) {
         console.error("API Error (fetchPricesData):", error);
@@ -38,15 +47,18 @@ export const fetchPricesData = async (cabang: string, lingkup: string) => {
 // 3. Submit Data RAB
 export const submitRABData = async (payloadData: any) => {
     try {
-        const res = await fetch(`${API_URL}/api/submit_rab`, {
+        const res = await fetch(`${API_URL}/api/rab/submit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payloadData),
         });
+        
         const result = await res.json();
         
         if (!res.ok || result.status !== "success") {
-            throw new Error(result.message || "Server error saat menyimpan data.");
+            // Mengambil pesan detail jika API mengembalikan validasi (misal: Zod errors)
+            const errorMsg = result.message || "Server error saat menyimpan data.";
+            throw new Error(errorMsg);
         }
         return result;
     } catch (error) {

@@ -85,20 +85,22 @@ export default function RABPage() {
   }, [formData.cabang, formData.lingkupPekerjaan]);
 
   // --- 3. DETEKSI OTOMATIS DATA REVISI ---
-  const getUlokString = () => `${formData.lokasiCabang}${formData.lokasiTanggal}${formData.lokasiManual}${formData.isRenovasi ? 'R' : ''}`;
+  const getUlokString = () => `${formData.lokasiCabang}-${formData.lokasiTanggal}-${formData.lokasiManual}${formData.isRenovasi ? '-R' : ''}`;
 
   useEffect(() => {
-    const ulok = getUlokString();
+    const ulokWithStrip = getUlokString();
+    // Hilangkan strip hanya untuk kebutuhan komparasi data revisi agar lebih aman
+    const ulokNoStrip = ulokWithStrip.replace(/-/g, '');
     const scope = formData.lingkupPekerjaan;
 
-    if (ulok.length >= 12 && scope && rejectedList.length > 0) {
+    if (ulokNoStrip.length >= 12 && scope && rejectedList.length > 0) {
         const match = rejectedList.find(item => {
             const itemUlok = (item['Nomor Ulok'] || '').replace(/-/g, '');
             const itemScope = item['Lingkup_Pekerjaan'] || item['Lingkup Pekerjaan'];
-            return itemUlok === ulok && itemScope === scope;
+            return itemUlok === ulokNoStrip && itemScope === scope;
         });
 
-        const promptKey = `${ulok}-${scope}`;
+        const promptKey = `${ulokNoStrip}-${scope}`;
         if (match && hasPromptedRevisionFor !== promptKey && !revisionDataToLoad) {
             setRevisionDataToLoad(match);
             setHasPromptedRevisionFor(promptKey); 
@@ -228,37 +230,55 @@ export default function RABPage() {
 
     setIsLoading(true);
 
-    const payloadData: any = {
-        Nama_Toko: formData.namaToko, nama_toko: formData.namaToko, "Nomor Ulok": getUlokString(),
-        Proyek: formData.proyek, Alamat: formData.alamat, Cabang: formData.cabang,
-        Lingkup_Pekerjaan: formData.lingkupPekerjaan, Kategori_Lokasi: formData.kategoriLokasi,
-        Durasi_Pekerjaan: formData.durasiPekerjaan, "Luas Area Parkir": parseFloat(formData.luasAreaParkir) || 0,
-        "Luas Area Sales": parseFloat(formData.luasAreaSales) || 0, "Luas Gudang": parseFloat(formData.luasGudang) || 0,
-        "Luas Bangunan": parseFloat(formData.luasBangunan) || 0, "Luas Area Terbuka": parseFloat(formData.luasAreaTerbuka) || 0,
-        "Luas Terbangunan": luasTerbangunan.toFixed(2), Email_Pembuat: sessionStorage.getItem("loggedInUserEmail") || "",
-        "Grand Total": grandTotal
+    // Filter dan petakan baris tabel menjadi array detail_items
+    const detailItems = tableRows
+      .filter(row => row.jenisPekerjaan && row.volume > 0)
+      .map(row => ({
+        kategori_pekerjaan: row.category,
+        jenis_pekerjaan: row.jenisPekerjaan,
+        satuan: row.satuan,
+        volume: Number(row.volume),
+        harga_material: Number(row.hargaMaterial),
+        harga_upah: Number(row.hargaUpah)
+      }));
+
+    if (detailItems.length === 0) {
+      setIsLoading(false);
+      return showAlert("Peringatan", "Minimal harus ada 1 item pekerjaan dengan volume.", "warning");
+    }
+
+    const payloadData = {
+      nomor_ulok: getUlokString(),
+      nama_toko: formData.namaToko,
+      proyek: formData.proyek,
+      cabang: formData.cabang,
+      alamat: formData.alamat,
+      nama_kontraktor: sessionStorage.getItem("nama_pt") || "-",
+      lingkup_pekerjaan: formData.lingkupPekerjaan.toUpperCase(),
+      email_pembuat: sessionStorage.getItem("loggedInUserEmail") || "",
+      nama_pt: sessionStorage.getItem("nama_pt") || "-",
+      durasi_pekerjaan: formData.durasiPekerjaan,
+      kategori_lokasi: formData.kategoriLokasi.toUpperCase(),
+      luas_bangunan: String(formData.luasBangunan || "0"),
+      luas_terbangun: String(luasTerbangunan.toFixed(2)),
+      luas_area_terbuka: String(formData.luasAreaTerbuka || "0"),
+      luas_area_parkir: String(formData.luasAreaParkir || "0"),
+      luas_area_sales: String(formData.luasAreaSales || "0"),
+      luas_gudang: String(formData.luasGudang || "0"),
+      detail_items: detailItems
     };
 
-    let idx = 1;
-    tableRows.forEach(row => {
-        if (row.jenisPekerjaan && row.volume > 0) {
-            payloadData[`Kategori_Pekerjaan_${idx}`] = row.category;
-            payloadData[`Jenis_Pekerjaan_${idx}`] = row.jenisPekerjaan;
-            payloadData[`Satuan_Item_${idx}`] = row.satuan;
-            payloadData[`Volume_Item_${idx}`] = row.volume;
-            payloadData[`Harga_Material_Item_${idx}`] = row.hargaMaterial;
-            payloadData[`Harga_Upah_Item_${idx}`] = row.hargaUpah;
-            payloadData[`Total_Material_Item_${idx}`] = row.volume * row.hargaMaterial;
-            payloadData[`Total_Upah_Item_${idx}`] = row.volume * row.hargaUpah;
-            payloadData[`Total_Harga_Item_${idx}`] = row.volume * (row.hargaMaterial + row.hargaUpah);
-            idx++;
-        }
-    });
+    // ==========================================
+    // CONSOLE LOG UNTUK DEBUGGING PAYLOAD
+    // ==========================================
+    console.log("🚀 PAYLOAD SUBMIT RAB:", JSON.stringify(payloadData, null, 2));
 
     try {
         await submitRABData(payloadData);
         const params = new URLSearchParams({ ulok: getUlokString(), lingkup: formData.lingkupPekerjaan, locked: 'true' });
-        setTimeout(() => { router.push(`/gantt?${params.toString()}`); }, 1000);
+        
+        showAlert("Berhasil", "Pengajuan RAB berhasil disimpan dan PDF sedang diproses.", "success");
+        setTimeout(() => { router.push(`/gantt?${params.toString()}`); }, 1500);
     } catch (err: any) {
         setIsLoading(false);
         showAlert("Error", err.message, "error");
@@ -326,7 +346,7 @@ export default function RABPage() {
               <div className="space-y-2"><Label>Cabang <span className="text-red-500">*</span></Label><Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} /></div>
               <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
               <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
-              <div className="space-y-2 lg:col-span-3"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('durasiPekerjaan', val)} value={formData.durasiPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Durasi --" /></SelectTrigger><SelectContent>{['10','14','20','30','35','40','48'].map(d => <SelectItem key={d} value={d}>{d} Hari</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2 lg:col-span-3"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('durasiPekerjaan', val)} value={formData.durasiPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Durasi --" /></SelectTrigger><SelectContent>{['10','14','20','30','35','40','48'].map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
             </CardContent>
           </Card>
 

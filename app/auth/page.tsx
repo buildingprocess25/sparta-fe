@@ -71,13 +71,13 @@ export default function LoginPage() {
           result?.user?.jabatan || 
           result?.data?.role ||
           result.role;
-          
-        const jabatanFromAPI = String(rawJabatan).toUpperCase().trim();
         
-        // PERBAIKAN: Tangkap nama lengkap dan cabang langsung dari response API
+        // 1. Tangkap data dari response API
+        const jabatanFromAPI = String(result?.data?.jabatan || "").toUpperCase().trim();
         const namaLengkapFromAPI = result?.data?.nama_lengkap || "";
-        const cabangFromAPI = result?.data?.cabang || password; // Fallback ke input password jika kosong
+        const cabangFromAPI = result?.data?.cabang || password; 
         const emailFromAPI = result?.data?.email_sat || email;
+        const namaPtFromAPI = result?.data?.nama_pt || "";
 
         // 2. FUNGSI PEMETAAN (MAPPING) JABATAN
         let mappedRole = jabatanFromAPI;
@@ -103,11 +103,10 @@ export default function LoginPage() {
         // 3. Simpan data yang komplit ke sessionStorage
         sessionStorage.setItem("authenticated", "true");
         sessionStorage.setItem("loggedInUserEmail", emailFromAPI);
-        sessionStorage.setItem("userRole", mappedRole);
         sessionStorage.setItem("loggedInUserCabang", cabangFromAPI); 
-        
-        // PERBAIKAN: Simpan nama lengkap ke session storage
+        sessionStorage.setItem("userRole", mappedRole);
         sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
+        sessionStorage.setItem("nama_pt", namaPtFromAPI);
 
         setTimeout(() => {
           router.push("/dashboard"); 
