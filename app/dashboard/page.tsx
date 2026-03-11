@@ -81,7 +81,7 @@ export default function DashboardPage() {
         <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-12">
         
         {/* HEADER */}
-        <header className="flex items-center justify-between p-4 md:px-8 bg-gradient-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
+        <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-20">
                 <div className="flex items-center gap-3 md:gap-5">
                     <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
                     <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block"></div>
@@ -91,15 +91,12 @@ export default function DashboardPage() {
                     <img src="/assets/Building-Logo.png" alt="BM Logo" className="h-8 md:h-12 hidden sm:block object-contain drop-shadow-md" />
                 </div>
 
-                {/* PERBAIKAN: Styling Navbar User Info */}
                 {userInfo.name && (
                     <div className="hidden md:flex flex-col items-center justify-center absolute left-1/2 transform -translate-x-1/2 text-center pointer-events-none w-auto max-w-[50vw]">
-                        {/* Hapus class 'truncate', biarkan nama memanjang wajar */}
-                        <span className="text-[13px] md:text-sm font-bold text-white drop-shadow-md text-center whitespace-normal break-words">
+                        <span className="text-[13px] md:text-sm font-bold text-white drop-shadow-md text-center whitespace-normal wrap-break-word">
                             {userInfo.name}
                         </span>
-                        {/* Hapus 'truncate' dan 'max-w-[90%]', tambahkan 'whitespace-normal' dan 'leading-tight' agar jika super panjang, teksnya rapi tergulung ke bawah bukan terpotong */}
-                        <span className="text-[10px] md:text-xs font-medium text-red-50 bg-black/20 px-3 py-1 rounded-full mt-0.5 backdrop-blur-sm border border-white/10 shadow-inner text-center whitespace-normal break-words leading-tight">
+                        <span className="text-[10px] md:text-xs font-medium text-red-50 bg-black/20 px-3 py-1 rounded-full mt-0.5 backdrop-blur-sm border border-white/10 shadow-inner text-center whitespace-normal wrap-break-word leading-tight">
                             {userInfo.role} | {userInfo.cabang}
                         </span>
                     </div>
@@ -127,8 +124,10 @@ export default function DashboardPage() {
                 {allowedMenus.map((menu) => {
                     const IconComponent = menu.icon;
 
+                    // PERBAIKAN 1: Pindahkan hover translate & shadow ke elemen wrapper (pembungkus). 
+                    // Card di bawah ini hanya bertugas mengganti warna border saat grup luarnya dihover.
                     const CardContentArea = (
-                    <Card className="h-full flex flex-col p-6 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:border-red-400 cursor-pointer bg-white group">
+                    <Card className="h-full flex flex-col p-6 transition-colors duration-300 group-hover:border-red-400 bg-white">
                         <div className="flex flex-col items-center flex-1">
                             <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                                 <IconComponent className="w-8 h-8 stroke-[1.5]" />
@@ -148,9 +147,13 @@ export default function DashboardPage() {
                     </Card>
                     );
 
+                    // PERBAIKAN 2: Class seragam untuk semua pembungkus kartu (wrapper).
+                    // Animasi perpindahan (translate-y-2) dan ring-merah kini dipusatkan di sini.
+                    const wrapperClasses = "block h-full outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl group cursor-pointer";
+
                     if (menu.isAlert) {
                     return (
-                        <div key={menu.id} onClick={() => setFeatureAlertOpen(true)} className="h-full">
+                        <div key={menu.id} onClick={() => setFeatureAlertOpen(true)} className={wrapperClasses} tabIndex={0} role="button">
                         {CardContentArea}
                         </div>
                     );
@@ -158,14 +161,14 @@ export default function DashboardPage() {
 
                     if (menu.external) {
                     return (
-                        <a key={menu.id} href={menu.href} target="_blank" rel="noopener noreferrer" className="block h-full outline-none focus:ring-2 focus:ring-red-500 rounded-xl">
+                        <a key={menu.id} href={menu.href} target="_blank" rel="noopener noreferrer" className={wrapperClasses}>
                         {CardContentArea}
                         </a>
                     );
                     }
 
                     return (
-                        <Link key={menu.id} href={menu.href} className="block h-full outline-none focus:ring-2 focus:ring-red-500 rounded-xl">
+                        <Link key={menu.id} href={menu.href} className={wrapperClasses}>
                             {CardContentArea}
                         </Link>
                     );

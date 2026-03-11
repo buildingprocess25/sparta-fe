@@ -556,7 +556,7 @@ export default function OpnamePage() {
                     <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
                     <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
                     <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block"></div>
-                    <h1 className="text-lg md:text-2xl font-bold tracking-widest drop-shadow-md">OPNAME</h1>
+                    <h1 className="text-lg md:text-2xl font-bold tracking-widest drop-shadow-md">Opname</h1>
                 </div>
                 
                 <div className="relative z-10">
