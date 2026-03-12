@@ -298,6 +298,21 @@ export default function RABPage() {
 
   const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : [];
 
+  const isFormComplete = 
+    formData.namaToko.trim() !== '' &&
+    formData.lokasiTanggal.trim() !== '' &&
+    formData.lokasiManual.trim() !== '' &&
+    formData.proyek !== '' &&
+    formData.alamat.trim() !== '' &&
+    formData.lingkupPekerjaan !== '' &&
+    formData.kategoriLokasi !== '' &&
+    formData.durasiPekerjaan !== '' &&
+    formData.luasBangunan !== '' &&
+    formData.luasAreaTerbuka !== '' &&
+    formData.luasAreaSales !== '' &&
+    formData.luasGudang !== '' &&
+    formData.luasAreaParkir !== '';
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-12">
       <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md sticky top-0 z-20 border-b border-red-900">
@@ -329,19 +344,36 @@ export default function RABPage() {
               <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className="bg-white" required /></div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2 mb-2">
-                  <Checkbox id="isRenovasi" checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c}))} />
+                  <Checkbox id="isRenovasi" checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? 'Renovasi' : prev.proyek}))}/>
                   <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
                 </div>
                 <div className="flex gap-2 items-center">
-                   <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
-                   <span className="font-bold text-slate-400">-</span>
-                   <Input name="lokasiTanggal" placeholder="YYMM" className="w-[30%] bg-white" maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
-                   <span className="font-bold text-slate-400">-</span>
-                   <Input name="lokasiManual" placeholder={formData.isRenovasi ? "C0B4" : "0001"} className="w-[40%] bg-white uppercase" maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
-                   {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
+                  <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
+                  <span className="font-bold text-slate-400">-</span>
+                  <Input name="lokasiTanggal" placeholder="YYMM" className="w-[30%] bg-white" maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
+                  <span className="font-bold text-slate-400">-</span>
+                  <Input name="lokasiManual" placeholder={formData.isRenovasi ? "C0B4" : "0001"} className="w-[40%] bg-white uppercase" maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
+                  {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
                 </div>
               </div>
-              <div className="space-y-2"><Label>Proyek <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('proyek', val)} value={formData.proyek} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Jenis Proyek --" /></SelectTrigger><SelectContent><SelectItem value="Alfamart Reguler">Reguler</SelectItem><SelectItem value="Franchise">Franchise</SelectItem><SelectItem value="Renovasi">Renovasi</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2">
+                <Label>Proyek <span className="text-red-500">*</span></Label>
+                <Select 
+                  onValueChange={(val) => handleSelectChange('proyek', val)} 
+                  value={formData.proyek} 
+                  disabled={formData.isRenovasi} 
+                  required
+                >
+                  <SelectTrigger className={formData.isRenovasi ? "bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" : "bg-white"}>
+                    <SelectValue placeholder="-- Pilih Jenis Proyek --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Alfamart Reguler">Reguler</SelectItem>
+                    <SelectItem value="Franchise">Franchise</SelectItem>
+                    <SelectItem value="Renovasi">Renovasi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
               <div className="space-y-2"><Label>Cabang <span className="text-red-500">*</span></Label><Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} /></div>
               <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
@@ -349,7 +381,6 @@ export default function RABPage() {
               <div className="space-y-2 lg:col-span-3"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('durasiPekerjaan', val)} value={formData.durasiPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Durasi --" /></SelectTrigger><SelectContent>{['10','14','20','30','35','40','48'].map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
             </CardContent>
           </Card>
-
           <Card className="mb-8 shadow-sm">
             <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Dimensi & Ukuran Proyek</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pt-6">
@@ -433,14 +464,14 @@ export default function RABPage() {
           )}
 
           <div className="bg-[#fff9e6] border-2 border-[#ffc107] p-6 md:p-8 rounded-2xl shadow-sm mb-8">
-              <div className="flex justify-between items-center mb-3"><span className="text-slate-600 font-medium">Total Estimasi:</span><span className="font-semibold text-lg text-slate-800">{toRupiah(totalEstimasi)}</span></div>
-              <div className="flex justify-between items-center mb-3"><span className="text-slate-600 font-medium">Pembulatan <span className="text-xs">(ke bawah)</span>:</span><span className="font-semibold text-lg text-slate-800">{toRupiah(pembulatan)}</span></div>
-              <div className="flex justify-between items-center mb-6"><span className="text-slate-600 font-medium">PPN (11%):</span><span className="font-semibold text-lg text-slate-800">{toRupiah(ppn)}</span></div>
+              <div className="flex justify-between items-center mb-3"><span className="text-slate-600 font-medium">Total Estimasi :</span><span className="font-semibold text-lg text-slate-800">{toRupiah(totalEstimasi)}</span></div>
+              <div className="flex justify-between items-center mb-3"><span className="text-slate-600 font-medium">Pembulatan :</span><span className="font-semibold text-lg text-slate-800">{toRupiah(pembulatan)}</span></div>
+              <div className="flex justify-between items-center mb-6"><span className="text-slate-600 font-medium">PPN (11%) :</span><span className="font-semibold text-lg text-slate-800">{toRupiah(ppn)}</span></div>
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-t border-yellow-300 pt-6 gap-4"><span className="text-xl md:text-2xl font-bold text-slate-800">GRAND TOTAL</span><span className="text-3xl md:text-4xl font-extrabold text-red-600">{toRupiah(grandTotal)}</span></div>
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 sticky bottom-4 z-10 p-4 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200">
-            <Button type="submit" disabled={isLoading || activeCategories.length === 0} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 shadow-md transition-all">
+            <Button type="submit" disabled={isLoading || !isFormComplete} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500 shadow-md transition-all">
               {isLoading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sedang Mengirim Data...</> : <><Save className="w-5 h-5 mr-2" /> Simpan & Lanjut ke Gantt Chart</>}
             </Button>
             <Button type="button" variant="outline" className="w-full md:w-1/3 h-14 text-lg font-semibold bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-red-600" onClick={() => setResetDialogOpen(true)}>
