@@ -40,7 +40,7 @@ export default function TentangSparta() {
 
   // --- DATA TIM PERTAMA ---
     const initiators = [
-        { name: "Andy Mulyono", role: "Head of Building & Maintenance", desc: "Penggagas utama digitalisasi proses bisnis.", icon: <Lightbulb className="w-6 h-6 text-amber-600" /> }
+        { name: "Andy Mulyono", role: "Head of System Development Building & Maintenance", desc: "Penggagas utama digitalisasi proses bisnis.", icon: <Lightbulb className="w-6 h-6 text-amber-600" /> }
     ];
 
     const firstTeamDevelopers = [
@@ -56,7 +56,7 @@ export default function TentangSparta() {
 
   // --- DATA TIM KEDUA ---
     const secondTeamInitiators = [
-        { name: "Andy Mulyono", role: "Head of Building & Maintenance", desc: "Penggagas utama digitalisasi proses bisnis.", icon: <Lightbulb className="w-6 h-6 text-amber-600" /> },
+        { name: "Andy Mulyono", role: "Head of System Development Building & Maintenance", desc: "Penggagas utama digitalisasi proses bisnis.", icon: <Lightbulb className="w-6 h-6 text-amber-600" /> },
         { name: "Bima Arya Bhagaskara", role: "Project Manager", desc: "Pengarah untuk pengembangan lanjutan SPARTA.", icon: <Users className="w-6 h-6 text-amber-600" /> }
     ];
 
