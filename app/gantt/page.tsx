@@ -358,68 +358,16 @@ function GanttBoard() {
         const rangeToRemove = taskObj.ranges[rangeIdx];
         
         if (rangeToRemove.start && rangeToRemove.end) {
-            const isConfirmed = window.confirm("Hapus periode ini? Jika sudah disimpan, data ini akan dihapus dari server.");
+            const isConfirmed = window.confirm("Hapus periode ini? Jangan lupa untuk klik 'Simpan Draft' agar penghapusan tersimpan di server.");
             if (!isConfirmed) return;
-
-            try {
-                const cleanBaseUrl = API_URL.replace(/\/$/, "");
-                
-                let dateStartStr = "";
-                let dateEndStr = "";
-                let foundMatch = false;
-
-                if (rawDayGanttData && rawDayGanttData.length > 0) {
-                    const rawDataList = rawDayGanttData.filter((d: any) => 
-                        (d.Kategori || "").toLowerCase().trim() === taskObj.name.toLowerCase().trim()
-                    );
-                    if (rawDataList[rangeIdx]) {
-                        dateStartStr = rawDataList[rangeIdx].h_awal;
-                        dateEndStr = rawDataList[rangeIdx].h_akhir;
-                        foundMatch = true;
-                    }
-                }
-
-                if (!foundMatch) {
-                    const pStart = new Date(projectData.startDate);
-                    const dS = new Date(pStart); dS.setDate(pStart.getDate() + parseInt(rangeToRemove.start) - 1);
-                    const dE = new Date(pStart); dE.setDate(pStart.getDate() + parseInt(rangeToRemove.end) - 1);
-                    dateStartStr = formatDateID(dS);
-                    dateEndStr = formatDateID(dE);
-                }
-
-                if (!dateStartStr.includes("NaN") && !dateEndStr.includes("NaN")) {
-                    const payload = {
-                        "nomor_ulok": projectData.ulokClean,
-                        "lingkup_pekerjaan": projectData.work.toUpperCase(),
-                        "remove_kategori_data": [{
-                            "Kategori": taskObj.name,
-                            "h_awal": dateStartStr,
-                            "h_akhir": dateEndStr
-                        }]
-                    };
-
-                    const response = await fetch(`${cleanBaseUrl}/api/gantt/day/insert`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if (!response.ok) {
-                        const errText = await response.text();
-                        throw new Error(`Server Error (${response.status}): ${errText}`);
-                    }
-                }
-                
-            } catch (err: any) {
-                console.error("Gagal menghapus data di server:", err);
-                alert("Gagal menghapus di server: " + err.message);
-                return;
-            }
+            
         }
 
+        // Langsung update UI state
         setTasks(prev => prev.map(t => {
             if(t.id === taskId) {
                 const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
+                // Jika semua range terhapus, sisakan satu form kosong agar user bisa input lagi
                 if (newRanges.length === 0) newRanges.push({start: '', end: '', keterlambatan: 0});
                 return {...t, ranges: newRanges};
             }
