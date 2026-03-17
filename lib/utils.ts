@@ -1,39 +1,94 @@
+// =============================================================================
 // lib/utils.ts
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+// Kumpulan helper / utility function yang digunakan di seluruh aplikasi.
+// =============================================================================
 
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+// -----------------------------------------------------------------------------
+// TAILWIND MERGE
+// -----------------------------------------------------------------------------
+
+/** Menggabungkan class Tailwind secara aman (menghindari konflik class). */
 export function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs))
+    return twMerge(clsx(inputs));
 }
 
-export const formatRupiah = (num: number) => {
-    return "Rp " + new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num);
+// -----------------------------------------------------------------------------
+// FORMAT ANGKA & MATA UANG
+// -----------------------------------------------------------------------------
+
+/**
+ * Memformat angka menjadi format Rupiah Indonesia.
+ * Contoh: 1500000 → "Rp 1.500.000"
+ */
+export const formatRupiah = (num: number): string => {
+    return (
+        "Rp " +
+        new Intl.NumberFormat("id-ID", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(num)
+    );
 };
 
-export const formatScore = (num: number) => {
-    return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(num);
+/**
+ * Memformat angka menjadi format skor (desimal 2 angka, locale Indonesia).
+ * Contoh: 98.5 → "98,50"
+ */
+export const formatScore = (num: number): string => {
+    return new Intl.NumberFormat("id-ID", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    }).format(num);
 };
 
-export const parseCurrency = (value: any) => {
+// -----------------------------------------------------------------------------
+// PARSING NILAI
+// -----------------------------------------------------------------------------
+
+/**
+ * Mengubah berbagai format nilai mata uang (string/number) menjadi number.
+ * - Mendukung format "1.500.000,50" (ID locale)
+ * - Mengembalikan 0 jika input tidak valid atau error (#REF!, Error, dll.)
+ */
+export const parseCurrency = (value: any): number => {
     if (!value) return 0;
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') {
-        if (value.includes('#REF!') || value.includes('Error')) return 0;
-        const cleanStr = value.replace(/\./g, '').replace(/,/g, '.');
-        const floatVal = parseFloat(cleanStr);
-        return isNaN(floatVal) ? 0 : floatVal;
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+        if (value.includes("#REF!") || value.includes("Error")) return 0;
+        const cleaned = value.replace(/\./g, "").replace(/,/g, ".");
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? 0 : parsed;
     }
     return 0;
 };
 
-export const parseScore = (value: any) => {
+/**
+ * Mengubah nilai skor (0–100 atau 0–1) menjadi angka desimal 0–1.
+ * Jika nilai > 100, diasumsikan sudah dalam skala 100 dan akan dibagi 100.
+ */
+export const parseScore = (value: any): number => {
     if (!value) return 0;
-    let num = typeof value === 'number' ? value : parseFloat(String(value).replace(/,/g, '.'));
+    const num =
+        typeof value === "number"
+            ? value
+            : parseFloat(String(value).replace(/,/g, "."));
     if (isNaN(num)) return 0;
     return num > 100 ? num / 100 : num;
 };
 
-export const getYearFromDate = (dateStr: string) => {
+// -----------------------------------------------------------------------------
+// PARSING TANGGAL
+// -----------------------------------------------------------------------------
+
+/**
+ * Mengekstrak tahun (4 digit) dari string tanggal dalam format apapun.
+ * Contoh: "15 Januari 2024" → "2024"
+ * Mengembalikan null jika tidak ditemukan.
+ */
+export const getYearFromDate = (dateStr: string): string | null => {
     if (!dateStr) return null;
     const match = dateStr.match(/\d{4}/);
     return match ? match[0] : null;
