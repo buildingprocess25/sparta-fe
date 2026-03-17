@@ -71,7 +71,7 @@ export default function TentangSparta() {
         {/* HEADER - Layout disamakan dengan Dashboard */}
         <header className="flex items-center justify-between p-4 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-30 shrink-0">
             <div className="flex items-center gap-3 md:gap-5">
-                <Link href="/dashboard" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
+                <Link href="/" className="mr-2 hover:bg-white/20 p-2 rounded-full transition-colors"><ChevronLeft className="w-6 h-6" /></Link>
                 <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-8 md:h-12 object-contain drop-shadow-md" />
                 <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block" />
                 <h1 className="text-lg md:text-2xl font-bold md:font-extrabold tracking-widest drop-shadow-md">TENTANG SPARTA</h1>
