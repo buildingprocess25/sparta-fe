@@ -19,9 +19,10 @@ import {
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell } from 'lucide-react';
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
-import { checkRevisionStatus, fetchPricesData, submitRABData } from '@/lib/api';
+import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fetchTokoDetail } from '@/lib/api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
+const formatAngka = (num: number) => num ? num.toLocaleString('id-ID') : '';
 
 export default function RABPage() {
   const router = useRouter();
@@ -42,11 +43,25 @@ export default function RABPage() {
   const [hasPromptedRevisionFor, setHasPromptedRevisionFor] = useState<string>(''); 
   
   const [isLoading, setIsLoading] = useState(false);
+  const [isRevisionLoading, setIsRevisionLoading] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{title: string, desc: string, type: 'info' | 'error' | 'success' | 'warning'}>({ title: "", desc: "", type: "info" });
   
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [revisionListDialogOpen, setRevisionListDialogOpen] = useState(false);
+  
+  // State untuk melacak perubahan pada form revisi
+  const [initialFormState, setInitialFormState] = useState<string | null>(null);
+
+  useEffect(() => {
+     if (initialFormState === "TRACKING_PENDING" && !isLoading) {
+         setInitialFormState(JSON.stringify({ formData, tableRows }));
+     }
+  }, [isLoading, formData, tableRows, initialFormState]);
+
+  const isFormModified = initialFormState && initialFormState !== "TRACKING_PENDING" 
+      ? JSON.stringify({ formData, tableRows }) !== initialFormState 
+      : true;
 
   // --- 1. INISIALISASI SESI & CEK STATUS REVISI ---
   useEffect(() => {
@@ -67,8 +82,7 @@ export default function RABPage() {
         checkRevisionStatus(userEmail, userCabang).then(result => {
             if (result.rejected_submissions && result.rejected_submissions.length > 0) {
                 setRejectedList(result.rejected_submissions);
-                const codes = result.rejected_submissions.map((i: any) => i['Nomor Ulok']).join(', ');
-                showAlert("Pemberitahuan Revisi", `Ditemukan pengajuan RAB Anda yang dikembalikan/ditolak untuk Ulok: ${codes}.`, "warning");
+                setRevisionListDialogOpen(true); // Membuka modal notification lonceng secara otomatis ketika data ditolak terdeteksi
             }
         }).catch(err => console.log("Gagal periksa revisi", err));
     }
@@ -80,7 +94,7 @@ export default function RABPage() {
         fetchPricesData(formData.cabang, formData.lingkupPekerjaan)
             .then(data => {
                 setPrices(data);
-                if (!revisionDataToLoad) setTableRows([]); 
+                // Dihapus reset table dari sini karena menyebabkan data auto-load terhapus
             })
             .catch(err => showAlert("Error", err.message, "error"));
     }
@@ -111,35 +125,93 @@ export default function RABPage() {
   }, [formData.lokasiCabang, formData.lokasiTanggal, formData.lokasiManual, formData.isRenovasi, formData.lingkupPekerjaan, rejectedList, hasPromptedRevisionFor]);
 
   // --- 4. EKSEKUSI AUTO-FILL DATA REVISI ---
-  const handleLoadRevision = async () => {
-      if (!revisionDataToLoad) return;
-      const data = revisionDataToLoad;
-      const scope = formData.lingkupPekerjaan;
+  const handleLoadRevision = async (directItem?: any) => {
+      const data = directItem || revisionDataToLoad;
+      if (!data) return;
+      
+      const scope = data['Lingkup_Pekerjaan'] || data['Lingkup Pekerjaan'] || formData.lingkupPekerjaan;
       
       setRevisionDataToLoad(null);
-      setIsLoading(true);
+      setIsRevisionLoading(true);
+
+      // Ekstrak komponen ULOK jika di-load dari "Revisi Sekarang"
+      const ulokStr = data['Nomor Ulok'] || '';
+      const parts = ulokStr.split('-');
+      const lokasiCabang = parts[0] || formData.lokasiCabang;
+      const lokasiTanggal = parts[1] || formData.lokasiTanggal;
+      const lokasiManual = parts[2] || formData.lokasiManual;
+      const isRenovasi = parts.length > 3 && parts[3] === 'R';
 
       try {
-          const fetchedPrices = await fetchPricesData(formData.cabang, scope);
+          // 1. Fetch detail spesifik RAB revisi ini jika ada ID (Lazy Load dari klik lonceng)
+          let fetchedDetailData: any = {};
+          let itemsData = typeof data["Item_Details_JSON"] === 'string' ? JSON.parse(data["Item_Details_JSON"]) : (data["Item_Details_JSON"] || []);
+          
+          if (data.id && (!itemsData || itemsData.length === 0)) {
+              try {
+                  const detailRes = await fetchRABDetail(data.id);
+                  fetchedDetailData = detailRes.data;
+                  itemsData = fetchedDetailData.items || [];
+              } catch (err) {
+                  console.error("Gagal mengambil detail RAB:", err);
+              }
+          }
+
+          const tokoRef = fetchedDetailData?.toko || data;
+          const rabRef = fetchedDetailData?.rab || data;
+          
+          let fetchedTokoAlamat = "";
+          if (rabRef.id_toko || tokoRef.id) {
+              try {
+                  const idToFetch = rabRef.id_toko || tokoRef.id;
+                  const tokoRes = await fetchTokoDetail(idToFetch);
+                  fetchedTokoAlamat = tokoRes.data?.alamat || "";
+              } catch (e) {
+                  console.log("Bypass fetch toko detail error");
+              }
+          }
+
+          // Lingkup pekerjaan asli akan didapatkan dari detail toko
+          let resolvedScope = tokoRef.lingkup_pekerjaan || scope;
+          if (resolvedScope?.toUpperCase() === 'SIPIL') resolvedScope = 'Sipil';
+          else if (resolvedScope?.toUpperCase() === 'ME') resolvedScope = 'ME';
+
+          // 2. Fetch harga master sesuai lingkup pekerjaan yang benar
+          const fetchedPrices = await fetchPricesData(formData.cabang, resolvedScope);
           setPrices(fetchedPrices);
+
+          // Normalisasi Dropdown
+          let finalProyek = rabRef.proyek || data["Proyek"] || formData.proyek;
+          if (finalProyek?.toUpperCase() === 'REGULER') finalProyek = 'Alfamart Reguler';
+          else if (finalProyek?.toUpperCase() === 'RENOVASI') finalProyek = 'Renovasi';
+
+          let finalKategori = rabRef.kategori_lokasi || data["Kategori_Lokasi"] || formData.kategoriLokasi;
+          if (finalKategori?.toUpperCase() === 'RUKO') finalKategori = 'Ruko';
+          else if (finalKategori?.toUpperCase() === 'NON RUKO' || finalKategori?.toUpperCase() === 'NON_RUKO') finalKategori = 'Non Ruko';
+
+          let finalDurasi = rabRef.durasi_pekerjaan || data["Durasi_Pekerjaan"] || formData.durasiPekerjaan;
+          if (finalDurasi) finalDurasi = finalDurasi.toString().replace(/[^0-9]/g, ''); // Ambil digit saja ("30 Hari" -> "30")
 
           setFormData(prev => ({
               ...prev,
-              namaToko: data["nama_toko"] || data["Nama_Toko"] || prev.namaToko,
-              proyek: data["Proyek"] || prev.proyek,
-              alamat: data["Alamat"] || prev.alamat,
-              kategoriLokasi: data["Kategori_Lokasi"] || prev.kategoriLokasi,
-              durasiPekerjaan: data["Durasi_Pekerjaan"] || prev.durasiPekerjaan,
-              luasAreaParkir: data["Luas Area Parkir"]?.toString() || prev.luasAreaParkir,
-              luasAreaSales: data["Luas Area Sales"]?.toString() || prev.luasAreaSales,
-              luasGudang: data["Luas Gudang"]?.toString() || prev.luasGudang,
-              luasBangunan: data["Luas Bangunan"]?.toString() || prev.luasBangunan,
-              luasAreaTerbuka: data["Luas Area Terbuka"]?.toString() || prev.luasAreaTerbuka,
+              lokasiCabang,
+              lokasiTanggal,
+              lokasiManual,
+              isRenovasi,
+              lingkupPekerjaan: resolvedScope,
+              proyek: finalProyek,
+              namaToko: tokoRef.nama_toko || data["nama_toko"] || data["Nama_Toko"] || prev.namaToko,
+              alamat: fetchedTokoAlamat || tokoRef.alamat || data["Alamat"] || prev.alamat,
+              kategoriLokasi: finalKategori,
+              durasiPekerjaan: finalDurasi,
+              luasAreaParkir: rabRef.luas_area_parkir?.toString() || data["Luas Area Parkir"]?.toString() || prev.luasAreaParkir,
+              luasAreaSales: rabRef.luas_area_sales?.toString() || data["Luas Area Sales"]?.toString() || prev.luasAreaSales,
+              luasGudang: rabRef.luas_gudang?.toString() || data["Luas Gudang"]?.toString() || prev.luasGudang,
+              luasBangunan: rabRef.luas_bangunan?.toString() || data["Luas Bangunan"]?.toString() || prev.luasBangunan,
+              luasAreaTerbuka: rabRef.luas_area_terbuka?.toString() || data["Luas Area Terbuka"]?.toString() || prev.luasAreaTerbuka,
           }));
 
-          const itemsData = typeof data["Item_Details_JSON"] === 'string' ? JSON.parse(data["Item_Details_JSON"]) : (data["Item_Details_JSON"] || []);
-          
-          const newRows = [];
+          const newRows: any[] = [];
           if (Array.isArray(itemsData) && itemsData.length > 0) {
               // Format dari backend baru
               itemsData.forEach((item: any, i: number) => {
@@ -158,7 +230,8 @@ export default function RABPage() {
                       volume: parseFloat(item.volume) || 0,
                       hargaMaterial: parseFloat(item.harga_material) || 0,
                       hargaUpah: parseFloat(item.harga_upah) || 0,
-                      isKondisional: isMatCond || isUpahCond
+                      isKondisional: isMatCond || isUpahCond,
+                      catatan: item.catatan || ''
                   });
               });
           } else {
@@ -181,17 +254,19 @@ export default function RABPage() {
                           volume: parseFloat(details[`Volume_Item_${i}`]) || 0,
                           hargaMaterial: parseFloat(details[`Harga_Material_Item_${i}`]) || 0,
                           hargaUpah: parseFloat(details[`Harga_Upah_Item_${i}`]) || 0,
-                          isKondisional: isMatCond || isUpahCond
+                          isKondisional: isMatCond || isUpahCond,
+                          catatan: details[`Catatan_Item_${i}`] || ''
                       });
                   }
               }
           }
           setTableRows(newRows);
+          setInitialFormState("TRACKING_PENDING");
           showAlert("Berhasil", "Data revisi berhasil dimuat ke dalam form.", "success");
       } catch (err) {
           showAlert("Error", "Terjadi kesalahan saat memuat data revisi.", "error");
       } finally {
-          setIsLoading(false);
+          setIsRevisionLoading(false);
       }
   };
 
@@ -218,10 +293,16 @@ export default function RABPage() {
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
-  const handleSelectChange = (name: string, value: string) => setFormData(prev => ({ ...prev, [name]: value }));
+  const handleSelectChange = (name: string, value: string) => {
+      setFormData(prev => ({ ...prev, [name]: value }));
+      if (name === 'lingkupPekerjaan') {
+          // Hanya reset tabel jika user manual mengganti dropdown scope dari form
+          setTableRows([]);
+      }
+  };
 
   const addRow = (category: string) => {
-    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: 0, hargaMaterial: 0, hargaUpah: 0, isKondisional: false }]);
+    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: 0, hargaMaterial: 0, hargaUpah: 0, isKondisional: false, catatan: '' }]);
   };
 
   const removeRow = (id: number) => setTableRows(prev => prev.filter(row => row.id !== id));
@@ -266,7 +347,8 @@ export default function RABPage() {
         satuan: row.satuan,
         volume: Number(row.volume),
         harga_material: Number(row.hargaMaterial),
-        harga_upah: Number(row.hargaUpah)
+        harga_upah: Number(row.hargaUpah),
+        catatan: row.catatan || ''
       }));
 
     if (detailItems.length === 0) {
@@ -376,6 +458,17 @@ export default function RABPage() {
       />
 
       <main className="max-w-350 mx-auto p-4 md:p-8 mt-4">
+        {isRevisionLoading && (
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm transition-all duration-300">
+            <div className="bg-white p-5 rounded-2xl shadow-xl flex items-center gap-4 animate-in fade-in zoom-in-95 duration-200">
+              <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+              <div className="flex flex-col">
+                <span className="font-bold text-slate-800 text-lg">Memuat Data Revisi...</span>
+                <span className="text-sm text-slate-500">Mempersiapkan rincian form Anda</span>
+              </div>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <Card className="mb-8 shadow-sm">
             <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Data & Identitas Proyek</CardTitle></CardHeader>
@@ -408,16 +501,18 @@ export default function RABPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Alfamart Reguler">Reguler</SelectItem>
-                    <SelectItem value="Franchise">Franchise</SelectItem>
                     <SelectItem value="Renovasi">Renovasi</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Cabang <span className="text-red-500">*</span></Label><Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} /></div>
-              <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
-              <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
-              <div className="space-y-2 lg:col-span-3"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('durasiPekerjaan', val)} value={formData.durasiPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Durasi --" /></SelectTrigger><SelectContent>{['10','14','20','30','35','40','48'].map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
+              
+              <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="space-y-2"><Label>Cabang <span className="text-red-500">*</span></Label><Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} /></div>
+                <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
+                <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
+                <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="number" min="1" step="1" name="durasiPekerjaan" value={formData.durasiPekerjaan} onChange={handleInputChange} placeholder="Masukkan jumlah hari" className="bg-white" required /></div>
+              </div>
             </CardContent>
           </Card>
           <Card className="mb-8 shadow-sm">
@@ -444,7 +539,6 @@ export default function RABPage() {
                   <Card key={category} className="overflow-hidden border-slate-200 shadow-sm">
                     <div className="bg-slate-100 p-4 border-b flex justify-between items-center">
                       <h3 className="font-bold text-red-700">{category}</h3>
-                      <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-red-200 text-red-600 hover:bg-red-50" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item</Button>
                     </div>
                     {itemsInCategory.length > 0 && (
                       <div className="overflow-x-auto">
@@ -458,6 +552,7 @@ export default function RABPage() {
                               <th colSpan={2} className="p-2 border border-red-100">Harga Satuan (Rp)</th>
                               <th colSpan={2} className="p-2 border border-red-100">Total Harga Satuan (Rp)</th>
                               <th rowSpan={2} className="p-2 border border-red-100 w-36">Total Harga (Rp)<br/><span className="font-normal">(f=d+e)</span></th>
+                              <th rowSpan={2} className="p-2 border border-red-100 w-48">Catatan Tambahan<br/><span className="font-normal">(Opsional)</span></th>
                               <th rowSpan={2} className="p-2 border border-red-100 w-16">Aksi</th>
                             </tr>
                             <tr>
@@ -480,21 +575,32 @@ export default function RABPage() {
                                   </select>
                                 </td>
                                 <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium">{row.satuan}</td>
-                                <td className="p-2 border-r border-slate-100"><Input type="number" step="any" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume || ''} onChange={(e) => updateRow(row.id, 'volume', parseFloat(e.target.value) || 0)} readOnly={row.satuan === 'Ls'} /></td>
-                                <td className="p-2 border-r border-slate-100"><Input type="number" step="any" className="h-9 px-2 text-right transition-colors text-xs bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" value={row.hargaMaterial || ''} readOnly tabIndex={-1} /></td>
-                                <td className="p-2 border-r border-slate-100"><Input type="number" step="any" className={`h-9 px-2 text-right transition-colors text-xs ${!row.isKondisional ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah || ''} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value) || 0)} readOnly={!row.isKondisional} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="number" min="0" step="any" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume || ''} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseFloat(e.target.value) || 0))} readOnly={row.satuan === 'Ls'} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="text" className="h-9 px-2 text-right transition-colors text-xs bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" value={row.hargaMaterial === 0 ? '' : formatAngka(row.hargaMaterial)} readOnly tabIndex={-1} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs ${!row.isKondisional ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah === 0 ? '' : formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={!row.isKondisional} /></td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs">{toRupiah(row.volume * row.hargaMaterial)}</td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs">{toRupiah(row.volume * row.hargaUpah)}</td>
                                 <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
+                                <td className="p-2 border-r border-slate-100"><Input type="text" placeholder="Catatan..." className="h-9 px-2 text-xs bg-white border-slate-300 focus-visible:ring-blue-500" value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
                                 <td className="p-2 text-center"><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button></td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-                            <tr><td colSpan={8} className="p-3 text-right font-bold text-slate-600">Sub Total {category}:</td><td className="p-3 text-right font-bold text-red-700 whitespace-nowrap">{toRupiah(subTotal)}</td><td></td></tr>
+                            <tr>
+                              <td colSpan={11} className="p-3 text-center bg-white border-b border-slate-200">
+                                <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-full max-w-sm" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
+                              </td>
+                            </tr>
+                            <tr><td colSpan={8} className="p-3 text-right font-bold text-slate-600">Sub Total {category}:</td><td className="p-3 text-right font-bold text-red-700 whitespace-nowrap">{toRupiah(subTotal)}</td><td colSpan={2}></td></tr>
                           </tfoot>
                         </table>
                       </div>
+                    )}
+                    {itemsInCategory.length === 0 && (
+                        <div className="p-6 text-center">
+                            <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
+                        </div>
                     )}
                   </Card>
                 )
@@ -510,7 +616,7 @@ export default function RABPage() {
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 sticky bottom-4 z-10 p-4 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200">
-            <Button type="submit" disabled={isLoading || !isFormComplete} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500 shadow-md transition-all">
+            <Button type="submit" disabled={isLoading || !isFormComplete || !isFormModified} title={!isFormModified ? "Silakan buat perubahan pada form terlebih dahulu" : ""} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500 shadow-md transition-all">
               {isLoading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sedang Mengirim Data...</> : <><Save className="w-5 h-5 mr-2" /> Simpan & Lanjut ke Gantt Chart</>}
             </Button>
             <Button type="button" variant="outline" className="w-full md:w-1/3 h-14 text-lg font-semibold bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-red-600" onClick={() => setResetDialogOpen(true)}>
@@ -535,14 +641,22 @@ export default function RABPage() {
                       <span className="block text-sm">Berikut adalah daftar Nomor Ulok yang dikembalikan dan perlu Anda revisi/ajukan ulang:</span>
                       <span className="flex flex-col space-y-3">
                           {rejectedList.map((item, idx) => (
-                              <span key={idx} className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex flex-col">
-                                  <span className="font-bold text-slate-800 text-base">{item['Nomor Ulok']}</span>
-                                  <span className="text-sm text-slate-500">Lingkup: {item['Lingkup_Pekerjaan'] || item['Lingkup Pekerjaan']}</span>
+                              <span key={idx} className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex flex-col gap-3">
+                                  <span className="block">
+                                      <span className="font-bold text-slate-800 text-base">{item['Nomor Ulok']}</span>
+                                      <span className="text-sm text-slate-500 block">Lingkup: {item['Lingkup_Pekerjaan'] || item['Lingkup Pekerjaan']}</span>
+                                  </span>
+                                  <Button 
+                                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                                      onClick={() => {
+                                          setRevisionListDialogOpen(false);
+                                          handleLoadRevision(item);
+                                      }}
+                                  >
+                                      Revisi Sekarang
+                                  </Button>
                               </span>
                           ))}
-                      </span>
-                      <span className="block text-xs italic text-slate-400">
-                          *Ketikkan Nomor Ulok dan pilih Lingkup Pekerjaan yang sesuai di form untuk memuat data ini secara otomatis.
                       </span>
                   </span>
               ) : (

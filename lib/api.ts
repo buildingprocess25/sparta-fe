@@ -184,31 +184,16 @@ export const checkRevisionStatus = async (email: string, cabang: string) => {
 
         if (rejected.length === 0) return { rejected_submissions: [] };
 
-        // Ambil detail RAB yang ditolak agar formatnya sama dengan yang diharapkan halaman RAB
-        const formatted = await Promise.all(rejected.map(async r => {
-            try {
-                const detail = await fetchRABDetail(r.id);
-                return {
-                    "Nomor Ulok": r.nomor_ulok,
-                    "Lingkup_Pekerjaan": detail.data.toko?.lingkup_pekerjaan || '-',
-                    "nama_toko": r.nama_toko,
-                    "Proyek": r.proyek,
-                    "Alamat": detail.data.toko?.alamat || '',
-                    "Kategori_Lokasi": detail.data.rab?.kategori_lokasi || '',
-                    "Durasi_Pekerjaan": detail.data.rab?.durasi_pekerjaan || '',
-                    "Luas Area Parkir": detail.data.rab?.luas_area_parkir || '',
-                    "Luas Area Sales": detail.data.rab?.luas_area_sales || '',
-                    "Luas Gudang": detail.data.rab?.luas_gudang || '',
-                    "Luas Bangunan": detail.data.rab?.luas_bangunan || '',
-                    "Luas Area Terbuka": detail.data.rab?.luas_area_terbuka || '',
-                    "Item_Details_JSON": detail.data.items || [] // format array dari backend baru
-                };
-            } catch (err) {
-                return null;
-            }
+        const formatted = rejected.map(r => ({
+            id: r.id,
+            "Nomor Ulok": r.nomor_ulok,
+            "Lingkup_Pekerjaan": r.proyek, // Fallback to proyek, exact scope fetched on click
+            "nama_toko": r.nama_toko,
+            "Proyek": r.proyek,
+            // Sisa field detail akan diambil saat tombol 'Revisi Sekarang' diklik
         }));
 
-        return { rejected_submissions: formatted.filter(Boolean) };
+        return { rejected_submissions: formatted };
     } catch (err) {
         console.error("Error checkRevisionStatus:", err);
         return { rejected_submissions: [] };
@@ -259,6 +244,16 @@ export const fetchRABDetail = async (
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal memuat detail RAB (${res.status}): ${text.substring(0, 100)}`);
+    }
+    return res.json();
+};
+
+/** Ambil detail Toko berdasarkan ID untuk menarik kolom alamat yang kosong pada revisi. */
+export const fetchTokoDetail = async (id: number) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/toko/${id}`);
+    if (!res.ok) {
+        if (res.status === 404) throw new Error("Data toko tidak ditemukan.");
+        throw new Error(`Gagal memuat detail Toko (${res.status})`);
     }
     return res.json();
 };
