@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
-
-import { fetchApprovedRabs, fetchKontraktorList, checkSpkStatus, submitSPKData } from '@/lib/api';
+import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList } from '@/lib/api';
 
 const getCabangCode = (cabangName: string) => {
     const map: Record<string, string> = {
@@ -98,8 +97,25 @@ export default function SPKPage() {
     const loadApprovedRabs = async (cabang: string) => {
         setIsLoading(true);
         try {
-            const data = await fetchApprovedRabs(cabang);
-            setApprovedRabs(data || []);
+            const res = await fetchRABList({ status: "Disetujui" });
+            const listRab = res.data || [];
+            
+            // Filter spesifik ke cabang user yang sedang login
+            const filteredRabs = listRab.filter(r => r.cabang?.toUpperCase() === cabang.toUpperCase());
+            
+            // Map endpoint baru ke struktur data dictionary lama yang digunakan komponen ini
+            const mappedData = filteredRabs.map((r: any) => ({
+                "Nomor Ulok": r.nomor_ulok,
+                "Lingkup_Pekerjaan": r.lingkup_pekerjaan || "-",
+                "Cabang": r.cabang,
+                "Nama_Toko": r.toko?.nama_toko || r.nama_toko,
+                "Kode_Toko": r.toko?.kode_toko || "-", 
+                "Proyek": r.proyek ||  "-",
+                "Alamat": r.toko?.alamat || "-",
+                "Grand Total Final": r.grand_total_final || r.grand_total || 0,
+            }));
+            
+            setApprovedRabs(mappedData);
         } catch (error: any) {
             alert("Gagal memuat data RAB: " + error.message);
         } finally {
@@ -146,49 +162,55 @@ export default function SPKPage() {
 
             // Check Status SPK (Cek Revisi)
             if (selectedUlok && selectedLingkup) {
-                const spkStatus = await checkSpkStatus(selectedUlok, selectedLingkup);
-                if (spkStatus && spkStatus.Status) {
-                    const status = spkStatus.Status;
-                    if (status === "SPK Ditolak") {
-                        setSpkMsg({ text: "SPK sebelumnya DITOLAK. Data lama telah dimuat untuk revisi.", type: "error" });
+                try {
+                    const spkRes = await fetchSPKList({ nomor_ulok: selectedUlok });
+                    const existingSpks = spkRes.data.filter(s => s.lingkup_pekerjaan === selectedLingkup);
+                    
+                    if (existingSpks.length > 0) {
+                        // Ambil riwayat terbaru jika lebih dari satu
+                        const latestSpk = existingSpks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                        const status = latestSpk.status;
                         
-                        const dataReject = spkStatus.Data || {};
-                        let sequenceLama = ''; let bLama = ''; let tLama = '';
-                        
-                        const spkFull = dataReject["Nomor SPK"] || "";
-                        const spkParts = spkFull.split("/");
-                        if(spkParts.length >= 4) { sequenceLama = spkParts[0]; bLama = spkParts[2]; tLama = spkParts[3]; }
+                        if (status === "SPK_REJECTED") {
+                            setSpkMsg({ text: `SPK sebelumnya DITOLAK: "${latestSpk.alasan_penolakan || 'Tanpa Alasan'}". Data lama telah dimuat, silakan revisi.`, type: "error" });
+                            
+                            // Ekstrak data penomoran lama
+                            let pNo = '', pB = '', pT = '';
+                            if (latestSpk.par) {
+                                const parPartsSlash = latestSpk.par.split("/");
+                                if (parPartsSlash.length >= 2) {
+                                    pNo = parPartsSlash[0];
+                                    const sParts = parPartsSlash[1].split("-");
+                                    if (sParts.length >= 3) {
+                                        pB = sParts[sParts.length - 2];
+                                        pT = sParts[sParts.length - 1];
+                                    }
+                                }
+                            }
 
-                        let pNo = ''; let pB = ''; let pT = '';
-                        const parFull = dataReject["PAR"] || "";
-                        const parPartsSlash = parFull.split("/");
-                        if(parPartsSlash.length >= 2) {
-                            pNo = parPartsSlash[0];
-                            const sParts = parPartsSlash[1].split("-");
-                            if(sParts.length >= 4) { pB = sParts[sParts.length - 2]; pT = sParts[sParts.length - 1]; }
+                            setRevisiData({ isRevisi: true, sequence: latestSpk.nomor_spk?.split('/')[0] || '', rowIndex: null });
+                            setForm(prev => ({
+                                ...prev,
+                                waktu_mulai: latestSpk.waktu_mulai ? latestSpk.waktu_mulai.split("T")[0] : '',
+                                durasi: latestSpk.durasi?.toString() || '',
+                                nama_kontraktor: latestSpk.nama_kontraktor || '',
+                                spk_bulan: latestSpk.spk_manual_1 || '', 
+                                spk_tahun: latestSpk.spk_manual_2 || new Date().getFullYear().toString().slice(-2),
+                                par_no: pNo, par_bulan: pB, par_tahun: pT || new Date().getFullYear().toString()
+                            }));
+
+                        } else if (status === "WAITING_FOR_BM_APPROVAL") {
+                            setSpkMsg({ text: "SPK sedang dalam proses persetujuan (Menunggu Branch Manager). Tidak bisa disubmit ulang.", type: "warning" });
+                            setIsLocked(true);
+                        } else if (status === "SPK_APPROVED") {
+                            setSpkMsg({ text: "SPK sudah disetujui!", type: "success" });
+                            setIsLocked(true);
                         }
-
-                        setRevisiData({ isRevisi: true, sequence: sequenceLama, rowIndex: spkStatus.RowIndex });
-                        setForm(prev => ({
-                            ...prev,
-                            waktu_mulai: dataReject["Waktu Mulai"] ? dataReject["Waktu Mulai"].split("T")[0] : '',
-                            durasi: dataReject["Durasi"] || '',
-                            nama_kontraktor: dataReject["Nama Kontraktor"] || dataReject["Nama_Kontraktor"] || '',
-                            nama_toko: dataReject["Nama Toko"] || dataReject["Nama_Toko"] || prev.nama_toko,
-                            kode_toko: dataReject["Kode Toko"] || dataReject["Kode_Toko"] || prev.kode_toko,
-                            spk_bulan: bLama, spk_tahun: tLama || new Date().getFullYear().toString().slice(-2),
-                            par_no: pNo, par_bulan: pB, par_tahun: pT || new Date().getFullYear().toString()
-                        }));
-
-                    } else if (status === "Menunggu Persetujuan Branch Manager") {
-                        setSpkMsg({ text: "SPK sedang dalam proses persetujuan. Tidak bisa disubmit ulang.", type: "warning" });
-                        setIsLocked(true);
-                    } else if (status === "SPK Disetujui") {
-                        setSpkMsg({ text: "SPK sudah disetujui!", type: "success" });
-                        setIsLocked(true);
+                    } else {
+                        setSpkMsg({ text: "Silakan lengkapi form untuk pengajuan SPK baru.", type: "info" });
                     }
-                } else {
-                    setSpkMsg({ text: "Silakan lengkapi form untuk pengajuan SPK baru.", type: "info" });
+                } catch (error) {
+                    setSpkMsg({ text: "Gagal mengecek status SPK.", type: "error" });
                 }
             }
         }
@@ -198,41 +220,26 @@ export default function SPKPage() {
         e.preventDefault();
         if (!selectedRabObj) return;
 
-        let finalNomorSPK = `(Otomatis)/PROPNDEV-${form.kode_cabang}/${form.spk_bulan}/${form.spk_tahun}`;
-        if (revisiData.isRevisi && revisiData.sequence) {
-            finalNomorSPK = `${revisiData.sequence}/PROPNDEV-${form.kode_cabang}/${form.spk_bulan}/${form.spk_tahun}`;
-        }
-        
         const fullPAR = `${form.par_no}/PROPNDEV-${form.kode_cabang}-${form.par_bulan}-${form.par_tahun}`;
 
-        const payload: any = {
-            "Nama_Toko": form.nama_toko || "N/A",
-            "Tanggal_RAB": selectedRabObj["Timestamp"] ? selectedRabObj["Timestamp"].split('T')[0] : '',
-            "PIC": userInfo.name,
-            "Nomor Ulok": selectedRabObj["Nomor Ulok"],
-            "Cabang": selectedRabObj.Cabang,
-            "Kode_Toko": form.kode_toko || "N/A",
-            "Lingkup_Pekerjaan": selectedRabObj["Lingkup_Pekerjaan"],
-            "Proyek": selectedRabObj["Proyek"] || "N/A",
-            "Alamat": selectedRabObj["Alamat"] || "N/A",
-            "Grand Total": selectedRabObj["Grand Total Final"] || 0,
-            "Nama Kontraktor": form.nama_kontraktor,
-            "Nomor SPK": finalNomorSPK,
-            "PAR": fullPAR,
-            "Waktu Mulai": form.waktu_mulai,
-            "Durasi": form.durasi,
-            "Email_Pembuat": userInfo.email,
-            "Dibuat Oleh": userInfo.email
+        // Sesuai dengan dokumentasi body POST /api/spk/submit
+        const payload = {
+            nomor_ulok: selectedRabObj["Nomor Ulok"],
+            email_pembuat: userInfo.email,
+            lingkup_pekerjaan: selectedRabObj["Lingkup_Pekerjaan"],
+            nama_kontraktor: form.nama_kontraktor,
+            proyek: selectedRabObj["Proyek"] || "N/A",
+            waktu_mulai: form.waktu_mulai, // Format YYYY-MM-DD
+            durasi: parseInt(form.durasi),
+            grand_total: parseFloat(selectedRabObj["Grand Total Final"]) || 0,
+            par: fullPAR,
+            spk_manual_1: form.spk_bulan,
+            spk_manual_2: form.spk_tahun
         };
-
-        if (revisiData.isRevisi) {
-            payload["Revisi"] = "YES";
-            payload["RowIndex"] = revisiData.rowIndex;
-        }
 
         setIsSubmitting(true);
         try {
-            await submitSPKData(payload);
+            await submitSPK(payload);
             // Munculkan Modal Sukses
             setShowSuccessModal(true);
         } catch (err: any) {

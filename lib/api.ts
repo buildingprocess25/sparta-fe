@@ -827,89 +827,94 @@ export const fetchPicKontraktorOpnameData = async (noUlok: string) => {
 
 // --- Types ---
 
-export type SPKListItem = {
-    id:                 number;
-    nomor_ulok:         string;
-    nama_toko:          string;
-    kode_toko?:         string;
-    cabang:             string;
-    lingkup_pekerjaan:  string;
-    nama_kontraktor:    string;
-    nilai_kontrak:      number | string;
-    masa_berlaku?:      string;
-    tanggal_mulai?:     string;
-    status:             string;
-    email_pembuat:      string;
-    created_at:         string;
-    alasan_penolakan?:  string | null;
-    pemberi_persetujuan?:string | null;
-    waktu_persetujuan?: string | null;
+export type SPKSubmitPayload = {
+    nomor_ulok: string;
+    email_pembuat: string;
+    lingkup_pekerjaan: string;
+    nama_kontraktor: string;
+    proyek: string;
+    waktu_mulai: string;
+    durasi: number;
+    grand_total: number;
+    par?: string;
+    spk_manual_1?: string;
+    spk_manual_2?: string;
 };
 
-export type SPKDetailItem = {
-    id:                number;
-    kategori_pekerjaan:string;
-    jenis_pekerjaan:   string;
-    satuan:            string;
-    volume:            number;
-    harga_material:    number;
-    harga_upah:        number;
-    total_harga:       number;
+export type SPKListItem = {
+    id: number;
+    nomor_ulok: string;
+    email_pembuat: string;
+    lingkup_pekerjaan: string;
+    nama_kontraktor: string;
+    proyek: string;
+    waktu_mulai: string;
+    durasi: number;
+    waktu_selesai: string;
+    grand_total: number;
+    terbilang: string;
+    nomor_spk: string;
+    par: string;
+    spk_manual_1: string;
+    spk_manual_2: string;
+    status: string;
+    link_pdf: string | null;
+    approver_email: string | null;
+    waktu_persetujuan: string | null;
+    alasan_penolakan: string | null;
+    created_at: string;
+};
+
+export type SPKApprovalLog = {
+    id: number;
+    pengajuan_spk_id: number;
+    approver_email: string;
+    tindakan: string;
+    alasan_penolakan: string | null;
+    waktu_tindakan: string;
 };
 
 export type SPKDetailResponse = {
-    spk:    SPKListItem;
-    items?: SPKDetailItem[];
+    pengajuan: SPKListItem;
+    approvalLogs: SPKApprovalLog[];
 };
 
 export type SPKApprovalPayload = {
-    approver_email:   string;
-    tindakan:         "APPROVE" | "REJECT";
+    approver_email: string;
+    tindakan: "APPROVE" | "REJECT";
     alasan_penolakan?: string | null;
 };
 
 // --- Fungsi ---
 
-/** Submit SPK baru. */
-export const submitSPKData = async (payload: any) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/submit_spk`, {
+/** Submit SPK baru. (Backend akan otomatis handle revisi jika ada status REJECTED sebelumnya) */
+export const submitSPK = async (payload: SPKSubmitPayload) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/submit`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok || result.status !== "success")
+    if (!res.ok || result.status !== "success") {
         throw new Error(result.message || "Gagal menyimpan data SPK.");
+    }
     return result;
 };
 
-/** Cek status SPK berdasarkan ULOK dan lingkup. Mengembalikan null jika belum ada. */
-export const checkSpkStatus = async (ulok: string, lingkup: string) => {
-    try {
-        return await safeFetchJSON(
-            `${API_URL.replace(/\/$/, "")}/api/get_spk_status?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`
-        );
-    } catch {
-        return null;
-    }
-};
-
-/** Ambil daftar SPK dengan filter opsional. */
+/** Ambil daftar SPK dengan filter opsional (Status, Nomor ULOK). */
 export const fetchSPKList = async (filters?: {
     status?: string;
-    cabang?: string;
     nomor_ulok?: string;
 }): Promise<{ status: string; data: SPKListItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
-    if (filters?.status)     params.append("status",     filters.status);
-    if (filters?.cabang)     params.append("cabang",     filters.cabang);
+    if (filters?.status)     params.append("status", filters.status);
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     const url = `${base}/api/spk${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
 
-/** Ambil detail SPK berdasarkan ID. */
+/** Ambil detail pengajuan SPK beserta histori log approval. */
 export const fetchSPKDetail = async (
     id: number
 ): Promise<{ status: string; data: SPKDetailResponse }> => {
@@ -922,7 +927,36 @@ export const fetchSPKDetail = async (
     return res.json();
 };
 
-/** Proses approval atau reject SPK. */
+/** Download PDF SPK. */
+export const downloadSPKPdf = async (id: number): Promise<boolean> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/pdf`);
+    if (res.status === 404) throw new Error(`Pengajuan SPK dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengunduh PDF (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    const disposition = res.headers.get("Content-Disposition");
+    let filename = `SPK_${id}.pdf`;
+    if (disposition?.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match?.[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(blobUrl);
+    document.body.removeChild(a);
+    return true;
+};
+
+/** Proses approval atau reject SPK (Branch Manager). */
 export const processSPKApproval = async (
     id: number,
     payload: SPKApprovalPayload

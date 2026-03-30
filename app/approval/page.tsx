@@ -18,7 +18,7 @@ import {
     type RABListItem, type RABDetailItem,
     // SPK
     fetchSPKList, fetchSPKDetail, processSPKApproval,
-    type SPKListItem, type SPKDetailItem,
+    type SPKListItem,
     // IL
     fetchILList, fetchILDetail, processILApproval,
     type ILListItem, type ILDetailItem,
@@ -154,6 +154,9 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     PENDING_DIREKTUR:    'bg-red-100 text-red-700 border-red-200',
     APPROVED:            'bg-green-100 text-green-700 border-green-200',
     REJECTED:            'bg-red-100 text-red-700 border-red-200',
+    WAITING_FOR_BM_APPROVAL: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    SPK_APPROVED:            'bg-green-100 text-green-700 border-green-200',
+    SPK_REJECTED:            'bg-red-100 text-red-700 border-red-200',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -163,6 +166,9 @@ const STATUS_LABEL: Record<string, string> = {
     PENDING_DIREKTUR:    'PENDING (DIR.)',
     APPROVED:            'APPROVED',
     REJECTED:            'REJECTED',
+    WAITING_FOR_BM_APPROVAL: 'PENDING BM',
+    SPK_APPROVED:            'APPROVED',
+    SPK_REJECTED:            'REJECTED',
 };
 
 // =============================================
@@ -183,18 +189,21 @@ const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] =>
     }));
 
 const normalizeSPKList = (items: SPKListItem[]): NormalizedListItem[] =>
-    items.map(s => ({
-        id: s.id,
-        tipe: 'SPK' as ApprovalType,
-        nomor_ulok:    s.nomor_ulok,
-        nama_toko:     s.nama_toko,
-        cabang:        s.cabang,
-        status:        s.status,
-        total_nilai:   parseCurrency(s.nilai_kontrak),
-        email_pembuat: s.email_pembuat,
-        created_at:    s.created_at,
-        _raw: s,
-    }));
+    items.map(s => {
+        const raw = s as any; // Bypass TS strict jika tipe di api.ts belum diperbarui
+        return {
+            id: raw.id,
+            tipe: 'SPK' as ApprovalType,
+            nomor_ulok:    raw.nomor_ulok,
+            nama_toko:     raw.toko?.nama_toko ?? raw.nama_toko ?? '-',
+            cabang:        raw.toko?.cabang ?? raw.cabang ?? '-',
+            status:        raw.status,
+            total_nilai:   parseCurrency(raw.grand_total),
+            email_pembuat: raw.email_pembuat,
+            created_at:    raw.created_at,
+            _raw: raw,
+        };
+    });
 
 const normalizeILList = (items: ILListItem[]): NormalizedListItem[] =>
     items.map(il => ({
@@ -325,24 +334,24 @@ export default function ApprovalPage() {
                 const res = await fetchRABList();
                 normalized = normalizeRABList(res.data ?? []);
             } else if (type === 'SPK') {
-                const res = await fetchSPKList();
+                const res = await fetchSPKList({ status: 'WAITING_FOR_BM_APPROVAL' });
                 normalized = normalizeSPKList(res.data ?? []);
             } else if (type === 'IL') {
                 const res = await fetchILList();
                 normalized = normalizeILList(res.data ?? []);
             }
 
-            // Filter: hanya tampilkan item yang statusnya "Menunggu Persetujuan ..."
-            // dan sesuai dengan giliran jabatan user yang login
+            // Filter
             normalized = normalized.filter(item => {
                 const upper = (item.status ?? '').toUpperCase();
-                // Harus mengandung "MENUNGGU" (artinya masih menunggu persetujuan)
+                
+                // Khusus SPK, pastikan statusnya valid menunggu BM
+                if (type === 'SPK') {
+                    return upper === 'WAITING_FOR_BM_APPROVAL';
+                }
+
+                // Untuk RAB & IL (Multi-level)
                 if (!upper.includes('MENUNGGU') && !upper.startsWith('PENDING')) return false;
-
-                // SPK hanya satu level, cukup cek "Menunggu"
-                if (type === 'SPK') return true;
-
-                // RAB & IL — multi-level: cocokkan jabatan
                 if (jabatan === 'KOORDINATOR') return upper.includes('KOORDINATOR');
                 if (jabatan === 'MANAGER')     return upper.includes('MANAGER') || upper.includes('MANAJER');
                 return true;
@@ -402,30 +411,21 @@ export default function ApprovalPage() {
                 const res = await fetchSPKDetail(item.id);
                 const d = res.data;
                 detail = {
-                    id: d.spk.id,
+                    id: d.pengajuan.id,
                     tipe: 'SPK',
-                    nomor_ulok:        d.spk.nomor_ulok,
-                    nama_toko:         d.spk.nama_toko,
-                    cabang:            d.spk.cabang,
-                    lingkup_pekerjaan: d.spk.lingkup_pekerjaan,
-                    status:            d.spk.status,
-                    total_nilai:       parseCurrency(d.spk.nilai_kontrak),
-                    email_pembuat:     d.spk.email_pembuat,
-                    created_at:        d.spk.created_at,
-                    alasan_penolakan:  d.spk.alasan_penolakan,
-                    nama_kontraktor:   d.spk.nama_kontraktor,
-                    masa_berlaku:      d.spk.masa_berlaku,
-                    nilai_kontrak:     parseCurrency(d.spk.nilai_kontrak),
-                    items: (d.items ?? []).map((it: SPKDetailItem) => ({
-                        id: it.id,
-                        kategori:        it.kategori_pekerjaan,
-                        jenis_pekerjaan: it.jenis_pekerjaan,
-                        satuan:          it.satuan,
-                        volume:          it.volume,
-                        harga_material:  it.harga_material,
-                        harga_upah:      it.harga_upah,
-                        total:           it.total_harga,
-                    })),
+                    nomor_ulok:        d.pengajuan.nomor_ulok,
+                    nama_toko:         item.nama_toko,
+                    cabang:            item.cabang,
+                    lingkup_pekerjaan: (d.pengajuan as any).lingkup_pekerjaan ?? '-',
+                    status:            d.pengajuan.status,
+                    total_nilai:       parseCurrency((d.pengajuan as any).grand_total),
+                    email_pembuat:     (d.pengajuan as any).email_pembuat,
+                    created_at:        (d.pengajuan as any).created_at,
+                    alasan_penolakan:  (d.pengajuan as any).alasan_penolakan,
+                    nama_kontraktor:   (d.pengajuan as any).nama_kontraktor,
+                    masa_berlaku:      (d.pengajuan as any).durasi ? `${(d.pengajuan as any).durasi} Hari (Mulai: ${formatDate((d.pengajuan as any).waktu_mulai)})` : undefined,
+                    nilai_kontrak:     parseCurrency((d.pengajuan as any).grand_total),
+                    items: [],
                 };
 
             } else if (item.tipe === 'IL') {
@@ -608,14 +608,17 @@ export default function ApprovalPage() {
      */
     const isActionableByRole = (status: string, tipe: ApprovalType): boolean => {
         const upper = (status ?? '').toUpperCase();
-        // Abaikan item yang sudah ditolak atau disetujui
-        if (upper.includes('TOLAK') || upper.includes('DITOLAK') || upper === 'REJECTED') return false;
-        if (upper.includes('DISETUJUI') || upper === 'APPROVED') return false;
+        
+        // Cek Tolak/Setuju secara universal termasuk SPK
+        if (upper.includes('TOLAK') || upper === 'REJECTED' || upper === 'SPK_REJECTED') return false;
+        if (upper.includes('DISETUJUI') || upper === 'APPROVED' || upper === 'SPK_APPROVED') return false;
 
+        // Validasi tombol Action khusus SPK (hanya untuk Branch Manager)
         if (tipe === 'SPK') {
-            return upper.includes('MENUNGGU') || upper.startsWith('PENDING');
+            return upper === 'WAITING_FOR_BM_APPROVAL';
         }
-        // RAB & IL — multi-level: harus "Menunggu" + sesuai jabatan
+
+        // RAB & IL — multi-level
         if (jabatan === 'KOORDINATOR') return upper.includes('MENUNGGU') && upper.includes('KOORDINATOR');
         if (jabatan === 'MANAGER')     return upper.includes('MENUNGGU') && (upper.includes('MANAGER') || upper.includes('MANAJER'));
         return upper.includes('MENUNGGU') || upper.startsWith('PENDING');
@@ -700,7 +703,7 @@ export default function ApprovalPage() {
             )}
 
             <AppNavbar
-                title={selectedType ? `Approval ${APPROVAL_CONFIG[selectedType].label}` : 'Approval Dokumen'}
+                title={selectedType ? APPROVAL_CONFIG[selectedType].label : 'Approval Dokumen'}
                 showBackButton
                 backHref="/dashboard"
                 rightActions={
@@ -890,29 +893,6 @@ export default function ApprovalPage() {
                                         }
                                         {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download RAB (PDF)'}
                                     </Button>
-                                )}
-                                {canActOnDetail && detailAsListItem && (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
-                                            disabled={!!processingId}
-                                            onClick={() => openRejectModal(detailAsListItem)}
-                                        >
-                                            <XCircle className="w-4 h-4 mr-2" /> Tolak
-                                        </Button>
-                                        <Button
-                                            className="bg-green-600 hover:bg-green-700 text-white font-bold"
-                                            disabled={!!processingId}
-                                            onClick={() => handleApprove(selectedDetail!)}
-                                        >
-                                            {processingId === selectedDetail!.id
-                                                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                : <CheckCircle className="w-4 h-4 mr-2" />
-                                            }
-                                            Approve Sekarang
-                                        </Button>
-                                    </>
                                 )}
                             </div>
                         </div>

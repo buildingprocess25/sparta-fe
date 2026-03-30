@@ -82,8 +82,11 @@ export default function LoginPage() {
         // 2. FUNGSI PEMETAAN (MAPPING) JABATAN
         let mappedRole = jabatanFromAPI;
 
-        if (jabatanFromAPI.includes("MANAGER") || jabatanFromAPI === "BM") {
+        if (jabatanFromAPI.includes("BUILDING MAINTENANCE MANAGER") || jabatanFromAPI === "BBMM") {
             mappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
+        }
+        else if (jabatanFromAPI.includes("BRANCH MANAGER") || jabatanFromAPI === "BM") {
+            mappedRole = "BRANCH MANAGER";
         } 
         else if (jabatanFromAPI.includes("DOKUMENTASI") || jabatanFromAPI === "BBSD") {
             mappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
