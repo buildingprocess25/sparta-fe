@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList } from '@/lib/api';
 
@@ -35,6 +34,19 @@ const getTodayDateString = () => {
     return `${year}-${month}-${day}`;
 };
 
+// Tipe untuk data form yang dibandingkan saat revisi
+type RevisiFormSnapshot = {
+    kode_toko: string;
+    nama_kontraktor: string;
+    waktu_mulai: string;
+    durasi: string;
+    spk_bulan: string;
+    spk_tahun: string;
+    par_no: string;
+    par_bulan: string;
+    par_tahun: string;
+};
+
 export default function SPKPage() {
     const router = useRouter();
 
@@ -42,8 +54,18 @@ export default function SPKPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    // State untuk memunculkan Modal Sukses
+    // Modal Sukses
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+    // Modal Notifikasi SPK Ditolak
+    const [rejectedModal, setRejectedModal] = useState<{
+        isOpen: boolean;
+        alasanPenolakan: string;
+        namaKontraktor: string;
+    }>({ isOpen: false, alasanPenolakan: '', namaKontraktor: '' });
+
+    // Snapshot form dari SPK yang ditolak (untuk deteksi perubahan)
+    const [originalRejectedForm, setOriginalRejectedForm] = useState<RevisiFormSnapshot | null>(null);
     
     // Data API
     const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
@@ -64,13 +86,9 @@ export default function SPKPage() {
         nama_kontraktor: '',
         waktu_mulai: '',
         durasi: '',
-        nama_toko: '', // Statis
-        kode_toko: '', // Input manual
-        
-        // SPK Penomoran
+        nama_toko: '',
+        kode_toko: '',
         spk_bulan: '', spk_tahun: new Date().getFullYear().toString().slice(-2),
-        
-        // PAR Penomoran
         par_no: '', par_bulan: '', par_tahun: new Date().getFullYear().toString()
     });
 
@@ -100,17 +118,15 @@ export default function SPKPage() {
             const res = await fetchRABList({ status: "Disetujui" });
             const listRab = res.data || [];
             
-            // Filter spesifik ke cabang user yang sedang login
-            const filteredRabs = listRab.filter(r => r.cabang?.toUpperCase() === cabang.toUpperCase());
+            const filteredRabs = listRab.filter((r: any) => r.cabang?.toUpperCase() === cabang.toUpperCase());
             
-            // Map endpoint baru ke struktur data dictionary lama yang digunakan komponen ini
             const mappedData = filteredRabs.map((r: any) => ({
                 "Nomor Ulok": r.nomor_ulok,
                 "Lingkup_Pekerjaan": r.lingkup_pekerjaan || "-",
                 "Cabang": r.cabang,
                 "Nama_Toko": r.toko?.nama_toko || r.nama_toko,
                 "Kode_Toko": r.toko?.kode_toko || "-", 
-                "Proyek": r.proyek ||  "-",
+                "Proyek": r.proyek || "-",
                 "Alamat": r.toko?.alamat || "-",
                 "Grand Total Final": r.grand_total_final || r.grand_total || 0,
             }));
@@ -127,6 +143,7 @@ export default function SPKPage() {
         setSpkMsg({ text: '', type: '' });
         setIsLocked(false);
         setRevisiData({ isRevisi: false, sequence: '', rowIndex: null });
+        setOriginalRejectedForm(null);
 
         if (!ulokStr) {
             setSelectedRabObj(null); 
@@ -160,21 +177,18 @@ export default function SPKPage() {
                 setKontraktorList(kList || []);
             } catch (e) { setKontraktorList([]); }
 
-            // Check Status SPK (Cek Revisi)
+            // Check Status SPK
             if (selectedUlok && selectedLingkup) {
                 try {
                     const spkRes = await fetchSPKList({ nomor_ulok: selectedUlok });
                     const existingSpks = spkRes.data.filter(s => s.lingkup_pekerjaan === selectedLingkup);
                     
                     if (existingSpks.length > 0) {
-                        // Ambil riwayat terbaru jika lebih dari satu
                         const latestSpk = existingSpks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
                         const status = latestSpk.status;
                         
                         if (status === "SPK_REJECTED") {
-                            setSpkMsg({ text: `SPK sebelumnya DITOLAK: "${latestSpk.alasan_penolakan || 'Tanpa Alasan'}". Data lama telah dimuat, silakan revisi.`, type: "error" });
-                            
-                            // Ekstrak data penomoran lama
+                            // Parse nomor PAR lama
                             let pNo = '', pB = '', pT = '';
                             if (latestSpk.par) {
                                 const parPartsSlash = latestSpk.par.split("/");
@@ -188,16 +202,34 @@ export default function SPKPage() {
                                 }
                             }
 
-                            setRevisiData({ isRevisi: true, sequence: latestSpk.nomor_spk?.split('/')[0] || '', rowIndex: null });
-                            setForm(prev => ({
-                                ...prev,
+                            const autofilledForm: RevisiFormSnapshot = {
+                                kode_toko: selected["Kode_Toko"] || selected["kode_toko"] || '',
+                                nama_kontraktor: latestSpk.nama_kontraktor || '',
                                 waktu_mulai: latestSpk.waktu_mulai ? latestSpk.waktu_mulai.split("T")[0] : '',
                                 durasi: latestSpk.durasi?.toString() || '',
-                                nama_kontraktor: latestSpk.nama_kontraktor || '',
-                                spk_bulan: latestSpk.spk_manual_1 || '', 
+                                spk_bulan: latestSpk.spk_manual_1 || '',
                                 spk_tahun: latestSpk.spk_manual_2 || new Date().getFullYear().toString().slice(-2),
-                                par_no: pNo, par_bulan: pB, par_tahun: pT || new Date().getFullYear().toString()
-                            }));
+                                par_no: pNo,
+                                par_bulan: pB,
+                                par_tahun: pT || new Date().getFullYear().toString(),
+                            };
+
+                            // Simpan snapshot untuk deteksi perubahan
+                            setOriginalRejectedForm(autofilledForm);
+
+                            // Autofill form
+                            setRevisiData({ isRevisi: true, sequence: latestSpk.nomor_spk?.split('/')[0] || '', rowIndex: null });
+                            setForm(prev => ({ ...prev, ...autofilledForm }));
+
+                            // Tampilkan pesan inline minimal
+                            setSpkMsg({ text: "Data SPK yang ditolak telah dimuat. Ubah minimal 1 field lalu kirim ulang.", type: "warning" });
+
+                            // Tampilkan popup modal notifikasi penolakan
+                            setRejectedModal({
+                                isOpen: true,
+                                alasanPenolakan: latestSpk.alasan_penolakan || 'Tidak ada alasan yang diberikan.',
+                                namaKontraktor: latestSpk.nama_kontraktor || '-',
+                            });
 
                         } else if (status === "WAITING_FOR_BM_APPROVAL") {
                             setSpkMsg({ text: "SPK sedang dalam proses persetujuan (Menunggu Branch Manager). Tidak bisa disubmit ulang.", type: "warning" });
@@ -216,20 +248,45 @@ export default function SPKPage() {
         }
     };
 
+    // Cek apakah minimal 1 field berubah dari snapshot SPK yang ditolak
+    const hasFormChangedFromOriginal = (): boolean => {
+        if (!originalRejectedForm) return true; // Bukan revisi, selalu boleh submit
+        const current: RevisiFormSnapshot = {
+            kode_toko: form.kode_toko,
+            nama_kontraktor: form.nama_kontraktor,
+            waktu_mulai: form.waktu_mulai,
+            durasi: form.durasi,
+            spk_bulan: form.spk_bulan,
+            spk_tahun: form.spk_tahun,
+            par_no: form.par_no,
+            par_bulan: form.par_bulan,
+            par_tahun: form.par_tahun,
+        };
+        return (Object.keys(current) as (keyof RevisiFormSnapshot)[]).some(
+            key => current[key] !== originalRejectedForm[key]
+        );
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedRabObj) return;
 
+        // Validasi perubahan untuk SPK_REJECTED
+        if (revisiData.isRevisi && !hasFormChangedFromOriginal()) {
+            alert("Harap ubah minimal 1 field sebelum mengirim revisi SPK. Data tidak boleh sama persis dengan SPK yang ditolak.");
+            return;
+        }
+
         const fullPAR = `${form.par_no}/PROPNDEV-${form.kode_cabang}-${form.par_bulan}-${form.par_tahun}`;
 
-        // Sesuai dengan dokumentasi body POST /api/spk/submit
         const payload = {
             nomor_ulok: selectedRabObj["Nomor Ulok"],
             email_pembuat: userInfo.email,
             lingkup_pekerjaan: selectedRabObj["Lingkup_Pekerjaan"],
             nama_kontraktor: form.nama_kontraktor,
             proyek: selectedRabObj["Proyek"] || "N/A",
-            waktu_mulai: form.waktu_mulai, // Format YYYY-MM-DD
+            kode_toko: form.kode_toko,
+            waktu_mulai: form.waktu_mulai,
             durasi: parseInt(form.durasi),
             grand_total: parseFloat(selectedRabObj["Grand Total Final"]) || 0,
             par: fullPAR,
@@ -240,7 +297,6 @@ export default function SPKPage() {
         setIsSubmitting(true);
         try {
             await submitSPK(payload);
-            // Munculkan Modal Sukses
             setShowSuccessModal(true);
         } catch (err: any) {
             alert(err.message);
@@ -253,6 +309,9 @@ export default function SPKPage() {
         (r["Nomor Ulok"] || "").toLowerCase().includes(searchUlok.toLowerCase()) || 
         (r["Nama_Toko"] || "").toLowerCase().includes(searchUlok.toLowerCase())
     );
+
+    // Cek apakah ada perubahan (untuk disable tombol submit revisi)
+    const isRevisiUnchanged = revisiData.isRevisi && !hasFormChangedFromOriginal();
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12 relative">
@@ -277,10 +336,10 @@ export default function SPKPage() {
                             
                             {/* SECTION 1: PEMILIHAN ULOK & IDENTITAS TOKO */}
                             <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">1. Data Referensi RAB & Identitas Toko</h3>
+                                <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">1. Data Referensi RAB &amp; Identitas Toko</h3>
                                 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-700">Cari & Pilih Nomor Ulok *</label>
+                                    <label className="text-sm font-bold text-slate-700">Cari &amp; Pilih Nomor Ulok *</label>
                                     <div className="relative mb-2">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <input type="text" placeholder="Ketik No Ulok / Nama Toko..." className="w-full pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm" value={searchUlok} onChange={(e) => setSearchUlok(e.target.value)} />
@@ -295,9 +354,29 @@ export default function SPKPage() {
                                     )}
                                 </div>
 
+                                {/* Pesan Status SPK */}
                                 {spkMsg.text && (
-                                    <div className={`p-4 rounded-lg flex items-start gap-3 mt-4 font-medium text-sm ${spkMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : (spkMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-blue-50 text-blue-700 border border-blue-200')}`}>
+                                    <div className={`p-4 rounded-lg flex items-start gap-3 mt-4 font-medium text-sm ${
+                                        spkMsg.type === 'error'   ? 'bg-red-50 text-red-700 border border-red-200' :
+                                        spkMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
+                                        spkMsg.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                        'bg-blue-50 text-blue-700 border border-blue-200'
+                                    }`}>
                                         <AlertCircle className="w-5 h-5 shrink-0" /> <p>{spkMsg.text}</p>
+                                    </div>
+                                )}
+
+                                {/* Banner perubahan wajib saat revisi */}
+                                {revisiData.isRevisi && (
+                                    <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-semibold border ${
+                                        isRevisiUnchanged
+                                            ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                            : 'bg-green-50 text-green-700 border-green-200'
+                                    }`}>
+                                        {isRevisiUnchanged
+                                            ? <><AlertTriangle className="w-4 h-4 shrink-0"/> Belum ada perubahan dari data SPK yang ditolak. Ubah minimal 1 field untuk mengaktifkan tombol kirim.</>
+                                            : <><CheckCircle className="w-4 h-4 shrink-0"/> Perubahan terdeteksi. Anda bisa mengirim revisi SPK.</>
+                                        }
                                     </div>
                                 )}
 
@@ -320,7 +399,7 @@ export default function SPKPage() {
 
                             {/* SECTION 2: PENOMORAN DOKUMEN & KONTRAKTOR */}
                             <div className={`space-y-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                                <h3 className="font-bold text-slate-700 border-b pb-2">2. Data Kontraktor & Dokumen</h3>
+                                <h3 className="font-bold text-slate-700 border-b pb-2">2. Data Kontraktor &amp; Dokumen</h3>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
@@ -383,21 +462,36 @@ export default function SPKPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Durasi (Hari) *</label>
-                                        <select required className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium" value={form.durasi} onChange={e => setForm({...form, durasi: e.target.value})}>
-                                            <option value="">-- Pilih Durasi --</option>
-                                            <option value="10">10 Hari Kalender</option><option value="14">14 Hari Kalender</option>
-                                            <option value="20">20 Hari Kalender</option><option value="30">30 Hari Kalender</option>
-                                            <option value="35">35 Hari Kalender</option><option value="40">40 Hari Kalender</option>
-                                            <option value="48">48 Hari Kalender</option>
-                                        </select>
+                                        <input
+                                            type="number"
+                                            required
+                                            min={1}
+                                            max={365}
+                                            placeholder="Masukkan jumlah hari..."
+                                            className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                                            value={form.durasi}
+                                            onChange={e => setForm({...form, durasi: e.target.value})}
+                                        />
+                                        <p className="text-xs text-slate-500 mt-1">Masukkan jumlah hari kalender pelaksanaan.</p>
                                     </div>
                                 </div>
                             </div>
 
                             {/* TOMBOL SUBMIT */}
                             <div className="pt-4 pb-4">
-                                <Button type="submit" disabled={isSubmitting || !form.nomor_ulok || isLocked} className="w-full h-14 bg-red-600 hover:bg-red-700 text-lg font-bold shadow-lg transition-all">
-                                    {isSubmitting ? <><Loader2 className="w-6 h-6 mr-2 animate-spin"/> Menyimpan Data...</> : <><Save className="w-6 h-6 mr-2"/> {revisiData.isRevisi ? 'Kirim Revisi SPK' : 'Kirim SPK Baru'}</>}
+                                <Button
+                                    type="submit"
+                                    disabled={isSubmitting || !form.nomor_ulok || isLocked || isRevisiUnchanged}
+                                    className={`w-full h-14 text-lg font-bold shadow-lg transition-all ${
+                                        isRevisiUnchanged
+                                            ? 'bg-slate-400 cursor-not-allowed'
+                                            : 'bg-red-600 hover:bg-red-700'
+                                    }`}
+                                >
+                                    {isSubmitting
+                                        ? <><Loader2 className="w-6 h-6 mr-2 animate-spin"/> Menyimpan Data...</>
+                                        : <><Save className="w-6 h-6 mr-2"/> {revisiData.isRevisi ? 'Kirim Revisi SPK' : 'Kirim SPK Baru'}</>
+                                    }
                                 </Button>
                             </div>
                         </form>
@@ -405,7 +499,53 @@ export default function SPKPage() {
                 </Card>
             </main>
 
-            {/* MODAL SUCCESS OVERLAY */}
+            {/* ========================================================
+                MODAL: NOTIFIKASI SPK DITOLAK
+            ======================================================== */}
+            {rejectedModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-in zoom-in-95 duration-300">
+                        {/* Icon */}
+                        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                            <XCircle className="w-12 h-12 text-red-600" />
+                        </div>
+
+                        {/* Judul */}
+                        <h2 className="text-2xl font-bold text-slate-800 mb-1">SPK Ditolak</h2>
+                        <p className="text-sm text-slate-500 mb-5">
+                            Pengajuan SPK untuk ULOK ini sebelumnya ditolak oleh Branch Manager.
+                        </p>
+
+                        {/* Alasan Penolakan */}
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left">
+                            <p className="text-xs font-bold text-red-500 uppercase tracking-wider mb-1">Alasan Penolakan</p>
+                            <p className="text-sm font-semibold text-red-800 leading-relaxed">
+                                &ldquo;{rejectedModal.alasanPenolakan}&rdquo;
+                            </p>
+                        </div>
+
+                        {/* Info */}
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6 flex items-start gap-2 text-left">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <p className="text-xs text-amber-700 font-medium leading-relaxed">
+                                Data SPK lama telah dimuat secara otomatis. Anda <strong>wajib mengubah minimal 1 field</strong> sebelum bisa mengirim revisi.
+                            </p>
+                        </div>
+
+                        {/* Tombol */}
+                        <Button
+                            onClick={() => setRejectedModal(prev => ({ ...prev, isOpen: false }))}
+                            className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-base rounded-xl"
+                        >
+                            Tutup &amp; Mulai Revisi
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================================
+                MODAL: SUKSES SUBMIT SPK
+            ======================================================== */}
             {showSuccessModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center transform scale-100 animate-in zoom-in-95 duration-300">

@@ -833,6 +833,7 @@ export type SPKSubmitPayload = {
     lingkup_pekerjaan: string;
     nama_kontraktor: string;
     proyek: string;
+    kode_toko?: string;
     waktu_mulai: string;
     durasi: number;
     grand_total: number;

@@ -17,7 +17,7 @@ import {
     fetchRABList, fetchRABDetail, processRABApproval, downloadRABPdf,
     type RABListItem, type RABDetailItem,
     // SPK
-    fetchSPKList, fetchSPKDetail, processSPKApproval,
+    fetchSPKList, fetchSPKDetail, processSPKApproval, downloadSPKPdf,
     type SPKListItem,
     // IL
     fetchILList, fetchILDetail, processILApproval,
@@ -557,12 +557,16 @@ export default function ApprovalPage() {
     };
 
     // ==========================================
-    // PDF DOWNLOAD (RAB)
+    // PDF DOWNLOAD (RAB & SPK)
     // ==========================================
-    const handleDownloadPDF = async (id: number) => {
+    const handleDownloadPDF = async (id: number, type: ApprovalType) => {
         setProcessingId(`pdf-${id}`);
         try {
-            await downloadRABPdf(id);
+            if (type === 'RAB') {
+                await downloadRABPdf(id);
+            } else if (type === 'SPK') {
+                await downloadSPKPdf(id);
+            }
             showToast('PDF berhasil diunduh.', 'success');
         } catch (err: any) {
             showToast(err.message || 'Gagal mengunduh PDF.', 'error');
@@ -885,13 +889,27 @@ export default function ApprovalPage() {
                                         variant="outline"
                                         className="border-blue-600 text-blue-700 hover:bg-blue-50 font-bold"
                                         disabled={processingId === `pdf-${selectedDetail.id}`}
-                                        onClick={() => handleDownloadPDF(selectedDetail.id as number)}
+                                        onClick={() => handleDownloadPDF(selectedDetail.id as number, 'RAB')}
                                     >
                                         {processingId === `pdf-${selectedDetail.id}`
                                             ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                             : <FileDown className="w-4 h-4 mr-2" />
                                         }
                                         {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download RAB (PDF)'}
+                                    </Button>
+                                )}
+                                {selectedDetail?.tipe === 'SPK' && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-purple-600 text-purple-700 hover:bg-purple-50 font-bold"
+                                        disabled={processingId === `pdf-${selectedDetail.id}`}
+                                        onClick={() => handleDownloadPDF(selectedDetail.id as number, 'SPK')}
+                                    >
+                                        {processingId === `pdf-${selectedDetail.id}`
+                                            ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            : <FileDown className="w-4 h-4 mr-2" />
+                                        }
+                                        {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download SPK (PDF)'}
                                     </Button>
                                 )}
                             </div>
