@@ -1020,7 +1020,7 @@ export type ILDetailResponse = {
 
 export type ILApprovalPayload = {
     approver_email:   string;
-    jabatan:          "KOORDINATOR" | "MANAGER";
+    jabatan:          "KOORDINATOR" | "MANAGER" | "DIREKTUR";
     tindakan:         "APPROVE" | "REJECT";
     alasan_penolakan?: string | null;
 };
@@ -1190,4 +1190,4 @@ export const deleteDokumenToko = async (kode_toko: string) => {
     if (!res.ok) throw new Error(result.detail || result.message || "Gagal menghapus dokumen.");
     return result;
 };
-
+

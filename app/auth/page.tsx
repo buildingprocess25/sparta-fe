@@ -97,8 +97,14 @@ export default function LoginPage() {
         else if (jabatanFromAPI.includes("SUPPORT") || jabatanFromAPI === "BBS") {
             mappedRole = "BRANCH BUILDING SUPPORT";
         }
+        else if (jabatanFromAPI.includes("KONTRAKTOR") && jabatanFromAPI.includes("DIREKTUR")) {
+            mappedRole = "DIREKTUR, KONTRAKTOR";
+        }
         else if (jabatanFromAPI.includes("KONTRAKTOR")) {
             mappedRole = "KONTRAKTOR";
+        }
+        else if (jabatanFromAPI.includes("DIREKTUR")) {
+            mappedRole = "DIREKTUR";
         }
 
         setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });

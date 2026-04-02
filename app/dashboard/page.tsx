@@ -21,7 +21,7 @@ import { formatRupiah, parseCurrency } from '@/lib/utils';
 export default function DashboardPage() {
     const router = useRouter();
 
-    const [userInfo, setUserInfo]           = useState({ name: '', role: '', cabang: '' });
+    const [userInfo, setUserInfo]           = useState({ name: '', roles: [] as string[], cabang: '' });
     const [allowedMenus, setAllowedMenus]   = useState<any[]>([]);
     const [isLoading, setIsLoading]         = useState(true);
     const [sidebarOpen, setSidebarOpen]     = useState(true);
@@ -40,23 +40,34 @@ export default function DashboardPage() {
         const namaLengkap = sessionStorage.getItem('nama_lengkap') || email.split('@')[0];
 
         if (!userRole) { router.push('/'); return; }
+        
+        // Handle Multi-Role (DIREKTUR, KONTRAKTOR)
+        const roles = userRole.split(',').map(r => r.trim().toUpperCase());
+        const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
+        const isHO = userCabang.toUpperCase().trim() === 'HEAD OFFICE';
 
-        const currentRole    = userRole.toUpperCase().trim();
-        const contractorFlag = currentRole.includes('KONTRAKTOR');
-        const isHO           = userCabang.toUpperCase().trim() === 'HEAD OFFICE';
+        let combinedAllowedIds: string[] = [];
+        roles.forEach(role => {
+            if (ROLE_CONFIG[role]) {
+                combinedAllowedIds = [...combinedAllowedIds, ...ROLE_CONFIG[role]];
+            }
+        });
 
-        let allowedIds: string[] = ROLE_CONFIG[currentRole] ? [...ROLE_CONFIG[currentRole]] : [];
+        // Unique IDs
+        let allowedIds = Array.from(new Set(combinedAllowedIds));
+
         if (allowedIds.length === 0) {
             allowedIds = isHO
                 ? [...(ROLE_CONFIG['BRANCH BUILDING & MAINTENANCE MANAGER'] ?? [])]
                 : [...(ROLE_CONFIG['BRANCH BUILDING SUPPORT'] ?? [])];
         }
+
         if (isHO && !contractorFlag && !allowedIds.includes('menu-userlog')) {
             allowedIds.push('menu-userlog');
         }
 
         setAllowedMenus(ALL_MENUS.filter(m => allowedIds.includes(m.id)));
-        setUserInfo({ name: namaLengkap.toUpperCase(), role: currentRole, cabang: userCabang.toUpperCase() });
+        setUserInfo({ name: namaLengkap.toUpperCase(), roles: roles, cabang: userCabang.toUpperCase() });
         setIsContractor(contractorFlag);
         if (window.innerWidth <= 768) setSidebarOpen(false);
         setIsLoading(false);
@@ -181,11 +192,11 @@ export default function DashboardPage() {
                             <span className="text-sm font-bold text-slate-800 truncate max-w-40 hidden sm:block">
                                 {userInfo.name || '-'}
                             </span>
-                            {userInfo.role && (
-                                <span className="text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full hidden md:block whitespace-nowrap">
-                                    {userInfo.role}
+                            {userInfo.roles.length > 0 && userInfo.roles.map((r, idx) => (
+                                <span key={idx} className="text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full hidden md:block whitespace-nowrap">
+                                    {r}
                                 </span>
-                            )}
+                            ))}
                             {userInfo.cabang && (
                                 <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full hidden lg:block whitespace-nowrap">
                                     {userInfo.cabang}

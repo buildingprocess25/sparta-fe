@@ -15,7 +15,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// ChevronLeft dihapus dari sini karena sudah ada di AppNavbar
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
@@ -186,7 +185,7 @@ export default function RABPage() {
 
           // Normalisasi Dropdown
           let finalProyek = rabRef.proyek || data["Proyek"] || formData.proyek;
-          if (finalProyek?.toUpperCase() === 'REGULER') finalProyek = 'Alfamart Reguler';
+          if (finalProyek?.toUpperCase() === 'REGULER') finalProyek = 'Reguler';
           else if (finalProyek?.toUpperCase() === 'RENOVASI') finalProyek = 'Renovasi';
 
           let finalKategori = rabRef.kategori_lokasi || data["Kategori_Lokasi"] || formData.kategoriLokasi;

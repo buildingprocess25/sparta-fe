@@ -99,14 +99,15 @@ const formatDate = (dateStr: string) => {
 // ROLE CONFIG
 // =============================================
 const ROLE_ACCESS: Record<ApprovalType, string[]> = {
-    RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER'],
+    RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR'],
     SPK: ['BRANCH MANAGER'],
     IL:  ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER'],
 };
 
-const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER'> = {
+const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR'> = {
     'BRANCH BUILDING COORDINATOR':           'KOORDINATOR',
     'BRANCH BUILDING & MAINTENANCE MANAGER': 'MANAGER',
+    'DIREKTUR':                              'DIREKTUR',
 };
 
 const APPROVAL_CONFIG: Record<ApprovalType, {
@@ -254,7 +255,7 @@ export default function ApprovalPage() {
     // --- AUTH ---
     const [userInfo, setUserInfo]       = useState({ name: '', role: '', cabang: '', email: '' });
     const [accessibleTypes, setAccessibleTypes] = useState<ApprovalType[]>([]);
-    const [jabatan, setJabatan]         = useState<'KOORDINATOR' | 'MANAGER' | null>(null);
+    const [jabatan, setJabatan]         = useState<'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | null>(null);
 
     // --- NAVIGATION ---
     const [activeView, setActiveView]     = useState<ActiveView>('menu');
@@ -285,20 +286,40 @@ export default function ApprovalPage() {
 
         if (isAuth !== "true" || !role) { router.push('/auth'); return; }
 
-        const roleUpper = role.toUpperCase().trim();
-        const types = (Object.keys(ROLE_ACCESS) as ApprovalType[]).filter(t =>
-            ROLE_ACCESS[t].some(r => r.toUpperCase() === roleUpper)
-        );
+        // Handle Multi-Role
+        const roles = role.split(',').map(r => r.trim().toUpperCase());
+        
+        // Find all accessible types across all roles
+        const allAccessibleTypes = new Set<ApprovalType>();
+        roles.forEach(r => {
+            (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {
+                if (ROLE_ACCESS[type].some(allowedRole => allowedRole.toUpperCase() === r)) {
+                    allAccessibleTypes.add(type);
+                }
+            });
+        });
 
-        if (types.length === 0) {
+        const typesArr = Array.from(allAccessibleTypes);
+
+        if (typesArr.length === 0) {
             alert("Role tidak memiliki akses ke halaman Approval.");
             router.push('/dashboard');
             return;
         }
 
+        // Prioritas Jabatan: DIREKTUR > MANAGER > KOORDINATOR
+        let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | null = null;
+        if (roles.includes('DIREKTUR')) {
+            currentJabatan = 'DIREKTUR';
+        } else if (roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER')) {
+            currentJabatan = 'MANAGER';
+        } else if (roles.includes('BRANCH BUILDING COORDINATOR')) {
+            currentJabatan = 'KOORDINATOR';
+        }
+
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email });
-        setAccessibleTypes(types);
-        setJabatan(ROLE_TO_JABATAN[roleUpper] ?? null);
+        setAccessibleTypes(typesArr);
+        setJabatan(currentJabatan);
     }, [router]);
 
     // ==========================================
@@ -341,10 +362,16 @@ export default function ApprovalPage() {
                 normalized = normalizeILList(res.data ?? []);
             }
 
-            // Filter
+            // Filter Berdasarkan Role & Jabatan & Cabang
             normalized = normalized.filter(item => {
                 const upper = (item.status ?? '').toUpperCase();
+
+                // 1. FILTER CABANG (Wajib sesuai cabang user)
+                if (userInfo.cabang && item.cabang.toUpperCase() !== userInfo.cabang.toUpperCase()) {
+                    return false;
+                }
                 
+                // 2. FILTER STATUS & JABATAN (Eksisting)
                 // Khusus SPK, pastikan statusnya valid menunggu BM
                 if (type === 'SPK') {
                     return upper === 'WAITING_FOR_BM_APPROVAL';
@@ -354,6 +381,7 @@ export default function ApprovalPage() {
                 if (!upper.includes('MENUNGGU') && !upper.startsWith('PENDING')) return false;
                 if (jabatan === 'KOORDINATOR') return upper.includes('KOORDINATOR');
                 if (jabatan === 'MANAGER')     return upper.includes('MANAGER') || upper.includes('MANAJER');
+                if (jabatan === 'DIREKTUR')    return upper.includes('DIREKTUR');
                 return true;
             });
 
@@ -567,7 +595,7 @@ export default function ApprovalPage() {
             } else if (type === 'SPK') {
                 await downloadSPKPdf(id);
             }
-            showToast('PDF berhasil diunduh.', 'success');
+            showToast('PDF berhasil dibuka.', 'success');
         } catch (err: any) {
             showToast(err.message || 'Gagal mengunduh PDF.', 'error');
         } finally {

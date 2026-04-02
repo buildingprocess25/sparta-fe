@@ -111,13 +111,14 @@ function GanttBoard() {
         }
 
         setUserRole(role);
+        const roles = role.split(',').map(r => r.trim().toUpperCase());
         let currentAppMode: 'kontraktor' | 'pic' = 'kontraktor';
-        const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT'];
+        const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT', 'DIREKTUR'];
         
-        if (role === 'KONTRAKTOR') {
+        if (roles.includes('KONTRAKTOR')) {
             currentAppMode = 'kontraktor';
             setAppMode('kontraktor');
-        } else if (picRoles.includes(role.toUpperCase())) {
+        } else if (roles.some(r => picRoles.includes(r))) {
             currentAppMode = 'pic';
             setAppMode('pic');
         } else {
@@ -134,7 +135,12 @@ function GanttBoard() {
                 : { status: 'active' };
 
             fetchGanttList(filters)
-                .then(res => setAvailableProjects(res.data || []))
+                .then(res => {
+                    const data = res.data || [];
+                    // Filter berdasarkan cabang user
+                    const filtered = cabang ? data.filter(item => item.cabang?.toUpperCase() === cabang.toUpperCase()) : data;
+                    setAvailableProjects(filtered);
+                })
                 .catch(err => console.error("Gagal memuat list Gantt Chart:", err));
         }
 
@@ -144,9 +150,14 @@ function GanttBoard() {
             setIsDirectAccess(true);
         }
 
-        // Ambil daftar seluruh toko untuk dropdown
+        // Ambil daftar seluruh toko untuk dropdown (Filter Cabang)
         fetchTokoList()
-            .then(res => setAllTokoList(res.data || []))
+            .then(res => {
+                const data = res.data || [];
+                // Filter berdasarkan cabang user agar dropdown hanya menampilkan toko di cabangnya
+                const filtered = cabang ? data.filter(item => item.cabang?.toUpperCase() === cabang.toUpperCase()) : data;
+                setAllTokoList(filtered);
+            })
             .catch(err => console.error("Gagal memuat semua daftar Toko:", err));
         
     }, [router, urlIdToko]);
