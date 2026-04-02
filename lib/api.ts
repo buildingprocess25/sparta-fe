@@ -126,6 +126,9 @@ export type RABDetailData = {
     grand_total_non_sbo:             string;
     grand_total_final:               string;
     created_at:                      string;
+    no_polis?:                       string | null;
+    berlaku_polis?:                  string | null;
+    file_asuransi?:                  string | null;
 };
 
 export type RABDetailItem = {

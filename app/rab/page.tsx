@@ -31,10 +31,13 @@ export default function RABPage() {
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
     proyek: '', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
-    logo: '' // Base64 logo string
+    logo: '', // Base64 logo string
+    noPolis: '', berlakuPolis: '', fileAsuransi: '' // Base64 file asuransi
   });
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [asuransiFileName, setAsuransiFileName] = useState<string | null>(null);
+  const asuransiFileRef = useRef<HTMLInputElement>(null);
 
   const [availableCabang, setAvailableCabang] = useState<string[]>([]);
   const [prices, setPrices] = useState<any>({});
@@ -212,7 +215,16 @@ export default function RABPage() {
               luasGudang: rabRef.luas_gudang?.toString() || data["Luas Gudang"]?.toString() || prev.luasGudang,
               luasBangunan: rabRef.luas_bangunan?.toString() || data["Luas Bangunan"]?.toString() || prev.luasBangunan,
               luasAreaTerbuka: rabRef.luas_area_terbuka?.toString() || data["Luas Area Terbuka"]?.toString() || prev.luasAreaTerbuka,
+              noPolis: rabRef.no_polis || data["no_polis"] || prev.noPolis,
+              berlakuPolis: rabRef.berlaku_polis || data["berlaku_polis"] || prev.berlakuPolis,
+              fileAsuransi: rabRef.file_asuransi || data["file_asuransi"] || prev.fileAsuransi,
           }));
+
+          // Restore asuransi file name indicator if file data exists
+          const loadedFileAsuransi = rabRef.file_asuransi || data["file_asuransi"];
+          if (loadedFileAsuransi) {
+              setAsuransiFileName("File Asuransi (dari revisi)");
+          }
 
           const newRows: any[] = [];
           if (Array.isArray(itemsData) && itemsData.length > 0) {
@@ -296,6 +308,32 @@ export default function RABPage() {
     setFormData(prev => ({ ...prev, logo: '' }));
     if (fileInputRef.current) {
       fileInputRef.current.value = ""; // Reset internal value so same file can be re-uploaded
+    }
+  };
+
+  const handleAsuransiFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showAlert("Peringatan", "Ukuran file asuransi maksimal 5MB.", "error");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setAsuransiFileName(file.name);
+      setFormData(prev => ({ ...prev, fileAsuransi: base64 }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeAsuransiFile = () => {
+    setAsuransiFileName(null);
+    setFormData(prev => ({ ...prev, fileAsuransi: '' }));
+    if (asuransiFileRef.current) {
+      asuransiFileRef.current.value = "";
     }
   };
 
@@ -404,6 +442,9 @@ export default function RABPage() {
       luas_area_sales: String(formData.luasAreaSales || "0"),
       luas_gudang: String(formData.luasGudang || "0"),
       logo: formData.logo,
+      no_polis: formData.noPolis,
+      berlaku_polis: formData.berlakuPolis,
+      file_asuransi: formData.fileAsuransi,
       detail_items: detailItems
     };
 
@@ -457,6 +498,9 @@ export default function RABPage() {
     formData.lingkupPekerjaan !== '' &&
     formData.kategoriLokasi !== '' &&
     formData.durasiPekerjaan !== '' &&
+    formData.noPolis.trim() !== '' &&
+    formData.berlakuPolis.trim() !== '' &&
+    formData.fileAsuransi !== '' &&
     formData.luasBangunan !== '' &&
     formData.luasAreaTerbuka !== '' &&
     formData.luasAreaSales !== '' &&
@@ -595,6 +639,51 @@ export default function RABPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* --- SECTION ASURANSI --- */}
+          <Card className="mb-8 shadow-sm">
+            <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Asuransi Proyek</CardTitle></CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label>No. Polis <span className="text-red-500">*</span></Label>
+                  <Input name="noPolis" value={formData.noPolis} onChange={handleInputChange} placeholder="Masukkan nomor polis" className="bg-white" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Masa Berlaku <span className="text-red-500">*</span></Label>
+                  <Input type="date" name="berlakuPolis" value={formData.berlakuPolis} onChange={handleInputChange} className="bg-white" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Upload File Asuransi <span className="text-red-500">*</span></Label>
+                  {asuransiFileName ? (
+                    <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-green-700 truncate">{asuransiFileName}</p>
+                        <p className="text-[10px] text-green-500">File berhasil diunggah</p>
+                      </div>
+                      <button type="button" onClick={removeAsuransiFile} className="p-1.5 bg-red-100 text-red-500 rounded-full hover:bg-red-200 transition-colors shrink-0" title="Hapus file">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg shadow-sm text-sm font-bold text-slate-700 cursor-pointer transition-all hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 group">
+                      <Upload className="w-4 h-4 text-red-500 transition-transform group-hover:-translate-y-0.5" />
+                      Pilih File
+                      <input
+                        type="file"
+                        ref={asuransiFileRef}
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleAsuransiFileChange}
+                      />
+                    </label>
+                  )}
+                  <p className="text-[10px] text-slate-400">Format: PDF, JPG, PNG (Maks. 5MB)</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="mb-8 shadow-sm">
             <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Dimensi & Ukuran Proyek</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pt-6">
