@@ -540,16 +540,6 @@ export default function DaftarDokumenPage() {
                 {/* ===== VIEW 0: MENU KATEGORI ===== */}
                 {activeView === 'menu' && (
                     <div className="flex flex-col items-center mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="text-center mb-10">
-                            <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-700 flex items-center justify-center mb-5 shadow-lg shadow-red-200">
-                                <FileText className="w-8 h-8 text-white" />
-                            </div>
-                            <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800">Daftar Dokumen</h2>
-                            <p className="text-slate-500 text-sm mt-2 max-w-md mx-auto">
-                                Pilih kategori dokumen untuk melihat daftar lengkap dokumen yang telah diajukan.
-                            </p>
-                        </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4">
                             {(Object.keys(KATEGORI_CONFIG) as DokumenKategori[]).map(kat => {
                                 const cfg = KATEGORI_CONFIG[kat];
