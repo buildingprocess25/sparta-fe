@@ -80,6 +80,7 @@ interface NormalizedDetail {
         harga_material: number;
         harga_upah: number;
         total: number;
+        catatan?: string | null;
     }>;
 }
 
@@ -424,16 +425,20 @@ export default function ApprovalPage() {
                     approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager },
                     approval_direktur:    { pemberi: d.rab.pemberi_persetujuan_direktur,    waktu: d.rab.waktu_persetujuan_direktur },
-                    items: (d.items ?? []).map((it: RABDetailItem) => ({
-                        id: it.id,
-                        kategori:        it.kategori_pekerjaan,
-                        jenis_pekerjaan: it.jenis_pekerjaan,
-                        satuan:          it.satuan,
-                        volume:          it.volume,
-                        harga_material:  it.harga_material,
-                        harga_upah:      it.harga_upah,
-                        total:           it.total_harga,
-                    })),
+                    items: (d.items ?? []).map((it: RABDetailItem) => {
+                        console.log("RAB ITEM:", it);
+                        return {
+                            id: it.id,
+                            kategori:        it.kategori_pekerjaan,
+                            jenis_pekerjaan: it.jenis_pekerjaan,
+                            satuan:          it.satuan,
+                            volume:          it.volume,
+                            harga_material:  it.harga_material,
+                            harga_upah:      it.harga_upah,
+                            total:           it.total_harga,
+                            catatan:         it.catatan,
+                        };
+                    }),
                 };
 
             } else if (item.tipe === 'SPK') {
@@ -483,6 +488,7 @@ export default function ApprovalPage() {
                         harga_material:  it.harga_material,
                         harga_upah:      it.harga_upah,
                         total:           it.total_harga,
+                        catatan:         (it as any).catatan,
                     })),
                 };
             }
@@ -1045,13 +1051,14 @@ export default function ApprovalPage() {
                                             <table className="w-full text-sm text-left border-collapse">
                                                 <thead className="bg-slate-100 text-slate-700 border-b">
                                                     <tr>
-                                                        <th className="p-3 border-r font-semibold">Kategori</th>
-                                                        <th className="p-3 border-r font-semibold min-w-50">Jenis Pekerjaan</th>
-                                                        <th className="p-3 border-r font-semibold text-center">Vol</th>
-                                                        <th className="p-3 border-r font-semibold text-center">Sat</th>
-                                                        <th className="p-3 border-r font-semibold text-right">Hrg Material</th>
-                                                        <th className="p-3 border-r font-semibold text-right">Hrg Upah</th>
-                                                        <th className="p-3 font-semibold text-right">Total</th>
+                                                        <th className="p-3 border-r font-semibold text-center">Kategori</th>
+                                                        <th className="p-3 border-r font-semibold min-w-50 text-center">Jenis Pekerjaan</th>
+                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Catatan</th>
+                                                        <th className="p-3 border-r font-semibold text-center">Volume</th>
+                                                        <th className="p-3 border-r font-semibold text-center">Satuan</th>
+                                                        <th className="p-3 border-r font-semibold text-center">Harga Material</th>
+                                                        <th className="p-3 border-r font-semibold text-center">Harga Upah</th>
+                                                        <th className="p-3 font-semibold text-center">Total</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
@@ -1059,6 +1066,7 @@ export default function ApprovalPage() {
                                                         <tr key={row.id} className="hover:bg-slate-50">
                                                             <td className="p-3 font-semibold text-slate-600 border-r text-xs">{row.kategori}</td>
                                                             <td className="p-3 text-slate-800 border-r">{row.jenis_pekerjaan}</td>
+                                                            <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
                                                             <td className="p-3 text-center font-bold border-r">{row.volume}</td>
                                                             <td className="p-3 text-center text-slate-500 border-r">{row.satuan}</td>
                                                             <td className="p-3 text-right text-slate-500 border-r">{formatRupiah(row.harga_material)}</td>
@@ -1069,7 +1077,7 @@ export default function ApprovalPage() {
                                                 </tbody>
                                                 <tfoot className="bg-slate-100 border-t border-slate-300">
                                                     <tr>
-                                                        <td colSpan={6} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td colSpan={7} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
                                                         <td className="p-3 font-extrabold text-slate-800 text-right">
                                                             {formatRupiah(selectedDetail.items.reduce((s, r) => s + (r.total ?? 0), 0))}
                                                         </td>

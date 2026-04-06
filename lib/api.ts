@@ -77,6 +77,7 @@ export type RABListItem = {
     nama_toko:            string;
     cabang:               string;
     proyek:               string;
+    alasan_penolakan?:    string | null;
     toko?:                RABTokoDetail;
 };
 
@@ -143,6 +144,7 @@ export type RABDetailItem = {
     total_material:    number;
     total_upah:        number;
     total_harga:       number;
+    catatan?:          string | null;
 };
 
 export type RABDetailResponse = {
@@ -193,6 +195,7 @@ export const checkRevisionStatus = async (email: string, cabang: string) => {
             "Lingkup_Pekerjaan": r.proyek, // Fallback to proyek, exact scope fetched on click
             "nama_toko": r.nama_toko,
             "Proyek": r.proyek,
+            "alasan_penolakan": r.alasan_penolakan,
             // Sisa field detail akan diambil saat tombol 'Revisi Sekarang' diklik
         }));
 
@@ -211,14 +214,39 @@ export const fetchPricesData = async (cabang: string, lingkup: string) => {
     return res.json();
 };
 
-/** Submit / buat RAB baru. */
-export const submitRABData = async (payload: any) => {
+/** Submit / buat RAB baru.
+ *  - Jika `asuransiFile` ada → kirim sebagai multipart/form-data (backend upload ke Drive).
+ *  - Jika tidak ada file   → kirim sebagai JSON (backward compatible).
+ */
+export const submitRABData = async (
+    fields: Record<string, string>,
+    detailItems: any[],
+    asuransiFile?: File | null
+) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/rab/submit`;
-    const res = await fetch(url, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
-    });
+
+    let res: Response;
+
+    if (asuransiFile) {
+        // --- MODE MULTIPART: file_asuransi dikirim sebagai file ---
+        const form = new FormData();
+        Object.entries(fields).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) form.append(key, value);
+        });
+        form.append("detail_items", JSON.stringify(detailItems));
+        form.append("file_asuransi", asuransiFile);
+
+        res = await fetch(url, { method: "POST", body: form });
+    } else {
+        // --- MODE JSON: backward compatible ---
+        const jsonPayload = { ...fields, detail_items: detailItems };
+        res = await fetch(url, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify(jsonPayload),
+        });
+    }
+
     const result = await res.json();
     if (res.status === 409) throw new Error(result.message || "RAB aktif untuk ULOK ini sudah ada.");
     if (res.status === 422) throw new Error("Validasi gagal. Pastikan seluruh form dan tabel terisi.");
@@ -264,6 +292,16 @@ export const fetchTokoDetail = async (id: number) => {
 /** Ambil daftar seluruh Toko. */
 export const fetchTokoList = async (): Promise<{ status: string; data: RABDetailToko[] }> => {
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/toko`);
+};
+
+/** URL endpoint untuk download logo RAB. */
+export const getRABLogoDownloadUrl = (id: number) => {
+    return `${API_URL.replace(/\/$/, "")}/api/rab/${id}/logo`;
+};
+
+/** URL endpoint untuk download file asuransi RAB. */
+export const getRABInsuranceDownloadUrl = (id: number) => {
+    return `${API_URL.replace(/\/$/, "")}/api/rab/${id}/file-asuransi`;
 };
 
 /**
@@ -326,8 +364,8 @@ export const processRABApproval = async (
 
 export type GanttDayItem = {
     kategori_pekerjaan: string;
-    h_awal:             string; // format DD/MM/YYYY
-    h_akhir:            string; // format DD/MM/YYYY
+    h_awal:             string; // angka hari (misal: "1")
+    h_akhir:            string; // angka hari (misal: "10")
     keterlambatan?:     string;
     kecepatan?:         string;
 };
@@ -397,8 +435,8 @@ export type GanttDetailDayItem = {
     id:                         number;
     id_gantt:                   number;
     id_kategori_pekerjaan_gantt:number;
-    h_awal:                     string; // format DD/MM/YYYY
-    h_akhir:                    string; // format DD/MM/YYYY
+    h_awal:                     string; // angka hari (misal: "1")
+    h_akhir:                    string; // angka hari (misal: "10")
     keterlambatan:              string | null;
     kecepatan:                  string | null;
     kategori_pekerjaan:         string;

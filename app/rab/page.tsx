@@ -15,10 +15,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download } from 'lucide-react';
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
-import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fetchTokoDetail } from '@/lib/api';
+import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fetchTokoDetail, getRABLogoDownloadUrl, getRABInsuranceDownloadUrl } from '@/lib/api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => num ? num.toLocaleString('id-ID') : '';
@@ -32,11 +32,13 @@ export default function RABPage() {
     proyek: '', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
     logo: '', // Base64 logo string
-    noPolis: '', berlakuPolis: '', fileAsuransi: '' // Base64 file asuransi
+    noPolis: '', berlakuPolis: '', fileAsuransi: '' // URL link file asuransi (jika sudah ada dari revisi)
   });
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [currentRabId, setCurrentRabId] = useState<number | null>(null);
   const [asuransiFileName, setAsuransiFileName] = useState<string | null>(null);
+  const [asuransiFile, setAsuransiFile] = useState<File | null>(null); // Raw file object untuk multipart upload
   const asuransiFileRef = useRef<HTMLInputElement>(null);
 
   const [availableCabang, setAvailableCabang] = useState<string[]>([]);
@@ -218,7 +220,14 @@ export default function RABPage() {
               noPolis: rabRef.no_polis || data["no_polis"] || prev.noPolis,
               berlakuPolis: rabRef.berlaku_polis || data["berlaku_polis"] || prev.berlakuPolis,
               fileAsuransi: rabRef.file_asuransi || data["file_asuransi"] || prev.fileAsuransi,
+              logo: rabRef.logo || data["logo"] || prev.logo,
           }));
+          
+          if (rabRef.logo || data["logo"]) {
+              setLogoPreview(rabRef.logo || data["logo"]);
+          }
+
+          setCurrentRabId(data.id || rabRef.id || null);
 
           // Restore asuransi file name indicator if file data exists
           const loadedFileAsuransi = rabRef.file_asuransi || data["file_asuransi"];
@@ -320,17 +329,15 @@ export default function RABPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setAsuransiFileName(file.name);
-      setFormData(prev => ({ ...prev, fileAsuransi: base64 }));
-    };
-    reader.readAsDataURL(file);
+    // Simpan File object asli untuk dikirim sebagai multipart
+    setAsuransiFile(file);
+    setAsuransiFileName(file.name);
+    setFormData(prev => ({ ...prev, fileAsuransi: '' })); // Kosongkan string, file akan dikirim via multipart
   };
 
   const removeAsuransiFile = () => {
     setAsuransiFileName(null);
+    setAsuransiFile(null);
     setFormData(prev => ({ ...prev, fileAsuransi: '' }));
     if (asuransiFileRef.current) {
       asuransiFileRef.current.value = "";
@@ -423,7 +430,8 @@ export default function RABPage() {
       return showAlert("Peringatan", "Minimal harus ada 1 item pekerjaan dengan volume.", "warning");
     }
 
-    const payloadData = {
+    // Build payload — gunakan multipart/form-data jika ada file asuransi
+    const textFields: Record<string, string> = {
       nomor_ulok: getUlokString(),
       nama_toko: formData.namaToko,
       proyek: formData.proyek,
@@ -444,29 +452,32 @@ export default function RABPage() {
       logo: formData.logo,
       no_polis: formData.noPolis,
       berlaku_polis: formData.berlakuPolis,
-      file_asuransi: formData.fileAsuransi,
-      detail_items: detailItems
     };
+
+    // Jika ada URL lama dari revisi (bukan file baru), kirim sebagai string
+    if (!asuransiFile && formData.fileAsuransi) {
+      textFields.file_asuransi = formData.fileAsuransi;
+    }
 
     // ==========================================
     // CONSOLE LOG UNTUK DEBUGGING PAYLOAD
     // ==========================================
-    console.log("🚀 PAYLOAD SUBMIT RAB:", JSON.stringify(payloadData, null, 2));
+    console.log("🚀 PAYLOAD SUBMIT RAB (text fields):", textFields);
+    console.log("🚀 DETAIL ITEMS:", detailItems);
+    if (asuransiFile) console.log("📎 FILE ASURANSI:", asuransiFile.name, asuransiFile.size);
 
     try {
         // Simpan response API ke dalam variabel submitRes
-        const submitRes = await submitRABData(payloadData);
+        const submitRes = await submitRABData(textFields, detailItems, asuransiFile);
         
         // Tangkap id_toko dari data response API
         const idToko = submitRes.data?.id_toko;
 
-        // Tambahkan id_toko ke dalam parameter URL!
-        const params = new URLSearchParams({ 
-            id_toko: idToko ? String(idToko) : '', 
-            ulok: getUlokString(), 
-            lingkup: formData.lingkupPekerjaan, 
-            locked: 'true' 
-        });
+        // Tambahkan id_toko dan id (rab) ke dalam parameter URL!
+        const params = new URLSearchParams();
+        if (idToko) params.append('id_toko', String(idToko));
+        if (submitRes.data?.id) params.append('id_rab', String(submitRes.data.id));
+        params.append('locked', 'true');
         
         showAlert("Berhasil", "Pengajuan RAB berhasil disimpan dan PDF sedang diproses.", "success");
         setTimeout(() => { router.push(`/gantt?${params.toString()}`); }, 1500);
@@ -500,7 +511,7 @@ export default function RABPage() {
     formData.durasiPekerjaan !== '' &&
     formData.noPolis.trim() !== '' &&
     formData.berlakuPolis.trim() !== '' &&
-    formData.fileAsuransi !== '' &&
+    (formData.fileAsuransi !== '' || asuransiFile !== null) &&
     formData.luasBangunan !== '' &&
     formData.luasAreaTerbuka !== '' &&
     formData.luasAreaSales !== '' &&
@@ -590,6 +601,18 @@ export default function RABPage() {
                         onChange={handleLogoChange} 
                       />
                     </label>
+                    {(currentRabId || (formData.logo && formData.logo.startsWith('http'))) && (
+                      <a 
+                        href={currentRabId ? getRABLogoDownloadUrl(currentRabId) : formData.logo} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl shadow-sm text-sm font-bold hover:bg-blue-100 transition-all ml-2"
+                        title="Lihat/Download Logo Saat Ini"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Foto
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>
@@ -661,6 +684,17 @@ export default function RABPage() {
                         <p className="text-sm font-semibold text-green-700 truncate">{asuransiFileName}</p>
                         <p className="text-[10px] text-green-500">File berhasil diunggah</p>
                       </div>
+                      {currentRabId && !asuransiFile && (
+                        <a 
+                          href={getRABInsuranceDownloadUrl(currentRabId)} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-1.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors shrink-0" 
+                          title="Download File Asuransi Saat Ini"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                       <button type="button" onClick={removeAsuransiFile} className="p-1.5 bg-red-100 text-red-500 rounded-full hover:bg-red-200 transition-colors shrink-0" title="Hapus file">
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -814,6 +848,11 @@ export default function RABPage() {
                                   <span className="block">
                                       <span className="font-bold text-slate-800 text-base">{item['Nomor Ulok']}</span>
                                       <span className="text-sm text-slate-500 block">Lingkup: {item['Lingkup_Pekerjaan'] || item['Lingkup Pekerjaan']}</span>
+                                      {item.alasan_penolakan && (
+                                          <span className="text-sm font-medium text-red-600 block mt-2 bg-red-50 p-2.5 rounded-lg border border-red-100">
+                                              <span className="font-bold">Alasan Penolakan:</span> {item.alasan_penolakan}
+                                          </span>
+                                      )}
                                   </span>
                                   <Button 
                                       className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"

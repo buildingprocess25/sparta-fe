@@ -14,21 +14,12 @@ import {
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
-    fetchRABList
+    fetchRABList, fetchRABDetail
 } from '@/lib/api';
 import type { GanttListItem } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 
-// --- ATURAN PENGAWASAN (SUPERVISION RULES) ---
-const SUPERVISION_RULES: Record<number, number[]> = {
-    10: [2, 5, 8, 10],
-    14: [2, 7, 10, 14],
-    20: [2, 12, 16, 20],
-    30: [2, 7, 14, 18, 23, 30],
-    35: [2, 7, 17, 22, 28, 35],
-    40: [2, 7, 17, 25, 33, 40],
-    48: [2, 10, 25, 32, 41, 48]
-};
+// Aturan pengawasan sudah ditiadakan
 
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
@@ -70,6 +61,7 @@ function GanttBoard() {
     
     const urlUlok = searchParams.get('ulok');
     const urlIdToko = searchParams.get('id_toko');
+    const urlIdRab = searchParams.get('id_rab');
 
     const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
     const [userRole, setUserRole] = useState('');
@@ -128,7 +120,9 @@ function GanttBoard() {
         }
 
         if (urlIdToko) {
-            loadDataByToko(parseInt(urlIdToko));
+            loadDataByToko(parseInt(urlIdToko), urlIdRab ? parseInt(urlIdRab) : undefined);
+        } else if (urlIdRab) {
+            loadDataByRab(parseInt(urlIdRab));
         } else {
             const filters = currentAppMode === 'kontraktor'
                 ? { email_pembuat: email || '' }
@@ -144,9 +138,9 @@ function GanttBoard() {
                 .catch(err => console.error("Gagal memuat list Gantt Chart:", err));
         }
 
+        const urlLocked = searchParams.get('locked');
         // Cek apakah akses langsung atau dari parameter (RAB)
-        // Jika dari RAB, ulok pasti ada di parameter. Jika hanya id_toko, berarti dari internal navigasi dropdown.
-        if (!urlUlok) {
+        if (!urlLocked && !urlUlok) {
             setIsDirectAccess(true);
         }
 
@@ -160,25 +154,106 @@ function GanttBoard() {
             })
             .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
         
-    }, [router, urlIdToko]);
+    }, [router, urlIdToko, urlIdRab]);
 
-    const loadDataByToko = async (idToko: number) => {
+    const loadDataByRab = async (idRab: number, fallbackIdToko?: number) => {
+        setIsLoading(true);
+        try {
+            const rabDetailRes = await fetchRABDetail(idRab);
+            const { rab, toko, items } = rabDetailRes.data;
+
+            setSelectedGanttId(null);
+            setIsProjectLocked(false);
+            setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
+            
+            const rData: any = rab;
+            const rDuration = rData?.durasi_pekerjaan ? parseInt(String(rData.durasi_pekerjaan).replace(/\D/g, '')) || 1 : 1;
+
+            setProjectData({
+                ganttId: null,
+                ulokClean: formatUlokWithDash(toko.nomor_ulok),
+                store: toko.nama_toko || "Data Toko",
+                kode_toko: toko.kode_toko || "-",
+                work: toko.lingkup_pekerjaan || "SIPIL",
+                cabang: toko.cabang || "-",
+                kontraktor: toko.nama_kontraktor || "-",
+                duration: rDuration,
+                startDate: new Date().toISOString().split('T')[0],
+            });
+
+            const uniqueCats = new Set<string>();
+            if (items) {
+                items.forEach((item: any) => {
+                    if (item.kategori_pekerjaan && item.volume > 0) {
+                         uniqueCats.add(item.kategori_pekerjaan);
+                    }
+                });
+            }
+            
+            let finalCategories = uniqueCats.size > 0 ? Array.from(uniqueCats) : ["PERSIAPAN"];
+
+            const generatedTasks = finalCategories.map((kName: string, idx: number) => ({
+                id: idx + 1, 
+                name: kName, 
+                dependencies: [], 
+                ranges: [{ start: '', end: '', keterlambatan: 0 }], 
+                keterlambatan: 0
+            }));
+            
+            setTasks(generatedTasks);
+            setRawDayGanttData([]);
+
+        } catch (err: any) {
+            console.error("loadDataByRab Error:", err);
+            if (fallbackIdToko) {
+                 loadDataByToko(fallbackIdToko);
+            } else {
+                 alert(`Gagal memuat data RAB: ${err.message}`);
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loadDataByToko = async (idToko: number, fallbackIdRab?: number) => {
         setIsLoading(true);
         try {
             const res = await fetchGanttDetailByToko(idToko);
             const { rab, filtered_categories, gantt_data, toko } = res;
 
+            const validRabId = rab?.id || fallbackIdRab;
+
             if (gantt_data) {
                 // JIKA GANTT SUDAH ADA: Langsung gunakan fungsi loadGanttDetail yang sudah ada
-                await loadGanttDetail(gantt_data.id);
+                await loadGanttDetail(gantt_data.id, validRabId);
             } else {
                 // JIKA BELUM ADA GANTT: Bikin draft baru dari kategori RAB
                 setSelectedGanttId(null);
                 setIsProjectLocked(false);
                 setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
                 
-                if (!rab) {
+                if (!validRabId) {
                     alert("Info: RAB belum disetujui atau belum ada untuk toko ini.");
+                }
+
+                let finalCategories = filtered_categories || [];
+                if (validRabId) {
+                    try {
+                        const rabDetailRes = await fetchRABDetail(validRabId);
+                        if (rabDetailRes?.data?.items) {
+                            const uniqueCats = new Set<string>();
+                            rabDetailRes.data.items.forEach((item: any) => {
+                                if (item.kategori_pekerjaan && item.volume > 0) {
+                                     uniqueCats.add(item.kategori_pekerjaan);
+                                }
+                            });
+                            if (uniqueCats.size > 0) {
+                                finalCategories = Array.from(uniqueCats);
+                            }
+                        }
+                    } catch (e) {
+                         console.error("Gagal mengambil kategori dari RAB Detail:", e);
+                    }
                 }
                 
                 const rData: any = rab;
@@ -196,12 +271,12 @@ function GanttBoard() {
                     startDate: new Date().toISOString().split('T')[0],
                 });
                 
-                // Buat baris pekerjaan (tasks) otomatis dari filtered_categories RAB
-                const generatedTasks = filtered_categories.map((kName, idx) => ({
+                // Buat baris pekerjaan (tasks) otomatis dari finalCategories RAB
+                const generatedTasks = finalCategories.map((kName: string, idx: number) => ({
                     id: idx + 1, 
                     name: kName, 
                     dependencies: [], 
-                    ranges: [{ start: 1, end: rDuration, keterlambatan: 0 }], 
+                ranges: [{ start: '', end: '', keterlambatan: 0 }], 
                     keterlambatan: 0
                 }));
                 
@@ -216,7 +291,7 @@ function GanttBoard() {
         }
     };
     
-    const loadGanttDetail = async (ganttId: number) => {
+    const loadGanttDetail = async (ganttId: number, idRabFallback?: number) => {
         if (!ganttId) return;
         setIsLoading(true);
         setSelectedGanttId(ganttId);
@@ -225,20 +300,45 @@ function GanttBoard() {
             const { data } = await fetchGanttDetail(ganttId);
             const { gantt, toko, kategori_pekerjaan, day_items, dependencies } = data;
 
+            let baseCategories: string[] = [];
+            let rabDurationFallback = 0;
+
+            if (idRabFallback) {
+                try {
+                    const rabDetailRes = await fetchRABDetail(idRabFallback);
+                    if (rabDetailRes?.data) {
+                        const rData: any = rabDetailRes.data.rab;
+                        if (rData?.durasi_pekerjaan) {
+                            rabDurationFallback = parseInt(String(rData.durasi_pekerjaan).replace(/\D/g, '')) || 0;
+                        }
+                        if (rabDetailRes.data.items) {
+                            const uniqueCats = new Set<string>();
+                            rabDetailRes.data.items.forEach((item: any) => {
+                                if (item.kategori_pekerjaan && item.volume > 0) {
+                                    uniqueCats.add(item.kategori_pekerjaan.toUpperCase());
+                                }
+                            });
+                            baseCategories = Array.from(uniqueCats);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Gagal get fallback RAB details:", e);
+                }
+            }
+
             // --- Hitung projectStart dan Durasi dengan lebih aman (Functional Approach) ---
 
-            // 1. Ekstrak semua timestamp yang valid dari day_items
-            const startTimestamps = day_items
-                .map(entry => parseDateDDMMYYYY(entry.h_awal)?.getTime())
-                .filter((time): time is number => time !== undefined && time !== null && !isNaN(time));
+            // 1. Ekstrak semua angka hari yang valid dari day_items
+            const startDaysRaw = day_items
+                .map(entry => parseInt(entry.h_awal))
+                .filter(d => !isNaN(d));
 
-            const endTimestamps = day_items
-                .map(entry => parseDateDDMMYYYY(entry.h_akhir)?.getTime())
-                .filter((time): time is number => time !== undefined && time !== null && !isNaN(time));
+            const endDaysRaw = day_items
+                .map(entry => parseInt(entry.h_akhir))
+                .filter(d => !isNaN(d));
 
-            // 2. Dapatkan nilai paling awal (min) dan paling akhir (max)
-            const startTime = startTimestamps.length > 0 ? Math.min(...startTimestamps) : null;
-            const endTime = endTimestamps.length > 0 ? Math.max(...endTimestamps) : null;
+            // 2. Dapatkan durasi maksimal (max) untuk kalkulasi durasi proyek jika RAB durasi tidak ada
+            const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
 
             // 3. Set projectStart
             // Gunakan `timestamp` buatan database saat Gantt pertama dibuat agar perhitungan hari tidak bergeser,
@@ -249,15 +349,13 @@ function GanttBoard() {
                 if (parts.length === 3) {
                     projectStart = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
                 }
-            } else if (startTime) {
-                projectStart = new Date(startTime);
             }
 
             // 4. Hitung durasi
             const msPerDay = 1000 * 60 * 60 * 24;
-            const duration = (startTime && endTime)
-                ? Math.round((endTime - startTime) / msPerDay) + 1
-                : 0;
+            const ganttComputedDuration = maxDay;
+            
+            const duration = rabDurationFallback > 0 ? rabDurationFallback : ganttComputedDuration;
 
             // --- Set project info ---
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
@@ -289,25 +387,27 @@ function GanttBoard() {
             }));
             setRawDayGanttData(normalizedRaw);
 
-            // --- Build tasks dari kategori_pekerjaan ---
-            // Type eksplisit any[] agar reassignment .map() berikutnya tidak konflik dengan inferensi never[]
-            let generatedTasks: any[] = kategori_pekerjaan.map((k, idx) => ({
-                id: idx + 1, name: k.kategori_pekerjaan, dependencies: [], ranges: [], keterlambatan: 0
+            // --- Build tasks dari backend kategori dikombinasikan dengan original RAB items ---
+            const savedCategories = kategori_pekerjaan.map(k => k.kategori_pekerjaan.toUpperCase());
+            const mergedCategoriesRaw = new Set([...baseCategories, ...savedCategories]);
+            if (mergedCategoriesRaw.size === 0) mergedCategoriesRaw.add("PERSIAPAN");
+
+            let generatedTasks: any[] = Array.from(mergedCategoriesRaw).map((catName, idx) => ({
+                id: idx + 1, name: catName, dependencies: [], ranges: [], keterlambatan: 0
             }));
 
             // --- Map ranges dari day_items ---
             const categoryRangesMap: Record<string, any[]> = {};
             day_items.forEach(entry => {
-                const startDate = parseDateDDMMYYYY(entry.h_awal);
-                const endDate   = parseDateDDMMYYYY(entry.h_akhir);
-                if (startDate && endDate) {
-                    const startDay = Math.round((startDate.getTime() - projectStart.getTime()) / msPerDay) + 1;
-                    const endDay   = Math.round((endDate.getTime()   - projectStart.getTime()) / msPerDay) + 1;
+                const startDay = parseInt(entry.h_awal);
+                const endDay   = parseInt(entry.h_akhir);
+                
+                if (!isNaN(startDay) && !isNaN(endDay)) {
                     const key = entry.kategori_pekerjaan.toLowerCase().trim();
                     if (!categoryRangesMap[key]) categoryRangesMap[key] = [];
                     categoryRangesMap[key].push({
-                        start:         startDay > 0 ? startDay : 1,
-                        end:           endDay   > 0 ? endDay   : 1,
+                        start:         startDay,
+                        end:           endDay,
                         duration:      endDay - startDay + 1,
                         keterlambatan: parseInt(String(entry.keterlambatan || 0)),
                     });
@@ -361,10 +461,19 @@ function GanttBoard() {
 
   // --- HANDLER TABEL INPUT ---
     const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start'|'end', value: string) => {
+        let parsedVal = parseInt(value);
+        if (!isNaN(parsedVal)) {
+            const maxDuration = projectData?.duration || 99;
+            if (parsedVal > maxDuration) {
+                parsedVal = maxDuration;
+            }
+        }
+        const finalValue = isNaN(parsedVal) && value !== '' ? '' : (value === '' ? '' : parsedVal.toString());
+
         setTasks(prev => prev.map(t => {
             if(t.id === taskId) {
                 const newRanges = [...t.ranges];
-                newRanges[rangeIdx][field] = value;
+                newRanges[rangeIdx][field] = finalValue;
                 return {...t, ranges: newRanges};
             }
             return t;
@@ -420,7 +529,6 @@ function GanttBoard() {
             const email = sessionStorage.getItem('loggedInUserEmail') || "-";
             const cabang = sessionStorage.getItem('loggedInUserCabang') || "-";
             const namaKontraktor = sessionStorage.getItem('loggedInUserName') || sessionStorage.getItem('loggedInUserEmail') || "-";
-            const pStart = new Date(projectData.startDate);
 
             const kategori_pekerjaan: string[] = [];
             const day_items: any[] = [];
@@ -439,13 +547,10 @@ function GanttBoard() {
                 if (t.ranges && t.ranges.length > 0) {
                     t.ranges.forEach((r: any) => {
                         if (!r.start || !r.end) return;
-                        const rdS = new Date(pStart); rdS.setDate(pStart.getDate() + parseInt(r.start) - 1);
-                        const rdE = new Date(pStart); rdE.setDate(pStart.getDate() + parseInt(r.end) - 1);
-                        
                         day_items.push({
                             kategori_pekerjaan: kategoriName,
-                            h_awal: formatDateID(rdS),
-                            h_akhir: formatDateID(rdE),
+                            h_awal: String(r.start),
+                            h_akhir: String(r.end),
                             keterlambatan: String(r.keterlambatan || ""),
                             kecepatan: ""
                         });
@@ -470,6 +575,8 @@ function GanttBoard() {
             if (day_items.length === 0) {
                 throw new Error("Harap isi tanggal mulai dan selesai minimal satu tahapan.");
             }
+
+            let submitRes: any = null;
 
             if (selectedGanttId) {
                 // JIKA MENGEDIT DRAFT YANG SUDAH ADA (Gunakan PUT)
@@ -501,7 +608,7 @@ function GanttBoard() {
                     pengawasan,
                     dependencies
                 };
-                const submitRes = await submitGanttChart(payload);
+                submitRes = await submitGanttChart(payload);
                 
                 if (status === 'Terkunci' && submitRes.data?.id) {
                     await lockGanttChart(submitRes.data.id, email);
@@ -513,7 +620,8 @@ function GanttBoard() {
                 router.push('/dashboard');
             } else {
                 alert("Draft berhasil disimpan.");
-                if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                const newGanttId = selectedGanttId || submitRes?.data?.id;
+                if (newGanttId) loadGanttDetail(newGanttId);
             }
         } catch (e: any) {
             alert(`Gagal menyimpan data: ${e.message}`);
@@ -653,8 +761,6 @@ function GanttBoard() {
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
         const svgHeight = processedTasks.length * ROW_HEIGHT;
         const supervisionDays: Record<number, boolean> = {};
-        const rules = SUPERVISION_RULES[projectData.duration];
-        if (rules) rules.forEach(d => supervisionDays[d] = true);
         
         let taskCoordinates: Record<number, any> = {};
         processedTasks.forEach((task, idx) => {
@@ -732,7 +838,7 @@ function GanttBoard() {
                             <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
                             {(urlIdToko || urlUlok) && !isDirectAccess ? (
                                 <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
-                                    <span>{selectedUlok}</span><Lock className="w-5 h-5 text-slate-400" />
+                                    <span>{selectedUlok || projectData?.ulokClean || "Memuat..."}</span><Lock className="w-5 h-5 text-slate-400" />
                                 </div>
                             ) : (
                                 <select 
@@ -765,14 +871,15 @@ function GanttBoard() {
                                     <option value="">-- Pilih Proyek / RAB Anda --</option>
                                     {/* PRIORITASKAN TOKO DARI DAFTAR TOKO LENGKAP */}
                                     {allTokoList.map((toko) => {
-                                        const ganttMatch = availableProjects.find(p => p.id_toko === toko.id || p.nomor_ulok === toko.nomor_ulok);
+                                        const tID = toko.id_toko || toko.id;
+                                        const ganttMatch = availableProjects.find(p => p.id_toko === tID || p.nomor_ulok === toko.nomor_ulok);
                                         const ulok = formatUlokWithDash(toko.nomor_ulok);
                                         const label = [ulok, toko.nama_toko, toko.cabang]
                                             .filter(Boolean).join(' · ');
                                         const statusBadge = ganttMatch?.status === 'terkunci' ? ' (Terkunci)' : (ganttMatch?.status === 'active' ? ' (Aktif)' : '');
                                         
                                         // Gunakan ID Gantt jika ada, jika tidak gunakan ID Toko dengan prefix
-                                        const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${toko.id}`;
+                                        const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
                                         
                                         return (
                                             <option key={toko.id} value={val}>
@@ -959,7 +1066,6 @@ function GanttBoard() {
                 <div className="p-4 bg-slate-100 border-b flex justify-center gap-6 text-sm font-medium">
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Sesuai Target</div>
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
-                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-sky-200 border border-sky-300 rounded shadow-inner"></div> Masa Pengawasan</div>
                 </div>
                 
                 <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
@@ -973,10 +1079,9 @@ function GanttBoard() {
                             <div className="flex sticky top-0 bg-white z-40 border-b border-slate-200 shadow-sm">
                                 <div className="w-62.5 shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r border-slate-200 sticky left-0 z-50">Tahapan</div>
                                 <div className="flex" style={{ width: chartData.totalChartWidth }}>
-                                    {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
-                                        const isSup = chartData.supervisionDays[i+1];
+                                     {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
                                         return (
-                                            <div key={i} className={`shrink-0 text-center border-r border-slate-100 py-1 text-xs font-bold ${isSup ? 'bg-sky-200 text-sky-900 border-b-2 border-sky-500' : 'bg-slate-50 text-slate-500'}`} style={{ width: DAY_WIDTH }}>
+                                            <div key={i} className="shrink-0 text-center border-r border-slate-100 py-1 text-xs font-bold bg-slate-50 text-slate-500" style={{ width: DAY_WIDTH }}>
                                                 {i+1}
                                             </div>
                                         )
@@ -1018,10 +1123,7 @@ function GanttBoard() {
                                                         </React.Fragment>
                                                     )
                                                 })}
-                                                {Object.keys(chartData.supervisionDays).map(day => (
-                                                    <div key={day} className="absolute top-10 w-7.5 h-1 bg-sky-500 rounded-full z-15 ml-1" style={{ left: (parseInt(day) - 1) * DAY_WIDTH }}></div>
-                                                ))}
-                                            </div>
+                                             </div>
                                         </div>
                                     )
                                 })}

@@ -84,6 +84,7 @@ interface NormalizedDetail {
         harga_material: number;
         harga_upah: number;
         total: number;
+        catatan?: string | null;
     }>;
     // SPK specific
     nomor_spk?: string;
@@ -187,18 +188,35 @@ const formatDateFull = (dateStr: string) => {
 
 const getStatusBadgeClass = (status: string) => {
     const upper = (status ?? '').toUpperCase();
+    if (upper.includes('TOLAK') || upper.includes('REJECTED')) {
+        return 'bg-red-100 text-red-700 border-red-200';
+    }
+    if (upper.includes('SETUJUI') || upper.includes('APPROVED')) {
+        return 'bg-green-100 text-green-700 border-green-200';
+    }
+    if (upper.includes('PENDING') || upper.includes('MENUNGGU') || upper.includes('WAITING')) {
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    }
     return STATUS_BADGE[upper] ?? 'bg-slate-100 text-slate-600 border-slate-200';
 };
 
 const getStatusLabel = (status: string) => {
     if (!status) return '-';
     const upper = status.toUpperCase();
+    
+    if (upper.includes('TOLAK') || upper === 'REJECTED' || upper === 'SPK_REJECTED') {
+        if (upper.includes('KOORDINATOR')) return 'Ditolak Koord.';
+        if (upper.includes('MANAGER') || upper.includes('MANAJER')) return 'Ditolak Mgr.';
+        if (upper.includes('DIREKTUR')) return 'Ditolak Dir.';
+        return 'Rejected';
+    }
+
+    if (upper.includes('DISETUJUI') || upper === 'APPROVED' || upper === 'SPK_APPROVED') return 'Approved';
+
     if (upper.includes('KOORDINATOR')) return 'Pending Koord.';
     if (upper.includes('MANAGER') || upper.includes('MANAJER')) return 'Pending Mgr.';
     if (upper.includes('DIREKTUR')) return 'Pending Dir.';
     if (upper === 'WAITING_FOR_BM_APPROVAL') return 'Pending BM';
-    if (upper.includes('DISETUJUI') || upper === 'APPROVED' || upper === 'SPK_APPROVED') return 'Approved';
-    if (upper.includes('TOLAK') || upper === 'REJECTED' || upper === 'SPK_REJECTED') return 'Rejected';
     if (upper.includes('PENDING')) return 'Pending';
     return status;
 };
@@ -382,6 +400,7 @@ export default function DaftarDokumenPage() {
                         harga_material:  it.harga_material,
                         harga_upah:      it.harga_upah,
                         total:           it.total_harga,
+                        catatan:         it.catatan,
                     })),
                 };
             } else if (doc.tipe === 'SPK') {
@@ -915,14 +934,15 @@ export default function DaftarDokumenPage() {
                                             <table className="w-full text-sm">
                                                 <thead className="bg-slate-50 text-slate-500">
                                                     <tr>
-                                                        <th className="text-left px-4 py-3 font-semibold text-xs">No</th>
-                                                        <th className="text-left px-4 py-3 font-semibold text-xs">Kategori</th>
-                                                        <th className="text-left px-4 py-3 font-semibold text-xs">Jenis Pekerjaan</th>
-                                                        <th className="text-left px-4 py-3 font-semibold text-xs">Satuan</th>
-                                                        <th className="text-right px-4 py-3 font-semibold text-xs">Vol</th>
-                                                        <th className="text-right px-4 py-3 font-semibold text-xs">Material</th>
-                                                        <th className="text-right px-4 py-3 font-semibold text-xs">Upah</th>
-                                                        <th className="text-right px-4 py-3 font-semibold text-xs">Total</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">No</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Kategori</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Jenis Pekerjaan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs min-w-32">Catatan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Satuan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Volume</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Material</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Upah</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs">Total</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -931,6 +951,7 @@ export default function DaftarDokumenPage() {
                                                             <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
                                                             <td className="px-4 py-2.5 text-slate-600 font-medium text-xs">{item.kategori}</td>
                                                             <td className="px-4 py-2.5 text-slate-700">{item.jenis_pekerjaan}</td>
+                                                            <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
                                                             <td className="px-4 py-2.5 text-slate-500">{item.satuan}</td>
                                                             <td className="px-4 py-2.5 text-right text-slate-600">{item.volume}</td>
                                                             <td className="px-4 py-2.5 text-right text-slate-600">{formatRupiah(item.harga_material)}</td>
@@ -939,6 +960,14 @@ export default function DaftarDokumenPage() {
                                                         </tr>
                                                     ))}
                                                 </tbody>
+                                                <tfoot className="bg-slate-100 border-t border-slate-300">
+                                                    <tr>
+                                                        <td colSpan={7} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td className="p-3 font-extrabold text-slate-800 text-right">
+                                                            {formatRupiah((selectedDetail.items || []).reduce((s, r) => s + (r.total ?? 0), 0))}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
                                             </table>
                                         </div>
                                     </div>

@@ -49,16 +49,13 @@ export default function GanttViewer({ nomorUlok }: { nomorUlok: string }) {
                 if (!detailRes) return;
                 const { gantt, toko, kategori_pekerjaan, day_items, dependencies } = detailRes.data;
 
-                const startTimestamps = day_items
-                    .map((entry: any) => parseDateDDMMYYYY(entry.h_awal)?.getTime())
-                    .filter((time: any): time is number => time !== undefined && time !== null && !isNaN(time));
+                const startDaysRaw = day_items.map((entry: any) => parseInt(entry.h_awal)).filter((d: any) => !isNaN(d));
+                const endDaysRaw = day_items.map((entry: any) => parseInt(entry.h_akhir)).filter((d: any) => !isNaN(d));
+                const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
 
-                const endTimestamps = day_items
-                    .map((entry: any) => parseDateDDMMYYYY(entry.h_akhir)?.getTime())
-                    .filter((time: any): time is number => time !== undefined && time !== null && !isNaN(time));
-
-                const startTime = startTimestamps.length > 0 ? Math.min(...startTimestamps) : null;
-                const endTime = endTimestamps.length > 0 ? Math.max(...endTimestamps) : null;
+                let startTime: number | null = null;
+                let endTime: number | null = null;
+                // Kami tidak lagi mengandalkan startTime/endTime untuk durasi, tapi kami butuh untuk projectStart jika ada.
 
                 let projectStart = new Date();
                 if (gantt.timestamp) {
@@ -69,7 +66,7 @@ export default function GanttViewer({ nomorUlok }: { nomorUlok: string }) {
                 }
 
                 const msPerDay = 1000 * 60 * 60 * 24;
-                const duration = (startTime && endTime) ? Math.round((endTime - startTime) / msPerDay) + 1 : 0;
+                const duration = maxDay;
 
                 setProjectData({
                     duration,
@@ -82,16 +79,15 @@ export default function GanttViewer({ nomorUlok }: { nomorUlok: string }) {
 
                 const categoryRangesMap: Record<string, any[]> = {};
                 day_items.forEach((entry: any) => {
-                    const startDate = parseDateDDMMYYYY(entry.h_awal);
-                    const endDate   = parseDateDDMMYYYY(entry.h_akhir);
-                    if (startDate && endDate) {
-                        const startDay = Math.round((startDate.getTime() - projectStart.getTime()) / msPerDay) + 1;
-                        const endDay   = Math.round((endDate.getTime()   - projectStart.getTime()) / msPerDay) + 1;
+                    const startDay = parseInt(entry.h_awal);
+                    const endDay   = parseInt(entry.h_akhir);
+                    
+                    if (!isNaN(startDay) && !isNaN(endDay)) {
                         const key = entry.kategori_pekerjaan.toLowerCase().trim();
                         if (!categoryRangesMap[key]) categoryRangesMap[key] = [];
                         categoryRangesMap[key].push({
-                            start:         startDay > 0 ? startDay : 1,
-                            end:           endDay   > 0 ? endDay   : 1,
+                            start:         startDay,
+                            end:           endDay,
                             duration:      endDay - startDay + 1,
                             keterlambatan: parseInt(String(entry.keterlambatan || 0)),
                         });
