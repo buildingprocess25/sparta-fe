@@ -12,10 +12,7 @@
 //   5.  OPNAME (Server sparta)  — Status item, Summary, Lock final,
 //               RAB data, PIC list
 //   6.  SPK    — Submit, Cek Status, Types, List, Detail, Approval
-//   7.  IL     — Submit, Fetch Approved RAB, Types, List, Detail, Approval
-//   8.  PENGAWASAN — Ulok, PIC, Toko, SPK Details, SPK URLs, RAB URLs, Submit
-//   9.  DOKUMEN TOKO — List, Submit, Update, Delete
-//   10. MONITORING — Summary data
+//   7.  TAMBAH SPK     — Submit, Fetch Approved SPK, Types, List, Detail, Approval
 // =============================================================================
 
 import { API_URL, OPNAME_API_URL } from "./constants";
@@ -72,6 +69,7 @@ export type RABListItem = {
     link_pdf_gabungan:    string;
     link_pdf_non_sbo:     string;
     link_pdf_rekapitulasi:string;
+    link_lampiran_pendukung?:string | null;
     created_at:           string;
     nomor_ulok:           string;
     nama_toko:            string;
@@ -130,6 +128,7 @@ export type RABDetailData = {
     no_polis?:                       string | null;
     berlaku_polis?:                  string | null;
     file_asuransi?:                  string | null;
+    link_lampiran_pendukung:         string | null;
 };
 
 export type RABDetailItem = {
@@ -890,6 +889,8 @@ export type SPKListItem = {
     lingkup_pekerjaan: string;
     nama_kontraktor: string;
     proyek: string;
+    kode_toko?: string;
+    toko?: { nomor_ulok?: string; kode_toko?: string; nama_toko?: string; cabang?: string; alamat?: string };
     waktu_mulai: string;
     durasi: number;
     waktu_selesai: string;
@@ -998,6 +999,14 @@ export const downloadSPKPdf = async (id: number): Promise<boolean> => {
     return true;
 };
 
+/** Ambil daftar kontraktor untuk SPK (filter per Cabang). */
+export const fetchKontraktorList = async (cabang?: string): Promise<string[]> => {
+    const url = `https://sparta-be.onrender.com/api/get_kontraktor${cabang ? `?cabang=${encodeURIComponent(cabang)}` : ""}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Gagal mengambil daftar kontraktor (${res.status}).`);
+    return res.json(); // Returns string[] directly
+};
+
 /** Proses approval atau reject SPK (Branch Manager). */
 export const processSPKApproval = async (
     id: number,
@@ -1017,218 +1026,138 @@ export const processSPKApproval = async (
 };
 
 // =============================================================================
-// 7. IL — Instruksi Lapangan
+// 7. PERTAMBAHAN SPK
 // =============================================================================
 
 // --- Types ---
 
-export type ILListItem = {
-    id:                              number;
-    nomor_ulok:                      string;
-    nama_toko:                       string;
-    kode_toko?:                      string;
-    cabang:                          string;
-    lingkup_pekerjaan:               string;
-    email_pembuat:                   string;
-    status:                          string;
-    grand_total?:                    string | number;
-    grand_total_final?:              string | number;
-    created_at:                      string;
-    alasan_penolakan?:               string | null;
-    pemberi_persetujuan_koordinator?:string | null;
-    waktu_persetujuan_koordinator?:  string | null;
-    pemberi_persetujuan_manager?:    string | null;
-    waktu_persetujuan_manager?:      string | null;
+export type PertambahanSPKPayload = {
+    id_spk: number;
+    pertambahan_hari: string;
+    tanggal_spk_akhir: string;
+    tanggal_spk_akhir_setelah_perpanjangan: string;
+    alasan_perpanjangan: string;
+    dibuat_oleh: string;
+    link_pdf?: string;
+    link_lampiran_pendukung?: string;
 };
 
-export type ILDetailItem = {
-    id:                number;
-    kategori_pekerjaan:string;
-    jenis_pekerjaan:   string;
-    satuan:            string;
-    volume:            number;
-    harga_material:    number;
-    harga_upah:        number;
-    total_material?:   number;
-    total_upah?:       number;
-    total_harga:       number;
+export type PertambahanSPKListItem = {
+    id: number;
+    id_spk: number;
+    pertambahan_hari: string;
+    tanggal_spk_akhir: string;
+    tanggal_spk_akhir_setelah_perpanjangan: string;
+    alasan_perpanjangan: string;
+    dibuat_oleh: string;
+    status_persetujuan: string;
+    disetujui_oleh: string | null;
+    waktu_persetujuan: string | null;
+    alasan_penolakan: string | null;
+    link_pdf: string | null;
+    link_lampiran_pendukung: string | null;
+    created_at: string;
+    nomor_spk: string;
 };
 
-export type ILDetailResponse = {
-    il:     ILListItem;
-    items?: ILDetailItem[];
+export type PertambahanSPKListFilters = {
+    id_spk?: number;
+    status_persetujuan?: string;
 };
 
-export type ILApprovalPayload = {
-    approver_email:   string;
-    jabatan:          "KOORDINATOR" | "MANAGER" | "DIREKTUR";
-    tindakan:         "APPROVE" | "REJECT";
-    alasan_penolakan?: string | null;
+export type PertambahanSPKApprovalPayload = {
+    approver_email: string;
+    tindakan: "APPROVE" | "REJECT";
+    alasan_penolakan?: string;
 };
 
 // --- Fungsi ---
 
-/** Submit Instruksi Lapangan baru (multipart/form-data). */
-export const submitILData = async (formData: FormData) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/submit_rab_kedua`, {
+/** Submit data pertambahan SPK baru. */
+export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk`, {
         method: "POST",
-        body:   formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
     });
+
     const result = await res.json();
-    if (!res.ok || result.status !== "success")
-        throw new Error(result.message || "Gagal mengirim data Instruksi Lapangan.");
+    if (res.status === 404) throw new Error(result.message || "SPK tidak ditemukan.");
+    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan semua field terisi.");
+    if (!res.ok || result.status !== "success") {
+        throw new Error(result.message || "Gagal menyimpan data pertambahan SPK.");
+    }
     return result;
 };
 
-/** Ambil daftar RAB yang sudah APPROVED (untuk form SPK/IL). */
-export const fetchApprovedRabs = async (cabang: string) => {
-    return safeFetchJSON(
-        `${API_URL.replace(/\/$/, "")}/api/get_approved_rab?cabang=${encodeURIComponent(cabang)}`
-    );
-};
-
-/** Ambil daftar kontraktor berdasarkan cabang. */
-export const fetchKontraktorList = async (cabang: string) => {
-    return safeFetchJSON(
-        `${API_URL.replace(/\/$/, "")}/api/get_kontraktor?cabang=${encodeURIComponent(cabang)}`
-    );
-};
-
-/** Ambil daftar IL dengan filter opsional. */
-export const fetchILList = async (filters?: {
-    status?: string;
-    cabang?: string;
-    nomor_ulok?: string;
-}): Promise<{ status: string; data: ILListItem[] }> => {
+/** Ambil daftar pertambahan SPK dengan filter opsional. */
+export const fetchPertambahanSPKList = async (
+    filters?: PertambahanSPKListFilters
+): Promise<{ status: string; data: PertambahanSPKListItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
-    if (filters?.status)     params.append("status",     filters.status);
-    if (filters?.cabang)     params.append("cabang",     filters.cabang);
-    if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
-    const url = `${base}/api/il${params.toString() ? `?${params}` : ""}`;
+    if (filters?.id_spk)              params.append("id_spk", filters.id_spk.toString());
+    if (filters?.status_persetujuan)  params.append("status_persetujuan", filters.status_persetujuan);
+    const url = `${base}/api/pertambahan-spk${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
 
-/** Ambil detail IL berdasarkan ID. */
-export const fetchILDetail = async (
+/** Ambil detail pertambahan SPK berdasarkan ID. */
+export const fetchPertambahanSPKDetail = async (
     id: number
-): Promise<{ status: string; data: ILDetailResponse }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/il/${id}`);
-    if (res.status === 404) throw new Error(`IL dengan ID ${id} tidak ditemukan.`);
+): Promise<{ status: string; data: PertambahanSPKListItem }> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`);
+    if (res.status === 404) throw new Error(`Data pertambahan SPK dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Gagal memuat detail IL (${res.status}): ${text.substring(0, 100)}`);
+        throw new Error(`Gagal memuat detail pertambahan SPK (${res.status}): ${text.substring(0, 100)}`);
     }
     return res.json();
 };
 
-/** Proses approval atau reject Instruksi Lapangan. */
-export const processILApproval = async (
+/** Update data pertambahan SPK. */
+export const updatePertambahanSPK = async (
     id: number,
-    payload: ILApprovalPayload
-): Promise<{ status: string; message: string; data: { id: number; old_status: string; new_status: string } }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/il/${id}/approval`, {
-        method:  "POST",
+    payload: Partial<PertambahanSPKPayload>
+) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
+        body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (res.status === 404) throw new Error("Data IL tidak ditemukan.");
-    if (res.status === 409) throw new Error(result.message || "Status tidak valid untuk tindakan ini.");
+    if (res.status === 404) throw new Error("Data pertambahan SPK tidak ditemukan.");
+    if (res.status === 422) throw new Error(result.message || "Validasi gagal.");
+    if (!res.ok) throw new Error(result.message || `Gagal memperbarui pertambahan SPK (${res.status}).`);
+    return result;
+};
+
+/** Proses approval atau reject pertambahan SPK (Branch Manager). */
+export const processPertambahanSPKApproval = async (
+    id: number,
+    payload: PertambahanSPKApprovalPayload
+): Promise<{ status: string; message: string; data: any }> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (res.status === 404) throw new Error("Data pertambahan SPK tidak ditemukan.");
+    if (res.status === 409) throw new Error(result.message || "Data sudah pernah diproses.");
     if (res.status === 422) throw new Error(result.message || "Validasi gagal. Isi alasan penolakan.");
-    if (!res.ok) throw new Error(result.message || `Gagal approval IL (${res.status}).`);
+    if (!res.ok) throw new Error(result.message || `Gagal memproses approval (${res.status}).`);
     return result;
 };
 
-// =============================================================================
-// 8. PENGAWASAN — PIC Pengawasan Proyek
-// =============================================================================
-
-const PENGAWASAN_API_URL = "https://pengawasan-tambahspk.onrender.com/api/form";
-
-/** Ambil daftar kode ULOK berdasarkan cabang (untuk dropdown). */
-export const fetchPengawasanUlok = async (cabang: string) =>
-    safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getKodeUlokByCabang=true&cabang=${encodeURIComponent(cabang)}`);
-
-/** Ambil daftar PIC yang tersedia untuk cabang tertentu. */
-export const fetchPengawasanPic = async (cabang: string) =>
-    safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&cabang=${encodeURIComponent(cabang)}`);
-
-/** Ambil nama toko berdasarkan kode ULOK. */
-export const fetchPengawasanToko = async (ulok: string) =>
-    safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getNamaToko=true&kode_ulok=${encodeURIComponent(ulok)}`);
-
-/** Ambil detail SPK (jadwal, kontraktor, dll.) berdasarkan kode ULOK. */
-export const fetchPengawasanSpkDetails = async (ulok: string) =>
-    safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getSpkDetails=true&kode_ulok=${encodeURIComponent(ulok)}`);
-
-/** Ambil semua URL dokumen SPK berdasarkan kode ULOK. */
-export const fetchPengawasanSpkUrls = async (ulok: string) =>
-    safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getAllSpkUrls=true&kode_ulok=${encodeURIComponent(ulok)}`);
-
-/** Ambil semua URL dokumen RAB berdasarkan kode ULOK. */
-export const fetchPengawasanRabUrls = async (ulok: string) =>
-    safeFetchJSON(`${PENGAWASAN_API_URL}?form=input-pic&getAllRabUrls=true&kode_ulok=${encodeURIComponent(ulok)}`);
-
-/** Submit data PIC pengawasan. */
-export const submitPengawasanData = async (payload: any) => {
-    const res = await fetch(PENGAWASAN_API_URL, {
-        method:  "POST",
+/** Hapus data pertambahan SPK. */
+export const deletePertambahanSPK = async (id: number) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`, {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
     });
     const result = await res.json();
-    if (result.status !== "success")
-        throw new Error(result.message || "Gagal menyimpan data pengawasan.");
+    if (res.status === 404) throw new Error("Data pertambahan SPK tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal menghapus pertambahan SPK.");
     return result;
 };
-
-// =============================================================================
-// 9. DOKUMEN TOKO — Penyimpanan Dokumen
-// =============================================================================
-
-/** Ambil daftar dokumen toko. Jika bukan Head Office, filter per cabang. */
-export const fetchDokumenToko = async (cabang: string) => {
-    const base = API_URL.replace(/\/$/, "");
-    const url =
-        cabang && cabang.toLowerCase() !== "head office"
-            ? `${base}/api/doc/list?cabang=${encodeURIComponent(cabang)}`
-            : `${base}/api/doc/list`;
-    return safeFetchJSON(url);
-};
-
-/** Simpan dokumen toko baru. */
-export const submitDokumenToko = async (payload: any) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/save`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.detail || result.message || "Gagal menyimpan dokumen.");
-    return result;
-};
-
-/** Update dokumen toko berdasarkan ID. */
-export const updateDokumenToko = async (id: string | number, payload: any) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/update/${id}`, {
-        method:  "PUT",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.detail || result.message || "Gagal mengupdate dokumen.");
-    return result;
-};
-
-/** Hapus dokumen toko berdasarkan kode toko. */
-export const deleteDokumenToko = async (kode_toko: string) => {
-    const res = await fetch(
-        `${API_URL.replace(/\/$/, "")}/api/doc/delete/${encodeURIComponent(kode_toko)}`,
-        { method: "DELETE", headers: { "Content-Type": "application/json" } }
-    );
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.detail || result.message || "Gagal menghapus dokumen.");
-    return result;
-};
-

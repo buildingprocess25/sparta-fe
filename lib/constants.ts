@@ -116,7 +116,7 @@ export const ALL_MENUS = [
     {
         id: "menu-approval",
         title: "Approval Dokumen",
-        desc: "Persetujuan RAB, SPK, dan Instruksi Lapangan.",
+        desc: "Persetujuan RAB, SPK, IL, dan Pertambahan SPK.",
         href: "/approval",
         icon: ClipboardCheck,
     },
@@ -136,7 +136,7 @@ export const ALL_MENUS = [
 
 export const ROLE_CONFIG: Record<string, string[]> = {
     "BRANCH MANAGER": [
-        "menu-approval", "menu-daftardokumen",
+        "menu-approval", "menu-daftardokumen"
     ],
 
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
@@ -234,7 +234,7 @@ export const BRANCH_TO_ULOK: Record<string, string> = {
     "GORONTALO":       "2SZ1",
     "PONTIANAK":       "1PZ1",
     "LOMBOK":          "1SZ1",
-    "LAMPUNG_KOTABUMI":"LZ01",
+    "KOTABUMI":"LZ01",
     "SERANG":          "2GZ1",
     "CIANJUR":         "2JZ1",
     "BALARAJA":        "TZ01",

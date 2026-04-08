@@ -173,9 +173,11 @@ export default function SPKPage() {
             
             // Fetch Kontraktor
             try {
-                const kList = await fetchKontraktorList(selected.Cabang);
-                setKontraktorList(kList || []);
-            } catch (e) { setKontraktorList([]); }
+                const names = await fetchKontraktorList(selected.Cabang);
+                setKontraktorList(names || []);
+            } catch (e) {
+                setKontraktorList([]); 
+            }
 
             // Check Status SPK
             if (selectedUlok && selectedLingkup) {
@@ -203,7 +205,7 @@ export default function SPKPage() {
                             }
 
                             const autofilledForm: RevisiFormSnapshot = {
-                                kode_toko: selected["Kode_Toko"] || selected["kode_toko"] || '',
+                                kode_toko: latestSpk.toko?.kode_toko || selected["Kode_Toko"] || selected["kode_toko"] || '',
                                 nama_kontraktor: latestSpk.nama_kontraktor || '',
                                 waktu_mulai: latestSpk.waktu_mulai ? latestSpk.waktu_mulai.split("T")[0] : '',
                                 durasi: latestSpk.durasi?.toString() || '',
@@ -384,7 +386,7 @@ export default function SPKPage() {
                                     <div className="pt-4 border-t mt-4 border-slate-100">
                                         <div className="mb-4 space-y-2 md:w-1/2">
                                             <label className="text-sm font-bold text-slate-700">Kode Toko *</label>
-                                            <input type="text" required className="w-full p-2.5 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500" value={form.kode_toko} onChange={e => setForm({...form, kode_toko: e.target.value})} placeholder="Masukkan Kode Toko (Misal: T123)..." />
+                                            <input type="text" required className="w-full p-2.5 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={form.kode_toko} onChange={e => setForm({...form, kode_toko: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()})} placeholder="Masukkan Kode Toko (Misal: T123)..." />
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg">

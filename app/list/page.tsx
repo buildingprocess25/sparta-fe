@@ -11,7 +11,7 @@ import {
     ArrowLeft, Loader2, Search, FileText, FileSignature,
     Eye, FileDown, Building2, CalendarDays, User, XCircle,
     CheckCircle, Hash, Clock, ChevronRight, Filter,
-    RefreshCw, AlertTriangle, Download,
+    RefreshCw, AlertTriangle, Download, FilePlus,
 } from 'lucide-react';
 
 import {
@@ -19,13 +19,15 @@ import {
     type RABListItem, type RABDetailItem, type RABDetailResponse,
     fetchSPKList, fetchSPKDetail, downloadSPKPdf,
     type SPKListItem, type SPKDetailResponse,
+    fetchPertambahanSPKList, fetchPertambahanSPKDetail,
+    type PertambahanSPKListItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
 
 // =============================================================================
 // TYPES
 // =============================================================================
-type DokumenKategori = 'RAB' | 'SPK';
+type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
@@ -47,6 +49,13 @@ interface NormalizedDoc {
     durasi?: number;
     waktu_mulai?: string;
     waktu_selesai?: string;
+    // Pertambahan SPK specific
+    pertambahan_hari?: string;
+    alasan_perpanjangan?: string;
+    tanggal_spk_akhir?: string;
+    tanggal_spk_akhir_setelah_perpanjangan?: string;
+    status_persetujuan?: string;
+    dibuat_oleh?: string;
 }
 
 interface NormalizedDetail {
@@ -69,9 +78,11 @@ interface NormalizedDetail {
     grand_total?: string;
     grand_total_non_sbo?: string;
     grand_total_final?: string;
+    link_pdf?: string | null;
     link_pdf_gabungan?: string | null;
     link_pdf_non_sbo?: string | null;
     link_pdf_rekapitulasi?: string | null;
+    link_lampiran_pendukung?: string | null;
     approval_koordinator?: { pemberi: string | null; waktu: string | null };
     approval_manager?: { pemberi: string | null; waktu: string | null };
     approval_direktur?: { pemberi: string | null; waktu: string | null };
@@ -94,7 +105,6 @@ interface NormalizedDetail {
     waktu_selesai?: string;
     terbilang?: string;
     par?: string;
-    link_pdf?: string | null;
     alasan_penolakan?: string | null;
     approver_email?: string | null;
     waktu_persetujuan?: string | null;
@@ -104,6 +114,13 @@ interface NormalizedDetail {
         alasan_penolakan: string | null;
         waktu_tindakan: string;
     }>;
+    // Pertambahan SPK specific
+    pertambahan_hari?: string;
+    alasan_perpanjangan?: string;
+    tanggal_spk_akhir?: string;
+    tanggal_spk_akhir_setelah_perpanjangan?: string;
+    disetujui_oleh?: string;
+    waktu_persetujuan_detail?: string;
 }
 
 // =============================================================================
@@ -142,6 +159,17 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         badgeColor: 'bg-purple-100 text-purple-700 border-purple-200',
         description: 'Daftar seluruh dokumen SPK yang telah diajukan.',
     },
+    PERTAMBAHAN_SPK: {
+        label: 'Pertambahan SPK',
+        fullLabel: 'Pertambahan Hari SPK',
+        icon: <FilePlus className="w-10 h-10" />,
+        color: 'text-emerald-600',
+        bgColor: 'bg-emerald-50',
+        borderColor: 'border-emerald-200',
+        hoverBorder: 'hover:border-emerald-400',
+        badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        description: 'Daftar pengajuan perpanjangan hari SPK.',
+    },
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -160,6 +188,9 @@ const STATUS_BADGE: Record<string, string> = {
     'WAITING_FOR_BM_APPROVAL':          'bg-yellow-100 text-yellow-700 border-yellow-200',
     'SPK_APPROVED':                     'bg-green-100 text-green-700 border-green-200',
     'SPK_REJECTED':                     'bg-red-100 text-red-700 border-red-200',
+    'MENUNGGU PERSETUJUAN':              'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'DISETUJUI BM':                      'bg-green-100 text-green-700 border-green-200',
+    'DITOLAK BM':                        'bg-red-100 text-red-700 border-red-200',
 };
 
 const STATUS_OPTIONS = [
@@ -216,7 +247,7 @@ const getStatusLabel = (status: string) => {
     if (upper.includes('KOORDINATOR')) return 'Pending Koord.';
     if (upper.includes('MANAGER') || upper.includes('MANAJER')) return 'Pending Mgr.';
     if (upper.includes('DIREKTUR')) return 'Pending Dir.';
-    if (upper === 'WAITING_FOR_BM_APPROVAL') return 'Pending BM';
+    if (upper === 'WAITING_FOR_BM_APPROVAL' || upper === 'MENUNGGU PERSETUJUAN') return 'Pending BM';
     if (upper.includes('PENDING')) return 'Pending';
     return status;
 };
@@ -263,6 +294,27 @@ const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
         };
     });
 
+const normalizePertambahanSPKDocs = (items: PertambahanSPKListItem[]): NormalizedDoc[] =>
+    items.map(p => ({
+        id: p.id,
+        tipe: 'PERTAMBAHAN_SPK' as DokumenKategori,
+        nomor_ulok:    p.nomor_spk || '-',
+        nama_toko:     `Perpanjangan ${p.pertambahan_hari} Hari`,
+        cabang:        '',
+        proyek:        '-',
+        status:        p.status_persetujuan,
+        email_pembuat: p.dibuat_oleh,
+        total_nilai:   0,
+        created_at:    p.created_at,
+        link_pdf:      p.link_pdf ?? null,
+        pertambahan_hari: p.pertambahan_hari,
+        alasan_perpanjangan: p.alasan_perpanjangan,
+        tanggal_spk_akhir: p.tanggal_spk_akhir,
+        tanggal_spk_akhir_setelah_perpanjangan: p.tanggal_spk_akhir_setelah_perpanjangan,
+        status_persetujuan: p.status_persetujuan,
+        dibuat_oleh: p.dibuat_oleh,
+    }));
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -271,6 +323,7 @@ export default function DaftarDokumenPage() {
 
     // --- Auth ---
     const [userInfo, setUserInfo] = useState({ name: '', role: '', cabang: '', email: '' });
+    const [isContractor, setIsContractor] = useState(false);
 
     // --- Navigation ---
     const [activeView, setActiveView] = useState<ActiveView>('menu');
@@ -302,6 +355,9 @@ export default function DaftarDokumenPage() {
 
         if (isAuth !== "true" || !role) { router.push('/auth'); return; }
 
+        const roles = role.split(',').map(r => r.trim().toUpperCase());
+        const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
+        setIsContractor(contractorFlag);
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email });
     }, [router]);
 
@@ -328,6 +384,9 @@ export default function DaftarDokumenPage() {
             } else if (kategori === 'SPK') {
                 const res = await fetchSPKList();
                 docs = normalizeSPKDocs(res.data ?? []);
+            } else if (kategori === 'PERTAMBAHAN_SPK') {
+                const res = await fetchPertambahanSPKList();
+                docs = normalizePertambahanSPKDocs(res.data ?? []);
             }
 
             // Filter by cabang for non-HO users
@@ -387,6 +446,7 @@ export default function DaftarDokumenPage() {
                     link_pdf_gabungan:   d.rab.link_pdf_gabungan,
                     link_pdf_non_sbo:    d.rab.link_pdf_non_sbo,
                     link_pdf_rekapitulasi: d.rab.link_pdf_rekapitulasi,
+                    link_lampiran_pendukung: d.rab.link_lampiran_pendukung,
                     alasan_penolakan:    d.rab.alasan_penolakan,
                     approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager },
@@ -435,6 +495,29 @@ export default function DaftarDokumenPage() {
                         alasan_penolakan: log.alasan_penolakan,
                         waktu_tindakan: log.waktu_tindakan,
                     })),
+                };
+            } else if (doc.tipe === 'PERTAMBAHAN_SPK') {
+                const res = await fetchPertambahanSPKDetail(doc.id);
+                const d = res.data;
+                detail = {
+                    id: d.id,
+                    tipe: 'PERTAMBAHAN_SPK',
+                    nomor_ulok:        d.nomor_spk || '-',
+                    nama_toko:         `Perpanjangan ${d.pertambahan_hari} Hari`,
+                    cabang:            '',
+                    proyek:            '-',
+                    status:            d.status_persetujuan,
+                    email_pembuat:     d.dibuat_oleh,
+                    total_nilai:       0,
+                    created_at:        d.created_at,
+                    pertambahan_hari:  d.pertambahan_hari,
+                    alasan_perpanjangan: d.alasan_perpanjangan,
+                    tanggal_spk_akhir: d.tanggal_spk_akhir,
+                    tanggal_spk_akhir_setelah_perpanjangan: d.tanggal_spk_akhir_setelah_perpanjangan,
+                    disetujui_oleh:    d.disetujui_oleh ?? undefined,
+                    waktu_persetujuan_detail: d.waktu_persetujuan ?? undefined,
+                    alasan_penolakan:  d.alasan_penolakan,
+                    link_pdf:          d.link_pdf,
                 };
             }
 
@@ -560,7 +643,11 @@ export default function DaftarDokumenPage() {
                 {activeView === 'menu' && (
                     <div className="flex flex-col items-center mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4">
-                            {(Object.keys(KATEGORI_CONFIG) as DokumenKategori[]).map(kat => {
+                            {(Object.keys(KATEGORI_CONFIG) as DokumenKategori[]).filter(kat => {
+                                // Hide PERTAMBAHAN_SPK from KONTRAKTOR
+                                if (kat === 'PERTAMBAHAN_SPK' && isContractor) return false;
+                                return true;
+                            }).map(kat => {
                                 const cfg = KATEGORI_CONFIG[kat];
                                 return (
                                     <Card
@@ -675,7 +762,9 @@ export default function DaftarDokumenPage() {
                                                         <div className={`${KATEGORI_CONFIG[selectedKategori].color}`}>
                                                             {selectedKategori === 'RAB'
                                                                 ? <FileText className="w-5 h-5" />
-                                                                : <FileSignature className="w-5 h-5" />
+                                                                : selectedKategori === 'SPK'
+                                                                ? <FileSignature className="w-5 h-5" />
+                                                                : <FilePlus className="w-5 h-5" />
                                                             }
                                                         </div>
                                                     </div>
@@ -687,7 +776,10 @@ export default function DaftarDokumenPage() {
                                                             </Badge>
                                                         </div>
                                                         <p className="text-sm text-slate-600 truncate mt-0.5">
-                                                            {selectedKategori === 'RAB' ? doc.nama_toko : (doc.nama_kontraktor || doc.nama_toko)}
+                                                            {selectedKategori === 'PERTAMBAHAN_SPK'
+                                                                ? `SPK: ${doc.nomor_ulok}`
+                                                                : selectedKategori === 'RAB' ? doc.nama_toko : (doc.nama_kontraktor || doc.nama_toko)
+                                                            }
                                                         </p>
                                                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                                                             <span className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -708,7 +800,12 @@ export default function DaftarDokumenPage() {
                                                 {/* Right info */}
                                                 <div className="flex items-center gap-3 shrink-0 md:pl-4">
                                                     <div className="text-right">
-                                                        <p className="text-sm font-bold text-slate-800">{formatRupiah(doc.total_nilai)}</p>
+                                                        <p className="text-sm font-bold text-slate-800">
+                                                            {selectedKategori === 'PERTAMBAHAN_SPK'
+                                                                ? `+${doc.pertambahan_hari || '-'} Hari`
+                                                                : formatRupiah(doc.total_nilai)
+                                                            }
+                                                        </p>
                                                         {selectedKategori === 'SPK' && doc.nomor_spk && (
                                                             <p className="text-[11px] text-slate-400 mt-0.5">SPK: {doc.nomor_spk}</p>
                                                         )}
@@ -744,18 +841,20 @@ export default function DaftarDokumenPage() {
 
                                 {/* Detail Header Card */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                    <div className={`px-6 py-4 ${selectedDetail.tipe === 'RAB' ? 'bg-linear-to-r from-blue-50 to-blue-100/50 border-b border-blue-100' : 'bg-linear-to-r from-purple-50 to-purple-100/50 border-b border-purple-100'}`}>
+                                    <div className={`px-6 py-4 ${selectedDetail.tipe === 'RAB' ? 'bg-linear-to-r from-blue-50 to-blue-100/50 border-b border-blue-100' : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'bg-linear-to-r from-emerald-50 to-emerald-100/50 border-b border-emerald-100' : 'bg-linear-to-r from-purple-50 to-purple-100/50 border-b border-purple-100'}`}>
                                         <div className="flex items-center justify-between flex-wrap gap-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-xl ${selectedDetail.tipe === 'RAB' ? 'bg-blue-100' : 'bg-purple-100'} flex items-center justify-center`}>
+                                                <div className={`w-10 h-10 rounded-xl ${selectedDetail.tipe === 'RAB' ? 'bg-blue-100' : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'bg-emerald-100' : 'bg-purple-100'} flex items-center justify-center`}>
                                                     {selectedDetail.tipe === 'RAB'
                                                         ? <FileText className="w-5 h-5 text-blue-600" />
+                                                        : selectedDetail.tipe === 'PERTAMBAHAN_SPK'
+                                                        ? <FilePlus className="w-5 h-5 text-emerald-600" />
                                                         : <FileSignature className="w-5 h-5 text-purple-600" />
                                                     }
                                                 </div>
                                                 <div>
                                                     <h3 className="font-bold text-lg text-slate-800">
-                                                        {selectedDetail.tipe === 'RAB' ? 'Detail RAB' : 'Detail SPK'}
+                                                        {selectedDetail.tipe === 'RAB' ? 'Detail RAB' : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'Detail Pertambahan SPK' : 'Detail SPK'}
                                                     </h3>
                                                     <p className="text-sm text-slate-500">ID: {selectedDetail.id}</p>
                                                 </div>
@@ -816,11 +915,44 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                 </>
                                             )}
+
+                                            {/* Pertambahan SPK-specific fields */}
+                                            {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && (
+                                                <>
+                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_ulok} />
+                                                    <InfoRow icon={<Clock className="w-4 h-4" />} label="Pertambahan Hari" value={`+${selectedDetail.pertambahan_hari || '-'} Hari`} />
+                                                    <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir SPK" value={selectedDetail.tanggal_spk_akhir ? formatDateFull(selectedDetail.tanggal_spk_akhir) : '-'} />
+                                                    <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir Setelah Perpanjangan" value={selectedDetail.tanggal_spk_akhir_setelah_perpanjangan ? formatDateFull(selectedDetail.tanggal_spk_akhir_setelah_perpanjangan) : '-'} />
+                                                    {selectedDetail.alasan_perpanjangan && (
+                                                        <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                            <InfoRow icon={<FileText className="w-4 h-4" />} label="Alasan Perpanjangan" value={selectedDetail.alasan_perpanjangan} />
+                                                        </div>
+                                                    )}
+                                                    {selectedDetail.disetujui_oleh && (
+                                                        <InfoRow icon={<User className="w-4 h-4" />} label="Disetujui Oleh" value={selectedDetail.disetujui_oleh} />
+                                                    )}
+                                                    {selectedDetail.waktu_persetujuan_detail && (
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Persetujuan" value={formatDateFull(selectedDetail.waktu_persetujuan_detail)} />
+                                                    )}
+                                                    {selectedDetail.alasan_penolakan && (
+                                                        <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                                                                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                                                <div>
+                                                                    <p className="text-[11px] text-red-400 font-medium uppercase tracking-wide">Alasan Penolakan</p>
+                                                                    <p className="text-sm text-red-700 font-semibold">{selectedDetail.alasan_penolakan}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Nilai Kontrak Card */}
+                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK */}
+                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                                         <div className="w-1.5 h-5 bg-red-500 rounded-full" />
@@ -851,6 +983,7 @@ export default function DaftarDokumenPage() {
                                         )}
                                     </div>
                                 </div>
+                                )}
 
                                 {/* Approval Trail (RAB) */}
                                 {selectedDetail.tipe === 'RAB' && (
@@ -980,18 +1113,21 @@ export default function DaftarDokumenPage() {
                                         Unduh Dokumen
                                     </h4>
                                     <div className="flex flex-wrap gap-3">
-                                        <Button
-                                            className="bg-red-600 hover:bg-red-700 text-white"
-                                            disabled={downloadingId === selectedDetail.id}
-                                            onClick={() => handleDownloadPDF(selectedDetail.id, selectedDetail.tipe)}
-                                        >
-                                            {downloadingId === selectedDetail.id ? (
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            ) : (
-                                                <Download className="w-4 h-4 mr-2" />
-                                            )}
-                                            Unduh PDF {selectedDetail.tipe}
-                                        </Button>
+                                        {/* Download button for RAB & SPK only */}
+                                        {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && (
+                                            <Button
+                                                className="bg-red-600 hover:bg-red-700 text-white"
+                                                disabled={downloadingId === selectedDetail.id}
+                                                onClick={() => handleDownloadPDF(selectedDetail.id, selectedDetail.tipe)}
+                                            >
+                                                {downloadingId === selectedDetail.id ? (
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <Download className="w-4 h-4 mr-2" />
+                                                )}
+                                                Unduh PDF {selectedDetail.tipe}
+                                            </Button>
+                                        )}
 
                                         {/* Additional RAB PDF links */}
                                         {selectedDetail.tipe === 'RAB' && selectedDetail.link_pdf_gabungan && (
@@ -1023,6 +1159,30 @@ export default function DaftarDokumenPage() {
                                                     <FileDown className="w-4 h-4 mr-2" /> Lihat PDF Online
                                                 </Button>
                                             </a>
+                                        )}
+
+                                        {/* Pertambahan SPK Attachment */}
+                                        {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && selectedDetail.link_lampiran_pendukung && (
+                                            <Button
+                                                variant="outline"
+                                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                                onClick={() => {
+                                                    const link = selectedDetail.link_lampiran_pendukung!;
+                                                    if (link.startsWith('data:')) {
+                                                        const win = window.open();
+                                                        if (win) {
+                                                            win.document.write(`<iframe src="${link}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                        }
+                                                    } else {
+                                                        window.open(link, '_blank');
+                                                    }
+                                                }}
+                                            >
+                                                <FileDown className="w-4 h-4 mr-2" /> Lihat Lampiran Pendukung
+                                            </Button>
+                                        )}
+                                        {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && !selectedDetail.link_lampiran_pendukung && (
+                                            <p className="text-sm text-slate-400 italic">Tidak ada lampiran pendukung.</p>
                                         )}
                                     </div>
                                 </div>

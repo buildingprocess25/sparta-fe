@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchGanttList, fetchGanttDetail } from '@/lib/api';
+import { fetchGanttList, fetchGanttDetail, fetchGanttDetailByToko } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
 const SUPERVISION_RULES: Record<number, number[]> = {
@@ -22,50 +22,72 @@ function parseDateDDMMYYYY(dateStr: string) {
     return null;
 }
 
-export default function GanttViewer({ nomorUlok }: { nomorUlok: string }) {
+export default function GanttViewer({ nomorUlok, idToko }: { nomorUlok: string, idToko?: number }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
     const [projectData, setProjectData] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
 
     useEffect(() => {
-        if (!nomorUlok) return;
+        if (!nomorUlok && !idToko) return;
         
         setIsLoading(true);
         setErrorMsg('');
         
-        fetchGanttList({ nomor_ulok: nomorUlok })
-            .then(res => {
-                const list = res.data || [];
-                if (list.length === 0) {
-                    setErrorMsg("Gantt Chart belum dibuat untuk proyek ini.");
-                    setIsLoading(false);
-                    return;
-                }
-                const ganttId = list[0].id;
-                return fetchGanttDetail(ganttId);
+        const fetchPromise = idToko 
+            ? fetchGanttDetailByToko(idToko).then((res: any) => {
+                if (!res || !res.gantt_data) throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
+                return {
+                    data: {
+                        gantt: res.gantt_data,
+                        toko: res.toko,
+                        kategori_pekerjaan: res.kategori_pekerjaan,
+                        day_items: res.day_gantt_data,
+                        dependencies: res.dependency_data || []
+                    }
+                };
             })
+            : fetchGanttList({ nomor_ulok: nomorUlok })
+                .then(res => {
+                    const list = res.data || [];
+                    if (list.length === 0) {
+                        throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
+                    }
+                    const ganttId = list[0].id;
+                    return fetchGanttDetail(ganttId);
+                });
+
+        fetchPromise
             .then(detailRes => {
                 if (!detailRes) return;
                 const { gantt, toko, kategori_pekerjaan, day_items, dependencies } = detailRes.data;
 
-                const startDaysRaw = day_items.map((entry: any) => parseInt(entry.h_awal)).filter((d: any) => !isNaN(d));
-                const endDaysRaw = day_items.map((entry: any) => parseInt(entry.h_akhir)).filter((d: any) => !isNaN(d));
-                const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
-
-                let startTime: number | null = null;
-                let endTime: number | null = null;
-                // Kami tidak lagi mengandalkan startTime/endTime untuk durasi, tapi kami butuh untuk projectStart jika ada.
-
+                // Determine project start date
                 let projectStart = new Date();
                 if (gantt.timestamp) {
                     const parts = gantt.timestamp.split('T')[0].split('-');
                     if (parts.length === 3) projectStart = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                } else if (startTime) {
-                    projectStart = new Date(startTime);
                 }
 
                 const msPerDay = 1000 * 60 * 60 * 24;
+
+                // Helper: convert h_awal/h_akhir to day number
+                // Supports both numeric ("1", "10") and date format ("01/04/2026")
+                const toDayNumber = (val: string): number => {
+                    if (!val) return NaN;
+                    if (val.includes('/')) {
+                        // Date format DD/MM/YYYY — convert to relative day from projectStart
+                        const parsed = parseDateDDMMYYYY(val);
+                        if (!parsed) return NaN;
+                        const diff = Math.round((parsed.getTime() - projectStart.getTime()) / msPerDay);
+                        return diff + 1; // Day 1-based
+                    }
+                    return parseInt(val);
+                };
+
+                const endDaysRaw = day_items.map((entry: any) => toDayNumber(entry.h_akhir)).filter((d: number) => !isNaN(d));
+                const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
+
                 const duration = maxDay;
 
                 setProjectData({
@@ -79,8 +101,8 @@ export default function GanttViewer({ nomorUlok }: { nomorUlok: string }) {
 
                 const categoryRangesMap: Record<string, any[]> = {};
                 day_items.forEach((entry: any) => {
-                    const startDay = parseInt(entry.h_awal);
-                    const endDay   = parseInt(entry.h_akhir);
+                    const startDay = toDayNumber(entry.h_awal);
+                    const endDay   = toDayNumber(entry.h_akhir);
                     
                     if (!isNaN(startDay) && !isNaN(endDay)) {
                         const key = entry.kategori_pekerjaan.toLowerCase().trim();
@@ -125,11 +147,11 @@ export default function GanttViewer({ nomorUlok }: { nomorUlok: string }) {
                 setIsLoading(false);
             })
             .catch(err => {
-                console.error(err);
-                setErrorMsg("Gagal memuat detail Gantt Chart.");
+                console.error('GanttViewer error:', err);
+                setErrorMsg(err?.message || "Gagal memuat detail Gantt Chart.");
                 setIsLoading(false);
             });
-    }, [nomorUlok]);
+    }, [nomorUlok, idToko]);
 
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;

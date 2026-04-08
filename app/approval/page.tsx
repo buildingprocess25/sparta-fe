@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
     ArrowLeft, Loader2, CheckCircle, XCircle,
-    Search, FileText, ClipboardList, Lightbulb, Eye,
+    Search, FileText, ClipboardList, Eye,
     AlertTriangle, FileDown, Building2, CalendarDays, User
 } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
@@ -20,9 +20,9 @@ import {
     // SPK
     fetchSPKList, fetchSPKDetail, processSPKApproval, downloadSPKPdf,
     type SPKListItem,
-    // IL
-    fetchILList, fetchILDetail, processILApproval,
-    type ILListItem, type ILDetailItem,
+    // Pertambahan SPK
+    fetchPertambahanSPKList, fetchPertambahanSPKDetail, processPertambahanSPKApproval,
+    type PertambahanSPKListItem,
 } from '@/lib/api';
 
 import { parseCurrency } from '@/lib/utils';
@@ -30,7 +30,7 @@ import { parseCurrency } from '@/lib/utils';
 // =============================================
 // TYPES INTERNAL
 // =============================================
-type ApprovalType = 'RAB' | 'SPK' | 'IL';
+type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 
@@ -44,14 +44,20 @@ interface NormalizedListItem {
     total_nilai: number;
     email_pembuat: string;
     created_at: string;
-    _raw: RABListItem | SPKListItem | ILListItem;
+    _raw: RABListItem | SPKListItem | PertambahanSPKListItem;
+    // Pertambahan SPK specific
+    pertambahan_hari?: string;
+    nomor_spk?: string;
+    alasan_perpanjangan?: string;
 }
 
 interface NormalizedDetail {
     id: number;
     tipe: ApprovalType;
     nomor_ulok: string;
+    id_toko?: number;
     nama_toko: string;
+    kode_toko?: string;
     alamat?: string;
     cabang: string;
     lingkup_pekerjaan?: string;
@@ -66,10 +72,13 @@ interface NormalizedDetail {
     approval_direktur?: { pemberi: string | null; waktu: string | null };
     // SPK specific
     nama_kontraktor?: string;
-    masa_berlaku?: string;
+    durasi?: number;
+    waktu_mulai?: string;
+    waktu_selesai?: string;
     nilai_kontrak?: number;
     // PDF
     link_pdf_gabungan?: string | null;
+    link_lampiran_pendukung?: string | null;
     // Items
     items: Array<{
         id: number;
@@ -103,7 +112,7 @@ const formatDate = (dateStr: string) => {
 const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR'],
     SPK: ['BRANCH MANAGER'],
-    IL:  ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER'],
+    PERTAMBAHAN_SPK: ['BRANCH MANAGER'],
 };
 
 const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR'> = {
@@ -139,14 +148,15 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         description: 'Surat Perintah Kerja yang menunggu penandatanganan.',
         emptyMsg: 'Tidak ada pengajuan SPK yang menunggu persetujuan.',
     },
-    IL: {
-        label: 'Approval IL',
-        icon: <Lightbulb className="w-10 h-10" />,
-        color: 'text-amber-700',
-        hoverBorder: 'hover:border-amber-500',
-        badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
-        description: 'Instruksi Lapangan yang menunggu persetujuan.',
-        emptyMsg: 'Tidak ada pengajuan IL yang menunggu persetujuan.',
+
+    PERTAMBAHAN_SPK: {
+        label: 'Approval Pertambahan SPK',
+        icon: <ClipboardList className="w-10 h-10" />,
+        color: 'text-emerald-700',
+        hoverBorder: 'hover:border-emerald-500',
+        badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        description: 'Perpanjangan hari SPK yang menunggu persetujuan.',
+        emptyMsg: 'Tidak ada pengajuan pertambahan SPK yang menunggu persetujuan.',
     },
 };
 
@@ -160,6 +170,9 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     WAITING_FOR_BM_APPROVAL: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     SPK_APPROVED:            'bg-green-100 text-green-700 border-green-200',
     SPK_REJECTED:            'bg-red-100 text-red-700 border-red-200',
+    'MENUNGGU PERSETUJUAN':  'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'DISETUJUI BM':          'bg-green-100 text-green-700 border-green-200',
+    'DITOLAK BM':            'bg-red-100 text-red-700 border-red-200',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -172,6 +185,9 @@ const STATUS_LABEL: Record<string, string> = {
     WAITING_FOR_BM_APPROVAL: 'PENDING BM',
     SPK_APPROVED:            'APPROVED',
     SPK_REJECTED:            'REJECTED',
+    'MENUNGGU PERSETUJUAN':  'PENDING BM',
+    'DISETUJUI BM':          'APPROVED',
+    'DITOLAK BM':            'REJECTED',
 };
 
 // =============================================
@@ -208,18 +224,23 @@ const normalizeSPKList = (items: SPKListItem[]): NormalizedListItem[] =>
         };
     });
 
-const normalizeILList = (items: ILListItem[]): NormalizedListItem[] =>
-    items.map(il => ({
-        id: il.id,
-        tipe: 'IL' as ApprovalType,
-        nomor_ulok:    il.nomor_ulok,
-        nama_toko:     il.nama_toko,
-        cabang:        il.cabang,
-        status:        il.status,
-        total_nilai:   parseCurrency(il.grand_total_final ?? il.grand_total),
-        email_pembuat: il.email_pembuat,
-        created_at:    il.created_at,
-        _raw: il,
+
+
+const normalizePertambahanSPKList = (items: PertambahanSPKListItem[]): NormalizedListItem[] =>
+    items.map(p => ({
+        id: p.id,
+        tipe: 'PERTAMBAHAN_SPK' as ApprovalType,
+        nomor_ulok:    p.nomor_spk || '-',
+        nama_toko:     `Perpanjangan ${p.pertambahan_hari} Hari`,
+        cabang:        '',
+        status:        p.status_persetujuan,
+        total_nilai:   0,
+        email_pembuat: p.dibuat_oleh,
+        created_at:    p.created_at,
+        pertambahan_hari: p.pertambahan_hari,
+        nomor_spk:     p.nomor_spk,
+        alasan_perpanjangan: p.alasan_perpanjangan,
+        _raw: p,
     }));
 
 // =============================================
@@ -359,9 +380,9 @@ export default function ApprovalPage() {
             } else if (type === 'SPK') {
                 const res = await fetchSPKList({ status: 'WAITING_FOR_BM_APPROVAL' });
                 normalized = normalizeSPKList(res.data ?? []);
-            } else if (type === 'IL') {
-                const res = await fetchILList();
-                normalized = normalizeILList(res.data ?? []);
+            } else if (type === 'PERTAMBAHAN_SPK') {
+                const res = await fetchPertambahanSPKList({ status_persetujuan: 'Menunggu Persetujuan' });
+                normalized = normalizePertambahanSPKList(res.data ?? []);
             }
 
             // Filter Berdasarkan Role & Jabatan & Cabang
@@ -377,6 +398,11 @@ export default function ApprovalPage() {
                 // Khusus SPK, pastikan statusnya valid menunggu BM
                 if (type === 'SPK') {
                     return upper === 'WAITING_FOR_BM_APPROVAL';
+                }
+
+                // Pertambahan SPK — hanya yang Menunggu Persetujuan
+                if (type === 'PERTAMBAHAN_SPK') {
+                    return upper === 'MENUNGGU PERSETUJUAN';
                 }
 
                 // Untuk RAB & IL (Multi-level)
@@ -412,6 +438,7 @@ export default function ApprovalPage() {
                     id: d.rab.id,
                     tipe: 'RAB',
                     nomor_ulok:        d.toko.nomor_ulok,
+                    id_toko:           d.toko.id,
                     nama_toko:         d.toko.nama_toko,
                     alamat:            d.toko.alamat,
                     cabang:            d.toko.cabang,
@@ -442,54 +469,48 @@ export default function ApprovalPage() {
                 };
 
             } else if (item.tipe === 'SPK') {
-                const res = await fetchSPKDetail(item.id);
-                const d = res.data;
-                detail = {
-                    id: d.pengajuan.id,
-                    tipe: 'SPK',
-                    nomor_ulok:        d.pengajuan.nomor_ulok,
-                    nama_toko:         item.nama_toko,
-                    cabang:            item.cabang,
-                    lingkup_pekerjaan: (d.pengajuan as any).lingkup_pekerjaan ?? '-',
-                    status:            d.pengajuan.status,
-                    total_nilai:       parseCurrency((d.pengajuan as any).grand_total),
-                    email_pembuat:     (d.pengajuan as any).email_pembuat,
-                    created_at:        (d.pengajuan as any).created_at,
-                    alasan_penolakan:  (d.pengajuan as any).alasan_penolakan,
-                    nama_kontraktor:   (d.pengajuan as any).nama_kontraktor,
-                    masa_berlaku:      (d.pengajuan as any).durasi ? `${(d.pengajuan as any).durasi} Hari (Mulai: ${formatDate((d.pengajuan as any).waktu_mulai)})` : undefined,
-                    nilai_kontrak:     parseCurrency((d.pengajuan as any).grand_total),
-                    items: [],
-                };
+            const res = await fetchSPKDetail(item.id);
+            const d = res.data;
+            detail = {
+                id: d.pengajuan.id,
+                tipe: 'SPK',
+                nomor_ulok:        d.pengajuan.nomor_ulok,
+                id_toko:           (d.pengajuan as any).toko?.id ?? (d.pengajuan as any).id_toko,
+                nama_toko:         item.nama_toko,
+                kode_toko:         (d.pengajuan as any).toko?.kode_toko ?? (d.pengajuan as any).kode_toko,
+                cabang:            item.cabang,
+                lingkup_pekerjaan: (d.pengajuan as any).lingkup_pekerjaan ?? '-',
+                status:            d.pengajuan.status,
+                total_nilai:       parseCurrency((d.pengajuan as any).grand_total),
+                email_pembuat:     (d.pengajuan as any).email_pembuat,
+                created_at:        (d.pengajuan as any).created_at,
+                alasan_penolakan:  (d.pengajuan as any).alasan_penolakan,
+                nama_kontraktor:   (d.pengajuan as any).nama_kontraktor,
+                durasi:            (d.pengajuan as any).durasi,
+                waktu_mulai:       (d.pengajuan as any).waktu_mulai,
+                waktu_selesai:     (d.pengajuan as any).waktu_selesai,
+                nilai_kontrak:     parseCurrency((d.pengajuan as any).grand_total),
+                items: [],
+            };
 
-            } else if (item.tipe === 'IL') {
-                const res = await fetchILDetail(item.id);
+            } else if (item.tipe === 'PERTAMBAHAN_SPK') {
+                const res = await fetchPertambahanSPKDetail(item.id);
                 const d = res.data;
                 detail = {
-                    id: d.il.id,
-                    tipe: 'IL',
-                    nomor_ulok:        d.il.nomor_ulok,
-                    nama_toko:         d.il.nama_toko,
-                    cabang:            d.il.cabang,
-                    lingkup_pekerjaan: d.il.lingkup_pekerjaan,
-                    status:            d.il.status,
-                    total_nilai:       parseCurrency(d.il.grand_total_final ?? d.il.grand_total),
-                    email_pembuat:     d.il.email_pembuat,
-                    created_at:        d.il.created_at,
-                    alasan_penolakan:  d.il.alasan_penolakan,
-                    approval_koordinator: { pemberi: d.il.pemberi_persetujuan_koordinator ?? null, waktu: d.il.waktu_persetujuan_koordinator ?? null },
-                    approval_manager:     { pemberi: d.il.pemberi_persetujuan_manager ?? null,     waktu: d.il.waktu_persetujuan_manager ?? null },
-                    items: (d.items ?? []).map((it: ILDetailItem) => ({
-                        id: it.id,
-                        kategori:        it.kategori_pekerjaan,
-                        jenis_pekerjaan: it.jenis_pekerjaan,
-                        satuan:          it.satuan,
-                        volume:          it.volume,
-                        harga_material:  it.harga_material,
-                        harga_upah:      it.harga_upah,
-                        total:           it.total_harga,
-                        catatan:         (it as any).catatan,
-                    })),
+                    id: d.id,
+                    tipe: 'PERTAMBAHAN_SPK',
+                    nomor_ulok:        d.nomor_spk || '-',
+                    nama_toko:         `Perpanjangan ${d.pertambahan_hari} Hari`,
+                    cabang:            '',
+                    lingkup_pekerjaan: `Tgl Akhir: ${d.tanggal_spk_akhir} → ${d.tanggal_spk_akhir_setelah_perpanjangan}`,
+                    status:            d.status_persetujuan,
+                    total_nilai:       0,
+                    email_pembuat:     d.dibuat_oleh,
+                    created_at:        d.created_at,
+                    alasan_penolakan:  d.alasan_penolakan,
+                    nama_kontraktor:   d.nomor_spk,
+                    link_lampiran_pendukung: d.link_lampiran_pendukung || null,
+                    items: [],
                 };
             }
 
@@ -519,10 +540,9 @@ export default function ApprovalPage() {
                     approver_email: userInfo.email,
                     tindakan:       'APPROVE',
                 });
-            } else if (item.tipe === 'IL') {
-                await processILApproval(item.id as number, {
+            } else if (item.tipe === 'PERTAMBAHAN_SPK') {
+                await processPertambahanSPKApproval(item.id as number, {
                     approver_email: userInfo.email,
-                    jabatan:        jabatan ?? 'KOORDINATOR',
                     tindakan:       'APPROVE',
                 });
             }
@@ -568,10 +588,9 @@ export default function ApprovalPage() {
                     tindakan:         'REJECT',
                     alasan_penolakan: rejectNote,
                 });
-            } else if (item.tipe === 'IL') {
-                await processILApproval(item.id as number, {
+            } else if (item.tipe === 'PERTAMBAHAN_SPK') {
+                await processPertambahanSPKApproval(item.id as number, {
                     approver_email:   userInfo.email,
-                    jabatan:          jabatan ?? 'KOORDINATOR',
                     tindakan:         'REJECT',
                     alasan_penolakan: rejectNote,
                 });
@@ -655,6 +674,11 @@ export default function ApprovalPage() {
         // Validasi tombol Action khusus SPK (hanya untuk Branch Manager)
         if (tipe === 'SPK') {
             return upper === 'WAITING_FOR_BM_APPROVAL';
+        }
+
+        // Pertambahan SPK — status "Menunggu Persetujuan"
+        if (tipe === 'PERTAMBAHAN_SPK') {
+            return upper === 'MENUNGGU PERSETUJUAN';
         }
 
         // RAB & IL — multi-level
@@ -861,7 +885,7 @@ export default function ApprovalPage() {
                                                     </td>
                                                     <td className="p-3 border-r text-slate-600 text-xs">{item.email_pembuat}</td>
                                                     <td className="p-3 border-r text-center text-xs text-slate-600 whitespace-nowrap">{formatDate(item.created_at)}</td>
-                                                    <td className="p-3 border-r text-right font-bold text-slate-800">{formatRupiah(item.total_nilai)}</td>
+                                                    <td className="p-3 border-r text-right font-bold text-slate-800">{item.tipe === 'PERTAMBAHAN_SPK' ? `+${item.pertambahan_hari || '-'} Hari` : formatRupiah(item.total_nilai)}</td>
                                                     <td className="p-3 border-r text-center"><ApprovalBadge status={item.status} /></td>
                                                     <td className="p-3 text-center">
                                                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -974,6 +998,12 @@ export default function ApprovalPage() {
                                                         <Building2 className="w-3.5 h-3.5 text-slate-400" />
                                                         ULOK: <b>{selectedDetail.nomor_ulok}</b>
                                                     </span>
+                                                    {selectedDetail.kode_toko && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                                                            Kode Toko: <b>{selectedDetail.kode_toko}</b>
+                                                        </span>
+                                                    )}
                                                     {selectedDetail.lingkup_pekerjaan && (
                                                         <span className="flex items-center gap-1.5">
                                                             <FileText className="w-3.5 h-3.5 text-slate-400" />
@@ -994,10 +1024,22 @@ export default function ApprovalPage() {
                                                             Kontraktor: <b>{selectedDetail.nama_kontraktor}</b>
                                                         </span>
                                                     )}
-                                                    {selectedDetail.masa_berlaku && (
+                                                    {selectedDetail.durasi && (
                                                         <span className="flex items-center gap-1.5">
                                                             <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Masa Berlaku: <b>{formatDate(selectedDetail.masa_berlaku)}</b>
+                                                            Durasi: <b>{selectedDetail.durasi} Hari</b>
+                                                        </span>
+                                                    )}
+                                                    {selectedDetail.waktu_mulai && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                                                            Tanggal Mulai: <b>{formatDate(selectedDetail.waktu_mulai)}</b>
+                                                        </span>
+                                                    )}
+                                                    {selectedDetail.waktu_selesai && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                                                            Tanggal Selesai: <b>{formatDate(selectedDetail.waktu_selesai)}</b>
                                                         </span>
                                                     )}
                                                 </div>
@@ -1033,10 +1075,10 @@ export default function ApprovalPage() {
                                     </CardContent>
                                 </Card>
 
-                                {/* Visualisasi Gantt Chart - Hanya untuk RAB */}
-                                {selectedDetail.tipe === 'RAB' && (
+                                {/* Visualisasi Gantt Chart - untuk RAB & SPK */}
+                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && selectedDetail.id_toko && (
                                     <div className="mb-6">
-                                        <GanttViewer nomorUlok={selectedDetail.nomor_ulok} />
+                                        <GanttViewer nomorUlok={selectedDetail.nomor_ulok} idToko={selectedDetail.id_toko} />
                                     </div>
                                 )}
 
@@ -1086,11 +1128,11 @@ export default function ApprovalPage() {
                                             </table>
                                         </div>
                                     </div>
-                                ) : (
+                                ) : selectedDetail.tipe !== 'SPK' ? (
                                     <div className="py-10 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-sm mb-6">
                                         Tidak ada rincian item tersedia.
                                     </div>
-                                )}
+                                ) : null}
 
                                 {/* Sticky bottom bar */}
                                 {canActOnDetail && detailAsListItem && (
@@ -1116,6 +1158,29 @@ export default function ApprovalPage() {
                                                 }
                                                 Approve
                                             </Button>
+                                            {/* PERTAMBAHAN_SPK specific attachments */}
+                                            {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && selectedDetail.link_lampiran_pendukung && (
+                                                <Button
+                                                    variant="outline"
+                                                    className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                                    onClick={() => {
+                                                        const link = selectedDetail.link_lampiran_pendukung!;
+                                                        if (link.startsWith('data:')) {
+                                                            const win = window.open();
+                                                            if (win) {
+                                                                win.document.write(`<iframe src="${link}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                            }
+                                                        } else {
+                                                            window.open(link, '_blank');
+                                                        }
+                                                    }}
+                                                >
+                                                    <FileDown className="w-4 h-4 mr-2" /> Lihat Lampiran Pendukung
+                                                </Button>
+                                            )}
+                                            {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && !selectedDetail.link_lampiran_pendukung && (
+                                                <p className="text-sm text-slate-400 italic">Tidak ada lampiran pendukung.</p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
