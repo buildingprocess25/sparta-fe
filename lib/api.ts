@@ -1037,9 +1037,9 @@ export type PertambahanSPKPayload = {
     tanggal_spk_akhir: string;
     tanggal_spk_akhir_setelah_perpanjangan: string;
     alasan_perpanjangan: string;
+    status_persetujuan?: string;
     dibuat_oleh: string;
-    link_pdf?: string;
-    link_lampiran_pendukung?: string;
+    file_lampiran_pendukung?: File;
 };
 
 export type PertambahanSPKListItem = {
@@ -1058,11 +1058,62 @@ export type PertambahanSPKListItem = {
     link_lampiran_pendukung: string | null;
     created_at: string;
     nomor_spk: string;
+    // Optional nested data for list join
+    toko?: {
+        nama_toko: string;
+        cabang: string;
+        nomor_ulok: string;
+        proyek?: string;
+    };
+    spk?: {
+        nomor_ulok: string;
+        nama_kontraktor: string;
+        proyek?: string;
+        nama_toko?: string;
+        cabang?: string;
+    };
 };
 
 export type PertambahanSPKListFilters = {
     id_spk?: number;
     status_persetujuan?: string;
+};
+
+export type PertambahanSPKDetailResponse = PertambahanSPKListItem & {
+    spk?: {
+        id: number;
+        nomor_ulok: string;
+        email_pembuat: string;
+        lingkup_pekerjaan: string;
+        nama_kontraktor: string;
+        proyek: string;
+        waktu_mulai: string;
+        durasi: number;
+        waktu_selesai: string;
+        grand_total: number;
+        terbilang: string;
+        nomor_spk: string;
+        par: string;
+        spk_manual_1: string;
+        spk_manual_2: string;
+        status: string;
+        link_pdf: string | null;
+        approver_email: string | null;
+        waktu_persetujuan: string | null;
+        alasan_penolakan: string | null;
+        created_at: string;
+    };
+    toko?: {
+        id: number;
+        nomor_ulok: string;
+        lingkup_pekerjaan: string;
+        nama_toko: string;
+        kode_toko: string;
+        proyek: string;
+        cabang: string;
+        alamat: string;
+        nama_kontraktor: string;
+    };
 };
 
 export type PertambahanSPKApprovalPayload = {
@@ -1073,13 +1124,36 @@ export type PertambahanSPKApprovalPayload = {
 
 // --- Fungsi ---
 
-/** Submit data pertambahan SPK baru. */
+/** Submit data pertambahan SPK baru.
+ *  - Jika `file_lampiran_pendukung` ada → kirim sebagai multipart/form-data.
+ *  - Jika tidak ada file → kirim sebagai JSON.
+ */
 export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-    });
+    const url = `${API_URL.replace(/\/$/, "")}/api/pertambahan-spk`;
+    const { file_lampiran_pendukung, ...fields } = payload;
+
+    let res: Response;
+
+    if (file_lampiran_pendukung) {
+        // --- MODE MULTIPART: file dikirim sebagai file ---
+        const form = new FormData();
+        form.append("id_spk", fields.id_spk.toString());
+        form.append("pertambahan_hari", fields.pertambahan_hari);
+        form.append("tanggal_spk_akhir", fields.tanggal_spk_akhir);
+        form.append("tanggal_spk_akhir_setelah_perpanjangan", fields.tanggal_spk_akhir_setelah_perpanjangan);
+        form.append("alasan_perpanjangan", fields.alasan_perpanjangan);
+        form.append("dibuat_oleh", fields.dibuat_oleh);
+        form.append("file_lampiran_pendukung", file_lampiran_pendukung);
+
+        res = await fetch(url, { method: "POST", body: form });
+    } else {
+        // --- MODE JSON: tanpa file ---
+        res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fields),
+        });
+    }
 
     const result = await res.json();
     if (res.status === 404) throw new Error(result.message || "SPK tidak ditemukan.");
@@ -1105,7 +1179,7 @@ export const fetchPertambahanSPKList = async (
 /** Ambil detail pertambahan SPK berdasarkan ID. */
 export const fetchPertambahanSPKDetail = async (
     id: number
-): Promise<{ status: string; data: PertambahanSPKListItem }> => {
+): Promise<{ status: string; data: PertambahanSPKDetailResponse }> => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`);
     if (res.status === 404) throw new Error(`Data pertambahan SPK dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
@@ -1120,11 +1194,28 @@ export const updatePertambahanSPK = async (
     id: number,
     payload: Partial<PertambahanSPKPayload>
 ) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-    });
+    const url = `${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`;
+    const { file_lampiran_pendukung, ...fields } = payload;
+
+    let res: Response;
+
+    // Jika user mengunggah file baru saat revisi
+    if (file_lampiran_pendukung) {
+        const form = new FormData();
+        Object.entries(fields).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) form.append(key, String(value));
+        });
+        form.append("file_lampiran_pendukung", file_lampiran_pendukung);
+
+        res = await fetch(url, { method: "PUT", body: form });
+    } else {
+        res = await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fields),
+        });
+    }
+
     const result = await res.json();
     if (res.status === 404) throw new Error("Data pertambahan SPK tidak ditemukan.");
     if (res.status === 422) throw new Error(result.message || "Validasi gagal.");

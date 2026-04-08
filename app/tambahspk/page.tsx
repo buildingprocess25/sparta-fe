@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
     Save, Loader2, Search, FilePlus, AlertCircle, CheckCircle,
     CalendarPlus, CalendarClock, Clock, FileText, Link2, Info,
-    ChevronDown, Calendar, Hash, ArrowRight, UploadCloud, X, Image as ImageIcon,
+    ChevronDown, Calendar, Hash, ArrowRight, UploadCloud, X, Image as ImageIcon
 } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import {
@@ -16,6 +16,7 @@ import {
     submitPertambahanSPK,
     type SPKListItem,
     type PertambahanSPKListItem,
+    updatePertambahanSPK,
 } from '@/lib/api';
 import { BRANCH_GROUPS } from '@/lib/constants';
 
@@ -52,15 +53,6 @@ const addDays = (dateStr: string, days: number): string => {
     return `${year}-${month}-${day}`;
 };
 
-/** Convert File object to Base64 string */
-const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = error => reject(error);
-    });
-};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -123,6 +115,7 @@ export default function TambahSPKPage() {
             (s.toko?.nama_toko || '').toLowerCase().includes(q)
         );
     }, [approvedSpks, searchQuery]);
+    
 
     // ════════════════════════════════════════════════════════════════════
     //   EFFECTS
@@ -239,14 +232,35 @@ export default function TambahSPKPage() {
         try {
             const perpRes = await fetchPertambahanSPKList({ id_spk: selected.id });
             const existings = perpRes.data || [];
-            setExistingPerpanjangan(existings);
+            
+            // Urutkan berdasarkan yang terbaru (created_at)
+            const sortedExistings = [...existings].sort((a, b) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            
+            setExistingPerpanjangan(sortedExistings);
 
-            const pending = existings.find(p => p.status_persetujuan === 'Menunggu Persetujuan');
-            if (pending) {
-                setStatusMsg({
-                    text: "SPK ini sudah memiliki pengajuan perpanjangan yang masih menunggu persetujuan.",
-                    type: 'warning'
-                });
+            const latest = sortedExistings[0];
+            if (latest) {
+                if (latest.status_persetujuan === 'Menunggu Persetujuan') {
+                    setStatusMsg({
+                        text: "SPK ini sudah memiliki pengajuan perpanjangan yang masih menunggu persetujuan.",
+                        type: 'warning'
+                    });
+                } else if (latest.status_persetujuan === 'Ditolak BM') {
+                    // Pre-fill data otomatis agar user bisa merevisi input sebelumnya
+                    setPertambahanHari(latest.pertambahan_hari);
+                    setAlasanPerpanjangan(latest.alasan_perpanjangan);
+                    setStatusMsg({
+                        text: `Pengajuan sebelumnya DITOLAK: "${latest.alasan_penolakan || '-'}". Silakan revisi pengajuan.`,
+                        type: 'error'
+                    });
+                } else {
+                    setStatusMsg({
+                        text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.",
+                        type: 'info'
+                    });
+                }
             } else {
                 setStatusMsg({
                     text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.",
@@ -260,43 +274,47 @@ export default function TambahSPKPage() {
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedSpk) return;
-        if (!pertambahanHari || parseInt(pertambahanHari) <= 0) {
-            alert("Pertambahan hari harus lebih dari 0.");
-            return;
-        }
-        if (!alasanPerpanjangan.trim()) {
-            alert("Alasan perpanjangan wajib diisi.");
-            return;
-        }
+    e.preventDefault();
+    if (!selectedSpk) return;
+    if (!pertambahanHari || parseInt(pertambahanHari) <= 0) {
+        alert("Pertambahan hari harus lebih dari 0.");
+        return;
+    }
+    if (!alasanPerpanjangan.trim()) {
+        alert("Alasan perpanjangan wajib diisi.");
+        return;
+    }
 
-        setIsSubmitting(true);
-        try {
-            let base64Lampiran = "";
-            if (fileLampiran) {
-                base64Lampiran = await fileToBase64(fileLampiran);
-            }
+    setIsSubmitting(true);
+    try {
+        const latestPerpanjangan = existingPerpanjangan[0];
+        const isRevisi = latestPerpanjangan && latestPerpanjangan.status_persetujuan === 'Ditolak BM';
 
-            const payload = {
-                id_spk: selectedSpk.id,
-                pertambahan_hari: pertambahanHari,
-                tanggal_spk_akhir: tanggalSpkAkhir,
-                tanggal_spk_akhir_setelah_perpanjangan: tanggalSetelahPerpanjangan,
-                alasan_perpanjangan: alasanPerpanjangan.trim(),
-                dibuat_oleh: userInfo.email,
-                link_pdf: "", // Removed as per request
-                link_lampiran_pendukung: base64Lampiran || undefined,
-            };
+        const payload: any = {
+            id_spk: selectedSpk.id,
+            pertambahan_hari: pertambahanHari,
+            tanggal_spk_akhir: tanggalSpkAkhir,
+            tanggal_spk_akhir_setelah_perpanjangan: tanggalSetelahPerpanjangan,
+            alasan_perpanjangan: alasanPerpanjangan.trim(),
+            dibuat_oleh: userInfo.email,
+            file_lampiran_pendukung: fileLampiran || undefined,
+        };
 
+        if (isRevisi) {
+            // Force reset status saat operasi update agar di-review ulang oleh BM
+            payload.status_persetujuan = 'Menunggu Persetujuan';
+            await updatePertambahanSPK(latestPerpanjangan.id, payload);
+        } else {
             await submitPertambahanSPK(payload);
-            setShowSuccessModal(true);
-        } catch (err: any) {
-            alert(err.message);
-        } finally {
-            setIsSubmitting(false);
         }
-    };
+        
+        setShowSuccessModal(true);
+    } catch (err: any) {
+        alert(err.message);
+    } finally {
+        setIsSubmitting(false);
+    }
+};
 
     // Check if form can be submitted
     const hasPendingPerpanjangan = existingPerpanjangan.some(
@@ -376,7 +394,7 @@ export default function TambahSPKPage() {
                                     )}
                                 </div>
 
-                                {/* Status Message */}
+                                 {/* Status Message */}
                                 {statusMsg.text && (
                                     <div className={`p-4 rounded-lg flex items-start gap-3 mt-4 font-medium text-sm ${
                                         statusMsg.type === 'error'   ? 'bg-red-50 text-red-700 border border-red-200' :
@@ -388,6 +406,7 @@ export default function TambahSPKPage() {
                                         <p>{statusMsg.text}</p>
                                     </div>
                                 )}
+
 
                                 {/* SPK Detail Card */}
                                 {selectedSpk && (
@@ -655,6 +674,7 @@ export default function TambahSPKPage() {
                     </CardContent>
                 </Card>
             </main>
+
 
             {/* ════════════════════════════════════════════════════════════
                 MODAL: SUKSES

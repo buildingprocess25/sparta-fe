@@ -22,7 +22,7 @@ import {
     type SPKListItem,
     // Pertambahan SPK
     fetchPertambahanSPKList, fetchPertambahanSPKDetail, processPertambahanSPKApproval,
-    type PertambahanSPKListItem,
+    type PertambahanSPKListItem, type PertambahanSPKDetailResponse,
 } from '@/lib/api';
 
 import { parseCurrency } from '@/lib/utils';
@@ -91,6 +91,13 @@ interface NormalizedDetail {
         total: number;
         catatan?: string | null;
     }>;
+    // Pertambahan SPK specific
+    pertambahan_hari?: string;
+    tanggal_spk_akhir?: string;
+    tanggal_spk_akhir_setelah_perpanjangan?: string;
+    alasan_perpanjangan?: string;
+    nomor_spk?: string;
+    link_pdf?: string | null;
 }
 
 // =============================================
@@ -230,9 +237,9 @@ const normalizePertambahanSPKList = (items: PertambahanSPKListItem[]): Normalize
     items.map(p => ({
         id: p.id,
         tipe: 'PERTAMBAHAN_SPK' as ApprovalType,
-        nomor_ulok:    p.nomor_spk || '-',
-        nama_toko:     `Perpanjangan ${p.pertambahan_hari} Hari`,
-        cabang:        '',
+        nomor_ulok:    p.toko?.nomor_ulok || p.spk?.nomor_ulok || p.nomor_spk || '-',
+        nama_toko:     p.toko?.nama_toko || `Perpanjangan ${p.pertambahan_hari} Hari`,
+        cabang:        p.toko?.cabang || '',
         status:        p.status_persetujuan,
         total_nilai:   0,
         email_pembuat: p.dibuat_oleh,
@@ -390,7 +397,8 @@ export default function ApprovalPage() {
                 const upper = (item.status ?? '').toUpperCase();
 
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
-                if (userInfo.cabang && item.cabang.toUpperCase() !== userInfo.cabang.toUpperCase()) {
+                // Pertambahan SPK tidak memiliki field cabang dari API, jadi skip filter cabang
+                if (type !== 'PERTAMBAHAN_SPK' && userInfo.cabang && item.cabang.toUpperCase() !== userInfo.cabang.toUpperCase()) {
                     return false;
                 }
                 
@@ -499,17 +507,30 @@ export default function ApprovalPage() {
                 detail = {
                     id: d.id,
                     tipe: 'PERTAMBAHAN_SPK',
-                    nomor_ulok:        d.nomor_spk || '-',
-                    nama_toko:         `Perpanjangan ${d.pertambahan_hari} Hari`,
-                    cabang:            '',
-                    lingkup_pekerjaan: `Tgl Akhir: ${d.tanggal_spk_akhir} → ${d.tanggal_spk_akhir_setelah_perpanjangan}`,
+                    nomor_ulok:        d.toko?.nomor_ulok || d.spk?.nomor_ulok || d.nomor_spk || '-',
+                    id_toko:           d.toko?.id,
+                    nama_toko:         d.toko?.nama_toko || '-',
+                    kode_toko:         d.toko?.kode_toko,
+                    alamat:            d.toko?.alamat,
+                    cabang:            d.toko?.cabang || '',
+                    lingkup_pekerjaan: d.toko?.lingkup_pekerjaan || d.spk?.lingkup_pekerjaan,
                     status:            d.status_persetujuan,
-                    total_nilai:       0,
+                    total_nilai:       d.spk?.grand_total || 0,
                     email_pembuat:     d.dibuat_oleh,
                     created_at:        d.created_at,
                     alasan_penolakan:  d.alasan_penolakan,
-                    nama_kontraktor:   d.nomor_spk,
+                    nama_kontraktor:   d.toko?.nama_kontraktor || d.spk?.nama_kontraktor || '-',
+                    durasi:            d.spk?.durasi,
+                    waktu_mulai:       d.spk?.waktu_mulai,
+                    waktu_selesai:     d.spk?.waktu_selesai,
                     link_lampiran_pendukung: d.link_lampiran_pendukung || null,
+                    link_pdf:          d.link_pdf || null,
+                    // Pertambahan SPK specific
+                    pertambahan_hari:  d.pertambahan_hari,
+                    tanggal_spk_akhir: d.tanggal_spk_akhir,
+                    tanggal_spk_akhir_setelah_perpanjangan: d.tanggal_spk_akhir_setelah_perpanjangan,
+                    alasan_perpanjangan: d.alasan_perpanjangan,
+                    nomor_spk:         d.nomor_spk || d.spk?.nomor_spk,
                     items: [],
                 };
             }
@@ -1063,10 +1084,19 @@ export default function ApprovalPage() {
                                                 )}
                                             </div>
 
-                                            {/* Total */}
+                                            {/* Total / Pertambahan SPK summary */}
                                             <div className="text-right shrink-0">
-                                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Nilai</p>
-                                                <p className="text-3xl font-extrabold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
+                                                {selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? (
+                                                    <>
+                                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Perpanjangan</p>
+                                                        <p className="text-3xl font-extrabold text-emerald-700">+{selectedDetail.pertambahan_hari} Hari</p>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Nilai</p>
+                                                        <p className="text-3xl font-extrabold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
+                                                    </>
+                                                )}
                                                 <Badge className={`mt-2 ${APPROVAL_CONFIG[selectedDetail.tipe].badgeColor} font-semibold border`}>
                                                     {APPROVAL_CONFIG[selectedDetail.tipe].label}
                                                 </Badge>
@@ -1080,6 +1110,78 @@ export default function ApprovalPage() {
                                     <div className="mb-6">
                                         <GanttViewer nomorUlok={selectedDetail.nomor_ulok} idToko={selectedDetail.id_toko} />
                                     </div>
+                                )}
+
+                                {/* Pertambahan SPK Detail Card */}
+                                {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && (
+                                    <Card className="mb-6 shadow-sm border-emerald-200 bg-white">
+                                        <CardContent className="p-6">
+                                            <h3 className="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+                                                <CalendarDays className="w-4 h-4 text-emerald-600" />
+                                                Detail Perpanjangan SPK
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk || '-'}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pertambahan Hari</p>
+                                                    <p className="text-sm font-bold text-emerald-700">+{selectedDetail.pertambahan_hari} Hari</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Durasi SPK Awal</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail.durasi ? `${selectedDetail.durasi} Hari` : '-'}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tgl Mulai SPK</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{formatDate(selectedDetail.waktu_mulai || '')}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tgl Akhir SPK (Sebelum)</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{formatDate(selectedDetail.tanggal_spk_akhir || '')}</p>
+                                                </div>
+                                                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                                                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Tgl Akhir Setelah Perpanjangan</p>
+                                                    <p className="text-sm font-bold text-emerald-800">{formatDate(selectedDetail.tanggal_spk_akhir_setelah_perpanjangan || '')}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai Kontrak SPK</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
+                                                </div>
+                                            </div>
+                                            {/* Alasan Perpanjangan */}
+                                            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                                <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider mb-1">Alasan Perpanjangan</p>
+                                                <p className="text-sm text-slate-800">{selectedDetail.alasan_perpanjangan || '-'}</p>
+                                            </div>
+                                            {/* Lampiran links */}
+                                            <div className="mt-4 flex flex-wrap gap-3">
+                                                {selectedDetail.link_pdf && (
+                                                    <a
+                                                        href={selectedDetail.link_pdf}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors"
+                                                    >
+                                                        <FileText className="w-4 h-4" />
+                                                        Lihat PDF Perpanjangan
+                                                    </a>
+                                                )}
+                                                {selectedDetail.link_lampiran_pendukung && (
+                                                    <a
+                                                        href={selectedDetail.link_lampiran_pendukung}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors"
+                                                    >
+                                                        <FileDown className="w-4 h-4" />
+                                                        Lihat Lampiran Pendukung
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
                                 )}
 
                                 {/* Tabel Rincian */}
@@ -1128,7 +1230,7 @@ export default function ApprovalPage() {
                                             </table>
                                         </div>
                                     </div>
-                                ) : selectedDetail.tipe !== 'SPK' ? (
+                                ) : selectedDetail.tipe !== 'SPK' && selectedDetail.tipe !== 'PERTAMBAHAN_SPK' ? (
                                     <div className="py-10 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-sm mb-6">
                                         Tidak ada rincian item tersedia.
                                     </div>
@@ -1158,29 +1260,7 @@ export default function ApprovalPage() {
                                                 }
                                                 Approve
                                             </Button>
-                                            {/* PERTAMBAHAN_SPK specific attachments */}
-                                            {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && selectedDetail.link_lampiran_pendukung && (
-                                                <Button
-                                                    variant="outline"
-                                                    className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                                    onClick={() => {
-                                                        const link = selectedDetail.link_lampiran_pendukung!;
-                                                        if (link.startsWith('data:')) {
-                                                            const win = window.open();
-                                                            if (win) {
-                                                                win.document.write(`<iframe src="${link}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                                                            }
-                                                        } else {
-                                                            window.open(link, '_blank');
-                                                        }
-                                                    }}
-                                                >
-                                                    <FileDown className="w-4 h-4 mr-2" /> Lihat Lampiran Pendukung
-                                                </Button>
-                                            )}
-                                            {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && !selectedDetail.link_lampiran_pendukung && (
-                                                <p className="text-sm text-slate-400 italic">Tidak ada lampiran pendukung.</p>
-                                            )}
+
                                         </div>
                                     </div>
                                 )}

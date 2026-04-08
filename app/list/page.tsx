@@ -298,10 +298,10 @@ const normalizePertambahanSPKDocs = (items: PertambahanSPKListItem[]): Normalize
     items.map(p => ({
         id: p.id,
         tipe: 'PERTAMBAHAN_SPK' as DokumenKategori,
-        nomor_ulok:    p.nomor_spk || '-',
-        nama_toko:     `Perpanjangan ${p.pertambahan_hari} Hari`,
-        cabang:        '',
-        proyek:        '-',
+        nomor_ulok:    p.nomor_spk || p.toko?.nomor_ulok || p.spk?.nomor_ulok || '-',
+        nama_toko:     p.toko?.nama_toko || p.spk?.nama_toko || '-',
+        cabang:        p.toko?.cabang || p.spk?.cabang || '',
+        proyek:        p.toko?.proyek || p.spk?.proyek || '-',
         status:        p.status_persetujuan,
         email_pembuat: p.dibuat_oleh,
         total_nilai:   0,
@@ -502,10 +502,10 @@ export default function DaftarDokumenPage() {
                 detail = {
                     id: d.id,
                     tipe: 'PERTAMBAHAN_SPK',
-                    nomor_ulok:        d.nomor_spk || '-',
-                    nama_toko:         `Perpanjangan ${d.pertambahan_hari} Hari`,
-                    cabang:            '',
-                    proyek:            '-',
+                    nomor_ulok:        d.nomor_spk || d.toko?.nomor_ulok || d.spk?.nomor_ulok || '-',
+                    nama_toko:         d.toko?.nama_toko || d.spk?.nama_toko || doc.nama_toko,
+                    cabang:            d.toko?.cabang   || d.spk?.cabang || '',
+                    proyek:            d.toko?.proyek   || d.spk?.proyek || '-',
                     status:            d.status_persetujuan,
                     email_pembuat:     d.dibuat_oleh,
                     total_nilai:       0,
@@ -518,6 +518,7 @@ export default function DaftarDokumenPage() {
                     waktu_persetujuan_detail: d.waktu_persetujuan ?? undefined,
                     alasan_penolakan:  d.alasan_penolakan,
                     link_pdf:          d.link_pdf,
+                    link_lampiran_pendukung: d.link_lampiran_pendukung,
                 };
             }
 
@@ -776,9 +777,9 @@ export default function DaftarDokumenPage() {
                                                             </Badge>
                                                         </div>
                                                         <p className="text-sm text-slate-600 truncate mt-0.5">
-                                                            {selectedKategori === 'PERTAMBAHAN_SPK'
-                                                                ? `SPK: ${doc.nomor_ulok}`
-                                                                : selectedKategori === 'RAB' ? doc.nama_toko : (doc.nama_kontraktor || doc.nama_toko)
+                                                            {selectedKategori === 'RAB' 
+                                                                ? doc.nama_toko 
+                                                                : (selectedKategori === 'SPK' ? (doc.nama_kontraktor || doc.nama_toko) : doc.nama_toko)
                                                             }
                                                         </p>
                                                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
