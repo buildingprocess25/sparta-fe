@@ -35,13 +35,6 @@ export const ALL_MENUS = [
         icon: FileText,
     },
     {
-        id: "menu-materai",
-        title: "Dokumen Termaterai",
-        desc: "Buat dan lihat RAB Final Termaterai.",
-        href: "/materai",
-        icon: Stamp,
-    },
-    {
         id: "menu-spk",
         title: "Surat Perintah Kerja",
         desc: "Form surat perintah kerja untuk kontraktor.",
@@ -66,9 +59,8 @@ export const ALL_MENUS = [
         id: "menu-dokumentasi",
         title: "Dokumentasi Bangunan Toko Baru",
         desc: "Form dokumentasi foto bangunan.",
-        href: "https://dokumentasi-bangunan.vercel.app/",
+        href: "/ftdokumen",
         icon: Camera,
-        external: true,
     },
     {
         id: "menu-tambahspk",
@@ -166,7 +158,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "KONTRAKTOR": [
-        "menu-rab", "menu-materai", "menu-opname", "menu-gantt",
+        "menu-rab", "menu-opname", "menu-gantt",
     ],
 };
 
