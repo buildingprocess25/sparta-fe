@@ -21,7 +21,7 @@ import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK } from '
 import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fetchTokoDetail, getRABLogoDownloadUrl, getRABInsuranceDownloadUrl } from '@/lib/api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
-const formatAngka = (num: number) => num ? num.toLocaleString('id-ID') : '';
+const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
 
 export default function RABPage() {
   const router = useRouter();
@@ -778,9 +778,9 @@ export default function RABPage() {
                                   </select>
                                 </td>
                                 <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium">{row.satuan}</td>
-                                <td className="p-2 border-r border-slate-100"><Input type="number" min="0" step="any" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume || ''} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseFloat(e.target.value) || 0))} readOnly={row.satuan === 'Ls'} /></td>
-                                <td className="p-2 border-r border-slate-100"><Input type="text" className="h-9 px-2 text-right transition-colors text-xs bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" value={row.hargaMaterial === 0 ? '' : formatAngka(row.hargaMaterial)} readOnly tabIndex={-1} /></td>
-                                <td className="p-2 border-r border-slate-100"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs ${!row.isKondisional ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah === 0 ? '' : formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={!row.isKondisional} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="number" min="0" step="any" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? 0 : row.volume} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseFloat(e.target.value) || 0))} readOnly={row.satuan === 'Ls'} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="text" className="h-9 px-2 text-right transition-colors text-xs bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" value={formatAngka(row.hargaMaterial)} readOnly tabIndex={-1} /></td>
+                                <td className="p-2 border-r border-slate-100"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs ${!row.isKondisional ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={!row.isKondisional} /></td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs">{toRupiah(row.volume * row.hargaMaterial)}</td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs">{toRupiah(row.volume * row.hargaUpah)}</td>
                                 <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
