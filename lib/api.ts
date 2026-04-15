@@ -641,7 +641,7 @@ export const addGanttDayItems = async (id: number, dayItems: GanttDayItem[]) => 
 /** Update data keterlambatan pada periode tertentu. */
 export const updateGanttDelay = async (
     id: number,
-    payload: { kategori_pekerjaan: string; h_awal: string; h_akhir: string; keterlambatan: string }
+    payload: { kategori_pekerjaan: string; keterlambatan: string } | { updates: { kategori_pekerjaan: string; keterlambatan: string }[] }
 ) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day/keterlambatan`, {
         method:  "POST",
@@ -686,6 +686,174 @@ export const manageGanttPengawasan = async (
     if (res.status === 404) throw new Error("Gantt Chart tidak ditemukan.");
     if (res.status === 422) throw new Error("Kirim salah satu dari kategori_pekerjaan atau remove_kategori.");
     if (!res.ok) throw new Error(result.message || "Gagal update pengawasan.");
+    return result;
+};
+
+/** Submit Bulk Pengawasan (Items Pekerjaan dari Memo) */
+export const submitPengawasanBulk = async (payload: FormData | { items: any[] }) => {
+    const isFormData = payload instanceof FormData;
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+        method: "POST",
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        body: isFormData ? payload : JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal menyimpan pengawasan bulk.");
+    return result;
+};
+
+/** Ambil daftar pengawasan selesai/seluruhnya */
+export const fetchPengawasanList = async (filters?: { id_gantt?: number; status?: string; tanggal?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.id_gantt) params.append("id_gantt", filters.id_gantt.toString());
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.tanggal) params.append("tanggal", filters.tanggal);
+    
+    const url = `${API_URL.replace(/\/$/, "")}/api/pengawasan${params.toString() ? `?${params}` : ""}`;
+    return safeFetchJSON(url);
+};
+
+// =============================================================================
+// OPNAME
+// =============================================================================
+
+// --- Types ---
+
+export type OpnameItem = {
+    id:              number;
+    id_toko:         number;
+    id_rab_item:     number;
+    status:          'progress' | 'selesai' | 'terlambat' | string;
+    volume_akhir:    number;
+    selisih_volume:  number;
+    total_selisih:   number;
+    desain:          string | null;
+    kualitas:        string | null;
+    spesifikasi:     string | null;
+    foto:            string | null;
+    catatan:         string | null;
+    created_at:      string;
+    // Joined from rab_item relation
+    rab_item?: {
+        id:                 number;
+        id_rab:             number;
+        kategori_pekerjaan: string;
+        jenis_pekerjaan:    string;
+        satuan:             string;
+        volume:             number;
+        harga_material:     number;
+        harga_upah:         number;
+        total_material:     number;
+        total_upah:         number;
+        total_harga:        number;
+    };
+    // Joined from toko relation
+    toko?: {
+        id:            number;
+        nomor_ulok:    string;
+        nama_toko:     string;
+        cabang:        string;
+        proyek:        string;
+        nama_kontraktor: string;
+    };
+};
+
+export type OpnameListFilters = {
+    id_toko?:     number;
+    id_rab_item?: number;
+    status?:      string;
+};
+
+// --- Fungsi ---
+
+/** Bulk Submit Opname */
+export const submitOpnameBulk = async (payload: FormData | { items: any[] }) => {
+    const isFormData = payload instanceof FormData;
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/bulk`, {
+        method: "POST",
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        body: isFormData ? payload : JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal menyimpan opname bulk.");
+    return result;
+};
+
+/** Ambil daftar Opname dengan filter opsional. */
+export const fetchOpnameList = async (
+    filters?: OpnameListFilters
+): Promise<{ status: string; data: OpnameItem[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.id_toko)     params.append("id_toko", filters.id_toko.toString());
+    if (filters?.id_rab_item) params.append("id_rab_item", filters.id_rab_item.toString());
+    if (filters?.status)      params.append("status", filters.status);
+    const url = `${base}/api/opname${params.toString() ? `?${params}` : ""}`;
+    return safeFetchJSON(url);
+};
+
+/** Ambil detail Opname berdasarkan ID. */
+export const fetchOpnameDetail = async (
+    id: number
+): Promise<{ status: string; data: OpnameItem }> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`);
+    if (res.status === 404) throw new Error(`Data opname dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal memuat detail opname (${res.status}): ${text.substring(0, 100)}`);
+    }
+    return res.json();
+};
+
+/** Update data Opname (untuk approval/rejection kontraktor atau revisi PIC). */
+export const updateOpname = async (
+    id: number,
+    payload: Partial<{
+        status: string;
+        volume_akhir: number;
+        selisih_volume: number;
+        total_selisih: number;
+        desain: string;
+        kualitas: string;
+        spesifikasi: string;
+        catatan: string;
+    }>,
+    fotoFile?: File | null
+): Promise<{ status: string; message: string; data: OpnameItem }> => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/opname/${id}`;
+    let res: Response;
+
+    if (fotoFile) {
+        const form = new FormData();
+        Object.entries(payload).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) form.append(key, String(value));
+        });
+        form.append("rev_file_foto_opname", fotoFile);
+        res = await fetch(url, { method: "PUT", body: form });
+    } else {
+        res = await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+    }
+
+    const result = await res.json();
+    if (res.status === 404) throw new Error("Data opname tidak ditemukan.");
+    if (res.status === 422) throw new Error(result.message || "Validasi gagal.");
+    if (!res.ok) throw new Error(result.message || `Gagal memperbarui opname (${res.status}).`);
+    return result;
+};
+
+/** Hapus data Opname. */
+export const deleteOpname = async (id: number) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+    });
+    const result = await res.json();
+    if (res.status === 404) throw new Error("Data opname tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal menghapus data opname.");
     return result;
 };
 

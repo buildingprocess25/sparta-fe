@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 // ChevronLeft dihapus karena sudah ada di AppNavbar
-import { Lock, Send, Loader2, Info, Plus, Trash2 } from 'lucide-react'; 
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save } from 'lucide-react'; 
 import { 
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
@@ -87,6 +87,13 @@ function GanttBoard() {
     // SPK info for date-based headers
     const [spkInfo, setSpkInfo] = useState<{ startDate: string; duration: number } | null>(null);
     const [pengawasanDates, setPengawasanDates] = useState<string[]>([]);
+    const [pengawasanHistory, setPengawasanHistory] = useState<any[]>([]);
+    
+    // States untuk Memo Pengawasan
+    const [rabItems, setRabItems] = useState<any[]>([]);
+    const [showMemoModal, setShowMemoModal] = useState(false);
+    const [showOpnameModal, setShowOpnameModal] = useState(false);
+    const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
 
     useEffect(() => {
         const role = sessionStorage.getItem('userRole');
@@ -158,6 +165,7 @@ function GanttBoard() {
         try {
             const rabDetailRes = await fetchRABDetail(idRab);
             const { rab, toko, items } = rabDetailRes.data;
+            if (items) setRabItems(items);
 
             setSelectedGanttId(null);
             setIsProjectLocked(false);
@@ -168,6 +176,7 @@ function GanttBoard() {
 
             setProjectData({
                 ganttId: null,
+                id_toko: toko.id,
                 ulokClean: formatUlokWithDash(toko.nomor_ulok),
                 store: toko.nama_toko || "Data Toko",
                 kode_toko: toko.kode_toko || "-",
@@ -244,6 +253,7 @@ function GanttBoard() {
                         }
 
                         if (rabDetailRes?.data?.items) {
+                            setRabItems(rabDetailRes.data.items);
                             const uniqueCats = new Set<string>();
                             rabDetailRes.data.items.forEach((item: any) => {
                                 if (item.kategori_pekerjaan && item.volume > 0) {
@@ -262,6 +272,7 @@ function GanttBoard() {
                 // Set data proyek awal
                 setProjectData({
                     ganttId: null,
+                    id_toko: toko.id,
                     ulokClean: formatUlokWithDash(toko.nomor_ulok),
                     store: toko.nama_toko || "Data Toko",
                     kode_toko: toko.kode_toko || "-",
@@ -313,6 +324,7 @@ function GanttBoard() {
                             rabDurationFallback = parseInt(String(rData.durasi_pekerjaan).replace(/\D/g, '')) || 0;
                         }
                         if (rabDetailRes.data.items) {
+                            setRabItems(rabDetailRes.data.items);
                             const uniqueCats = new Set<string>();
                             rabDetailRes.data.items.forEach((item: any) => {
                                 if (item.kategori_pekerjaan && item.volume > 0) {
@@ -362,6 +374,7 @@ function GanttBoard() {
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
             setProjectData({
                 ganttId:    gantt.id,
+                id_toko:    toko.id,
                 ulokClean:  formatUlokWithDash(toko.nomor_ulok),
                 store:      toko.nama_toko || "Data Toko Ditemukan",
                 kode_toko:  toko.kode_toko || "-",
@@ -377,6 +390,7 @@ function GanttBoard() {
                 .map((p: any) => p.tanggal_pengawasan)
                 .filter(Boolean);
             setPengawasanDates(pDates);
+            setPengawasanHistory(pengawasan || []);
 
             setIsProjectLocked(['terkunci', 'locked', 'published'].includes(gantt.status.toLowerCase()));
 
@@ -554,26 +568,36 @@ function GanttBoard() {
             const day_items: any[] = [];
             const dependencies: any[] = [];
 
-            const pengawasanSet = new Set<string>(
-                (rawDayGanttData || []).map((d: any) => (d.Kategori || '').toUpperCase().trim())
-            );
+            const pengawasanSet = new Set<string>();
+            (rawDayGanttData || []).forEach((d: any) => {
+                const k = (d.Kategori || '').toUpperCase().trim();
+                if (k) pengawasanSet.add(k);
+            });
             const pengawasan = Array.from(pengawasanSet).map(k => ({ kategori_pekerjaan: k }));
 
             tasks.forEach(t => {
-                const kategoriName = t.name.toUpperCase();
+                const kategoriName = t.name?.toUpperCase().trim();
+                // Jika nama kategori kosong, jangan dilanjutkan karena backend menolak kategori empty string (422)
+                if (!kategoriName) return;
+
                 kategori_pekerjaan.push(kategoriName);
                 
                 // 1. Map Day Items
                 if (t.ranges && t.ranges.length > 0) {
                     t.ranges.forEach((r: any) => {
                         if (!r.start || !r.end) return;
-                        day_items.push({
+                        
+                        const dayItem: any = {
                             kategori_pekerjaan: kategoriName,
                             h_awal: String(r.start),
                             h_akhir: String(r.end),
-                            keterlambatan: String(r.keterlambatan || ""),
-                            kecepatan: ""
-                        });
+                        };
+                        
+                        // Backend membolehkan string kosong untuk kecepatan & keterlambatan jika tidak ada nilai
+                        dayItem.keterlambatan = r.keterlambatan ? String(r.keterlambatan) : "";
+                        dayItem.kecepatan = ""; // biarkan kosong untuk default 
+                        
+                        day_items.push(dayItem);
                     });
                 }
 
@@ -581,9 +605,9 @@ function GanttBoard() {
                 if (t.dependencies && t.dependencies.length > 0) {
                     t.dependencies.forEach((childId: number) => {
                         const cTask = tasks.find(ct => ct.id === childId);
-                        if (cTask) {
+                        if (cTask && cTask.name?.trim()) {
                             dependencies.push({
-                                kategori_pekerjaan: cTask.name.toUpperCase(), // child
+                                kategori_pekerjaan: cTask.name.toUpperCase().trim(), // child
                                 kategori_pekerjaan_terikat: kategoriName // parent
                             });
                         }
@@ -600,20 +624,30 @@ function GanttBoard() {
 
             if (selectedGanttId) {
                 // JIKA MENGEDIT DRAFT YANG SUDAH ADA (Gunakan PUT)
+                // Field utama dikirim kosong/undefined agar backend memperlakukannya no-op
                 const updatePayload = {
-                    kategori_pekerjaan,
-                    day_items,
-                    pengawasan,
-                    dependencies
+                    day_items: day_items,
+                    kategori_pekerjaan: [], 
+                    pengawasan: [],
+                    dependencies: []
                 };
+
+                console.log("=== DEBUG GANTT UPDATE (PUT) ===");
+                console.log("ID Gantt:", selectedGanttId);
+                console.log("Payload:", JSON.stringify(updatePayload, null, 2));
+
                 await updateGanttChart(selectedGanttId, updatePayload);
+                console.log("SUCCESS: Update Gantt Chart");
 
                 // JIKA USER MENEKAN TOMBOL KUNCI, PANGGIL ENDPOINT LOCK
                 if (status === 'Terkunci') {
-                    await lockGanttChart(selectedGanttId, email); // <-- Tambahan parameter email
+                    console.log("=== DEBUG GANTT LOCK (Existing) ===");
+                    console.log("Email:", email);
+                    await lockGanttChart(selectedGanttId, email); 
+                    console.log("SUCCESS: Lock Gantt Chart");
                 }
             } else {
-                const payload = {
+                const payload: any = {
                     nomor_ulok: projectData.ulokClean,
                     nama_toko: projectData.store,
                     kode_toko: projectData.kode_toko,
@@ -628,10 +662,18 @@ function GanttBoard() {
                     pengawasan,
                     dependencies
                 };
+
+                console.log("=== DEBUG GANTT SUBMIT (POST) ===");
+                console.log("Payload:", JSON.stringify(payload, null, 2));
+
                 submitRes = await submitGanttChart(payload);
+                console.log("SUCCESS: Submit Gantt Chart, Result ID:", submitRes?.data?.id);
                 
                 if (status === 'Terkunci' && submitRes.data?.id) {
+                    console.log("=== DEBUG GANTT LOCK (New) ===");
+                    console.log("ID:", submitRes.data.id, "Email:", email);
                     await lockGanttChart(submitRes.data.id, email);
+                    console.log("SUCCESS: Lock Gantt Chart");
                 }
             }
 
@@ -985,7 +1027,7 @@ function GanttBoard() {
 
             <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                 <div className="p-4 bg-slate-100 border-b flex justify-center gap-6 text-sm font-medium">
-                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Sesuai Target</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Progress</div>
                     <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
                 </div>
                 
@@ -1004,6 +1046,7 @@ function GanttBoard() {
                                     let label: string = String(i + 1);
                                     let isPengawasan = false;
                                     let isLiveDay = false;
+                                    let fullDateString = '';
                                     
                                     if (spkInfo) {
                                         const d = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
@@ -1013,7 +1056,7 @@ function GanttBoard() {
                                         const yyyy = d.getFullYear();
                                         label = `${dd}/${mm}`;
                                         
-                                        const fullDateString = `${dd}/${mm}/${yyyy}`;
+                                        fullDateString = `${dd}/${mm}/${yyyy}`;
                                         
                                         const today = new Date();
                                         const td = String(today.getDate()).padStart(2, '0');
@@ -1027,8 +1070,15 @@ function GanttBoard() {
                                             isPengawasan = true;
                                         }
                                     }
+                                    const isClickable = appMode === 'pic' && isPengawasan;
                                     return (
-                                        <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}>
+                                        <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
+                                             onClick={() => {
+                                                 if (isClickable) {
+                                                     setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
+                                                     setShowMemoModal(true);
+                                                 }
+                                             }}>
                                             <span>{label}</span>
                                             {isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />}
                                             {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
@@ -1138,6 +1188,800 @@ function GanttBoard() {
                 </div>
             )}
         </main>
+
+        {/* MODAL 2: Memo Pengawasan Detail */}
+        {showMemoModal && (
+            <MemoPengawasanModal 
+                activeHeaderClick={activeHeaderClick} 
+                chartData={chartData} 
+                rabItems={rabItems} 
+                pengawasanHistory={pengawasanHistory}
+                onClose={() => setShowMemoModal(false)} 
+                selectedGanttId={selectedGanttId}
+                spkInfo={spkInfo}
+                onSuccess={() => {
+                    setShowMemoModal(false);
+                    if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                    setShowOpnameModal(true);
+                }}
+            />
+        )}
+
+        {/* MODAL 3: Opname Hasil Evaluasi */}
+        {showOpnameModal && (
+            <OpnameModal
+                activeHeaderClick={activeHeaderClick}
+                rabItems={rabItems}
+                id_toko={projectData?.id_toko}
+                onClose={() => {
+                    setShowOpnameModal(false);
+                    setShowMemoModal(true);
+                }}
+                selectedGanttId={selectedGanttId}
+                onSuccess={() => {
+                    setShowOpnameModal(false);
+                    // Refresh data if needed, such as Opname history
+                }}
+            />
+        )}
+        </div>
+    );
+}
+
+// Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, onSuccess }: any) {
+    const [liveHistory, setLiveHistory] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+    const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null }>>({});
+    const [isDirty, setIsDirty] = useState(false);
+    
+    useEffect(() => {
+        if (!selectedGanttId || !spkInfo || !activeHeaderClick) {
+            setIsLoadingHistory(false);
+            return;
+        }
+
+        const offset = activeHeaderClick?.dayIndex || 0;
+        const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+        dDate.setDate(dDate.getDate() + offset);
+        const yyyy = dDate.getFullYear();
+        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(dDate.getDate()).padStart(2, '0');
+        const formattedDate = `${yyyy}-${mm}-${dd}`;
+
+        import('@/lib/api').then(({ fetchPengawasanList }) => {
+            fetchPengawasanList({ id_gantt: selectedGanttId, tanggal: formattedDate })
+                .then(res => {
+                    const data = res.data || [];
+                    setLiveHistory(data);
+                    
+                    const initial: Record<string, any> = {};
+                    data.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            if (p.status.toLowerCase() !== 'selesai') {
+                                initial[key] = {
+                                    status: p.status.charAt(0).toUpperCase() + p.status.slice(1), 
+                                    // p.keterlambatan dari DB Gantt. Tetapi GET /api/pengawasan mungkin gak punya "keterlambatan".
+                                    // Jadi default 0, ini cuma ngaruh kalau di-expand
+                                    lateDays: p.keterlambatan ? parseInt(p.keterlambatan) : 0,
+                                    catatan: p.catatan || '',
+                                    file: null, 
+                                    dokumentasiUrl: p.dokumentasi || null
+                                };
+                            }
+                        }
+                    });
+                    setMemoInputs(initial);
+                })
+                .catch(err => console.error("Gagal mendapatkan live pengawasan history:", err))
+                .finally(() => setIsLoadingHistory(false));
+        });
+    }, [selectedGanttId, spkInfo, activeHeaderClick]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const latestStatusMap = useMemo(() => {
+        const map = new Map<string, string>();
+        if (pengawasanHistory) {
+            pengawasanHistory.forEach((p: any) => {
+                if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                    map.set(`${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`, p.status);
+                }
+            });
+        }
+        return map;
+    }, [pengawasanHistory]);
+
+    const hasSelesaiItems = Array.from(latestStatusMap.values()).some((s: string) => s.toLowerCase() === 'selesai');
+
+    const memoConfig = useMemo(() => {
+        if (!chartData || !activeHeaderClick) return [];
+        const day = activeHeaderClick.dayIndex;
+        // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
+        return chartData.processedTasks.map((task: any) => {
+            const shift = task.computed.shift || 0;
+            let isScheduledToday = false;
+            let isLastDay = false;
+            let hideOnProgress = true; // default hidden
+            let rawRangeMatch: any = null;
+            
+            task.ranges?.forEach((r: any) => {
+                if (!r.start || !r.end) return;
+                const s = parseInt(r.start) + shift - 1;
+                const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
+                
+                if (s <= day) isScheduledToday = true;
+                
+                // Cek apakah hari terakhir kategori ini bertepatan dengan hari pengawasan
+                if (day === e) {
+                    isLastDay = true;
+                }
+                
+                // Progress harus muncul HANYA jika hari ini berjalan di dalam rentang waktu (day >= s) 
+                // TETAPI belum mencapai hari terakhir (day < e).
+                if (day >= s && day < e) {
+                    hideOnProgress = false;
+                }
+                
+                // Kita prioritaskan rawRangeMatch untuk rentang yang benar-benar aktif atau yang sudah terlewati
+                if (day >= s && day <= e) {
+                    rawRangeMatch = r;
+                } else if (!rawRangeMatch && day > e) {
+                    rawRangeMatch = r;
+                }
+            });
+            
+            if (!rawRangeMatch && task.ranges?.length > 0) {
+                rawRangeMatch = task.ranges[0];
+            }
+            
+            const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
+            
+            const filteredItems = catItems.filter((item: any) => {
+                 const key = `${task.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
+                 const latestStatus = latestStatusMap.get(key);
+                 
+                 // Jika item ini sudah pernah dilabeli Selesai di db, jgn dimunculkan
+                 if (latestStatus === 'Selesai') return false;
+                 // Jika gantung, teruskan
+                 if (latestStatus === 'Progress' || latestStatus === 'Terlambat') return true;
+                 // Kalau belum pernah ada histori yg nggantung, ikut jadwal Gantt:
+                 return isScheduledToday;
+            });
+            
+            return {
+                category: { ...task, isLastDay, hideOnProgress, rawRangeMatch },
+                items: filteredItems
+            };
+        }).filter((d: any) => d.items.length > 0);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMap]);
+    const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
+        setIsDirty(true);
+        const key = `${catName}|${itemJenis}`;
+        setMemoInputs(prev => ({
+            ...prev,
+            [key]: { 
+                status, 
+                lateDays: prev[key]?.lateDays || 0,
+                catatan: prev[key]?.catatan || '',
+                file: prev[key]?.file || null,
+                dokumentasiUrl: prev[key]?.dokumentasiUrl || null
+            }
+        }));
+    };
+
+    const handleSetLateDays = (catName: string, itemJenis: string, lateDays: number) => {
+        setIsDirty(true);
+        const key = `${catName}|${itemJenis}`;
+        setMemoInputs(prev => ({
+            ...prev,
+            [key]: { 
+                status: prev[key]?.status || 'Terlambat', 
+                lateDays: Math.max(0, lateDays),
+                catatan: prev[key]?.catatan || '',
+                file: prev[key]?.file || null,
+                dokumentasiUrl: prev[key]?.dokumentasiUrl || null
+            }
+        }));
+    };
+
+    const handleSetField = (catName: string, itemJenis: string, field: 'catatan' | 'file', value: any) => {
+        setIsDirty(true);
+        const key = `${catName}|${itemJenis}`;
+        setMemoInputs(prev => ({
+            ...prev,
+            [key]: {
+                status: prev[key]?.status || '',
+                lateDays: prev[key]?.lateDays || 0,
+                catatan: prev[key]?.catatan || '',
+                file: prev[key]?.file || null,
+                dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
+                [field]: value
+            }
+        }));
+    };
+
+    const getDateStr = (dayIndexOffset: number) => {
+        if (!spkInfo) return '';
+        const d = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+        d.setDate(d.getDate() + dayIndexOffset);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+    };
+
+    const handleSubmit = async () => {
+        if (!selectedGanttId) {
+            alert('Draft belum disimpan permanen. Simpan Gantt Chart terlebih dahulu.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            // 1. Submit pengawasan bulk
+            const itemsArray: any[] = [];
+            const filesMap: { index: number, file: File }[] = [];
+            let catsLate = new Map<string, number>();
+
+            const entriesToSubmit = Object.entries(memoInputs).filter(([_, val]) => val.status);
+
+            // Derive tanggal_pengawasan (YYYY-MM-DD)
+            const offset = activeHeaderClick?.dayIndex || 0;
+            const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+            dDate.setDate(dDate.getDate() + offset);
+            const yyyy = dDate.getFullYear();
+            const mm = String(dDate.getMonth() + 1).padStart(2, '0');
+            const dd = String(dDate.getDate()).padStart(2, '0');
+            const formattedDate = `${yyyy}-${mm}-${dd}`;
+
+            entriesToSubmit.forEach(([key, val], idx) => {
+                const [catName, itemJenis] = key.split('|');
+                
+                itemsArray.push({
+                    id_gantt: selectedGanttId,
+                    tanggal_pengawasan: formattedDate,
+                    kategori_pekerjaan: catName,
+                    jenis_pekerjaan: itemJenis,
+                    status: typeof val.status === 'string' ? val.status.toLowerCase() : val.status, 
+                    catatan: val.catatan || '-'
+                });
+
+                if (val.file) {
+                    filesMap.push({ index: idx, file: val.file });
+                }
+                
+                if (val.status === 'Terlambat' && (val.lateDays || 0) > 0) {
+                    catsLate.set(catName, (catsLate.get(catName) || 0) + (val.lateDays || 0));
+                }
+            });
+
+            if (itemsArray.length > 0) {
+                const { submitPengawasanBulk } = await import('@/lib/api');
+                
+                console.log('=== DEBUG MEMO PENGAWASAN SUBMIT ===');
+                console.log('Total items:', itemsArray.length);
+                console.log('Items payload:', JSON.stringify(itemsArray, null, 2));
+                console.log('Files attached:', filesMap.length, filesMap.map(f => ({ index: f.index, name: f.file.name, size: f.file.size, type: f.file.type })));
+                console.log('Kategori terlambat:', Object.fromEntries(catsLate));
+                console.log('Mode pengiriman:', filesMap.length > 0 ? 'FormData (multipart)' : 'JSON');
+                console.log('====================================');
+
+                if (filesMap.length > 0) {
+                    // Ada file → kirim sebagai FormData (multipart/form-data)
+                    const formData = new FormData();
+                    formData.append('items', JSON.stringify(itemsArray));
+                    
+                    // Append setiap file
+                    filesMap.forEach(f => {
+                        formData.append('file_dokumentasi', f.file);
+                    });
+
+                    // Selalu kirim file_dokumentasi_indexes agar mapping 100% presisi dan tidak terkena fallback "1-file-for-all"
+                    const indexes = filesMap.map(f => f.index);
+                    formData.append('file_dokumentasi_indexes', JSON.stringify(indexes));
+                    console.log('file_dokumentasi_indexes:', JSON.stringify(indexes));
+                    
+                    try {
+                        await submitPengawasanBulk(formData);
+                    } catch(e: any) { 
+                        console.warn("Pengawasan bulk API call error:", e); 
+                        throw e;
+                    }
+                } else {
+                    // Tidak ada file → kirim sebagai JSON biasa
+                    console.log('JSON body:', JSON.stringify({ items: itemsArray }, null, 2));
+                    try {
+                        await submitPengawasanBulk({ items: itemsArray });
+                    } catch(e: any) { 
+                        console.warn("Pengawasan bulk API call error:", e); 
+                        throw e;
+                    }
+                }
+            }
+
+            // 2. Submit Keterlambatan (Bulk sesuai dokumentasi baru)
+            if (catsLate.size > 0) {
+                const { updateGanttDelay } = await import('@/lib/api');
+                const updates = Array.from(catsLate.entries()).map(([catName, totalLate]) => ({
+                    kategori_pekerjaan: catName.toUpperCase(),
+                    keterlambatan: totalLate.toString()
+                }));
+                
+                try {
+                    await updateGanttDelay(selectedGanttId, { updates });
+                } catch(e: any) {
+                    console.warn("Update delay bulk error:", e);
+                }
+            }
+
+            onSuccess();
+        } catch (err: any) {
+            alert(`Gagal menyimpan: ${err.message}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                <div className="p-5 border-b flex justify-between items-center bg-white">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                            <Calendar className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-xl text-slate-800 leading-tight">Memo Pengawasan</h2>
+                            <p className="text-sm text-slate-500 font-medium">{activeHeaderClick.dateString}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6"/></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {isLoadingHistory ? (
+                        <div className="flex flex-col items-center justify-center text-slate-400 py-12">
+                            <Loader2 className="w-10 h-10 animate-spin mb-3 text-blue-500" />
+                            <p className="font-medium text-slate-500">Memuat data pengawasan terakhir...</p>
+                        </div>
+                    ) : memoConfig.length === 0 ? (
+                        hasSelesaiItems ? (
+                            <div className="flex flex-col items-center justify-center text-slate-500 py-12 text-center">
+                                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                                    <CheckCircle className="w-7 h-7" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-700 mb-1">Semua Pekerjaan Selesai</h3>
+                                <p className="font-medium mb-6">Pekerjaan pada hari ini telah memiliki memo Selesai.</p>
+                                <Button onClick={onSuccess} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 h-auto text-sm shadow-md transition-transform hover:scale-105">
+                                    Lanjut ke Form Opname &rarr;
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                                <Info className="w-12 h-12 mb-3 text-slate-300" />
+                                <p className="font-medium">Tidak ada kategori pekerjaan yang sedang aktif pada hari ini.</p>
+                            </div>
+                        )
+                    ) : (
+                        memoConfig.map((d: any, i: number) => (
+                            <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-800">{d.category.name}</h3>
+                                    {d.category.isLastDay && <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none">Hari Terakhir Target!</Badge>}
+                                </div>
+                                <div className="p-2">
+                                    {d.items && d.items.length > 0 ? (
+                                        <table className="w-full text-sm text-left border-collapse">
+                                            <tbody>
+                                                {d.items.map((item: any, j: number) => {
+                                                    const key = `${d.category.name}|${item.jenis_pekerjaan}`;
+                                                    const currentStatus = memoInputs[key]?.status;
+                                                    const lateDays = memoInputs[key]?.lateDays || 0;
+                                                    return (
+                                                        <tr key={j} className="border-b last:border-b-0 hover:bg-slate-50/50">
+                                                            <td className="p-4 align-middle">
+                                                                <p className="font-semibold text-slate-700">{item.jenis_pekerjaan}</p>
+                                                            </td>
+                                                            <td className="p-4 align-middle w-90">
+                                                                <div className="flex flex-col gap-2">
+                                                                    <div className="flex gap-2">
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
+                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                        >
+                                                                            Selesai
+                                                                        </button>
+                                                                        
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                        >
+                                                                            Terlambat
+                                                                        </button>
+
+                                                                        {!d.category.hideOnProgress && (
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
+                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                            >
+                                                                                Progress
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    
+                                                                    {/* Input Hari Keterlambatan jika status Terlambat */}
+                                                                    {currentStatus === 'Terlambat' && (
+                                                                        <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
+                                                                            <span className="text-xs font-semibold text-red-600">Terlambat:</span>
+                                                                            <input 
+                                                                                type="number" min="0" 
+                                                                                className="w-20 p-1 text-sm border-2 border-red-300 rounded focus:border-red-500 focus:outline-none" 
+                                                                                value={lateDays === 0 ? '' : lateDays}
+                                                                                onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
+                                                                                placeholder="Hari"
+                                                                            />
+                                                                            <span className="text-xs text-slate-500">hari</span>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
+                                                                    {currentStatus && (
+                                                                        <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
+                                                                            <textarea 
+                                                                                className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
+                                                                                placeholder="Tambahkan catatan/keterangan (opsional)..."
+                                                                                value={memoInputs[key]?.catatan || ''}
+                                                                                onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
+                                                                                rows={2}
+                                                                            />
+                                                                            <div className="flex items-center text-xs">
+                                                                                <span className="text-slate-600 font-medium w-16">Foto/Dok:</span>
+                                                                                <input 
+                                                                                    type="file" 
+                                                                                    accept="image/*,.pdf,application/pdf"
+                                                                                    onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                    className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <div className="p-4 text-center text-sm text-slate-500 italic">Data item jenis pekerjaan tidak tersedia.</div>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
+                    <div>
+                        {hasSelesaiItems && (
+                            <Button variant="outline" onClick={onSuccess} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
+                                Lanjut ke Opname &rarr;
+                            </Button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
+                        <Button onClick={handleSubmit} disabled={isSubmitting || memoConfig.length === 0 || !isDirty} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                            Simpan
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Komponen OpnameModal
+function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGanttId, onSuccess }: any) {
+    const [completedItems, setCompletedItems] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [opnameInputs, setOpnameInputs] = useState<Record<string, any>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        setIsLoading(true);
+        import('@/lib/api').then(({ fetchPengawasanList, fetchRABDetail }) => {
+            fetchPengawasanList({ id_gantt: selectedGanttId, status: 'selesai' })
+                .then(async res => {
+                    const data = res.data || [];
+                    let latestRabItems = rabItems;
+
+                    // Fetch fresh RAB data directly from GET api/rab/:id to guarantee satuan exists
+                    const idRab = rabItems?.[0]?.id_rab;
+                    if (idRab) {
+                        try {
+                            const rabRes = await fetchRABDetail(idRab);
+                            if (rabRes?.data?.items) {
+                                latestRabItems = rabRes.data.items;
+                            }
+                        } catch (e) {
+                            console.error("Gagal get RAB detail fallback", e);
+                        }
+                    }
+
+                    const merged = data.map((p: any) => {
+                        const rItem = latestRabItems.find((r: any) => r.kategori_pekerjaan.toUpperCase() === p.kategori_pekerjaan.toUpperCase() && r.jenis_pekerjaan.toUpperCase() === p.jenis_pekerjaan.toUpperCase());
+                        return {
+                            ...p,
+                            id_rab_item: rItem?.id,
+                            volume_rab: rItem?.volume || 0,
+                            harga_material: rItem?.harga_material || 0,
+                            harga_upah: rItem?.harga_upah || 0,
+                            satuan: rItem?.satuan || '',
+                        };
+                    }).filter((item: any) => item.id_rab_item);
+
+                    setCompletedItems(merged);
+                    
+                    const inputs: any = {};
+                    merged.forEach((item: any) => {
+                        const key = item.id;
+                        inputs[key] = {
+                            volume_akhir: item.volume_rab,
+                            desain: '',
+                            kualitas: '',
+                            spesifikasi: '',
+                            catatan: '',
+                            file: null
+                        };
+                    });
+                    setOpnameInputs(inputs);
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Gagal memuat list pengawasan selesai.");
+                })
+                .finally(() => setIsLoading(false));
+        });
+    }, [selectedGanttId, rabItems]);
+
+    const handleSetOpname = (id: number, field: string, value: any) => {
+        setOpnameInputs(prev => ({
+            ...prev,
+            [id]: {
+                ...prev[id],
+                [field]: value
+            }
+        }));
+    };
+
+    const groupedByCategory = useMemo(() => {
+        const map = new Map<string, any[]>();
+        completedItems.forEach(item => {
+            const cat = item.kategori_pekerjaan;
+            if (!map.has(cat)) map.set(cat, []);
+            map.get(cat)!.push(item);
+        });
+        return Array.from(map.entries()).map(([name, items]) => ({ name, items }));
+    }, [completedItems]);
+
+    const handleSubmit = async () => {
+        setIsSubmitting(true);
+        try {
+            const itemsArray: any[] = [];
+            const filesMap: { index: number, file: File }[] = [];
+            
+            let currentIndex = 0;
+            completedItems.forEach(item => {
+                const input = opnameInputs[item.id];
+                const volAkhir = parseFloat(input.volume_akhir) || 0;
+                const selisihVol = volAkhir - item.volume_rab;
+                const totalSelisih = selisihVol * (item.harga_material + item.harga_upah);
+                
+                itemsArray.push({
+                    id_toko: id_toko,
+                    id_rab_item: item.id_rab_item,
+                    status: 'progress', // default status of opname
+                    volume_akhir: volAkhir,
+                    selisih_volume: selisihVol,
+                    total_selisih: totalSelisih,
+                    desain: input.desain || undefined,
+                    kualitas: input.kualitas || undefined,
+                    spesifikasi: input.spesifikasi || undefined,
+                    catatan: input.catatan || undefined
+                });
+                
+                if (input.file) {
+                    filesMap.push({ index: currentIndex, file: input.file });
+                }
+                currentIndex++;
+            });
+            
+            if (itemsArray.length === 0) {
+                alert("Tidak ada item untuk di-opname.");
+                setIsSubmitting(false);
+                return;
+            }
+            
+            const { submitOpnameBulk } = await import('@/lib/api');
+            if (filesMap.length > 0) {
+                const formData = new FormData();
+                formData.append('items', JSON.stringify(itemsArray));
+                filesMap.forEach(f => {
+                    formData.append('file_foto_opname', f.file);
+                });
+                if (filesMap.length < itemsArray.length) {
+                    const indexes = filesMap.map(f => f.index);
+                    formData.append('file_foto_opname_indexes', JSON.stringify(indexes));
+                }
+                await submitOpnameBulk(formData);
+            } else {
+                await submitOpnameBulk({ items: itemsArray });
+            }
+            
+            alert('Data Opname berhasil disimpan!');
+            onSuccess();
+        } catch(e: any) {
+             alert(`Gagal menyimpan: ${e.message}`);
+        } finally {
+             setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-120 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                <div className="p-5 border-b flex justify-between items-center bg-white">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                            <span className="font-bold">OP</span>
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-xl text-slate-800 leading-tight">Opname Pekerjaan Selesai</h2>
+                            <p className="text-sm text-slate-500 font-medium">Isi detail opname untuk pekerjaan yang telah diverifikasi selesai</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6"/></button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {isLoading ? (
+                        <div className="py-20 flex flex-col items-center justify-center text-slate-500">
+                            <Loader2 className="w-10 h-10 animate-spin text-slate-400 mb-2" />
+                            <p>Memuat data pekerjaan...</p>
+                        </div>
+                    ) : groupedByCategory.length === 0 ? (
+                        <div className="py-20 flex flex-col items-center justify-center text-slate-500 bg-white rounded-lg border border-slate-200">
+                            <Info className="w-12 h-12 mb-3 text-slate-300" />
+                            <p className="font-semibold text-lg">Tidak ada pekerjaan yang selesai</p>
+                            <p className="text-sm">Belum ada item pekerjaan yang telah disubmit sebagai Selesai.</p>
+                        </div>
+                    ) : (
+                        groupedByCategory.map((category, i) => (
+                            <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6">
+                                <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">{category.name}</h3>
+                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">{category.items.length} Item</Badge>
+                                </div>
+                                <div className="p-4 space-y-4">
+                                    {category.items.map((item, j) => {
+                                        const input = opnameInputs[item.id] || {};
+                                        const volAkhir = parseFloat(input.volume_akhir) || 0;
+                                        const selisih = volAkhir - item.volume_rab;
+                                        const hargaSatuan = item.harga_material + item.harga_upah;
+                                        const totalHargaRAB = item.volume_rab * hargaSatuan;
+                                        const totalHargaBaru = volAkhir * hargaSatuan;
+                                        const selisihHarga = totalHargaBaru - totalHargaRAB;
+
+                                        const formatRp = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+                                        
+                                        return (
+                                            <div key={j} className="border border-slate-200 p-4 rounded-lg bg-slate-50 flex flex-col gap-4">
+                                                <div className="font-bold text-slate-800 border-b border-slate-200 pb-2 flex justify-between items-center">
+                                                    <span>{item.jenis_pekerjaan}</span>
+                                                    <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Harga Satuan: {formatRp(hargaSatuan)}</span>
+                                                </div>
+                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
+                                                    
+                                                    {/* Kolom 1: Info RAB, Input Volume, dan Kalkulasi Harga */}
+                                                    <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1">
+                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Volume & Biaya</h4>
+                                                        <div className="flex justify-between items-center text-xs text-slate-600">
+                                                            <span>Vol Awal (RAB):</span> 
+                                                            <span className="font-bold">{item.volume_rab} <span className="text-[10px] text-slate-400 font-normal ml-0.5">{item.satuan}</span></span>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir Opname</label>
+                                                            <div className="relative mt-1">
+                                                                <input type="number" step="any" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12" 
+                                                                    value={input.volume_akhir ?? ''} 
+                                                                    onChange={(e)=>handleSetOpname(item.id, 'volume_akhir', e.target.value)} />
+                                                                {item.satuan && <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
+                                                            </div>
+                                                            <div className="text-[10px] text-right mt-1 text-slate-500">
+                                                                Selisih Vol: <span className={`font-bold ${selisih > 0 ? 'text-blue-600' : (selisih < 0 ? 'text-red-600' : '')}`}>{selisih > 0 ? '+'+selisih : selisih} <span className="font-normal text-slate-400 ml-0.5">{item.satuan}</span></span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[11px] space-y-1.5 mt-2">
+                                                            <div className="flex justify-between">
+                                                                <span className="text-slate-500">Total Harga RAB:</span>
+                                                                <span className="font-medium">{formatRp(totalHargaRAB)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-slate-700 font-semibold">Total Harga Opname:</span>
+                                                                <span className="font-bold text-slate-800">{formatRp(totalHargaBaru)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between border-t pt-1 border-slate-200">
+                                                                <span className="text-slate-600">Selisih Biaya:</span>
+                                                                <span className={`font-bold ${selisihHarga > 0 ? 'text-blue-600' : (selisihHarga < 0 ? 'text-red-600' : 'text-slate-500')}`}>
+                                                                    {selisihHarga > 0 ? '+' : ''}{formatRp(selisihHarga)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Kolom 2: Verifikasi Mutu */}
+                                                    <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1">
+                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
+                                                        <div>
+                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain</label>
+                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.desain || 'Sesuai'} onChange={(e)=>handleSetOpname(item.id, 'desain', e.target.value)}>
+                                                                <option value="Sesuai">Sesuai</option>
+                                                                <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas</label>
+                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.kualitas || 'Baik'} onChange={(e)=>handleSetOpname(item.id, 'kualitas', e.target.value)}>
+                                                                <option value="Baik">Baik</option>
+                                                                <option value="Tidak Baik">Tidak Baik</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi</label>
+                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.spesifikasi || 'Sesuai'} onChange={(e)=>handleSetOpname(item.id, 'spesifikasi', e.target.value)}>
+                                                                <option value="Sesuai">Sesuai</option>
+                                                                <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Kolom 3: Catatan & Foto Dokumentasi */}
+                                                    <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1 flex flex-col">
+                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Catatan & Dokumentasi</h4>
+                                                        <div className="flex-1 flex flex-col">
+                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Catatan Opname</label>
+                                                            <textarea className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none placeholder:text-slate-300 bg-slate-50 flex-1 resize-none min-h-15" placeholder="Masukkan keterangan selisih atau masalah kualitas..." value={input.catatan || ''} onChange={(e)=>handleSetOpname(item.id, 'catatan', e.target.value)}></textarea>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti (Drive)</label>
+                                                            <input type="file" className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
+                                                                accept="image/*" onChange={(e)=>handleSetOpname(item.id, 'file', e.target.files?.[0] || null)} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="p-5 border-t bg-white flex justify-end gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
+                    <Button variant="outline" className="font-semibold" onClick={onClose}>Kembali</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting || groupedByCategory.length === 0} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                        Submit Opname
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 }

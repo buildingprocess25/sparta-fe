@@ -148,7 +148,7 @@ export default function RABPage() {
       const lokasiCabang = parts[0] || formData.lokasiCabang;
       const lokasiTanggal = parts[1] || formData.lokasiTanggal;
       const lokasiManual = parts[2] || formData.lokasiManual;
-      const isRenovasi = parts.length > 3 && parts[3] === 'R';
+      let isRenovasi = parts.length > 3 && parts[3] === 'R';
 
       try {
           // 1. Fetch detail spesifik RAB revisi ini jika ada ID (Lazy Load dari klik lonceng)
@@ -190,8 +190,13 @@ export default function RABPage() {
 
           // Normalisasi Dropdown
           let finalProyek = rabRef.proyek || data["Proyek"] || formData.proyek;
-          if (finalProyek?.toUpperCase() === 'REGULER') finalProyek = 'Reguler';
-          else if (finalProyek?.toUpperCase() === 'RENOVASI') finalProyek = 'Renovasi';
+          const upperProyek = finalProyek?.toUpperCase();
+          
+          if (upperProyek === 'REGULER') finalProyek = 'Reguler';
+          else if (upperProyek === 'RENOVASI') finalProyek = 'Renovasi';
+          else if (upperProyek === 'PERPANJANGAN') { finalProyek = 'Perpanjangan'; isRenovasi = true; }
+          else if (upperProyek === 'TOKO TUTUP') { finalProyek = 'Toko Tutup'; isRenovasi = true; }
+          else if (upperProyek === 'PEREMAJAAN/PERBAIKAN' || upperProyek === 'PEREMAJAAN PERBAIKAN') { finalProyek = 'Peremajaan/Perbaikan'; isRenovasi = true; }
 
           let finalKategori = rabRef.kategori_lokasi || data["Kategori_Lokasi"] || formData.kategoriLokasi;
           if (finalKategori?.toUpperCase() === 'RUKO') finalKategori = 'Ruko';
@@ -205,7 +210,7 @@ export default function RABPage() {
               lokasiCabang,
               lokasiTanggal,
               lokasiManual,
-              isRenovasi,
+              isRenovasi: isRenovasi,
               lingkupPekerjaan: resolvedScope,
               proyek: finalProyek,
               namaToko: tokoRef.nama_toko || data["nama_toko"] || data["Nama_Toko"] || prev.namaToko,
@@ -622,7 +627,7 @@ export default function RABPage() {
                 <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className="bg-white" required /></div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? 'Renovasi' : prev.proyek}))}/>
+                    <Checkbox id="isRenovasi" checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
                   </div>
                   <div className="flex gap-2 items-center">
@@ -639,15 +644,24 @@ export default function RABPage() {
                   <Select 
                     onValueChange={(val) => handleSelectChange('proyek', val)} 
                     value={formData.proyek} 
-                    disabled={formData.isRenovasi} 
                     required
                   >
-                    <SelectTrigger className={formData.isRenovasi ? "bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200" : "bg-white"}>
+                    <SelectTrigger className="bg-white">
                       <SelectValue placeholder="-- Pilih Jenis Proyek --" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Reguler">Reguler</SelectItem>
-                      <SelectItem value="Renovasi">Renovasi</SelectItem>
+                      {formData.isRenovasi ? (
+                        <>
+                          <SelectItem value="Perpanjangan">Perpanjangan</SelectItem>
+                          <SelectItem value="Toko Tutup">Toko Tutup</SelectItem>
+                          <SelectItem value="Peremajaan/Perbaikan">Peremajaan/Perbaikan</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="Reguler">Reguler</SelectItem>
+                          <SelectItem value="Renovasi">Renovasi</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
