@@ -1500,7 +1500,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
         setIsSubmitting(true);
         try {
-            // 1. Submit pengawasan bulk
             const itemsArrayInsert: any[] = [];
             const filesMapInsert: { index: number, file: File }[] = [];
             
@@ -1511,7 +1510,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             const entriesToSubmit = Object.entries(memoInputs).filter(([_, val]) => val.status);
 
-            // Derive tanggal_pengawasan (YYYY-MM-DD)
             const offset = activeHeaderClick?.dayIndex || 0;
             const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
             dDate.setDate(dDate.getDate() + offset);
@@ -1524,32 +1522,41 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const [catName, itemJenis] = key.split('|');
                 const upperKey = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
                 const existingId = latestIdMapState.get(upperKey);
+
+                // [PERBAIKAN] Normalisasi tipe data untuk mencegah Zod Error 400/422
+                const statusSafe = typeof val.status === 'string' ? val.status.toLowerCase() : val.status;
+                const lateDaysSafe = Number(val.lateDays) || 0;
+                const catatanSafe = val.catatan ? String(val.catatan) : "-";
                 
                 if (existingId) {
                     itemsArrayUpdate.push({
-                        id: existingId,
-                        status: typeof val.status === 'string' ? val.status.toLowerCase() : val.status, 
-                        catatan: val.catatan || '-'
+                        id: Number(existingId),
+                        status: statusSafe,
+                        keterlambatan: lateDaysSafe, // [PERBAIKAN] Menyertakan field keterlambatan pada API bulk
+                        catatan: catatanSafe,
+                        kategori_pekerjaan: catName, // Fallback untuk request body
+                        jenis_pekerjaan: itemJenis
                     });
                     if (val.file) {
                         filesMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file });
                     }
                 } else {
                     itemsArrayInsert.push({
-                        id_gantt: selectedGanttId,
+                        id_gantt: Number(selectedGanttId),
                         tanggal_pengawasan: formattedDate,
                         kategori_pekerjaan: catName,
                         jenis_pekerjaan: itemJenis,
-                        status: typeof val.status === 'string' ? val.status.toLowerCase() : val.status, 
-                        catatan: val.catatan || '-'
+                        status: statusSafe,
+                        keterlambatan: lateDaysSafe, // [PERBAIKAN] Menyertakan field keterlambatan pada API bulk
+                        catatan: catatanSafe
                     });
                     if (val.file) {
                         filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file });
                     }
                 }
                 
-                if (val.status === 'Terlambat' && (val.lateDays || 0) > 0) {
-                    catsLate.set(catName, (catsLate.get(catName) || 0) + (val.lateDays || 0));
+                if (val.status === 'Terlambat' && lateDaysSafe > 0) {
+                    catsLate.set(catName, (catsLate.get(catName) || 0) + lateDaysSafe);
                 }
             });
 
@@ -1566,19 +1573,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const indexes = filesMapInsert.map(f => f.index);
                     formData.append('file_dokumentasi_indexes', JSON.stringify(indexes));
                     
-                    try {
-                        await submitPengawasanBulk(formData);
-                    } catch(e: any) { 
-                        console.warn("Pengawasan bulk INSERT API call error:", e); 
-                        throw e;
-                    }
+                    await submitPengawasanBulk(formData);
                 } else {
-                    try {
-                        await submitPengawasanBulk({ items: itemsArrayInsert });
-                    } catch(e: any) { 
-                        console.warn("Pengawasan bulk INSERT API call error:", e); 
-                        throw e;
-                    }
+                    await submitPengawasanBulk({ items: itemsArrayInsert });
                 }
             }
 
@@ -1587,25 +1584,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (filesMapUpdate.length > 0) {
                     const formData = new FormData();
                     formData.append('items', JSON.stringify(itemsArrayUpdate));
+                    // Antisipasi drop payload file jika backend menggunakan framework PHP (misal Laravel) pada Request PUT
+                    formData.append('_method', 'PUT');
+
                     filesMapUpdate.forEach(f => {
                         formData.append('rev_file_dokumentasi', f.file);
                     });
                     const indexes = filesMapUpdate.map(f => f.index);
                     formData.append('rev_file_dokumentasi_indexes', JSON.stringify(indexes));
                     
-                    try {
-                        await updatePengawasanBulk(formData);
-                    } catch(e: any) { 
-                        console.warn("Pengawasan bulk UPDATE API call error:", e); 
-                        throw e;
-                    }
+                    await updatePengawasanBulk(formData);
                 } else {
-                    try {
-                        await updatePengawasanBulk({ items: itemsArrayUpdate });
-                    } catch(e: any) { 
-                        console.warn("Pengawasan bulk UPDATE API call error:", e); 
-                        throw e;
-                    }
+                    await updatePengawasanBulk({ items: itemsArrayUpdate });
                 }
             }
 
@@ -1614,7 +1604,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const { updateGanttDelay } = await import('@/lib/api');
                 const updates = Array.from(catsLate.entries()).map(([catName, totalLate]) => ({
                     kategori_pekerjaan: catName.toUpperCase(),
-                    keterlambatan: totalLate.toString()
+                    keterlambatan: String(totalLate)
                 }));
                 
                 try {
