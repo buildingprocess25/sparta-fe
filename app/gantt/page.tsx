@@ -1290,15 +1290,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 dataAll.forEach((p: any) => {
                     if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                         const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
-                        
-                        // Selalu catat ID terbaru dari item tersebut
-                        if (p.id) idMap.set(key, p.id);
 
                         if (map.get(key) === 'Selesai' && p.status.toLowerCase() !== 'selesai') {
                             // Pertahankan status Selesai jika sebelumnya sudah pernah Selesai
                         } else {
                             map.set(key, p.status.charAt(0).toUpperCase() + p.status.slice(1));
                         }
+                    }
+                });
+
+                // Untuk submit memo hari ini, update hanya data di tanggal aktif.
+                // Data tanggal lain harus dianggap insert agar histori per tanggal tetap benar.
+                dataLive.forEach((p: any) => {
+                    if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.id) {
+                        const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                        idMap.set(key, Number(p.id));
                     }
                 });
                 setLatestStatusMapState(map);

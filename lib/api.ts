@@ -692,27 +692,21 @@ export const manageGanttPengawasan = async (
 /** Submit Bulk Pengawasan (Items Pekerjaan dari Memo) */
 export const submitPengawasanBulk = async (payload: FormData | { items: any[] }) => {
     const isFormData = payload instanceof FormData;
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
         method: "POST",
-        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        headers: isFormData ? undefined : { "Content-Type": "application/json" },
         body: isFormData ? payload : JSON.stringify(payload),
     });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal menyimpan pengawasan bulk.");
-    return result;
 };
 
 /** Update Bulk Pengawasan (Items Pekerjaan dari Memo) */
 export const updatePengawasanBulk = async (payload: FormData | { items: any[] }) => {
     const isFormData = payload instanceof FormData;
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
         method: "PUT",
-        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        headers: isFormData ? undefined : { "Content-Type": "application/json" },
         body: isFormData ? payload : JSON.stringify(payload),
     });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal mengupdate pengawasan bulk.");
-    return result;
 };
 
 /** Ambil daftar pengawasan selesai/seluruhnya */
