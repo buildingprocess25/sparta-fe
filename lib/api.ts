@@ -793,7 +793,9 @@ export const submitOpnameSingle = async (payload: FormData | Record<string, any>
 };
 
 /** Bulk Submit Opname */
-export const submitOpnameBulk = async (payload: FormData | { items: any[] }) => {
+export const submitOpnameBulk = async (
+    payload: FormData | { id_toko: number; email_pembuat: string; items: any[] }
+) => {
     const isFormData = payload instanceof FormData;
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/bulk`, {
         method: "POST",

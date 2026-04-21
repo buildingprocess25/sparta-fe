@@ -1917,6 +1917,13 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
     const handleSubmit = async () => {
         setIsSubmitting(true);
         try {
+            const emailPembuat = sessionStorage.getItem('loggedInUserEmail') || '';
+            if (!id_toko || !emailPembuat) {
+                showAlert({ message: "Data toko atau email user tidak ditemukan. Silakan login ulang lalu coba lagi.", type: "error" });
+                setIsSubmitting(false);
+                return;
+            }
+
             const itemsArray: any[] = [];
             const filesMap: { index: number, file: File }[] = [];
             
@@ -1955,6 +1962,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
             const { submitOpnameBulk } = await import('@/lib/api');
             if (filesMap.length > 0) {
                 const formData = new FormData();
+                formData.append('id_toko', String(id_toko));
+                formData.append('email_pembuat', emailPembuat);
                 formData.append('items', JSON.stringify(itemsArray));
                 filesMap.forEach(f => {
                     formData.append('file_foto_opname', f.file);
@@ -1964,7 +1973,11 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 formData.append('file_foto_opname_indexes', JSON.stringify(indexes));
                 await submitOpnameBulk(formData);
             } else {
-                await submitOpnameBulk({ items: itemsArray });
+                await submitOpnameBulk({
+                    id_toko,
+                    email_pembuat: emailPembuat,
+                    items: itemsArray
+                });
             }
             
             showAlert({ message: 'Data Opname berhasil disimpan!', type: 'success' });
