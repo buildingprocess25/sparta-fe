@@ -1983,7 +1983,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                     desain: input.desain,
                     kualitas: input.kualitas,
                     spesifikasi: input.spesifikasi,
-                    catatan: input.catatan || "" // Hindari undefined value
+                    catatan: input.catatan || undefined
                 });
                 
                 if (input.file) {
@@ -1997,12 +1997,25 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 setIsSubmitting(false);
                 return;
             }
+
+            const grandTotalOpname = itemsArray.reduce((acc, item) => {
+                const rabRef = completedItems.find((completed) => completed.id_rab_item === item.id_rab_item);
+                const hargaSatuan = Number(rabRef?.harga_material || 0) + Number(rabRef?.harga_upah || 0);
+                return acc + (Number(item.volume_akhir) * hargaSatuan);
+            }, 0);
+
+            const grandTotalRab = completedItems.reduce((acc, item) => {
+                const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
+                return acc + (Number(item.volume_rab || 0) * hargaSatuan);
+            }, 0);
             
             const { submitOpnameBulk } = await import('@/lib/api');
             if (filesMap.length > 0) {
                 const formData = new FormData();
                 formData.append('id_toko', String(id_toko));
                 formData.append('email_pembuat', emailPembuat);
+                formData.append('grand_total_opname', String(Math.round(grandTotalOpname)));
+                formData.append('grand_total_rab', String(Math.round(grandTotalRab)));
                 formData.append('items', JSON.stringify(itemsArray));
                 filesMap.forEach(f => {
                     formData.append('file_foto_opname', f.file);
@@ -2016,6 +2029,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 await submitOpnameBulk({
                     id_toko: Number(id_toko),
                     email_pembuat: emailPembuat,
+                    grand_total_opname: String(Math.round(grandTotalOpname)),
+                    grand_total_rab: String(Math.round(grandTotalRab)),
                     items: itemsArray
                 });
             }
