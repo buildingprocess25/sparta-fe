@@ -119,10 +119,10 @@ const formatDate = (dateStr: string) => {
 // ROLE CONFIG
 // =============================================
 const ROLE_ACCESS: Record<ApprovalType, string[]> = {
-    RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR'],
-    SPK: ['BRANCH MANAGER'],
-    PERTAMBAHAN_SPK: ['BRANCH MANAGER'],
-    OPNAME_FINAL: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR'],
+    RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
+    SPK: ['BRANCH MANAGER', 'MANAGER'],
+    PERTAMBAHAN_SPK: ['BRANCH MANAGER', 'MANAGER'],
+    OPNAME_FINAL: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
 };
 
 const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR'> = {
@@ -192,6 +192,14 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     'MENUNGGU PERSETUJUAN':  'bg-yellow-100 text-yellow-700 border-yellow-200',
     'DISETUJUI BM':          'bg-green-100 text-green-700 border-green-200',
     'DITOLAK BM':            'bg-red-100 text-red-700 border-red-200',
+    // Opname Final Specific
+    'MENUNGGU PERSETUJUAN KOORDINATOR': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'MENUNGGU PERSETUJUAN MANAJER':     'bg-orange-100 text-orange-700 border-orange-200',
+    'MENUNGGU PERSETUJUAN DIREKTUR':    'bg-red-100 text-red-700 border-red-200',
+    'DISETUJUI':                        'bg-green-100 text-green-700 border-green-200',
+    'DITOLAK OLEH KOORDINATOR':         'bg-red-100 text-red-700 border-red-200',
+    'DITOLAK OLEH MANAJER':             'bg-red-100 text-red-700 border-red-200',
+    'DITOLAK OLEH DIREKTUR':            'bg-red-100 text-red-700 border-red-200',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -207,6 +215,14 @@ const STATUS_LABEL: Record<string, string> = {
     'MENUNGGU PERSETUJUAN':  'PENDING BM',
     'DISETUJUI BM':          'APPROVED',
     'DITOLAK BM':            'REJECTED',
+    // Opname Final Specific
+    'MENUNGGU PERSETUJUAN KOORDINATOR': 'PENDING (KOORD.)',
+    'MENUNGGU PERSETUJUAN MANAJER':     'PENDING (MGR.)',
+    'MENUNGGU PERSETUJUAN DIREKTUR':    'PENDING (DIR.)',
+    'DISETUJUI':                        'APPROVED',
+    'DITOLAK OLEH KOORDINATOR':         'REJECTED (KOORD.)',
+    'DITOLAK OLEH MANAJER':             'REJECTED (MGR.)',
+    'DITOLAK OLEH DIREKTUR':            'REJECTED (DIR.)',
 };
 
 // =============================================
@@ -266,11 +282,11 @@ const normalizeOpnameFinalList = (items: any[]): NormalizedListItem[] =>
     items.map(o => ({
         id: o.id,
         tipe: 'OPNAME_FINAL' as ApprovalType,
-        nomor_ulok:    o.toko?.nomor_ulok || '-',
-        nama_toko:     o.toko?.nama_toko || '-',
-        cabang:        o.toko?.cabang || '-',
+        nomor_ulok:    o.nomor_ulok || o.toko?.nomor_ulok || '-',
+        nama_toko:     o.nama_toko  || o.toko?.nama_toko  || '-',
+        cabang:        o.cabang     || o.toko?.cabang     || '-',
         status:        o.status_opname_final,
-        total_nilai:   parseCurrency(parseFloat(o.grand_total_opname || "0")),
+        total_nilai:   parseCurrency(o.grand_total_opname),
         email_pembuat: o.email_pembuat,
         created_at:    o.created_at,
         _raw: o,
@@ -367,9 +383,9 @@ export default function ApprovalPage() {
         let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | null = null;
         if (roles.includes('DIREKTUR')) {
             currentJabatan = 'DIREKTUR';
-        } else if (roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER')) {
+        } else if (roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER') || roles.includes('MANAGER')) {
             currentJabatan = 'MANAGER';
-        } else if (roles.includes('BRANCH BUILDING COORDINATOR')) {
+        } else if (roles.includes('BRANCH BUILDING COORDINATOR') || roles.includes('COORDINATOR')) {
             currentJabatan = 'KOORDINATOR';
         }
 
@@ -427,7 +443,10 @@ export default function ApprovalPage() {
 
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
                 // Pertambahan SPK tidak memiliki field cabang dari API, jadi skip filter cabang
-                if (type !== 'PERTAMBAHAN_SPK' && userInfo.cabang && item.cabang.toUpperCase() !== userInfo.cabang.toUpperCase()) {
+                // 1. FILTER CABANG (Wajib sesuai cabang user)
+                // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
+                if (type !== 'PERTAMBAHAN_SPK' && userInfo.cabang && item.cabang && item.cabang !== '-' && 
+                    item.cabang.toUpperCase() !== userInfo.cabang.toUpperCase()) {
                     return false;
                 }
                 
@@ -584,17 +603,23 @@ export default function ApprovalPage() {
                     approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager },
                     approval_direktur:    { pemberi: d.pemberi_persetujuan_direktur,    waktu: d.waktu_persetujuan_direktur },
-                    items: (d.items ?? []).map((it: any) => ({
-                        id: it.id,
-                        kategori:        it.rab_item?.kategori_pekerjaan || '-',
-                        jenis_pekerjaan: it.rab_item?.jenis_pekerjaan || '-',
-                        satuan:          it.rab_item?.satuan || '-',
-                        volume:          it.volume_akhir,
-                        harga_material:  it.rab_item?.harga_material || 0,
-                        harga_upah:      it.rab_item?.harga_upah || 0,
-                        total:           (it.volume_akhir * (it.rab_item?.harga_material || 0)) + (it.volume_akhir * (it.rab_item?.harga_upah || 0)),
-                        catatan:         it.catatan,
-                    })),
+                    items: (d.items ?? []).map((it: any) => {
+                        const vol = parseCurrency(it.volume_akhir);
+                        const mat = parseCurrency(it.rab_item?.harga_material);
+                        const upah = parseCurrency(it.rab_item?.harga_upah);
+                        return {
+                            id: it.id,
+                            kategori:        it.rab_item?.kategori_pekerjaan || '-',
+                            jenis_pekerjaan: it.rab_item?.jenis_pekerjaan || '-',
+                            satuan:          it.rab_item?.satuan || '-',
+                            volume:          vol,
+                            harga_material:  mat,
+                            harga_upah:      upah,
+                            total:           vol * (mat + upah),
+                            catatan:         it.catatan,
+                            foto:            it.foto || null,
+                        };
+                    }),
                 };
             }
 
@@ -1305,6 +1330,7 @@ export default function ApprovalPage() {
                                                     <tr>
                                                         <th className="p-3 border-r font-semibold text-center">Kategori</th>
                                                         <th className="p-3 border-r font-semibold min-w-50 text-center">Jenis Pekerjaan</th>
+                                                        <th className="p-3 border-r font-semibold text-center">Dokumentasi</th>
                                                         <th className="p-3 border-r font-semibold min-w-32 text-center">Catatan</th>
                                                         <th className="p-3 border-r font-semibold text-center">Volume</th>
                                                         <th className="p-3 border-r font-semibold text-center">Satuan</th>
@@ -1318,6 +1344,15 @@ export default function ApprovalPage() {
                                                         <tr key={row.id} className="hover:bg-slate-50">
                                                             <td className="p-3 font-semibold text-slate-600 border-r text-xs">{row.kategori}</td>
                                                             <td className="p-3 text-slate-800 border-r">{row.jenis_pekerjaan}</td>
+                                                            <td className="p-3 text-center border-r">
+                                                                {(row as any).foto ? (
+                                                                    <a href={(row as any).foto} target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-80 transition-opacity">
+                                                                        <img src={(row as any).foto} alt="foto opname" className="w-12 h-12 object-cover rounded border border-slate-200" />
+                                                                    </a>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-slate-400">Tidak ada foto</span>
+                                                                )}
+                                                            </td>
                                                             <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
                                                             <td className="p-3 text-center font-bold border-r">{row.volume}</td>
                                                             <td className="p-3 text-center text-slate-500 border-r">{row.satuan}</td>

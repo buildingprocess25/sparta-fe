@@ -605,10 +605,14 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                         });
                     }
 
-                    showAlert({ message: `${payloadItems.length} item berhasil disubmit!`, type: "success" });
-                    handleSelectRab(selectedRab.id.toString()); // Refresh
+                    setTimeout(() => {
+                        showAlert({ message: `${payloadItems.length} item berhasil disubmit!`, type: "success" });
+                        handleSelectRab(selectedRab.id.toString()); // Refresh
+                    }, 300);
                 } catch (err: any) {
-                    showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                    setTimeout(() => {
+                        showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                    }, 300);
                 } finally {
                     setIsSubmitting(false);
                 }
@@ -1229,10 +1233,15 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 setIsProcessing(true);
                 try {
                     await updateOpname(opnameId, { status: 'disetujui' });
-                    showAlert({ message: "Opname berhasil disetujui.", type: "success" });
-                    refreshData();
+                    // Delay for alert to prevent overlay collision
+                    setTimeout(() => {
+                        showAlert({ message: "Opname berhasil disetujui.", type: "success" });
+                        refreshData();
+                    }, 300);
                 } catch (err: any) {
-                    showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                    setTimeout(() => {
+                        showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                    }, 300);
                 } finally {
                     setIsProcessing(false);
                 }
@@ -1249,12 +1258,16 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         setIsProcessing(true);
         try {
             await updateOpname(opnameId, { status: 'ditolak', catatan: reason });
-            showAlert({ message: "Opname ditolak.", type: "info" });
-            setShowDetailModal(false);
-            setSelectedOpname(null);
-            refreshData();
+            setTimeout(() => {
+                showAlert({ message: "Opname ditolak.", type: "info" });
+                setShowDetailModal(false);
+                setSelectedOpname(null);
+                refreshData();
+            }, 300);
         } catch (err: any) {
-            showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+            setTimeout(() => {
+                showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+            }, 300);
         } finally {
             setIsProcessing(false);
         }
