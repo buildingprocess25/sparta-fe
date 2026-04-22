@@ -735,6 +735,7 @@ export type OpnameItem = {
     volume_akhir:    number;
     selisih_volume:  number;
     total_selisih:   number;
+    total_harga_opname: number;
     desain:          string | null;
     kualitas:        string | null;
     spesifikasi:     string | null;
@@ -812,7 +813,7 @@ export const submitOpnameBulk = async (
 /** Ambil daftar Opname dengan filter opsional. */
 export const fetchOpnameList = async (
     filters?: OpnameListFilters
-): Promise<{ status: string; data: OpnameItem[] }> => {
+): Promise<{ status: string; data: OpnameItem[]; toko?: { id: number; nomor_ulok: string; lingkup_pekerjaan: string; nama_toko: string; kode_toko: string; proyek: string; cabang: string; alamat: string; nama_kontraktor: string } }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.id_toko)         params.append("id_toko", filters.id_toko.toString());

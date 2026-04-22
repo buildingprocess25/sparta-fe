@@ -4,6 +4,7 @@ import React from "react";
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 export function GlobalAlert() {
   const { alertState, closeAlert } = useGlobalAlert();
-  const { isOpen, title, message, type, onConfirm } = alertState;
+  const { isOpen, title, message, type, onConfirm, confirmMode, onCancel, confirmText, cancelText } = alertState;
 
   const getIcon = () => {
     switch (type) {
@@ -60,11 +61,29 @@ export function GlobalAlert() {
     }
   };
 
+  // For notification mode (no confirmMode), clicking OK fires onConfirm then closes
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      closeAlert();
-      if (onConfirm) onConfirm();
+      if (!confirmMode) {
+        // Original behavior: closing the dialog triggers onConfirm
+        closeAlert();
+        if (onConfirm) onConfirm();
+      } else {
+        // Confirmation mode: closing via overlay/escape = cancel
+        closeAlert();
+        if (onCancel) onCancel();
+      }
     }
+  };
+
+  const handleConfirm = () => {
+    closeAlert();
+    if (onConfirm) onConfirm();
+  };
+
+  const handleCancel = () => {
+    closeAlert();
+    if (onCancel) onCancel();
   };
 
   return (
@@ -85,12 +104,29 @@ export function GlobalAlert() {
             </AlertDialogHeader>
           </div>
         </div>
-        <AlertDialogFooter className="p-4 bg-white/50 backdrop-blur-sm sm:justify-center">
-          <AlertDialogAction 
-            className={cn("w-full h-12 rounded-xl font-bold text-sm tracking-wide transition-all active:scale-95 shadow-md", getButtonClass())}
-          >
-            Selesai
-          </AlertDialogAction>
+        <AlertDialogFooter className={cn("p-4 bg-white/50 backdrop-blur-sm", confirmMode ? "sm:justify-center gap-3" : "sm:justify-center")}>
+          {confirmMode ? (
+            <>
+              <AlertDialogCancel
+                onClick={handleCancel}
+                className="flex-1 h-12 rounded-xl font-bold text-sm tracking-wide transition-all active:scale-95 border-slate-200 hover:bg-slate-100 text-slate-700"
+              >
+                {cancelText}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirm}
+                className={cn("flex-1 h-12 rounded-xl font-bold text-sm tracking-wide transition-all active:scale-95 shadow-md", getButtonClass())}
+              >
+                {confirmText}
+              </AlertDialogAction>
+            </>
+          ) : (
+            <AlertDialogAction
+              className={cn("w-full h-12 rounded-xl font-bold text-sm tracking-wide transition-all active:scale-95 shadow-md", getButtonClass())}
+            >
+              Selesai
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

@@ -2,13 +2,11 @@
 
 import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-// Import AppNavbar
 import AppNavbar from '@/components/AppNavbar';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-// ChevronLeft dihapus karena sudah ada di AppNavbar
 import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save } from 'lucide-react'; 
 import { 
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
@@ -20,18 +18,12 @@ import type { GanttListItem } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
-// Aturan pengawasan sudah ditiadakan
-
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 
-// --- FUNGSI HELPER BARU (PERBAIKAN FORMAT STRIP) ---
 function formatUlokWithDash(ulok: string) {
     if (!ulok) return "";
-    // Jika sudah ada strip, biarkan saja
     if (ulok.includes("-")) return ulok;
-    
-    // Format Z00126028989 -> Z001-2602-8989
     const clean = ulok.replace(/[^a-zA-Z0-9]/g, '');
     if (clean.length === 11 || clean.length === 12) {
         return `${clean.substring(0,4)}-${clean.substring(4,8)}-${clean.substring(8)}`;
@@ -55,7 +47,6 @@ function formatDateID(date: Date) {
     return `${d}/${m}/${y}`;
 }
 
-// --- KOMPONEN UTAMA GANTT ---
 function GanttBoard() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -68,9 +59,7 @@ function GanttBoard() {
     const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
     const [userRole, setUserRole] = useState('');
     
-    // Perbaikan: Pastikan urlUlok yang masuk diformat pakai strip jika perlu
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
-    // ID Gantt Chart yang sedang aktif — digunakan untuk reload setelah save/delay
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
     
     const [projectData, setProjectData] = useState<any>(null);
@@ -80,18 +69,15 @@ function GanttBoard() {
     const [allTokoList, setAllTokoList] = useState<any[]>([]);
     const [isDirectAccess, setIsDirectAccess] = useState(false);
 
-    // State Tabel / Tasks
     const [tasks, setTasks] = useState<any[]>([]);
     const [isApplying, setIsApplying] = useState(false);
 
     const [rawDayGanttData, setRawDayGanttData] = useState<any[]>([]);
 
-    // SPK info for date-based headers
     const [spkInfo, setSpkInfo] = useState<{ startDate: string; duration: number } | null>(null);
     const [pengawasanDates, setPengawasanDates] = useState<string[]>([]);
     const [pengawasanHistory, setPengawasanHistory] = useState<any[]>([]);
     
-    // States untuk Memo Pengawasan
     const [rabItems, setRabItems] = useState<any[]>([]);
     const [showMemoModal, setShowMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
@@ -135,7 +121,6 @@ function GanttBoard() {
             fetchGanttList(filters)
                 .then(res => {
                     const data = res.data || [];
-                    // Filter berdasarkan cabang user
                     const filtered = cabang ? data.filter(item => item.cabang?.toUpperCase() === cabang.toUpperCase()) : data;
                     setAvailableProjects(filtered);
                 })
@@ -143,16 +128,13 @@ function GanttBoard() {
         }
 
         const urlLocked = searchParams.get('locked');
-        // Cek apakah akses langsung atau dari parameter (RAB)
         if (!urlLocked && !urlUlok) {
             setIsDirectAccess(true);
         }
 
-        // Ambil daftar seluruh RAB untuk dropdown (Filter Cabang)
         fetchRABList()
             .then(res => {
                 const data = res.data || [];
-                // Filter berdasarkan cabang user agar dropdown hanya menampilkan toko di cabangnya
                 const filtered = cabang ? data.filter(item => item.cabang?.toUpperCase() === cabang.toUpperCase()) : data;
                 setAllTokoList(filtered);
             })
@@ -231,10 +213,8 @@ function GanttBoard() {
             const validRabId = rab?.id || fallbackIdRab;
 
             if (gantt_data) {
-                // JIKA GANTT SUDAH ADA: Langsung gunakan fungsi loadGanttDetail yang sudah ada
                 await loadGanttDetail(gantt_data.id, validRabId);
             } else {
-                // JIKA BELUM ADA GANTT: Bikin draft baru dari kategori RAB
                 setSelectedGanttId(null);
                 setIsProjectLocked(false);
                 setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
@@ -271,7 +251,6 @@ function GanttBoard() {
                     }
                 }
                 
-                // Set data proyek awal
                 setProjectData({
                     ganttId: null,
                     id_toko: toko.id,
@@ -285,7 +264,6 @@ function GanttBoard() {
                     startDate: new Date().toISOString().split('T')[0],
                 });
                 
-                // Buat baris pekerjaan (tasks) otomatis dari finalCategories RAB
                 const generatedTasks = finalCategories.map((kName: string, idx: number) => ({
                     id: idx + 1, 
                     name: kName, 
@@ -341,9 +319,6 @@ function GanttBoard() {
                 }
             }
 
-            // --- Hitung projectStart dan Durasi dengan lebih aman (Functional Approach) ---
-
-            // 1. Ekstrak semua angka hari yang valid dari day_items
             const startDaysRaw = day_items
                 .map(entry => parseInt(entry.h_awal))
                 .filter(d => !isNaN(d));
@@ -352,27 +327,19 @@ function GanttBoard() {
                 .map(entry => parseInt(entry.h_akhir))
                 .filter(d => !isNaN(d));
 
-            // 2. Dapatkan durasi maksimal (max) untuk kalkulasi durasi proyek jika RAB durasi tidak ada
             const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
 
-            // 3. Set projectStart
-            // Gunakan `timestamp` buatan database saat Gantt pertama dibuat agar perhitungan hari tidak bergeser,
-            // dan konstruksikan menjadi Local Midnight seperti pengolahan inputan harinya.
             let projectStart = new Date();
             if (gantt.timestamp) {
-                const parts = gantt.timestamp.split('T')[0].split('-'); // [YYYY, MM, DD]
+                const parts = gantt.timestamp.split('T')[0].split('-'); 
                 if (parts.length === 3) {
                     projectStart = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
                 }
             }
 
-            // 4. Hitung durasi
-            const msPerDay = 1000 * 60 * 60 * 24;
             const ganttComputedDuration = maxDay;
-            
             const duration = rabDurationFallback > 0 ? rabDurationFallback : ganttComputedDuration;
 
-            // --- Set project info ---
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
             setProjectData({
                 ganttId:    gantt.id,
@@ -387,7 +354,6 @@ function GanttBoard() {
                 startDate:  projectStart.toISOString().split('T')[0],
             });
 
-            // Set pengawasan
             const pDates = (pengawasan || [])
                 .map((p: any) => p.tanggal_pengawasan)
                 .filter(Boolean);
@@ -396,7 +362,6 @@ function GanttBoard() {
 
             setIsProjectLocked(['terkunci', 'locked', 'published'].includes(gantt.status.toLowerCase()));
 
-            // Fetch SPK info for date-based headers
             try {
                 const spkRes = await fetchSPKList({ nomor_ulok: toko.nomor_ulok, status: 'SPK_APPROVED' });
                 const approvedSpk = (spkRes.data || []).find(s => s.status?.toUpperCase() === 'SPK_APPROVED');
@@ -409,21 +374,17 @@ function GanttBoard() {
                 setSpkInfo(null);
             }
 
-            // --- Normalisasi rawDayGanttData: map ke format lama (Kategori, h_awal, h_akhir)
-            //     agar handlePICDelaySave, removeRange, & delay-select tidak perlu diubah ---
             const normalizedRaw = day_items.map(d => ({
                 Kategori:  d.kategori_pekerjaan,
                 h_awal:    d.h_awal,
                 h_akhir:   d.h_akhir,
                 keterlambatan: d.keterlambatan ?? 0,
                 kecepatan:     d.kecepatan ?? "",
-                // simpan id asli jika dibutuhkan nanti
                 _id:       d.id,
                 _id_gantt: d.id_gantt,
             }));
             setRawDayGanttData(normalizedRaw);
 
-            // --- Build tasks dari backend kategori dikombinasikan dengan original RAB items ---
             const savedCategories = kategori_pekerjaan.map(k => k.kategori_pekerjaan.toUpperCase());
             const mergedCategoriesRaw = new Set([...baseCategories, ...savedCategories]);
             if (mergedCategoriesRaw.size === 0) mergedCategoriesRaw.add("PERSIAPAN");
@@ -432,7 +393,6 @@ function GanttBoard() {
                 id: idx + 1, name: catName, dependencies: [], ranges: [], keterlambatan: 0
             }));
 
-            // --- Map ranges dari day_items ---
             const categoryRangesMap: Record<string, any[]> = {};
             day_items.forEach(entry => {
                 const startDay = parseInt(entry.h_awal);
@@ -450,13 +410,10 @@ function GanttBoard() {
                 }
             });
 
-            // --- Map dependencies --- 
-            // API baru: child = kategori_pekerjaan, parent = kategori_pekerjaan_terikat
             const depMap: Record<string, string[]> = {};
             dependencies.forEach(dep => {
                 const child  = dep.kategori_pekerjaan.toLowerCase().trim();
                 const parent = dep.kategori_pekerjaan_terikat.toLowerCase().trim();
-                // Map the child to the parent's array so parent.dependencies = [child1, child2] representing Dilanjutkan Ke..
                 if (!depMap[parent]) depMap[parent] = [];
                 depMap[parent].push(child);
             });
@@ -464,12 +421,10 @@ function GanttBoard() {
             generatedTasks = generatedTasks.map(task => {
                 const tName = task.name.toLowerCase().trim();
 
-                // Match ranges (exact key match lebih diprioritaskan)
                 const matchedRanges = categoryRangesMap[tName]
                     ?? Object.entries(categoryRangesMap).find(([k]) => tName.includes(k) || k.includes(tName))?.[1]
                     ?? [];
 
-                // Match parent ids dari depMap
                 const parentIds: number[] = [];
                 (depMap[tName] || []).forEach(parentName => {
                     const parentObj = generatedTasks.find(t => t.name.toLowerCase().trim() === parentName);
@@ -495,7 +450,6 @@ function GanttBoard() {
         }
     };
 
-  // --- HANDLER TABEL INPUT ---
     const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start'|'end', value: string) => {
         let parsedVal = parseInt(value);
         if (!isNaN(parsedVal)) {
@@ -543,14 +497,11 @@ function GanttBoard() {
         if (rangeToRemove.start && rangeToRemove.end) {
             const isConfirmed = window.confirm("Hapus periode ini? Jangan lupa untuk klik 'Simpan Draft' agar penghapusan tersimpan di server.");
             if (!isConfirmed) return;
-            
         }
 
-        // Langsung update UI state
         setTasks(prev => prev.map(t => {
             if(t.id === taskId) {
                 const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
-                // Jika semua range terhapus, sisakan satu form kosong agar user bisa input lagi
                 if (newRanges.length === 0) newRanges.push({start: '', end: '', keterlambatan: 0});
                 return {...t, ranges: newRanges};
             }
@@ -558,7 +509,6 @@ function GanttBoard() {
         }));
     };
 
-  // --- API SUBMIT FUNCTIONS ---
     const handleSaveData = async (status: 'Active' | 'Terkunci') => {
         setIsApplying(true);
         try {
@@ -579,12 +529,10 @@ function GanttBoard() {
 
             tasks.forEach(t => {
                 const kategoriName = t.name?.toUpperCase().trim();
-                // Jika nama kategori kosong, jangan dilanjutkan karena backend menolak kategori empty string (422)
                 if (!kategoriName) return;
 
                 kategori_pekerjaan.push(kategoriName);
                 
-                // 1. Map Day Items
                 if (t.ranges && t.ranges.length > 0) {
                     t.ranges.forEach((r: any) => {
                         if (!r.start || !r.end) return;
@@ -595,29 +543,26 @@ function GanttBoard() {
                             h_akhir: String(r.end),
                         };
                         
-                        // Backend membolehkan string kosong untuk kecepatan & keterlambatan jika tidak ada nilai
                         dayItem.keterlambatan = r.keterlambatan ? String(r.keterlambatan) : "";
-                        dayItem.kecepatan = ""; // biarkan kosong untuk default 
+                        dayItem.kecepatan = ""; 
                         
                         day_items.push(dayItem);
                     });
                 }
 
-                // 2. Map Dependencies
                 if (t.dependencies && t.dependencies.length > 0) {
                     t.dependencies.forEach((childId: number) => {
                         const cTask = tasks.find(ct => ct.id === childId);
                         if (cTask && cTask.name?.trim()) {
                             dependencies.push({
-                                kategori_pekerjaan: cTask.name.toUpperCase().trim(), // child
-                                kategori_pekerjaan_terikat: kategoriName // parent
+                                kategori_pekerjaan: cTask.name.toUpperCase().trim(),
+                                kategori_pekerjaan_terikat: kategoriName 
                             });
                         }
                     });
                 }
             });
 
-            // Validasi minimal sebelum kirim
             if (day_items.length === 0) {
                 throw new Error("Harap isi tanggal mulai dan selesai minimal satu tahapan.");
             }
@@ -625,8 +570,6 @@ function GanttBoard() {
             let submitRes: any = null;
 
             if (selectedGanttId) {
-                // JIKA MENGEDIT DRAFT YANG SUDAH ADA (Gunakan PUT)
-                // Field utama dikirim kosong/undefined agar backend memperlakukannya no-op
                 const updatePayload = {
                     day_items: day_items,
                     kategori_pekerjaan: [], 
@@ -634,19 +577,10 @@ function GanttBoard() {
                     dependencies: []
                 };
 
-                console.log("=== DEBUG GANTT UPDATE (PUT) ===");
-                console.log("ID Gantt:", selectedGanttId);
-                console.log("Payload:", JSON.stringify(updatePayload, null, 2));
-
                 await updateGanttChart(selectedGanttId, updatePayload);
-                console.log("SUCCESS: Update Gantt Chart");
 
-                // JIKA USER MENEKAN TOMBOL KUNCI, PANGGIL ENDPOINT LOCK
                 if (status === 'Terkunci') {
-                    console.log("=== DEBUG GANTT LOCK (Existing) ===");
-                    console.log("Email:", email);
                     await lockGanttChart(selectedGanttId, email); 
-                    console.log("SUCCESS: Lock Gantt Chart");
                 }
             } else {
                 const payload: any = {
@@ -665,17 +599,10 @@ function GanttBoard() {
                     dependencies
                 };
 
-                console.log("=== DEBUG GANTT SUBMIT (POST) ===");
-                console.log("Payload:", JSON.stringify(payload, null, 2));
-
                 submitRes = await submitGanttChart(payload);
-                console.log("SUCCESS: Submit Gantt Chart, Result ID:", submitRes?.data?.id);
                 
                 if (status === 'Terkunci' && submitRes.data?.id) {
-                    console.log("=== DEBUG GANTT LOCK (New) ===");
-                    console.log("ID:", submitRes.data.id, "Email:", email);
                     await lockGanttChart(submitRes.data.id, email);
-                    console.log("SUCCESS: Lock Gantt Chart");
                 }
             }
 
@@ -706,12 +633,10 @@ function GanttBoard() {
             await deleteGanttChart(selectedGanttId);
             showAlert({ message: "Draft jadwal berhasil dihapus.", type: "success" });
             
-            // Reset tampilan ke awal
             setSelectedGanttId(null);
             setProjectData(null);
             setTasks([]);
             
-            // Refresh list dropdown (Opsional)
             window.location.reload(); 
         } catch (error: any) {
             showAlert({ message: `Gagal menghapus: ${error.message}`, type: "error" });
@@ -720,9 +645,6 @@ function GanttBoard() {
         }
     };
 
-
-
-  // --- LOGIKA KALKULASI GRAFIK (RIPPLE EFFECT) ---
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
 
@@ -730,9 +652,8 @@ function GanttBoard() {
         let maxTaskEndDay = 0;
         let effectiveEndDates: Record<number, number> = {};
 
-        processedTasks.forEach(task => { // task is the child being evaluated
+        processedTasks.forEach(task => { 
             let maxShift = 0;
-            // Find parents: tasks whose dependency array includes this child's id
             const myParents = processedTasks.filter(pt => pt.dependencies && pt.dependencies.includes(task.id));
             if (myParents.length > 0) {
                 myParents.forEach(parentTask => {
@@ -791,7 +712,7 @@ function GanttBoard() {
         });
         let svgLines = [];
         for (let i=0; i < processedTasks.length; i++) {
-            const task = processedTasks[i]; // task is parent
+            const task = processedTasks[i]; 
             if(task.dependencies && task.dependencies.length > 0) {
                 for (let cId of task.dependencies) {
                     const parentCoordinates = taskCoordinates[task.id];
@@ -839,7 +760,6 @@ function GanttBoard() {
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
         
-        {/* Mengganti header lama dengan AppNavbar yang membawa Badge di sebelah kanan */}
         <AppNavbar 
             title="Gantt Chart"
             showBackButton={true}
@@ -894,7 +814,6 @@ function GanttBoard() {
                                     }}
                                 >
                                     <option value="">-- Pilih Proyek / RAB Anda --</option>
-                                    {/* PRIORITASKAN TOKO DARI DAFTAR TOKO LENGKAP */}
                                     {allTokoList.map((toko) => {
                                         const tID = toko.id_toko || toko.id;
                                         const ganttMatch = availableProjects.find(p => p.id_toko === tID || p.nomor_ulok === toko.nomor_ulok);
@@ -903,7 +822,6 @@ function GanttBoard() {
                                             .filter(Boolean).join(' · ');
                                         const statusBadge = ganttMatch?.status === 'terkunci' ? ' (Terkunci)' : (ganttMatch?.status === 'active' ? ' (Aktif)' : '');
                                         
-                                        // Gunakan ID Gantt jika ada, jika tidak gunakan ID Toko dengan prefix
                                         const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
                                         
                                         return (
@@ -1207,7 +1125,6 @@ function GanttBoard() {
                 spkInfo={spkInfo}
                 onSuccess={() => {
                     setShowMemoModal(false);
-                    if (selectedGanttId) loadGanttDetail(selectedGanttId);
                     setShowOpnameModal(true);
                 }}
             />
@@ -1226,7 +1143,7 @@ function GanttBoard() {
                 selectedGanttId={selectedGanttId}
                 onSuccess={() => {
                     setShowOpnameModal(false);
-                    // Refresh data if needed, such as Opname history
+                    if (selectedGanttId) loadGanttDetail(selectedGanttId);
                 }}
             />
         )}
@@ -1290,21 +1207,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 dataAll.forEach((p: any) => {
                     if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                         const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                        
+                        // Selalu catat ID terbaru dari item tersebut
+                        if (p.id) idMap.set(key, p.id);
 
                         if (map.get(key) === 'Selesai' && p.status.toLowerCase() !== 'selesai') {
                             // Pertahankan status Selesai jika sebelumnya sudah pernah Selesai
                         } else {
                             map.set(key, p.status.charAt(0).toUpperCase() + p.status.slice(1));
                         }
-                    }
-                });
-
-                // Untuk submit memo hari ini, update hanya data di tanggal aktif.
-                // Data tanggal lain harus dianggap insert agar histori per tanggal tetap benar.
-                dataLive.forEach((p: any) => {
-                    if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.id) {
-                        const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
-                        idMap.set(key, Number(p.id));
                     }
                 });
                 setLatestStatusMapState(map);
@@ -1387,7 +1298,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     }, [chartData, activeHeaderClick, rabItems, latestStatusMapState]);
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
-        const key = `${catName}|${itemJenis}`;
+        const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
         setMemoInputs(prev => ({
             ...prev,
             [key]: { 
@@ -1402,7 +1313,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     const handleSetLateDays = (catName: string, itemJenis: string, lateDays: number) => {
         setIsDirty(true);
-        const key = `${catName}|${itemJenis}`;
+        const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
         setMemoInputs(prev => ({
             ...prev,
             [key]: { 
@@ -1417,7 +1328,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     const handleSetField = (catName: string, itemJenis: string, field: 'catatan' | 'file', value: any) => {
         setIsDirty(true);
-        const key = `${catName}|${itemJenis}`;
+        const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
         setMemoInputs(prev => ({
             ...prev,
             [key]: {
@@ -1441,7 +1352,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isAlreadySelesai = latestStatusMapState.get(`${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`) === 'Selesai';
                 if (isAlreadySelesai) continue;
 
-                const key = `${cat.category.name}|${item.jenis_pekerjaan}`;
+                const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const input = memoInputs[key];
                 
                 if (!input || !input.status) {
@@ -1525,48 +1436,54 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const formattedDate = `${yyyy}-${mm}-${dd}`;
 
             entriesToSubmit.forEach(([key, val]) => {
-                const [catName, itemJenis] = key.split('|');
-                const upperKey = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
+                const pipeIdx = key.indexOf('|');
+                if (pipeIdx === -1) return; // malformed key, skip
+                const catName = key.substring(0, pipeIdx);       // already UPPERCASE
+                const itemJenis = key.substring(pipeIdx + 1);    // already UPPERCASE
+                const upperKey = key; // already normalized
                 const existingId = latestIdMapState.get(upperKey);
 
-                // [PERBAIKAN] Normalisasi tipe data untuk mencegah Zod Error 400/422
-                const statusSafe = typeof val.status === 'string' ? val.status.toLowerCase() : val.status;
+                // [PERBAIKAN 1]: Mengubah status menjadi lowercase utuh agar lolos validasi strict enum backend
+                const statusLower = typeof val.status === 'string' ? val.status.toLowerCase() : '';
+                const validStatuses = ['progress', 'selesai', 'terlambat'];
+                if (!validStatuses.includes(statusLower)) return; // skip jika status tidak valid
+                const statusSafe = statusLower;
                 const lateDaysSafe = Number(val.lateDays) || 0;
-                const catatanSafe = val.catatan ? String(val.catatan) : "-";
                 
                 if (existingId) {
-                    itemsArrayUpdate.push({
-                        id: Number(existingId),
-                        status: statusSafe,
-                        keterlambatan: lateDaysSafe, // [PERBAIKAN] Menyertakan field keterlambatan pada API bulk
-                        catatan: catatanSafe,
-                        kategori_pekerjaan: catName, // Fallback untuk request body
-                        jenis_pekerjaan: itemJenis
-                    });
+                    // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
+                    // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
+                    const alreadyQueued = itemsArrayUpdate.some(i => i.id === Number(existingId));
+                    if (alreadyQueued) return; // skip duplicate ID
+                    const updateItem: any = { id: Number(existingId), status: statusSafe };
+                    if (val.catatan && String(val.catatan).trim()) updateItem.catatan = String(val.catatan).trim();
+                    itemsArrayUpdate.push(updateItem);
                     if (val.file) {
                         filesMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file });
                     }
                 } else {
-                    itemsArrayInsert.push({
+                    const insertItem: any = {
                         id_gantt: Number(selectedGanttId),
                         tanggal_pengawasan: formattedDate,
                         kategori_pekerjaan: catName,
                         jenis_pekerjaan: itemJenis,
                         status: statusSafe,
-                        keterlambatan: lateDaysSafe, // [PERBAIKAN] Menyertakan field keterlambatan pada API bulk
-                        catatan: catatanSafe
-                    });
+                        // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
+                    };
+                    if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
+                    itemsArrayInsert.push(insertItem);
                     if (val.file) {
                         filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file });
                     }
                 }
                 
-                if (val.status === 'Terlambat' && lateDaysSafe > 0) {
-                    catsLate.set(catName, (catsLate.get(catName) || 0) + lateDaysSafe);
+                if (val.status === 'Terlambat' && Number(val.lateDays) > 0) {
+                    catsLate.set(catName, (catsLate.get(catName) || 0) + Number(val.lateDays));
                 }
             });
 
             const { submitPengawasanBulk, updatePengawasanBulk } = await import('@/lib/api');
+            const { API_URL } = await import('@/lib/constants');
 
             // --- A. Eksekusi INSERT (POST) ---
             if (itemsArrayInsert.length > 0) {
@@ -1588,10 +1505,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             // --- B. Eksekusi UPDATE (PUT) ---
             if (itemsArrayUpdate.length > 0) {
                 if (filesMapUpdate.length > 0) {
+                    // [PERBAIKAN 3]: Gunakan method spoofing ke POST agar payload Multipart FormData tidak drop di server PHP/Laravel
                     const formData = new FormData();
                     formData.append('items', JSON.stringify(itemsArrayUpdate));
-                    // Antisipasi drop payload file jika backend menggunakan framework PHP (misal Laravel) pada Request PUT
-                    formData.append('_method', 'PUT');
+                    formData.append('_method', 'PUT'); 
 
                     filesMapUpdate.forEach(f => {
                         formData.append('rev_file_dokumentasi', f.file);
@@ -1599,13 +1516,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const indexes = filesMapUpdate.map(f => f.index);
                     formData.append('rev_file_dokumentasi_indexes', JSON.stringify(indexes));
                     
-                    await updatePengawasanBulk(formData);
+                    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+                        method: "POST",
+                        body: formData
+                    });
+                    if(!response.ok) throw new Error("Gagal mengupdate pengawasan bulk dengan file.");
                 } else {
+                    // JSON request aman berjalan dengan HTTP PUT murni
                     await updatePengawasanBulk({ items: itemsArrayUpdate });
                 }
             }
 
-            // 2. Submit Keterlambatan (Bulk sesuai dokumentasi baru)
+            // 2. Submit Keterlambatan (API Terpisah sesuai dokumentasi gantt delay)
             if (catsLate.size > 0) {
                 const { updateGanttDelay } = await import('@/lib/api');
                 const updates = Array.from(catsLate.entries()).map(([catName, totalLate]) => ({
@@ -1620,7 +1542,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
             }
 
-            onSuccess();
+            showAlert({ 
+                message: 'Memo pengawasan berhasil disimpan! Lanjutkan ke form Opname.', 
+                type: 'success',
+                onConfirm: () => onSuccess()
+            });
         } catch (err: any) {
             showAlert({ message: `Gagal menyimpan: ${err.message}`, type: "error" });
         } finally {
@@ -1682,7 +1608,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                         <table className="w-full text-sm text-left border-collapse">
                                             <tbody>
                                                 {d.items.map((item: any, j: number) => {
-                                                    const key = `${d.category.name}|${item.jenis_pekerjaan}`;
+                                                    const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                                                     const currentStatus = memoInputs[key]?.status;
                                                     const lateDays = memoInputs[key]?.lateDays || 0;
                                                     return (
@@ -1811,9 +1737,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
     useEffect(() => {
         setIsLoading(true);
         import('@/lib/api').then(({ fetchPengawasanList, fetchRABDetail, fetchOpnameList }) => {
-            fetchPengawasanList({ id_gantt: selectedGanttId, status: 'selesai' })
+            fetchPengawasanList({ id_gantt: selectedGanttId })
                 .then(async res => {
-                    const data = res.data || [];
+                    const allData = res.data || [];
+                    // Case-insensitive filtering in frontend to bypass strict backend endpoints
+                    const data = allData.filter((p: any) => p.status?.toLowerCase() === 'selesai');
+                    
                     let latestRabItems = rabItems;
                     let existingOpnameItems: any[] = [];
 
@@ -1827,13 +1756,19 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                         }
                     }
 
-                    // Build Set dari id_rab_item yang sudah di-opname dengan status blocking
+                    // Build maps from existing opname items
                     // Menggunakan Number() untuk menghindari type mismatch string vs number
                     const blockedRabItemIds = new Set<number>();
+                    const existingOpnameMap = new Map<number, any>(); // id_rab_item -> opname record
                     existingOpnameItems.forEach((op: any) => {
+                        const rid = Number(op.id_rab_item);
                         const status = (op.status || '').toLowerCase();
                         if (['pending', 'disetujui'].includes(status)) {
-                            blockedRabItemIds.add(Number(op.id_rab_item));
+                            blockedRabItemIds.add(rid);
+                        }
+                        // Track latest opname record per rab_item for upsert (including ditolak)
+                        if (!existingOpnameMap.has(rid) || Number(op.id) > Number(existingOpnameMap.get(rid).id)) {
+                            existingOpnameMap.set(rid, op);
                         }
                     });
 
@@ -1869,6 +1804,9 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                             if (rItem) matchedRabItemId = Number(rItem.id);
                         }
 
+                        // Lookup existing opname record for upsert id
+                        const existingOp = matchedRabItemId ? existingOpnameMap.get(matchedRabItemId) : null;
+
                         return {
                             ...p,
                             id_rab_item: matchedRabItemId || rItem?.id,
@@ -1876,6 +1814,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                             harga_material: parseFloat(rItem?.harga_material) || 0,
                             harga_upah: parseFloat(rItem?.harga_upah) || 0,
                             satuan: rItem?.satuan || '',
+                            existing_opname_id: existingOp?.id || null, // for upsert
+                            existing_opname: existingOp || null,
                         };
                     }).filter((item: any) => {
                         if (!item.id_rab_item) return false;
@@ -1885,18 +1825,29 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                         return true;
                     });
 
-                    setCompletedItems(merged);
+                    const deduped = new Map<number, any>();
+                    merged.forEach((item: any) => {
+                        const rid = Number(item.id_rab_item);
+                        if (!deduped.has(rid) || Number(item.id) > Number(deduped.get(rid).id)) {
+                            deduped.set(rid, item);
+                        }
+                    });
+                    const dedupedItems = Array.from(deduped.values());
+
+                    setCompletedItems(dedupedItems);
                     
                     const inputs: any = {};
-                    merged.forEach((item: any) => {
+                    dedupedItems.forEach((item: any) => {
                         const key = item.id;
+                        const ex = item.existing_opname;
                         inputs[key] = {
-                            volume_akhir: item.volume_rab,
-                            desain: '',
-                            kualitas: '',
-                            spesifikasi: '',
-                            catatan: '',
-                            file: null
+                            volume_akhir: ex ? String(ex.volume_akhir) : String(item.volume_rab),
+                            desain: ex?.desain || '',
+                            kualitas: ex?.kualitas || '',
+                            spesifikasi: ex?.spesifikasi || '',
+                            catatan: ex?.catatan || '',
+                            file: null,
+                            existing_foto: ex?.foto || null,
                         };
                     });
                     setOpnameInputs(inputs);
@@ -1944,6 +1895,9 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
             if (!input.desain || input.desain === '') return false;
             if (!input.kualitas || input.kualitas === '') return false;
             if (!input.spesifikasi || input.spesifikasi === '') return false;
+            
+            // 3. Validasi foto bukti wajib diisi (boleh foto lama jika ada)
+            if (!input.file && !input.existing_foto) return false;
         }
         
         return true;
@@ -1968,19 +1922,35 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 const input = opnameInputs[item.id];
                 const volAkhir = parseFloat(input.volume_akhir) || 0;
                 const selisihVol = volAkhir - item.volume_rab;
-                const totalSelisih = Math.round(selisihVol * (item.harga_material + item.harga_upah));
+                const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
+                const totalSelisih = Math.round(selisihVol * hargaSatuan);
+                const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
                 
-                itemsArray.push({
-                    id_rab_item: Number(item.id_rab_item), // Force Number
-                    status: 'pending', // status default opname
+                const itemData: any = {
+                    id_toko: Number(id_toko),
+                    id_rab_item: Number(item.id_rab_item),
+                    status: 'pending',
                     volume_akhir: volAkhir,
                     selisih_volume: selisihVol,
                     total_selisih: totalSelisih,
+                    total_harga_opname: totalHargaOpname,
                     desain: input.desain,
                     kualitas: input.kualitas,
                     spesifikasi: input.spesifikasi,
-                    catatan: input.catatan || undefined
-                });
+                    catatan: input.catatan || undefined,
+                };
+
+                // Include existing opname id for upsert if available
+                if (item.existing_opname_id) {
+                    itemData.id = Number(item.existing_opname_id);
+                }
+
+                // Preserve existing photo URL if no new file is selected
+                if (!input.file && input.existing_foto) {
+                    itemData.foto = input.existing_foto;
+                }
+                
+                itemsArray.push(itemData);
                 
                 if (input.file) {
                     filesMap.push({ index: currentIndex, file: input.file });
@@ -1997,12 +1967,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
             const grandTotalOpname = itemsArray.reduce((acc, item) => {
                 const rabRef = completedItems.find((completed) => completed.id_rab_item === item.id_rab_item);
                 const hargaSatuan = Number(rabRef?.harga_material || 0) + Number(rabRef?.harga_upah || 0);
-                return acc + (Number(item.volume_akhir) * hargaSatuan);
+                return acc + Math.round(Number(item.volume_akhir) * hargaSatuan);
             }, 0);
 
             const grandTotalRab = completedItems.reduce((acc, item) => {
                 const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
-                return acc + (Number(item.volume_rab || 0) * hargaSatuan);
+                return acc + Math.round(Number(item.volume_rab || 0) * hargaSatuan);
             }, 0);
             
             const { submitOpnameBulk } = await import('@/lib/api');
@@ -2016,9 +1986,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 filesMap.forEach(f => {
                     formData.append('file_foto_opname', f.file);
                 });
-                // Selalu kirim file_foto_opname_indexes agar mapping 100% presisi
-                const indexes = filesMap.map(f => f.index);
-                formData.append('file_foto_opname_indexes', JSON.stringify(indexes));
+                // Mapping file index - hanya kirim indeks untuk item yang memang punya file baru
+                formData.append('file_foto_opname_indexes', JSON.stringify(filesMap.map(f => f.index)));
                 
                 await submitOpnameBulk(formData);
             } else {
@@ -2031,8 +2000,11 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 });
             }
             
-            showAlert({ message: 'Data Opname berhasil disimpan!', type: 'success' });
-            onSuccess();
+            showAlert({ 
+                message: 'Data Opname berhasil disimpan!', 
+                type: 'success',
+                onConfirm: () => onSuccess()
+            });
         } catch(e: any) {
              showAlert({ message: `Gagal menyimpan: ${e.message}`, type: "error" });
         } finally {
@@ -2175,6 +2147,17 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                                                             <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti (Drive)</label>
                                                             <input type="file" className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
                                                                 accept="image/*" onChange={(e)=>handleSetOpname(item.id, 'file', e.target.files?.[0] || null)} />
+                                                            {!input.file && input.existing_foto && (
+                                                                <div className="mt-2 flex items-center gap-2 p-1.5 bg-blue-50 border border-blue-100 rounded">
+                                                                    <div className="w-8 h-8 rounded overflow-hidden border border-blue-200 bg-white shrink-0">
+                                                                        <img src={input.existing_foto} alt="Existing" className="w-full h-full object-cover" />
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-[9px] font-bold text-blue-700 uppercase">Foto lama tersedia</p>
+                                                                        <a href={input.existing_foto} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline truncate block">Lihat full size</a>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>

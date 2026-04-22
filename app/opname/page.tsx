@@ -15,9 +15,8 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import {
     fetchRABList, fetchRABDetail, fetchTokoList,
-    fetchOpnameList, fetchOpnameDetail, updateOpname, submitOpnameSingle,
+    fetchOpnameList, fetchOpnameDetail, updateOpname, submitOpnameBulk,
     fetchGanttList, fetchGanttDetailByToko, fetchPengawasanList,
-    kunciOpnameFinal, fetchOpnameFinalList,
     type OpnameItem, type RABDetailItem, type RABDetailToko, type RABListItem,
 } from '@/lib/api';
 
@@ -130,6 +129,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         spesifikasi: string;
         catatan: string;
         file: File | null;
+        existing_foto?: string | null;
     }>>({});
 
     // Expanded categories
@@ -212,6 +212,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     spesifikasi: existing?.spesifikasi || '',
                     catatan: existing?.catatan || '',
                     file: null,
+                    existing_foto: existing?.foto || null,
                 };
             });
             setOpnameInputs(inputs);
@@ -287,59 +288,61 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         return approvedCount === rabItems.length;
     }, [rabItems, existingOpname]);
 
-    // Handle Kunci Opname Final
-    const handleKunciOpnameFinal = async () => {
+    // Actual kunci logic (extracted so GlobalAlert can call it)
+    const executeKunciOpnameFinal = async () => {
         if (!selectedRab || !allApproved) return;
-        if (!window.confirm('Kunci Opname Final untuk proyek ini? Setelah dikunci, data akan masuk proses approval.')) return;
 
         setIsSubmitting(true);
         try {
-            // Find existing opname_final for this toko
-            let opnameFinalId = 0;
-            try {
-                const finalList = await fetchOpnameFinalList({ id_toko: selectedRab.id_toko });
-                const existing = finalList?.data?.[0];
-                if (existing?.id) opnameFinalId = existing.id;
-            } catch { /* no existing */ }
+            // Deduplicate opname items by id_rab_item (take latest)
+            const latestOpnames = new Map<number, OpnameItem>();
+            existingOpname.forEach(item => {
+                const rid = Number(item.id_rab_item);
+                if (!latestOpnames.has(rid) || Number(item.id) > Number(latestOpnames.get(rid)!.id)) {
+                    latestOpnames.set(rid, item);
+                }
+            });
 
-            if (!opnameFinalId) {
-                showAlert({ message: 'Header Opname Final untuk proyek ini tidak ditemukan. Harap hubungi administrator.', type: "warning" });
-                setIsSubmitting(false);
-                return;
-            }
+            // Build items payload with new API fields
+            const opnameItemsData = Array.from(latestOpnames.values()).map(item => {
+                const rabRef = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
+                const hargaSatuan = (Number(rabRef?.harga_material) || 0) + (Number(rabRef?.harga_upah) || 0);
+                const totalHargaOpname = Math.round((Number(item.volume_akhir) || 0) * hargaSatuan);
 
-            // Build items payload
-            const opnameItemsData = existingOpname.map(item => {
                 return {
-                    id_rab_item: item.id_rab_item,
-                    status: item.status,
+                    id: item.id, // existing opname item id for upsert
+                    id_toko: selectedRab.id_toko,
+                    id_rab_item: Number(item.id_rab_item),
+                    status: 'pending',
                     volume_akhir: item.volume_akhir,
                     selisih_volume: item.selisih_volume,
                     total_selisih: item.total_selisih,
-                    desain: item.desain || undefined,
-                    kualitas: item.kualitas || undefined,
-                    spesifikasi: item.spesifikasi || undefined,
-                    catatan: item.catatan || undefined,
+                    total_harga_opname: totalHargaOpname,
                 };
             });
 
             // Calculate grand totals
             let grandTotalRab = 0;
             let grandTotalOpname = 0;
-            existingOpname.forEach(item => {
-                const rabRef = rabItems.find(r => r.id === item.id_rab_item);
-                const hargaSatuan = (rabRef?.harga_material || 0) + (rabRef?.harga_upah || 0);
-                const volRab = rabRef?.volume || 0;
-                grandTotalRab += volRab * hargaSatuan;
-                grandTotalOpname += item.volume_akhir * hargaSatuan;
+
+            rabItems.forEach(r => {
+                const price = (Number(r.harga_material) || 0) + (Number(r.harga_upah) || 0);
+                grandTotalRab += (Number(r.volume) || 0) * price;
             });
 
-            await kunciOpnameFinal(opnameFinalId, {
-                id_toko: selectedRab.id_toko,
+            latestOpnames.forEach((item) => {
+                const rabRef = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
+                const price = (Number(rabRef?.harga_material) || 0) + (Number(rabRef?.harga_upah) || 0);
+                grandTotalOpname += (Number(item.volume_akhir) || 0) * price;
+            });
+
+            // Use bulk endpoint — backend auto-creates/updates opname_final header
+            await submitOpnameBulk({
+                id_toko: Number(selectedRab.id_toko),
                 email_pembuat: userInfo.email,
-                grand_total_opname: String(grandTotalOpname),
-                grand_total_rab: String(grandTotalRab),
-                opname_item: opnameItemsData,
+                grand_total_opname: String(Math.round(grandTotalOpname)),
+                grand_total_rab: String(Math.round(grandTotalRab)),
+                items: opnameItemsData,
             });
 
             showAlert({ message: 'Opname Final berhasil dikunci! Data telah dikirim untuk approval Koordinator.', type: "success" });
@@ -352,42 +355,120 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         }
     };
 
-    // Submit Opname per item (single)
+    // Handle Kunci Opname Final — shows confirmation via GlobalAlert
+    const handleKunciOpnameFinal = () => {
+        if (!selectedRab || !allApproved) return;
+        showAlert({
+            title: 'Kunci Opname Final',
+            message: 'Kunci Opname Final untuk proyek ini? Setelah dikunci, data akan masuk proses approval Koordinator.',
+            type: 'warning',
+            confirmMode: true,
+            confirmText: 'Ya, Kunci',
+            cancelText: 'Batal',
+            onConfirm: () => executeKunciOpnameFinal(),
+        });
+    };
+
+    // Submit Opname per item (single) — uses bulk endpoint with 1 item for consistency
     const handleSubmitItem = async (rabItem: RABDetailItem) => {
         if (!selectedRab) return;
         const input = opnameInputs[rabItem.id];
-        if (!input) return;
+        // Allow if there is a new file OR an existing photo
+        if (!input || (!input.file && !input.existing_foto)) {
+            showAlert({ message: "Foto bukti wajib diisi sebelum submit.", type: "warning" });
+            return;
+        }
 
         setSubmittingItemId(rabItem.id);
         setIsSubmitting(true);
         try {
             const volAkhir = parseFloat(input.volume_akhir) || 0;
-            const selisihVol = volAkhir - rabItem.volume;
-            const hargaSatuan = rabItem.harga_material + rabItem.harga_upah;
-            const totalSelisih = selisihVol * hargaSatuan;
+            const volRab = Number(rabItem.volume) || 0;
+            const selisihVol = Number((volAkhir - volRab).toFixed(4));
+            
+            const hMaterial = Number(rabItem.harga_material) || 0;
+            const hUpah = Number(rabItem.harga_upah) || 0;
+            const hargaSatuan = hMaterial + hUpah;
+            
+            const totalSelisih = Math.round(selisihVol * hargaSatuan);
+            const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
-            const payload: Record<string, any> = {
+            // Check if existing opname for this item (for upsert via id)
+            const existingRecord = existingOpname.find(o => Number(o.id_rab_item) === Number(rabItem.id));
+
+            const itemPayload: Record<string, any> = {
                 id_toko: selectedRab.id_toko,
                 id_rab_item: rabItem.id,
                 status: 'pending',
                 volume_akhir: volAkhir,
                 selisih_volume: selisihVol,
                 total_selisih: totalSelisih,
-                desain: input.desain || null,
-                kualitas: input.kualitas || null,
-                spesifikasi: input.spesifikasi || null,
-                catatan: input.catatan || null,
+                total_harga_opname: totalHargaOpname,
+                desain: input.desain,
+                kualitas: input.kualitas,
+                spesifikasi: input.spesifikasi,
+                catatan: input.catatan || undefined,
             };
+
+            // Include existing opname id for upsert
+            if (existingRecord?.id) {
+                itemPayload.id = existingRecord.id;
+            }
+
+            // Include existing photo URL if no new file is provided to avoid null overwrite in DB
+            if (!input.file && input.existing_foto) {
+                itemPayload.foto = input.existing_foto;
+            }
+
+            // Calculate running grand totals including this submission
+            let grandTotalRab = 0;
+            let grandTotalOpname = 0;
+            rabItems.forEach(r => {
+                const price = (Number(r.harga_material) || 0) + (Number(r.harga_upah) || 0);
+                grandTotalRab += Math.round((Number(r.volume) || 0) * price);
+            });
+            // Sum existing approved/pending opnames + this new one
+            const latestOpnames = new Map<number, OpnameItem>();
+            existingOpname.forEach(o => {
+                const rid = Number(o.id_rab_item);
+                if (!latestOpnames.has(rid) || Number(o.id) > Number(latestOpnames.get(rid)!.id)) {
+                    latestOpnames.set(rid, o);
+                }
+            });
+            latestOpnames.forEach((o) => {
+                const ref = rabItems.find(r => Number(r.id) === Number(o.id_rab_item));
+                const price = (Number(ref?.harga_material) || 0) + (Number(ref?.harga_upah) || 0);
+                if (Number(o.id_rab_item) === Number(rabItem.id)) {
+                    grandTotalOpname += Math.round(volAkhir * price); // Use new volume
+                } else {
+                    grandTotalOpname += Math.round((Number(o.volume_akhir) || 0) * price);
+                }
+            });
+            // If this is a brand new item (not in latestOpnames), add it
+            if (!latestOpnames.has(Number(rabItem.id))) {
+                grandTotalOpname += totalHargaOpname;
+            }
 
             if (input.file) {
                 const formData = new FormData();
-                Object.entries(payload).forEach(([k, v]) => {
-                    if (v !== undefined) formData.append(k, typeof v === 'number' ? String(v) : v);
-                });
+                formData.append('id_toko', String(selectedRab.id_toko));
+                formData.append('email_pembuat', userInfo.email);
+                formData.append('grand_total_opname', String(Math.round(grandTotalOpname)));
+                formData.append('grand_total_rab', String(Math.round(grandTotalRab)));
+                formData.append('items', JSON.stringify([itemPayload]));
                 formData.append('file_foto_opname', input.file);
-                await submitOpnameSingle(formData);
+                formData.append('file_foto_opname_indexes', JSON.stringify([0]));
+                await submitOpnameBulk(formData);
             } else {
-                await submitOpnameSingle(payload);
+                // If no new file, but existing_foto exists, we send JSON only.
+                // The backend should retain the existing photo since we don't send a new one.
+                await submitOpnameBulk({
+                    id_toko: Number(selectedRab.id_toko),
+                    email_pembuat: userInfo.email,
+                    grand_total_opname: String(Math.round(grandTotalOpname)),
+                    grand_total_rab: String(Math.round(grandTotalRab)),
+                    items: [itemPayload],
+                });
             }
 
             showAlert({ message: `Item "${rabItem.jenis_pekerjaan}" berhasil disubmit!`, type: "success" });
@@ -402,6 +483,137 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             setIsSubmitting(false);
             setSubmittingItemId(null);
         }
+    };
+
+    /** Bulk Submit All Items in the form */
+    const handleSubmitAll = async () => {
+        if (!selectedRab || rabItems.length === 0) return;
+
+        // Collect items that are NOT approved
+        const itemsToSubmit = rabItems.filter(item => {
+            const existing = existingOpname.find(o => Number(o.id_rab_item) === Number(item.id));
+            return existing?.status?.toLowerCase() !== 'disetujui';
+        });
+
+        if (itemsToSubmit.length === 0) {
+            showAlert({ message: "Tidak ada item untuk disubmit.", type: "warning" });
+            return;
+        }
+
+        // Validate all items
+        const validationErrors: string[] = [];
+        const payloadItems: any[] = [];
+        const files: File[] = [];
+        const fileIndexes: number[] = [];
+
+        itemsToSubmit.forEach((item) => {
+            const input = opnameInputs[item.id];
+            if (!input || !input.volume_akhir || !input.desain || !input.kualitas || !input.spesifikasi || (!input.file && !input.existing_foto)) {
+                validationErrors.push(item.jenis_pekerjaan);
+                return;
+            }
+
+            const volAkhir = parseFloat(input.volume_akhir) || 0;
+            const volRab = Number(item.volume) || 0;
+            const selisihVol = Number((volAkhir - volRab).toFixed(4));
+            const price = (Number(item.harga_material) || 0) + (Number(item.harga_upah) || 0);
+            
+            const existing = existingOpname.find(o => Number(o.id_rab_item) === Number(item.id));
+            
+            payloadItems.push({
+                id: existing?.id,
+                id_toko: selectedRab.id_toko,
+                id_rab_item: item.id,
+                status: 'pending',
+                volume_akhir: volAkhir,
+                selisih_volume: selisihVol,
+                total_selisih: Math.round(selisihVol * price),
+                total_harga_opname: Math.round(volAkhir * price),
+                desain: input.desain,
+                kualitas: input.kualitas,
+                spesifikasi: input.spesifikasi,
+                catatan: input.catatan || undefined,
+                foto: (!input.file && input.existing_foto) ? input.existing_foto : undefined,
+            });
+
+            if (input.file) {
+                files.push(input.file);
+                fileIndexes.push(payloadItems.length - 1);
+            }
+        });
+
+        if (validationErrors.length > 0) {
+            showAlert({ 
+                title: "Validasi Gagal",
+                message: `Beberapa item belum lengkap: ${validationErrors.slice(0, 3).join(', ')}${validationErrors.length > 3 ? '...' : ''}. Pastikan Volume, Verifikasi, dan Foto sudah terisi.`, 
+                type: "warning" 
+            });
+            return;
+        }
+
+        // Confirmation
+        showAlert({
+            title: "Submit Semua Item",
+            message: `Apakah Anda yakin ingin mensubmit ${payloadItems.length} item sekaligus?`,
+            type: "info",
+            confirmMode: true,
+            confirmText: "Ya, Submit Semua",
+            cancelText: "Batal",
+            onConfirm: async () => {
+                setIsSubmitting(true);
+                try {
+                    // Calculate totals
+                    let grandTotalRab = 0;
+                    let grandTotalOpname = 0;
+                    
+                    const submissionMap = new Map(payloadItems.map(p => [Number(p.id_rab_item), p]));
+                    
+                    rabItems.forEach(r => {
+                        const price = (Number(r.harga_material) || 0) + (Number(r.harga_upah) || 0);
+                        grandTotalRab += Math.round((Number(r.volume) || 0) * price);
+                        
+                        const sub = submissionMap.get(Number(r.id));
+                        if (sub) {
+                            grandTotalOpname += sub.total_harga_opname;
+                        } else {
+                            const existing = existingOpname.find(o => Number(o.id_rab_item) === Number(r.id));
+                            if (existing) {
+                                grandTotalOpname += Math.round(Number(existing.total_harga_opname) || (Number(existing.volume_akhir) * price));
+                            }
+                        }
+                    });
+
+                    const { submitOpnameBulk } = await import('@/lib/api');
+
+                    if (files.length > 0) {
+                        const formData = new FormData();
+                        formData.append('id_toko', String(selectedRab.id_toko));
+                        formData.append('email_pembuat', userInfo.email);
+                        formData.append('grand_total_opname', String(grandTotalOpname));
+                        formData.append('grand_total_rab', String(grandTotalRab));
+                        formData.append('items', JSON.stringify(payloadItems));
+                        files.forEach(f => formData.append('file_foto_opname', f));
+                        formData.append('file_foto_opname_indexes', JSON.stringify(fileIndexes));
+                        await submitOpnameBulk(formData);
+                    } else {
+                        await submitOpnameBulk({
+                            id_toko: Number(selectedRab.id_toko),
+                            email_pembuat: userInfo.email,
+                            grand_total_opname: String(grandTotalOpname),
+                            grand_total_rab: String(grandTotalRab),
+                            items: payloadItems,
+                        });
+                    }
+
+                    showAlert({ message: `${payloadItems.length} item berhasil disubmit!`, type: "success" });
+                    handleSelectRab(selectedRab.id.toString()); // Refresh
+                } catch (err: any) {
+                    showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        });
     };
 
     // Check if there's existing opname data for this project
@@ -538,10 +750,23 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 {activeView === 'form' ? (
                                     /* Section 2: Form Input */
                                     <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                        <h3 className="font-bold text-slate-700 border-b pb-2 mb-4 flex items-center gap-2">
-                                            <ClipboardList className="w-4 h-4 text-emerald-600" />
-                                            2. Input Volume Akhir & Verifikasi Pekerjaan
-                                        </h3>
+                                        <div className="border-b pb-2 mb-4 flex items-center justify-between">
+                                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                                <ClipboardList className="w-4 h-4 text-emerald-600" />
+                                                2. Input Volume Akhir & Verifikasi Pekerjaan
+                                            </h3>
+                                            {groupedItems.length > 0 && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={handleSubmitAll}
+                                                    disabled={isSubmitting}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs px-4 shadow-sm h-8"
+                                                >
+                                                    {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Send className="w-3 h-3 mr-1.5" />}
+                                                    Submit Semua Item
+                                                </Button>
+                                            )}
+                                        </div>
 
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
@@ -574,10 +799,15 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                         const input = opnameInputs[item.id] || { volume_akhir: String(item.volume), desain: '', kualitas: '', spesifikasi: '', catatan: '', file: null };
                                                                         const isItemSubmitting = submittingItemId === item.id;
                                                                         const volAkhir = parseFloat(input.volume_akhir) || 0;
-                                                                        const selisih = volAkhir - item.volume;
-                                                                        const hargaSatuan = item.harga_material + item.harga_upah;
-                                                                        const totalHargaRAB = item.volume * hargaSatuan;
-                                                                        const totalHargaBaru = volAkhir * hargaSatuan;
+                                                                        const hMaterial = Number(item.harga_material) || 0;
+                                                                        const hUpah = Number(item.harga_upah) || 0;
+                                                                        const hSatuan = hMaterial + hUpah;
+
+                                                                        const volRab = Number(item.volume) || 0;
+                                                                        const selisih = Number((volAkhir - volRab).toFixed(4));
+                                                                        
+                                                                        const totalHargaRAB = Math.round(volRab * hSatuan);
+                                                                        const totalHargaBaru = Math.round(volAkhir * hSatuan);
                                                                         const selisihHarga = totalHargaBaru - totalHargaRAB;
 
                                                                         const rejectedRecord = getRejectedOpname(item.id);
@@ -595,9 +825,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
-                                                                                    <span className="text-[11px] bg-slate-200 text-slate-600 px-2 py-1 rounded font-semibold">
-                                                                                        Satuan: {item.satuan} • Harga: {formatRp(hargaSatuan)}
-                                                                                    </span>
+                                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Sat: {item.satuan}</span>
+                                                                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Mat: {formatRp(hMaterial)}</span>
+                                                                                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah: {formatRp(hUpah)}</span>
+                                                                                    </div>
                                                                                 </div>
                                                                                 {rejectedRecord?.catatan && (
                                                                                     <div className="mb-3 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
@@ -656,7 +888,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                     <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm">
                                                                                         <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain</label>
+                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
                                                                                                 value={input.desain || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'desain', e.target.value)}>
@@ -666,7 +898,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             </select>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas</label>
+                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
                                                                                                 value={input.kualitas || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'kualitas', e.target.value)}>
@@ -676,7 +908,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             </select>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi</label>
+                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
                                                                                                 value={input.spesifikasi || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'spesifikasi', e.target.value)}>
@@ -700,13 +932,24 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             ></textarea>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti</label>
+                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti *</label>
                                                                                             <input
                                                                                                 type="file"
                                                                                                 accept="image/*"
                                                                                                 className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
                                                                                                 onChange={(e) => handleSetInput(item.id, 'file', e.target.files?.[0] || null)}
                                                                                             />
+                                                                                            {!input.file && input.existing_foto && (
+                                                                                                <div className="mt-2 flex items-center gap-2 p-1.5 bg-blue-50 border border-blue-100 rounded">
+                                                                                                    <div className="w-8 h-8 rounded overflow-hidden border border-blue-200 bg-white shrink-0">
+                                                                                                        <img src={input.existing_foto} alt="Existing" className="w-full h-full object-cover" />
+                                                                                                    </div>
+                                                                                                    <div className="min-w-0">
+                                                                                                        <p className="text-[9px] font-bold text-blue-700 uppercase">Foto lama tersedia</p>
+                                                                                                        <a href={input.existing_foto} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline truncate block">Lihat full size</a>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
@@ -716,7 +959,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                     <Button
                                                                                         size="sm"
                                                                                         onClick={() => handleSubmitItem(item)}
-                                                                                        disabled={isSubmitting}
+                                                                                        disabled={isSubmitting || !input.volume_akhir || !input.desain || !input.kualitas || !input.spesifikasi || (!input.file && !input.existing_foto)}
                                                                                         className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs px-5 py-2 h-auto shadow-md hover:shadow-lg transition-all"
                                                                                     >
                                                                                         {isItemSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
@@ -852,34 +1095,27 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     const [isProcessing, setIsProcessing] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
 
-    // Load all opname + RAB list kontraktor punya
+    // Load all opname + RAB list
     useEffect(() => {
         setIsLoading(true);
 
-        // Fetch RAB list milik kontraktor (via email)
+        // Fetch RAB list (backend should filter for authorized projects)
+        // We remove the strict email filter because contractors might not be the 'pembuat'
         fetchRABList()
             .then(res => {
                 const data = res.data || [];
-                // Filter RAB by kontraktor email
-                const myRabs = data.filter(r =>
-                    r.email_pembuat?.toLowerCase() === userInfo.email.toLowerCase()
-                );
-                setRabList(myRabs);
+                setRabList(data);
 
-                // Get unique toko IDs
-                const tokoIds = [...new Set(myRabs.map(r => r.id_toko))];
-
-                // Load opname for each toko
-                const promises = tokoIds.map(id => fetchOpnameList({ id_toko: id }).catch(() => ({ data: [] as OpnameItem[] })));
-                return Promise.all(promises);
+                // Load all opnames (backend should filter by user access)
+                return fetchOpnameList();
             })
-            .then(results => {
-                const allOpname = results.flatMap(r => r.data || []);
+            .then(res => {
+                const allOpname = res.data || [];
                 setOpnameList(allOpname);
             })
             .catch(err => console.error("Gagal memuat data:", err))
             .finally(() => setIsLoading(false));
-    }, [userInfo.email]);
+    }, []);
 
     // Group opname by toko for project selection
     const tokoGroups = useMemo(() => {
@@ -921,12 +1157,21 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         setIsLoadingItems(true);
 
         try {
-            // Load fresh opname data
+            // Load fresh opname data by id_toko — response includes toko + rab_item relations
             const opnameRes = await fetchOpnameList({ id_toko: tokoId });
             const opnameData = opnameRes.data || [];
             setFilteredOpname(opnameData);
 
-            // Load RAB items for reference
+            // Update toko info from response if available
+            if (opnameRes.toko) {
+                setSelectedToko({
+                    id_toko: opnameRes.toko.id,
+                    nomor_ulok: opnameRes.toko.nomor_ulok || group.nomor_ulok,
+                    nama_toko: opnameRes.toko.nama_toko || group.nama_toko,
+                });
+            }
+
+            // Load RAB items for reference (volume RAB, kategori, jenis pekerjaan)
             const rab = rabList.find(r => r.id_toko === tokoId);
             if (rab) {
                 const rabDetail = await fetchRABDetail(rab.id);
@@ -963,7 +1208,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     const groupedOpname = useMemo(() => {
         const map = new Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>();
         displayedOpname.forEach(item => {
-            const rabRef = rabItems.find(r => r.id === item.id_rab_item);
+            const rabRef = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
             const cat = rabRef?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || 'Lainnya';
             if (!map.has(cat)) map.set(cat, []);
             map.get(cat)!.push({ ...item, rabRef });
@@ -971,19 +1216,28 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         return Array.from(map.entries()).map(([name, items]) => ({ name, items }));
     }, [displayedOpname, rabItems]);
 
-    // Handle approve
-    const handleApprove = async (opnameId: number) => {
-        if (!window.confirm("Setujui data opname ini?")) return;
-        setIsProcessing(true);
-        try {
-            await updateOpname(opnameId, { status: 'disetujui' });
-            showAlert({ message: "Opname berhasil disetujui.", type: "success" });
-            refreshData();
-        } catch (err: any) {
-            showAlert({ message: `Gagal: ${err.message}`, type: "error" });
-        } finally {
-            setIsProcessing(false);
-        }
+    // Handle approve — shows styled confirmation via GlobalAlert
+    const handleApprove = (opnameId: number) => {
+        showAlert({
+            title: 'Setujui Opname',
+            message: 'Apakah Anda yakin ingin menyetujui data opname ini?',
+            type: 'info',
+            confirmMode: true,
+            confirmText: 'Ya, Setujui',
+            cancelText: 'Batal',
+            onConfirm: async () => {
+                setIsProcessing(true);
+                try {
+                    await updateOpname(opnameId, { status: 'disetujui' });
+                    showAlert({ message: "Opname berhasil disetujui.", type: "success" });
+                    refreshData();
+                } catch (err: any) {
+                    showAlert({ message: `Gagal: ${err.message}`, type: "error" });
+                } finally {
+                    setIsProcessing(false);
+                }
+            },
+        });
     };
 
     // Handle reject
@@ -1173,8 +1427,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                 <div className="divide-y divide-slate-100">
                                                     {group.items.map((item, j) => {
                                                         const rabRef = item.rabRef;
-                                                        const hargaSatuan = (rabRef?.harga_material || 0) + (rabRef?.harga_upah || 0);
-                                                        const volRab = rabRef?.volume || 0;
+                                                        const volRab = rabRef?.volume || item.rab_item?.volume || 0;
                                                         const isPending = item.status?.toLowerCase() === 'pending';
 
                                                         return (
@@ -1182,21 +1435,28 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                 <div className="flex items-start justify-between gap-4">
                                                                     {/* Left: Info */}
                                                                     <div className="flex-1 min-w-0">
-                                                                        <div className="flex items-center gap-2 mb-2">
-                                                                            <span className="font-bold text-slate-800 text-sm">{rabRef?.jenis_pekerjaan || item.rab_item?.jenis_pekerjaan || '-'}</span>
-                                                                            <StatusBadge status={item.status} />
+                                                                        <div className="flex flex-col gap-1 mb-2">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="font-bold text-slate-800 text-sm">{rabRef?.jenis_pekerjaan || item.rab_item?.jenis_pekerjaan || '-'}</span>
+                                                                                <StatusBadge status={item.status} />
+                                                                            </div>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Sat: {rabRef?.satuan || item.rab_item?.satuan}</span>
+                                                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Mat: {formatRp(Number(rabRef?.harga_material || item.rab_item?.harga_material || 0))}</span>
+                                                                                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah: {formatRp(Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0))}</span>
+                                                                            </div>
                                                                         </div>
 
                                                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1.5 text-xs text-slate-600">
                                                                             <div>
                                                                                 <span className="text-slate-400">Vol RAB: </span>
                                                                                 <span className="font-semibold">{volRab}</span>
-                                                                                <span className="text-slate-400 ml-0.5">{rabRef?.satuan}</span>
+                                                                                <span className="text-slate-400 ml-0.5">{rabRef?.satuan || item.rab_item?.satuan}</span>
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-slate-400">Vol Akhir: </span>
                                                                                 <span className="font-bold text-slate-800">{item.volume_akhir}</span>
-                                                                                <span className="text-slate-400 ml-0.5">{rabRef?.satuan}</span>
+                                                                                <span className="text-slate-400 ml-0.5">{rabRef?.satuan || item.rab_item?.satuan}</span>
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-slate-400">Selisih Vol: </span>
@@ -1206,11 +1466,13 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-slate-400">Total RAB: </span>
-                                                                                <span className="font-semibold">{formatRp(volRab * hargaSatuan)}</span>
+                                                                                <span className="font-semibold">{formatRp(rabRef?.total_harga || (volRab * ((rabRef?.harga_material || 0) + (rabRef?.harga_upah || 0))))}</span>
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-slate-400">Total Opname: </span>
-                                                                                <span className="font-bold text-slate-800">{formatRp(item.volume_akhir * hargaSatuan)}</span>
+                                                                                <span className="font-bold text-slate-800">
+                                                                                    {formatRp(Number(item.total_harga_opname) || (Number(item.volume_akhir) * ((Number(rabRef?.harga_material || item.rab_item?.harga_material || 0)) + (Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0)))))}
+                                                                                </span>
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-slate-400">Selisih Biaya: </span>
