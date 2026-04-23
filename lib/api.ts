@@ -923,10 +923,17 @@ export const deleteOpname = async (id: number) => {
 // =============================================================================
 
 /** List Opname Final headers */
-export const fetchOpnameFinalList = async (filters?: { status?: string; id_toko?: number; nomor_ulok?: string; cabang?: string }) => {
+export const fetchOpnameFinalList = async (filters?: {
+    status?: string;
+    aksi?: "active" | "terkunci";
+    id_toko?: number;
+    nomor_ulok?: string;
+    cabang?: string;
+}) => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
+    if (filters?.aksi) params.append("aksi", filters.aksi);
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     if (filters?.cabang) params.append("cabang", filters.cabang);
@@ -948,6 +955,7 @@ export const fetchOpnameFinalDetail = async (id: number) => {
 export const kunciOpnameFinal = async (id: number, payload: {
     id_toko: number;
     email_pembuat: string;
+    aksi: "terkunci";
     grand_total_opname: string;
     grand_total_rab: string;
     opname_item: any[];

@@ -439,7 +439,7 @@ export default function ApprovalPage() {
                 const res = await fetchPertambahanSPKList({ status_persetujuan: 'Menunggu Persetujuan' });
                 normalized = normalizePertambahanSPKList(res.data ?? []);
             } else if (type === 'OPNAME_FINAL') {
-                const res = await fetchOpnameFinalList();
+                const res = await fetchOpnameFinalList({ aksi: 'terkunci' });
                 const opnameListRaw = Array.isArray(res.data)
                     ? res.data
                     : Array.isArray((res.data as any)?.opname_final)

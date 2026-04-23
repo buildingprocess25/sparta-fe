@@ -15,7 +15,7 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import {
     fetchRABList, fetchRABDetail, fetchTokoList,
-    fetchOpnameList, fetchOpnameDetail, updateOpname, submitOpnameBulk,
+    fetchOpnameList, fetchOpnameDetail, updateOpname, submitOpnameBulk, kunciOpnameFinal,
     fetchGanttList, fetchGanttDetailByToko, fetchPengawasanList,
     type OpnameItem, type RABDetailItem, type RABDetailToko, type RABListItem,
 } from '@/lib/api';
@@ -318,8 +318,18 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     selisih_volume: item.selisih_volume,
                     total_selisih: item.total_selisih,
                     total_harga_opname: totalHargaOpname,
+                    desain: item.desain || undefined,
+                    kualitas: item.kualitas || undefined,
+                    spesifikasi: item.spesifikasi || undefined,
+                    catatan: item.catatan || undefined,
+                    foto: item.foto || undefined,
                 };
             });
+
+            const opnameFinalId = Array.from(latestOpnames.values())[0]?.id_opname_final;
+            if (!opnameFinalId) {
+                throw new Error('ID Opname Final tidak ditemukan. Simpan item opname terlebih dahulu sebelum dikunci.');
+            }
 
             // Calculate grand totals
             let grandTotalRab = 0;
@@ -336,13 +346,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 grandTotalOpname += (Number(item.volume_akhir) || 0) * price;
             });
 
-            // Use bulk endpoint — backend auto-creates/updates opname_final header
-            await submitOpnameBulk({
+            await kunciOpnameFinal(Number(opnameFinalId), {
                 id_toko: Number(selectedRab.id_toko),
                 email_pembuat: userInfo.email,
+                aksi: 'terkunci',
                 grand_total_opname: String(Math.round(grandTotalOpname)),
                 grand_total_rab: String(Math.round(grandTotalRab)),
-                items: opnameItemsData,
+                opname_item: opnameItemsData,
             });
 
             showAlert({ message: 'Opname Final berhasil dikunci! Data telah dikirim untuk approval Koordinator.', type: "success" });
