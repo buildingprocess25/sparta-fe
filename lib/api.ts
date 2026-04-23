@@ -837,6 +837,35 @@ export const fetchOpnameDetail = async (
     return res.json();
 };
 
+/** Download foto opname item berdasarkan ID opname item. */
+export const downloadOpnameFoto = async (id: number): Promise<boolean> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/foto`);
+    if (res.status === 404) throw new Error(`Foto opname dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengunduh foto opname (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    const disposition = res.headers.get("Content-Disposition");
+    let filename = `OPNAME_FOTO_${id}`;
+    if (disposition?.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match?.[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(blobUrl);
+    document.body.removeChild(a);
+    return true;
+};
+
 /** Update data Opname (untuk approval/rejection kontraktor atau revisi PIC). */
 export const updateOpname = async (
     id: number,

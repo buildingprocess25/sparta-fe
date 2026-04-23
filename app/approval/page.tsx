@@ -25,6 +25,7 @@ import {
     type PertambahanSPKListItem, type PertambahanSPKDetailResponse,
     // Opname Final
     fetchOpnameFinalList, fetchOpnameFinalDetail, approveOpnameFinal, downloadOpnameFinalPdf,
+    downloadOpnameFoto,
 } from '@/lib/api';
 
 import { parseCurrency } from '@/lib/utils';
@@ -91,6 +92,9 @@ interface NormalizedDetail {
         harga_material: number;
         harga_upah: number;
         total: number;
+        desain?: string | null;
+        kualitas?: string | null;
+        spesifikasi?: string | null;
         catatan?: string | null;
         foto?: string | null;
     }>;
@@ -343,6 +347,7 @@ export default function ApprovalPage() {
     const [isLoading, setIsLoading]           = useState(false);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
     const [processingId, setProcessingId]     = useState<number | string | null>(null);
+    const [downloadingFotoId, setDownloadingFotoId] = useState<number | null>(null);
     const [rejectModal, setRejectModal]       = useState<NormalizedListItem | null>(null);
     const [rejectNote, setRejectNote]         = useState('');
     const [toast, setToast]                   = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -625,6 +630,9 @@ export default function ApprovalPage() {
                             harga_material:  mat,
                             harga_upah:      upah,
                             total:           parseCurrency(it.total_harga_opname) || (vol * (mat + upah)),
+                            desain:          it.desain,
+                            kualitas:        it.kualitas,
+                            spesifikasi:     it.spesifikasi,
                             catatan:         it.catatan,
                             foto:            it.foto || null,
                         };
@@ -759,6 +767,18 @@ export default function ApprovalPage() {
             showToast(err.message || 'Gagal mengunduh PDF.', 'error');
         } finally {
             setProcessingId(null);
+        }
+    };
+
+    const handleDownloadOpnameFoto = async (opnameItemId: number) => {
+        setDownloadingFotoId(opnameItemId);
+        try {
+            await downloadOpnameFoto(opnameItemId);
+            showToast('Foto opname berhasil diunduh.', 'success');
+        } catch (err: any) {
+            showToast(err.message || 'Gagal mengunduh foto opname.', 'error');
+        } finally {
+            setDownloadingFotoId(null);
         }
     };
 
@@ -1340,6 +1360,9 @@ export default function ApprovalPage() {
                                                         <th className="p-3 border-r font-semibold text-center">Kategori</th>
                                                         <th className="p-3 border-r font-semibold min-w-50 text-center">Jenis Pekerjaan</th>
                                                         <th className="p-3 border-r font-semibold text-center">Dokumentasi</th>
+                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Desain</th>
+                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Kualitas</th>
+                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Spesifikasi</th>
                                                         <th className="p-3 border-r font-semibold min-w-32 text-center">Catatan</th>
                                                         <th className="p-3 border-r font-semibold text-center">Volume</th>
                                                         <th className="p-3 border-r font-semibold text-center">Satuan</th>
@@ -1354,14 +1377,26 @@ export default function ApprovalPage() {
                                                             <td className="p-3 font-semibold text-slate-600 border-r text-xs">{row.kategori}</td>
                                                             <td className="p-3 text-slate-800 border-r">{row.jenis_pekerjaan}</td>
                                                             <td className="p-3 text-center border-r">
-                                                                {(row as any).foto ? (
-                                                                    <a href={(row as any).foto} target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-80 transition-opacity">
-                                                                        <img src={(row as any).foto} alt="foto opname" className="w-12 h-12 object-cover rounded border border-slate-200" />
-                                                                    </a>
+                                                                {row.foto ? (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                                                        disabled={downloadingFotoId === row.id}
+                                                                        onClick={() => handleDownloadOpnameFoto(row.id)}
+                                                                    >
+                                                                        {downloadingFotoId === row.id
+                                                                            ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                                                                            : <FileDown className="w-3.5 h-3.5 mr-1" />}
+                                                                        Download
+                                                                    </Button>
                                                                 ) : (
                                                                     <span className="text-[10px] text-slate-400">Tidak ada foto</span>
                                                                 )}
                                                             </td>
+                                                            <td className="p-3 text-slate-500 text-xs border-r">{row.desain || '-'}</td>
+                                                            <td className="p-3 text-slate-500 text-xs border-r">{row.kualitas || '-'}</td>
+                                                            <td className="p-3 text-slate-500 text-xs border-r">{row.spesifikasi || '-'}</td>
                                                             <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
                                                             <td className="p-3 text-center font-bold border-r">{row.volume}</td>
                                                             <td className="p-3 text-center text-slate-500 border-r">{row.satuan}</td>
@@ -1373,7 +1408,7 @@ export default function ApprovalPage() {
                                                 </tbody>
                                                 <tfoot className="bg-slate-100 border-t border-slate-300">
                                                     <tr>
-                                                        <td colSpan={8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td colSpan={11} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
                                                         <td className="p-3 font-extrabold text-slate-800 text-right">
                                                             {formatRupiah(selectedDetail.items.reduce((s, r) => s + (r.total ?? 0), 0))}
                                                         </td>
