@@ -1605,14 +1605,16 @@ export const fetchPICPengawasanList = async (
 // 7. INSTRUKSI LAPANGAN
 // =============================================================================
 
-interface InstruksiLapanganFilters {
+export type InstruksiLapanganFilters = {
     status?: string;
     nomor_ulok?: string;
     cabang?: string;
     email_pembuat?: string;
-}
+};
 
-export async function fetchInstruksiLapanganList(filters?: InstruksiLapanganFilters): Promise<any> {
+export const fetchInstruksiLapanganList = async (
+    filters?: InstruksiLapanganFilters
+): Promise<any> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
@@ -1621,9 +1623,9 @@ export async function fetchInstruksiLapanganList(filters?: InstruksiLapanganFilt
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
     const url = `${base}/api/instruksi-lapangan/list${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
-}
+};
 
-export async function fetchInstruksiLapanganDetail(id: number): Promise<any> {
+export const fetchInstruksiLapanganDetail = async (id: number): Promise<any> => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}`);
     if (res.status === 404) throw new Error(`Data Instruksi Lapangan dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
@@ -1631,18 +1633,18 @@ export async function fetchInstruksiLapanganDetail(id: number): Promise<any> {
         throw new Error(`Gagal memuat detail Instruksi Lapangan (${res.status}): ${text.substring(0, 100)}`);
     }
     return res.json();
-}
+};
 
-interface InstruksiLapanganApprovalPayload {
+export type InstruksiLapanganApprovalPayload = {
     action: 'APPROVE' | 'REJECT';
     approver_email: string;
     reason?: string;
-}
+};
 
-export async function processInstruksiLapanganApproval(
+export const processInstruksiLapanganApproval = async (
     id: number,
     payload: InstruksiLapanganApprovalPayload
-): Promise<any> {
+): Promise<any> => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1651,9 +1653,9 @@ export async function processInstruksiLapanganApproval(
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval Instruksi Lapangan.");
     return result;
-}
+};
 
-export async function downloadInstruksiLapanganPdf(id: number): Promise<boolean> {
+export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean> => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
     if (!res.ok) throw new Error(`Gagal download PDF Instruksi Lapangan (${res.status})`);
     const blob = await res.blob();
@@ -1667,5 +1669,5 @@ export async function downloadInstruksiLapanganPdf(id: number): Promise<boolean>
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
     return true;
-}
+};
 
