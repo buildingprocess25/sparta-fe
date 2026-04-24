@@ -1605,12 +1605,14 @@ export const fetchPICPengawasanList = async (
 // 7. INSTRUKSI LAPANGAN
 // =============================================================================
 
-export const fetchInstruksiLapanganList = async (filters?: {
+interface InstruksiLapanganFilters {
     status?: string;
     nomor_ulok?: string;
     cabang?: string;
     email_pembuat?: string;
-}) => {
+}
+
+export const fetchInstruksiLapanganList = async (filters?: InstruksiLapanganFilters) => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
@@ -1631,9 +1633,15 @@ export const fetchInstruksiLapanganDetail = async (id: number) => {
     return res.json();
 };
 
+interface InstruksiLapanganApprovalPayload {
+    action: 'APPROVE' | 'REJECT';
+    approver_email: string;
+    reason?: string;
+}
+
 export const processInstruksiLapanganApproval = async (
     id: number,
-    payload: { action: 'APPROVE' | 'REJECT'; approver_email: string; reason?: string }
+    payload: InstruksiLapanganApprovalPayload
 ) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approval`, {
         method: "POST",
