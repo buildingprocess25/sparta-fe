@@ -154,6 +154,21 @@ export default function InstruksiLapanganPage() {
         }));
     };
 
+    const { totalEstimasi, pembulatan, ppn, grandTotal, isBatamBranch } = React.useMemo(() => {
+        let total = 0;
+        tableRows.forEach(row => {
+            const v = Number(row.volume) || 0;
+            const m = Number(row.hargaMaterial) || 0;
+            const u = Number(row.hargaUpah) || 0;
+            total += v * (m + u);
+        });
+        const isBatam = (cabang || "").toUpperCase() === "BATAM";
+        const rounded = Math.floor(total / 10000) * 10000;
+        const tax = isBatam ? 0 : rounded * 0.11;
+        const grand = rounded + tax;
+        return { totalEstimasi: total, pembulatan: rounded, ppn: tax, grandTotal: grand, isBatamBranch: isBatam };
+    }, [tableRows, cabang]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedToko) return showAlert("Peringatan", "Silakan pilih Toko terlebih dahulu.", "error");
@@ -317,6 +332,32 @@ export default function InstruksiLapanganPage() {
                                     </Card>
                                 );
                             })}
+                        </div>
+                        </div>
+                    )}
+
+                    {selectedToko && tableRows.length > 0 && (
+                        <div className="bg-yellow-50/50 border border-yellow-200 rounded-xl p-6 mb-8 mt-4 shadow-sm">
+                            <div className="space-y-3 text-sm text-slate-600">
+                                <div className="flex justify-between items-center">
+                                    <span>Total Estimasi :</span>
+                                    <span className="font-semibold text-slate-800">{toRupiah(totalEstimasi)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>Pembulatan :</span>
+                                    <span className="font-semibold text-slate-800">{toRupiah(pembulatan)}</span>
+                                </div>
+                                {!isBatamBranch && (
+                                    <div className="flex justify-between items-center">
+                                        <span>PPN (11%) :</span>
+                                        <span className="font-semibold text-slate-800">{toRupiah(ppn)}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-yellow-300 flex justify-between items-center">
+                                <span className="font-bold text-slate-800 text-lg">GRAND TOTAL</span>
+                                <span className="text-2xl font-black text-red-600">{toRupiah(grandTotal)}</span>
+                            </div>
                         </div>
                     )}
 
