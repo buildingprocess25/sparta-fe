@@ -27,13 +27,17 @@ import {
     fetchOpnameFinalList, fetchOpnameFinalDetail, approveOpnameFinal, downloadOpnameFinalPdf,
     downloadOpnameFoto,
 } from '@/lib/api';
+import {
+    fetchInstruksiLapanganList, fetchInstruksiLapanganDetail,
+    processInstruksiLapanganApproval, downloadInstruksiLapanganPdf
+} from '@/lib/api';
 
 import { parseCurrency } from '@/lib/utils';
 
 // =============================================
 // TYPES INTERNAL
 // =============================================
-type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL';
+type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'INSTRUKSI_LAPANGAN';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 
@@ -70,9 +74,11 @@ interface NormalizedDetail {
     created_at: string;
     alasan_penolakan?: string | null;
     // Approval trail (RAB & IL)
+    // Approval trail (RAB & IL)
     approval_koordinator?: { pemberi: string | null; waktu: string | null };
     approval_manager?: { pemberi: string | null; waktu: string | null };
     approval_direktur?: { pemberi: string | null; waktu: string | null };
+    approval_kontraktor?: { pemberi: string | null; waktu: string | null };
     // SPK specific
     nama_kontraktor?: string;
     durasi?: number;
@@ -128,12 +134,14 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     SPK: ['BRANCH MANAGER', 'MANAGER'],
     PERTAMBAHAN_SPK: ['BRANCH MANAGER', 'MANAGER'],
     OPNAME_FINAL: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
+    INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'KONTRAKTOR', 'COORDINATOR', 'MANAGER'],
 };
 
-const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR'> = {
+const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR'> = {
     'BRANCH BUILDING COORDINATOR':           'KOORDINATOR',
     'BRANCH BUILDING & MAINTENANCE MANAGER': 'MANAGER',
     'DIREKTUR':                              'DIREKTUR',
+    'KONTRAKTOR':                            'KONTRAKTOR',
 };
 
 const APPROVAL_CONFIG: Record<ApprovalType, {
@@ -182,6 +190,15 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         description: 'Opname Final yang menunggu persetujuan.',
         emptyMsg: 'Tidak ada pengajuan Opname Final yang menunggu persetujuan.',
     },
+    INSTRUKSI_LAPANGAN: {
+        label: 'Approval Instruksi Lapangan',
+        icon: <FileText className="w-10 h-10" />,
+        color: 'text-amber-700',
+        hoverBorder: 'hover:border-amber-500',
+        badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
+        description: 'Instruksi Lapangan yang menunggu persetujuan.',
+        emptyMsg: 'Tidak ada pengajuan Instruksi Lapangan yang menunggu persetujuan.',
+    },
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
@@ -228,6 +245,9 @@ const STATUS_LABEL: Record<string, string> = {
     'DITOLAK OLEH KOORDINATOR':         'REJECTED (KOORD.)',
     'DITOLAK OLEH MANAJER':             'REJECTED (MGR.)',
     'DITOLAK OLEH DIREKTUR':            'REJECTED (DIR.)',
+    // Instruksi Lapangan
+    'MENUNGGU PERSETUJUAN KONTRAKTOR':  'PENDING (KONTR.)',
+    'DITOLAK OLEH KONTRAKTOR':          'REJECTED (KONTR.)',
 };
 
 // =============================================
@@ -297,6 +317,20 @@ const normalizeOpnameFinalList = (items: any[]): NormalizedListItem[] =>
         _raw: o,
     }));
 
+const normalizeInstruksiLapanganList = (items: any[]): NormalizedListItem[] =>
+    items.map(i => ({
+        id: i.id,
+        tipe: 'INSTRUKSI_LAPANGAN' as ApprovalType,
+        nomor_ulok:    i.nomor_ulok ?? '-',
+        nama_toko:     i.nama_toko ?? '-',
+        cabang:        i.cabang ?? '-',
+        status:        i.status,
+        total_nilai:   parseCurrency(i.grand_total_final ?? i.grand_total),
+        email_pembuat: i.email_pembuat,
+        created_at:    i.created_at,
+        _raw: i,
+    }));
+
 // =============================================
 // SUB-COMPONENTS
 // =============================================
@@ -332,7 +366,7 @@ export default function ApprovalPage() {
     // --- AUTH ---
     const [userInfo, setUserInfo]       = useState({ name: '', role: '', cabang: '', email: '' });
     const [accessibleTypes, setAccessibleTypes] = useState<ApprovalType[]>([]);
-    const [jabatan, setJabatan]         = useState<'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | null>(null);
+    const [jabatan, setJabatan]         = useState<'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR' | null>(null);
 
     // --- NAVIGATION ---
     const [activeView, setActiveView]     = useState<ActiveView>('menu');
@@ -385,10 +419,12 @@ export default function ApprovalPage() {
             return;
         }
 
-        // Prioritas Jabatan: DIREKTUR > MANAGER > KOORDINATOR
-        let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | null = null;
+        // Prioritas Jabatan: DIREKTUR > MANAGER > KOORDINATOR, KONTRAKTOR for IL
+        let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR' | null = null;
         if (roles.includes('DIREKTUR')) {
             currentJabatan = 'DIREKTUR';
+        } else if (roles.includes('KONTRAKTOR')) {
+            currentJabatan = 'KONTRAKTOR';
         } else if (roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER') || roles.includes('MANAGER')) {
             currentJabatan = 'MANAGER';
         } else if (roles.includes('BRANCH BUILDING COORDINATOR') || roles.includes('COORDINATOR')) {
@@ -446,6 +482,9 @@ export default function ApprovalPage() {
                         ? (res.data as any).opname_final
                         : [];
                 normalized = normalizeOpnameFinalList(opnameListRaw);
+            } else if (type === 'INSTRUKSI_LAPANGAN') {
+                const res = await fetchInstruksiLapanganList();
+                normalized = normalizeInstruksiLapanganList(res.data ?? []);
             }
 
             // Filter Berdasarkan Role & Jabatan & Cabang
@@ -477,6 +516,7 @@ export default function ApprovalPage() {
                 if (jabatan === 'KOORDINATOR') return upper.includes('KOORDINATOR');
                 if (jabatan === 'MANAGER')     return upper.includes('MANAGER') || upper.includes('MANAJER');
                 if (jabatan === 'DIREKTUR')    return upper.includes('DIREKTUR');
+                if (jabatan === 'KONTRAKTOR')  return upper.includes('KONTRAKTOR');
                 return true;
             });
 
@@ -638,6 +678,38 @@ export default function ApprovalPage() {
                         };
                     }),
                 };
+            } else if (item.tipe === 'INSTRUKSI_LAPANGAN') {
+                const res = await fetchInstruksiLapanganDetail(item.id);
+                const d = res.data;
+                detail = {
+                    id: d.id,
+                    tipe: 'INSTRUKSI_LAPANGAN',
+                    nomor_ulok:        d.toko?.nomor_ulok ?? '-',
+                    id_toko:           d.id_toko,
+                    nama_toko:         d.toko?.nama_toko ?? '-',
+                    cabang:            d.toko?.cabang ?? '-',
+                    lingkup_pekerjaan: d.toko?.lingkup_pekerjaan ?? '-',
+                    status:            d.status,
+                    total_nilai:       parseCurrency(d.grand_total_final ?? d.grand_total),
+                    email_pembuat:     d.email_pembuat,
+                    created_at:        d.created_at,
+                    alasan_penolakan:  d.alasan_penolakan,
+                    link_pdf_gabungan: d.link_pdf_gabungan,
+                    link_lampiran_pendukung: d.link_lampiran,
+                    approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator },
+                    approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager },
+                    approval_kontraktor:  { pemberi: d.pemberi_persetujuan_kontraktor,  waktu: d.waktu_persetujuan_kontraktor },
+                    items: (d.items ?? []).map((it: any) => ({
+                        id: it.id,
+                        kategori:        it.kategori_pekerjaan,
+                        jenis_pekerjaan: it.jenis_pekerjaan,
+                        satuan:          it.satuan,
+                        volume:          it.volume,
+                        harga_material:  it.harga_material,
+                        harga_upah:      it.harga_upah,
+                        total:           it.total_harga,
+                    })),
+                };
             }
 
             setSelectedDetail(detail);
@@ -674,8 +746,13 @@ export default function ApprovalPage() {
             } else if (item.tipe === 'OPNAME_FINAL') {
                 await approveOpnameFinal(item.id as number, {
                     approver_email: userInfo.email,
-                    jabatan:        jabatan ?? 'KOORDINATOR',
+                    jabatan:        jabatan as any ?? 'KOORDINATOR',
                     tindakan:       'APPROVE',
+                });
+            } else if (item.tipe === 'INSTRUKSI_LAPANGAN') {
+                await processInstruksiLapanganApproval(item.id as number, {
+                    approver_email: userInfo.email,
+                    action: 'APPROVE',
                 });
             }
             // Hapus item dari list karena sudah bukan giliran role ini lagi
@@ -729,9 +806,15 @@ export default function ApprovalPage() {
             } else if (item.tipe === 'OPNAME_FINAL') {
                 await approveOpnameFinal(item.id as number, {
                     approver_email:   userInfo.email,
-                    jabatan:          jabatan ?? 'KOORDINATOR',
+                    jabatan:          jabatan as any ?? 'KOORDINATOR',
                     tindakan:         'REJECT',
                     alasan_penolakan: rejectNote,
+                });
+            } else if (item.tipe === 'INSTRUKSI_LAPANGAN') {
+                await processInstruksiLapanganApproval(item.id as number, {
+                    approver_email: userInfo.email,
+                    action: 'REJECT',
+                    reason: rejectNote,
                 });
             }
             // Hapus item dari list karena sudah ditolak
@@ -761,6 +844,8 @@ export default function ApprovalPage() {
                 await downloadSPKPdf(id);
             } else if (type === 'OPNAME_FINAL') {
                 await downloadOpnameFinalPdf(id);
+            } else if (type === 'INSTRUKSI_LAPANGAN') {
+                await downloadInstruksiLapanganPdf(id);
             }
             showToast('PDF berhasil dibuka.', 'success');
         } catch (err: any) {

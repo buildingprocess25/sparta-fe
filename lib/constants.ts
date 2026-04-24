@@ -116,6 +116,13 @@ export const ALL_MENUS = [
         href: "/list",
         icon: FileStack,
     },
+    {
+        id: "menu-il",
+        title: "Instruksi Lapangan",
+        desc: "Form Instruksi Lapangan.",
+        href: "/instruksi-lapangan",
+        icon: FileText,
+    },
 ];
 
 // -----------------------------------------------------------------------------
@@ -131,23 +138,23 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
         "menu-spk", "menu-opname", "menu-tambahspk",
         "menu-gantt", "menu-dokumentasi", "menu-svdokumen", "menu-sp",
-        "menu-approval", "menu-daftardokumen",
+        "menu-approval", "menu-daftardokumen", "menu-il"
     ],
 
     "BRANCH BUILDING SUPPORT DOKUMENTASI": [
         "menu-spk", "menu-opname", "menu-tambahspk",
         "menu-gantt", "menu-dokumentasi", "menu-svdokumen", "menu-sp",
-        "menu-daftardokumen",
+        "menu-daftardokumen", "menu-il"
     ],
 
     "BRANCH BUILDING COORDINATOR": [
         "menu-dokumentasi", "menu-svdokumen", "menu-gantt",
-        "menu-opname", "menu-sp", "menu-approval", "menu-daftardokumen", "menu-inputpic"
+        "menu-opname", "menu-sp", "menu-approval", "menu-daftardokumen", "menu-inputpic", "menu-il"
     ],
 
     "BRANCH BUILDING SUPPORT": [
         "menu-dokumentasi", "menu-opname", "menu-gantt",
-        "menu-svdokumen", "menu-sp", "menu-daftardokumen",
+        "menu-svdokumen", "menu-sp", "menu-daftardokumen", "menu-il"
     ],
 
     "DIREKTUR": [
@@ -155,7 +162,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "KONTRAKTOR": [
-        "menu-rab", "menu-opname", "menu-gantt",
+        "menu-rab", "menu-opname", "menu-gantt", "menu-il", "menu-approval"
     ],
 };
 
