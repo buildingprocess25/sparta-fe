@@ -3,20 +3,20 @@
 // Seluruh fungsi komunikasi ke backend API.
 //
 // STRUKTUR FILE:
-//   1.  GLOBAL — safeFetchJSON
-//   2.  RAB    — Types, CRUD, Download PDF, Approval
-//   3.  GANTT  — Types, Submit, List, Detail, Update, Lock, Delete,
+//   1.  GLOBAL  safeFetchJSON
+//   2.  RAB     Types, CRUD, Download PDF, Approval
+//   3.  GANTT   Types, Submit, List, Detail, Update, Lock, Delete,
 //               Day Items, Keterlambatan, Kecepatan, Pengawasan
-//   4.  SPK    — Submit, Cek Status, Types, List, Detail, Approval
-//   5.  TAMBAH SPK     — Submit, Fetch Approved SPK, Types, List, Detail, Approva
-//   6.  PIC PENGAWASAN — Submit, Fetch List, Fetch Detail, Update
-//   7.  INSTRUKSI LAPANGAN — Submit, Fetch List
+//   4.  SPK     Submit, Cek Status, Types, List, Detail, Approval
+//   5.  TAMBAH SPK      Submit, Fetch Approved SPK, Types, List, Detail, Approva
+//   6.  PIC PENGAWASAN  Submit, Fetch List, Fetch Detail, Update
+//   7.  INSTRUKSI LAPANGAN  Submit, Fetch List
 // =============================================================================
 
 import { API_URL } from "./constants";
 
 // =============================================================================
-// 1. GLOBAL — FETCH HELPER
+// 1. GLOBAL  FETCH HELPER
 // =============================================================================
 
 /**
@@ -43,7 +43,7 @@ export const safeFetchJSON = async (url: string, options?: RequestInit) => {
 };
 
 // =============================================================================
-// 2. RAB — Rencana Anggaran Biaya
+// 2. RAB  Rencana Anggaran Biaya
 // =============================================================================
 
 // --- Types ---
@@ -227,8 +227,8 @@ export const fetchUserCabangList = async (
 };
 
 /** Submit / buat RAB baru.
- *  - Jika `asuransiFile` ada → kirim sebagai multipart/form-data (backend upload ke Drive).
- *  - Jika tidak ada file   → kirim sebagai JSON (backward compatible).
+ *  - Jika `asuransiFile` ada  kirim sebagai multipart/form-data (backend upload ke Drive).
+ *  - Jika tidak ada file    kirim sebagai JSON (backward compatible).
  */
 export const submitRABData = async (
     fields: Record<string, string>,
@@ -1042,7 +1042,7 @@ export const fetchOpnameFinalDetail = async (id: number) => {
     return res.json();
 };
 
-/** Kunci Opname Final — POST /api/final_opname/:id/kunci_opname_final */
+/** Kunci Opname Final  POST /api/final_opname/:id/kunci_opname_final */
 export const kunciOpnameFinal = async (id: number, payload: {
     id_toko: number;
     email_pembuat: string;
@@ -1061,7 +1061,7 @@ export const kunciOpnameFinal = async (id: number, payload: {
     return result;
 };
 
-/** Approval Opname Final — POST /api/final_opname/:id/approval */
+/** Approval Opname Final  POST /api/final_opname/:id/approval */
 export const approveOpnameFinal = async (id: number, payload: {
     approver_email: string;
     jabatan: string;
@@ -1109,7 +1109,7 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
 
 
 // =============================================================================
-// 4. SPK — Surat Perintah Kerja
+// 4. SPK  Surat Perintah Kerja
 // =============================================================================
 
 // --- Types ---
@@ -1373,8 +1373,8 @@ export type PertambahanSPKApprovalPayload = {
 // --- Fungsi ---
 
 /** Submit data pertambahan SPK baru.
- *  - Jika `file_lampiran_pendukung` ada → kirim sebagai multipart/form-data.
- *  - Jika tidak ada file → kirim sebagai JSON.
+ *  - Jika `file_lampiran_pendukung` ada  kirim sebagai multipart/form-data.
+ *  - Jika tidak ada file  kirim sebagai JSON.
  */
 export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/pertambahan-spk`;
@@ -1612,7 +1612,7 @@ interface InstruksiLapanganFilters {
     email_pembuat?: string;
 }
 
-export const fetchInstruksiLapanganList = async (filters?: InstruksiLapanganFilters) => {
+export async function fetchInstruksiLapanganList(filters?: InstruksiLapanganFilters): Promise<any> {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.status) params.append("status", filters.status);
@@ -1621,9 +1621,9 @@ export const fetchInstruksiLapanganList = async (filters?: InstruksiLapanganFilt
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
     const url = `${base}/api/instruksi-lapangan/list${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
-};
+}
 
-export const fetchInstruksiLapanganDetail = async (id: number) => {
+export async function fetchInstruksiLapanganDetail(id: number): Promise<any> {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}`);
     if (res.status === 404) throw new Error(`Data Instruksi Lapangan dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
@@ -1631,7 +1631,7 @@ export const fetchInstruksiLapanganDetail = async (id: number) => {
         throw new Error(`Gagal memuat detail Instruksi Lapangan (${res.status}): ${text.substring(0, 100)}`);
     }
     return res.json();
-};
+}
 
 interface InstruksiLapanganApprovalPayload {
     action: 'APPROVE' | 'REJECT';
@@ -1639,10 +1639,10 @@ interface InstruksiLapanganApprovalPayload {
     reason?: string;
 }
 
-export const processInstruksiLapanganApproval = async (
+export async function processInstruksiLapanganApproval(
     id: number,
     payload: InstruksiLapanganApprovalPayload
-) => {
+): Promise<any> {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1651,9 +1651,9 @@ export const processInstruksiLapanganApproval = async (
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval Instruksi Lapangan.");
     return result;
-};
+}
 
-export const downloadInstruksiLapanganPdf = async (id: number) => {
+export async function downloadInstruksiLapanganPdf(id: number): Promise<boolean> {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
     if (!res.ok) throw new Error(`Gagal download PDF Instruksi Lapangan (${res.status})`);
     const blob = await res.blob();
@@ -1667,4 +1667,5 @@ export const downloadInstruksiLapanganPdf = async (id: number) => {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
     return true;
-};
+}
+
