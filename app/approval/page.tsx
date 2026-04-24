@@ -684,11 +684,11 @@ export default function ApprovalPage() {
                 detail = {
                     id: d.id,
                     tipe: 'INSTRUKSI_LAPANGAN',
-                    nomor_ulok:        d.toko?.nomor_ulok ?? '-',
+                    nomor_ulok:        d.nomor_ulok ?? '-',
                     id_toko:           d.id_toko,
-                    nama_toko:         d.toko?.nama_toko ?? '-',
-                    cabang:            d.toko?.cabang ?? '-',
-                    lingkup_pekerjaan: d.toko?.lingkup_pekerjaan ?? '-',
+                    nama_toko:         d.nama_toko ?? '-',
+                    cabang:            d.cabang ?? '-',
+                    lingkup_pekerjaan: '-',
                     status:            d.status,
                     total_nilai:       parseCurrency(d.grand_total_final ?? d.grand_total),
                     email_pembuat:     d.email_pembuat,
@@ -751,8 +751,8 @@ export default function ApprovalPage() {
                 });
             } else if (item.tipe === 'INSTRUKSI_LAPANGAN') {
                 await processInstruksiLapanganApproval(item.id as number, {
-                    approver_email: userInfo.email,
                     action: 'APPROVE',
+                    approver_email: userInfo.email,
                 });
             }
             // Hapus item dari list karena sudah bukan giliran role ini lagi
@@ -1444,11 +1444,15 @@ export default function ApprovalPage() {
                                                     <tr>
                                                         <th className="p-3 border-r font-semibold text-center">Kategori</th>
                                                         <th className="p-3 border-r font-semibold min-w-50 text-center">Jenis Pekerjaan</th>
-                                                        <th className="p-3 border-r font-semibold text-center">Dokumentasi</th>
-                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Desain</th>
-                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Kualitas</th>
-                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Spesifikasi</th>
-                                                        <th className="p-3 border-r font-semibold min-w-32 text-center">Catatan</th>
+                                                        {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
+                                                            <>
+                                                                <th className="p-3 border-r font-semibold text-center">Dokumentasi</th>
+                                                                <th className="p-3 border-r font-semibold min-w-32 text-center">Desain</th>
+                                                                <th className="p-3 border-r font-semibold min-w-32 text-center">Kualitas</th>
+                                                                <th className="p-3 border-r font-semibold min-w-32 text-center">Spesifikasi</th>
+                                                                <th className="p-3 border-r font-semibold min-w-32 text-center">Catatan</th>
+                                                            </>
+                                                        )}
                                                         <th className="p-3 border-r font-semibold text-center">Volume</th>
                                                         <th className="p-3 border-r font-semibold text-center">Satuan</th>
                                                         <th className="p-3 border-r font-semibold text-center">Harga Material</th>
@@ -1461,24 +1465,28 @@ export default function ApprovalPage() {
                                                         <tr key={row.id} className="hover:bg-slate-50">
                                                             <td className="p-3 font-semibold text-slate-600 border-r text-xs">{row.kategori}</td>
                                                             <td className="p-3 text-slate-800 border-r">{row.jenis_pekerjaan}</td>
-                                                            <td className="p-3 text-center border-r">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                                                    disabled={!row.foto || downloadingFotoId === row.id}
-                                                                    onClick={() => handleDownloadOpnameFoto(row.id)}
-                                                                >
-                                                                    {downloadingFotoId === row.id
-                                                                        ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                                                                        : <FileDown className="w-3.5 h-3.5 mr-1" />}
-                                                                    {row.foto ? 'Download' : 'Tidak ada foto'}
-                                                                </Button>
-                                                            </td>
-                                                            <td className="p-3 text-slate-500 text-xs border-r">{row.desain || '-'}</td>
-                                                            <td className="p-3 text-slate-500 text-xs border-r">{row.kualitas || '-'}</td>
-                                                            <td className="p-3 text-slate-500 text-xs border-r">{row.spesifikasi || '-'}</td>
-                                                            <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
+                                                            {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
+                                                                <>
+                                                                    <td className="p-3 text-center border-r">
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                                                            disabled={!row.foto || downloadingFotoId === row.id}
+                                                                            onClick={() => handleDownloadOpnameFoto(row.id)}
+                                                                        >
+                                                                            {downloadingFotoId === row.id
+                                                                                ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                                                                                : <FileDown className="w-3.5 h-3.5 mr-1" />}
+                                                                            {row.foto ? 'Download' : 'Tidak ada foto'}
+                                                                        </Button>
+                                                                    </td>
+                                                                    <td className="p-3 text-slate-500 text-xs border-r">{row.desain || '-'}</td>
+                                                                    <td className="p-3 text-slate-500 text-xs border-r">{row.kualitas || '-'}</td>
+                                                                    <td className="p-3 text-slate-500 text-xs border-r">{row.spesifikasi || '-'}</td>
+                                                                    <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
+                                                                </>
+                                                            )}
                                                             <td className="p-3 text-center font-bold border-r">{row.volume}</td>
                                                             <td className="p-3 text-center text-slate-500 border-r">{row.satuan}</td>
                                                             <td className="p-3 text-right text-slate-500 border-r">{formatRupiah(row.harga_material)}</td>
@@ -1489,7 +1497,7 @@ export default function ApprovalPage() {
                                                 </tbody>
                                                 <tfoot className="bg-slate-100 border-t border-slate-300">
                                                     <tr>
-                                                        <td colSpan={11} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td colSpan={selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' ? 11 : 6} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
                                                         <td className="p-3 font-extrabold text-slate-800 text-right">
                                                             {formatRupiah(selectedDetail.items.reduce((s, r) => s + (r.total ?? 0), 0))}
                                                         </td>

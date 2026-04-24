@@ -1600,3 +1600,63 @@ export const fetchPICPengawasanList = async (
     const url = `${base}/api/pic_pengawasan${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
+
+// =============================================================================
+// 7. INSTRUKSI LAPANGAN
+// =============================================================================
+
+export const fetchInstruksiLapanganList = async (filters?: {
+    status?: string;
+    nomor_ulok?: string;
+    cabang?: string;
+    email_pembuat?: string;
+}) => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
+    if (filters?.cabang) params.append("cabang", filters.cabang);
+    if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
+    const url = `${base}/api/instruksi-lapangan/list${params.toString() ? `?${params}` : ""}`;
+    return safeFetchJSON(url);
+};
+
+export const fetchInstruksiLapanganDetail = async (id: number) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}`);
+    if (res.status === 404) throw new Error(`Data Instruksi Lapangan dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal memuat detail Instruksi Lapangan (${res.status}): ${text.substring(0, 100)}`);
+    }
+    return res.json();
+};
+
+export const processInstruksiLapanganApproval = async (
+    id: number,
+    payload: { action: 'APPROVE' | 'REJECT'; approver_email: string; reason?: string }
+) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal memproses approval Instruksi Lapangan.");
+    return result;
+};
+
+export const downloadInstruksiLapanganPdf = async (id: number) => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
+    if (!res.ok) throw new Error(`Gagal download PDF Instruksi Lapangan (${res.status})`);
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = url;
+    a.download = `Instruksi_Lapangan_${id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    return true;
+};
