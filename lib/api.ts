@@ -757,60 +757,6 @@ export const submitInstruksiLapangan = async (
     return result;
 };
 
-export const fetchInstruksiLapanganList = async (
-    filters?: { status?: string; nomor_ulok?: string; cabang?: string; email_pembuat?: string }
-) => {
-    const base = API_URL.replace(/\/$/, "");
-    const params = new URLSearchParams();
-    if (filters?.status) params.append("status", filters.status);
-    if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
-    if (filters?.cabang) params.append("cabang", filters.cabang);
-    if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
-    const url = `${base}/api/instruksi-lapangan/list${params.toString() ? `?${params}` : ""}`;
-    return safeFetchJSON(url);
-};
-
-export const fetchInstruksiLapanganDetail = async (id: number) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}`);
-    if (!res.ok) throw new Error(`Gagal memuat detail Instruksi Lapangan (${res.status})`);
-    return res.json();
-};
-
-export const processInstruksiLapanganApproval = async (id: number, actionData: { approver_email: string; action: "APPROVE" | "REJECT"; reason?: string }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(actionData),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Approval gagal.");
-    return result;
-};
-
-export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
-    if (!res.ok) throw new Error(`Gagal mengunduh PDF (${res.status})`);
-
-    const disposition = res.headers.get("Content-Disposition");
-    let filename = `Instruksi_Lapangan_${id}.pdf`;
-    if (disposition?.includes("filename=")) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match?.[1]) filename = match[1];
-    }
-
-    const blob = await res.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.style.display = "none";
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(blobUrl);
-    document.body.removeChild(a);
-    return true;
-};
-
 // =============================================================================
 // OPNAME
 // =============================================================================
