@@ -103,7 +103,6 @@ export default function InstruksiLapanganPage() {
                     
                     showAlert("Info", "Memuat data Instruksi Lapangan yang ditolak sebelumnya untuk revisi.", "info");
                 }
-                }
             }
         } catch (error: any) {
             showAlert("Error", error.message, "error");
