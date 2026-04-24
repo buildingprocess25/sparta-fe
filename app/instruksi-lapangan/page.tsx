@@ -333,7 +333,6 @@ export default function InstruksiLapanganPage() {
                                 );
                             })}
                         </div>
-                        </div>
                     )}
 
                     {selectedToko && tableRows.length > 0 && (
