@@ -436,6 +436,8 @@ export default function RABPage() {
       return showAlert("Peringatan", "Minimal harus ada 1 item pekerjaan dengan volume.", "warning");
     }
 
+    const isRevisionSubmit = currentRabId !== null;
+
     // Build payload — gunakan multipart/form-data jika ada file asuransi
     const textFields: Record<string, string> = {
       nomor_ulok: getUlokString(),
@@ -455,14 +457,30 @@ export default function RABPage() {
       luas_area_parkir: String(formData.luasAreaParkir || "0"),
       luas_area_sales: String(formData.luasAreaSales || "0"),
       luas_gudang: String(formData.luasGudang || "0"),
-      logo: formData.logo,
       no_polis: formData.noPolis,
       berlaku_polis: formData.berlakuPolis,
+      is_revisi: String(isRevisionSubmit),
     };
+
+    if (isRevisionSubmit && currentRabId) {
+      textFields.id_rab_revisi = String(currentRabId);
+    }
+
+    if (formData.logo) {
+      if (isRevisionSubmit) {
+        textFields.rev_logo = formData.logo;
+      } else {
+        textFields.logo = formData.logo;
+      }
+    }
 
     // Jika ada URL lama dari revisi (bukan file baru), kirim sebagai string
     if (!asuransiFile && formData.fileAsuransi) {
-      textFields.file_asuransi = formData.fileAsuransi;
+      if (isRevisionSubmit) {
+        textFields.rev_file_asuransi = formData.fileAsuransi;
+      } else {
+        textFields.file_asuransi = formData.fileAsuransi;
+      }
     }
 
     // ==========================================

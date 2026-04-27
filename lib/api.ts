@@ -246,7 +246,8 @@ export const submitRABData = async (
             if (value !== undefined && value !== null) form.append(key, value);
         });
         form.append("detail_items", JSON.stringify(detailItems));
-        form.append("file_asuransi", asuransiFile);
+        const isRevision = fields.is_revisi === "true";
+        form.append(isRevision ? "rev_file_asuransi" : "file_asuransi", asuransiFile);
 
         res = await fetch(url, { method: "POST", body: form });
     } else {
@@ -1615,5 +1616,6 @@ export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean>
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
     return true;
-};
+};
+
 
