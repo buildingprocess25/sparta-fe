@@ -14,6 +14,7 @@ import {
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
     fetchRABList, fetchRABDetail, fetchSPKList
 } from '@/lib/api';
+import type { GanttListItem } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';

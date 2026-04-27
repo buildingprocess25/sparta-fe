@@ -227,7 +227,7 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
     const categories = Object.keys(prices);
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6">
+        <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6">
             <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
                 {/* Modal Header */}
                 <div className="p-4 md:p-5 border-b flex justify-between items-center bg-white shadow-sm z-10">
@@ -312,7 +312,7 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
                                             </div>
                                             {itemsInCategory.length > 0 && (
                                                 <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm text-left border-collapse min-w-[1000px]">
+                                                    <table className="w-full text-sm text-left border-collapse min-w-250">
                                                         <thead className="bg-red-50 text-red-700 text-xs text-center border-b border-red-200">
                                                             <tr>
                                                                 <th rowSpan={2} className="p-2 border border-red-100 w-10">No</th>
@@ -439,7 +439,7 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
 
                 {/* Alert Dialog (relative to the modal) */}
                 <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
-                    <AlertDialogContent className="z-[210]">
+                    <AlertDialogContent className="z-210">
                         <AlertDialogHeader>
                             <AlertDialogTitle>{alertMessage.title}</AlertDialogTitle>
                             <AlertDialogDescription>{alertMessage.desc}</AlertDialogDescription>
