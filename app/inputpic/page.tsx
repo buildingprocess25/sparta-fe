@@ -701,6 +701,15 @@ export default function InputPICPage() {
         e.preventDefault();
         if (!selectedSpk || !picName.trim()) return;
 
+        const idToko = selectedSpk.toko?.id ?? selectedSpk.id_toko;
+        if (!idToko) {
+            showAlert({
+                message: "ID toko tidak ditemukan pada data SPK. Coba muat ulang daftar SPK.",
+                type: "warning"
+            });
+            return;
+        }
+
         if (!rabDetail?.id) {
             showAlert({
                 message: "Data RAB belum dimuat. Pastikan ULOK memiliki RAB yang disetujui.",
@@ -760,6 +769,7 @@ export default function InputPICPage() {
             await submitGanttPengawasan(id_gantt, tglPengawasan);
 
             const payloadPIC = {
+                id_toko: idToko,
                 nomor_ulok: selectedSpk.nomor_ulok,
                 id_rab: rabDetail.id,
                 id_spk: selectedSpk.id,

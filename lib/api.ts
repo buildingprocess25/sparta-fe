@@ -1079,13 +1079,14 @@ export type SPKSubmitPayload = {
 
 export type SPKListItem = {
     id: number;
+    id_toko: number;
     nomor_ulok: string;
     email_pembuat: string;
     lingkup_pekerjaan: string;
     nama_kontraktor: string;
     proyek: string;
     kode_toko?: string;
-    toko?: { nomor_ulok?: string; kode_toko?: string; nama_toko?: string; cabang?: string; alamat?: string };
+    toko?: { id?: number | null; nomor_ulok?: string; kode_toko?: string; nama_toko?: string; cabang?: string; alamat?: string };
     waktu_mulai: string;
     durasi: number;
     waktu_selesai: string;
@@ -1489,6 +1490,7 @@ export const deletePertambahanSPK = async (id: number) => {
 // --- Types ---
 
 export type PICPengawasanPayload = {
+    id_toko: number;
     nomor_ulok: string;
     id_rab: number;
     id_spk: number;
@@ -1501,6 +1503,7 @@ export type PICPengawasanPayload = {
 
 export type PICPengawasanListItem = {
     id: number;
+    id_toko: number;
     nomor_ulok: string;
     id_rab: number;
     id_spk: number;
