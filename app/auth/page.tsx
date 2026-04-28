@@ -163,7 +163,7 @@ export default function LoginPage() {
               className="h-12 mb-4 object-contain"
             />
             <CardTitle className="text-xl md:text-2xl font-bold text-slate-800">
-              Building & Maintenance
+              SPARTA Building
             </CardTitle>
             <h3 className="mt-2 text-base font-semibold text-slate-600">Login</h3>
           </div>
