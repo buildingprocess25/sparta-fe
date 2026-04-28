@@ -33,7 +33,8 @@ export default function RABPage() {
     proyek: '', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
     logo: '', // Base64 logo string
-    noPolis: '', berlakuPolis: '', fileAsuransi: '' // URL link file asuransi (jika sudah ada dari revisi)
+    noPolis: '', berlakuPolis: '', fileAsuransi: '', // URL link file asuransi (jika sudah ada dari revisi)
+    alamatCabang: ''
   });
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -216,6 +217,7 @@ export default function RABPage() {
               proyek: finalProyek,
               namaToko: tokoRef.nama_toko || data["nama_toko"] || data["Nama_Toko"] || prev.namaToko,
               alamat: fetchedTokoAlamat || tokoRef.alamat || data["Alamat"] || prev.alamat,
+              alamatCabang: tokoRef.alamat_cabang || data["alamat_cabang"] || data["Alamat Cabang"] || prev.alamatCabang,
               kategoriLokasi: finalKategori,
               durasiPekerjaan: finalDurasi,
               luasAreaParkir: rabRef.luas_area_parkir?.toString() || data["Luas Area Parkir"]?.toString() || prev.luasAreaParkir,
@@ -445,11 +447,12 @@ export default function RABPage() {
       proyek: formData.proyek,
       cabang: formData.cabang,
       alamat: formData.alamat,
+      alamat_cabang: formData.alamatCabang || '',
       nama_kontraktor: sessionStorage.getItem("nama_pt") || "-",
       lingkup_pekerjaan: formData.lingkupPekerjaan.toUpperCase(),
       email_pembuat: sessionStorage.getItem("loggedInUserEmail") || "",
       nama_pt: sessionStorage.getItem("nama_pt") || "-",
-      durasi_pekerjaan: formData.durasiPekerjaan,
+      durasi_pekerjaan: String(formData.durasiPekerjaan),
       kategori_lokasi: formData.kategoriLokasi.toUpperCase(),
       luas_bangunan: String(formData.luasBangunan || "0"),
       luas_terbangun: String(luasTerbangun.toFixed(2)),
@@ -675,6 +678,7 @@ export default function RABPage() {
                   </Select>
                 </div>
                 <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
+                <div className="space-y-2 lg:col-span-3"><Label>Alamat Cabang / Office <span className="text-xs text-slate-400 font-normal">(Opsional - Untuk Kop SPH)</span></Label><Input name="alamatCabang" value={formData.alamatCabang || ''} onChange={handleInputChange} placeholder="Masukkan alamat cabang / office" className="bg-white" /></div>
                 
                 <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="space-y-2"><Label>Cabang <span className="text-red-500">*</span></Label><Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} /></div>

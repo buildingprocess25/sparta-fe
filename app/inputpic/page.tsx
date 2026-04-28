@@ -84,6 +84,7 @@ function InteractiveGanttChart({
     onToggleDay,
     spkStartDate,
     spkDuration,
+    onDataLoaded
 }: {
     nomorUlok: string;
     idToko?: number;
@@ -91,11 +92,14 @@ function InteractiveGanttChart({
     onToggleDay: (day: number) => void;
     spkStartDate?: string;  // ISO date string
     spkDuration?: number;   // SPK duration in days
+    onDataLoaded?: (duration: number) => void;
 }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
     const [projectData, setProjectData] = useState<any>(null);
-    const [tasks, setTasks] = useState<any[]>([]); useEffect(() => {
+    const [tasks, setTasks] = useState<any[]>([]); 
+    
+    useEffect(() => {
         if (!nomorUlok && !idToko) return;
 
         setIsLoading(true);
@@ -147,13 +151,16 @@ function InteractiveGanttChart({
                 const endDaysRaw = day_items.map((entry: any) => toDayNumber(entry.h_akhir)).filter((d: number) => !isNaN(d));
                 const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
                 const duration = maxDay;
+                const finalDuration = (spkDuration && spkDuration > 0) ? spkDuration : duration;
 
                 setProjectData({
-                    duration: (spkDuration && spkDuration > 0) ? spkDuration : duration,
+                    duration: finalDuration,
                     startDate: projectStart.toISOString().split('T')[0],
                     useSpkDates: !!(spkStartDate && spkDuration && spkDuration > 0),
                     spkStartDateObj: spkStartDate ? new Date(spkStartDate.split('T')[0] + 'T00:00:00') : projectStart,
                 });
+
+                if (onDataLoaded) onDataLoaded(finalDuration);
 
                 let generatedTasks: any[] = kategori_pekerjaan.map((k: any, idx: number) => ({
                     id: idx + 1, name: k.kategori_pekerjaan, dependencies: [], ranges: [], keterlambatan: 0
@@ -527,6 +534,7 @@ export default function InputPICPage() {
     const [picName, setPicName] = useState('');
     const [picList, setPicList] = useState<any[]>([]);
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    const [ganttDuration, setGanttDuration] = useState<number>(0);
 
     const requiredDays = useMemo(() => {
         if (!rabDetail?.kategori_lokasi) return 0;
@@ -610,6 +618,7 @@ export default function InputPICPage() {
         setIsLocked(false);
         setPicName('');
         setSelectedDays([]);
+        setGanttDuration(0);
         setRabDetail(null);
 
         if (!spkId) {
@@ -660,19 +669,32 @@ export default function InputPICPage() {
         setStatusMsg({ text: 'Detail proyek berhasil dimuat. Silakan pilih PIC dan hari pengawasan.', type: 'info' });
     };
 
+    // ── Handle Gantt Data Load ──
+    const handleDataLoaded = useCallback((duration: number) => {
+        setGanttDuration(duration);
+        setSelectedDays(prev => {
+            if (!prev.includes(duration)) {
+                return [...prev, duration].sort((a, b) => a - b);
+            }
+            return prev;
+        });
+    }, []);
+
     // ── Toggle day selection ──
     const handleToggleDay = useCallback((day: number) => {
+        if (ganttDuration > 0 && day === ganttDuration) {
+            showAlert({ message: "Hari terakhir otomatis terpilih untuk serah terima dan tidak dapat dibatalkan.", type: "warning" });
+            return;
+        }
+
         setSelectedDays(prev => {
             if (prev.includes(day)) {
                 return prev.filter(d => d !== day);
             }
-            if (requiredDays > 0 && prev.length >= requiredDays) {
-                // Tidak bisa menambah hari lagi jika sudah mencapai batas maksimal
-                return prev;
-            }
+            // Hapus pengecekan requiredDays > 0 agar user bisa milih berapapun ("sisanya terserah user")
             return [...prev, day].sort((a, b) => a - b);
         });
-    }, [requiredDays]);
+    }, [ganttDuration, showAlert]);
 
     // ── Submit PIC Pengawasan ──
     const handleSubmit = async (e: React.FormEvent) => {
@@ -687,13 +709,18 @@ export default function InputPICPage() {
             return;
         }
 
-        if (requiredDays > 0 && selectedDays.length !== requiredDays) {
+        // 1. Validasi wajib H-1 atau H-2
+        if (!selectedDays.includes(1) && !selectedDays.includes(2)) {
             showAlert({
-                message: `Sesuai dengan kategori lokasi ULOK (${rabDetail.kategori_lokasi}), jumlah pemilihan hari pengawasan harus persis ${requiredDays} hari. Saat ini Anda baru memilih ${selectedDays.length} hari.`,
+                message: "Anda wajib memilih Hari ke-1 atau Hari ke-2 sebagai hari pengawasan awal.",
                 type: "warning"
             });
             return;
-        } else if (requiredDays === 0 && selectedDays.length === 0) {
+        }
+
+        // 2. Jika dibutuhkan validasi jumlah hari minimum sesuai requiredDays (opsional)
+        // Karena requirement: "untuk sisanya terserah user", kita hanya memastikan H-1/H-2 terpilih
+        if (selectedDays.length === 0) {
             showAlert({
                 message: "Silakan pilih minimal satu hari pengawasan di kalender Gantt.",
                 type: "warning"
@@ -963,8 +990,8 @@ export default function InputPICPage() {
                                             isSubmitting || 
                                             !selectedSpk || 
                                             !picName.trim() || 
-                                            (requiredDays > 0 && selectedDays.length !== requiredDays) ||
-                                            (requiredDays === 0 && selectedDays.length === 0)
+                                            selectedDays.length === 0 ||
+                                            (!selectedDays.includes(1) && !selectedDays.includes(2))
                                         }
                                         className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-400 disabled:cursor-not-allowed"
                                     >
