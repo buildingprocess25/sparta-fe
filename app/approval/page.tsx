@@ -1446,7 +1446,9 @@ export default function ApprovalPage() {
                                                         <th className="p-3 border-r font-semibold min-w-50 text-center whitespace-nowrap">Jenis Pekerjaan</th>
                                                         {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
                                                             <>
-                                                                <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Dokumentasi</th>
+                                                                {selectedDetail.tipe !== 'RAB' && (
+                                                                    <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Dokumentasi</th>
+                                                                )}
                                                                 <th className="p-3 border-r font-semibold min-w-32 text-center">Catatan</th>
                                                             </>
                                                         )}
@@ -1464,20 +1466,22 @@ export default function ApprovalPage() {
                                                             <td className="p-3 text-slate-800 border-r whitespace-nowrap">{row.jenis_pekerjaan}</td>
                                                             {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
                                                                 <>
-                                                                    <td className="p-3 text-center border-r">
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                                                            disabled={!row.foto || downloadingFotoId === row.id}
-                                                                            onClick={() => handleDownloadOpnameFoto(row.id)}
-                                                                        >
-                                                                            {downloadingFotoId === row.id
-                                                                                ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                                                                                : <FileDown className="w-3.5 h-3.5 mr-1" />}
-                                                                            {row.foto ? 'Download' : 'Tidak ada foto'}
-                                                                        </Button>
-                                                                    </td>
+                                                                    {selectedDetail.tipe !== 'RAB' && (
+                                                                        <td className="p-3 text-center border-r">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                                                                disabled={!row.foto || downloadingFotoId === row.id}
+                                                                                onClick={() => handleDownloadOpnameFoto(row.id)}
+                                                                            >
+                                                                                {downloadingFotoId === row.id
+                                                                                    ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                                                                                    : <FileDown className="w-3.5 h-3.5 mr-1" />}
+                                                                                {row.foto ? 'Download' : 'Tidak ada foto'}
+                                                                            </Button>
+                                                                        </td>
+                                                                    )}
                                                                     <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
                                                                 </>
                                                             )}
@@ -1491,7 +1495,7 @@ export default function ApprovalPage() {
                                                 </tbody>
                                                 <tfoot className="bg-slate-100 border-t border-slate-300">
                                                     <tr>
-                                                        <td colSpan={selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' ? 8 : 6} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td colSpan={selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 6 : selectedDetail.tipe === 'RAB' ? 7 : 8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
                                                         <td className="p-3 font-extrabold text-slate-800 text-right whitespace-nowrap">
                                                             {formatRupiah(selectedDetail.items.reduce((s, r) => s + Number(r.total ?? 0), 0))}
                                                         </td>
