@@ -84,7 +84,8 @@ function InteractiveGanttChart({
     onToggleDay,
     spkStartDate,
     spkDuration,
-    onDataLoaded
+    onDataLoaded,
+    requiredDays,
 }: {
     nomorUlok: string;
     idToko?: number;
@@ -93,6 +94,7 @@ function InteractiveGanttChart({
     spkStartDate?: string;  // ISO date string
     spkDuration?: number;   // SPK duration in days
     onDataLoaded?: (duration: number) => void;
+    requiredDays: number;
 }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
@@ -333,13 +335,22 @@ function InteractiveGanttChart({
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                         Klik angka pada header hari untuk menandai hari pengawasan PIC.
+                        {requiredDays > 0 && (
+                            <span className="font-bold text-indigo-600 ml-1">
+                                (Wajib pilih tepat {requiredDays} hari)
+                            </span>
+                        )}
                     </p>
                 </div>
-                {selectedDays.length > 0 && (
-                    <div className="bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-3 py-1 text-xs font-bold">
-                        {selectedDays.length} hari dipilih
-                    </div>
-                )}
+                <div className={`border rounded-full px-3 py-1 text-xs font-bold ${
+                    requiredDays > 0 && selectedDays.length === requiredDays
+                        ? 'bg-green-100 text-green-700 border-green-200'
+                        : requiredDays > 0 && selectedDays.length > requiredDays
+                            ? 'bg-red-100 text-red-700 border-red-200'
+                            : 'bg-blue-100 text-blue-700 border-blue-200'
+                }`}>
+                    {selectedDays.length}{requiredDays > 0 ? ` / ${requiredDays}` : ''} hari dipilih
+                </div>
             </div>
             <div className="flex border-b overflow-hidden relative" style={{ maxHeight: "450px" }}>
                 {/* Left Pane — Task Names */}
@@ -465,7 +476,20 @@ function InteractiveGanttChart({
             {/* Selected days summary */}
             {selectedDays.length > 0 && (
                 <div className="p-3 bg-blue-50 border-t border-blue-100">
-                    <p className="text-xs font-bold text-blue-700 mb-1.5">Hari Pengawasan Terpilih:</p>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-xs font-bold text-blue-700">Hari Pengawasan Terpilih:</p>
+                        {requiredDays > 0 && selectedDays.length !== requiredDays && (
+                            <p className={`text-xs font-bold ${selectedDays.length > requiredDays ? 'text-red-600' : 'text-amber-600'}`}>
+                                {selectedDays.length > requiredDays
+                                    ? `Kelebihan ${selectedDays.length - requiredDays} hari! Hapus ${selectedDays.length - requiredDays} hari.`
+                                    : `Kurang ${requiredDays - selectedDays.length} hari lagi.`
+                                }
+                            </p>
+                        )}
+                        {requiredDays > 0 && selectedDays.length === requiredDays && (
+                            <p className="text-xs font-bold text-green-600">✓ Jumlah hari sudah sesuai</p>
+                        )}
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                         {[...selectedDays].sort((a, b) => a - b).map(day => (
                             <button
@@ -672,6 +696,7 @@ export default function InputPICPage() {
     // ── Handle Gantt Data Load ──
     const handleDataLoaded = useCallback((duration: number) => {
         setGanttDuration(duration);
+        // Otomatis pilih hari terakhir pekerjaan
         setSelectedDays(prev => {
             if (!prev.includes(duration)) {
                 return [...prev, duration].sort((a, b) => a - b);
@@ -682,19 +707,32 @@ export default function InputPICPage() {
 
     // ── Toggle day selection ──
     const handleToggleDay = useCallback((day: number) => {
+        // Hari terakhir pekerjaan wajib terpilih dan tidak bisa dibatalkan
         if (ganttDuration > 0 && day === ganttDuration) {
-            showAlert({ message: "Hari terakhir otomatis terpilih untuk serah terima dan tidak dapat dibatalkan.", type: "warning" });
+            showAlert({ message: "Hari terakhir pekerjaan wajib dipilih dan tidak dapat dibatalkan.", type: "warning" });
             return;
         }
 
+        // Cek batas maksimal sebelum masuk state updater (agar showAlert tidak dipanggil saat render)
         setSelectedDays(prev => {
+            // Jika sudah terpilih, hapus (toggle off)
             if (prev.includes(day)) {
                 return prev.filter(d => d !== day);
             }
-            // Hapus pengecekan requiredDays > 0 agar user bisa milih berapapun ("sisanya terserah user")
+            // Jika requiredDays > 0, cek apakah sudah mencapai batas
+            if (requiredDays > 0 && prev.length >= requiredDays) {
+                // Gunakan setTimeout agar showAlert dipanggil di luar render cycle
+                setTimeout(() => {
+                    showAlert({
+                        message: `Jumlah hari pengawasan sudah mencapai batas maksimal (${requiredDays} hari). Hapus salah satu hari terlebih dahulu jika ingin menggantinya.`,
+                        type: "warning"
+                    });
+                }, 0);
+                return prev;
+            }
             return [...prev, day].sort((a, b) => a - b);
         });
-    }, [ganttDuration, showAlert]);
+    }, [ganttDuration, requiredDays, showAlert]);
 
     // ── Submit PIC Pengawasan ──
     const handleSubmit = async (e: React.FormEvent) => {
@@ -721,17 +759,26 @@ export default function InputPICPage() {
         // 1. Validasi wajib H-1 atau H-2
         if (!selectedDays.includes(1) && !selectedDays.includes(2)) {
             showAlert({
-                message: "Anda wajib memilih Hari ke-1 atau Hari ke-2 sebagai hari pengawasan awal.",
+                message: "Anda wajib memilih Hari ke-1 (H1) atau Hari ke-2 (H2) sebagai hari pengawasan awal.",
                 type: "warning"
             });
             return;
         }
 
-        // 2. Jika dibutuhkan validasi jumlah hari minimum sesuai requiredDays (opsional)
-        // Karena requirement: "untuk sisanya terserah user", kita hanya memastikan H-1/H-2 terpilih
-        if (selectedDays.length === 0) {
+        // 2. Validasi H terakhir pekerjaan wajib dipilih
+        if (ganttDuration > 0 && !selectedDays.includes(ganttDuration)) {
             showAlert({
-                message: "Silakan pilih minimal satu hari pengawasan di kalender Gantt.",
+                message: `Anda wajib memilih Hari terakhir pekerjaan (H${ganttDuration}) sebagai hari pengawasan.`,
+                type: "warning"
+            });
+            return;
+        }
+
+        // 3. Validasi jumlah hari pengawasan harus tepat sesuai kategori lokasi
+        if (requiredDays > 0 && selectedDays.length !== requiredDays) {
+            const katLokasi = rabDetail?.kategori_lokasi || 'N/A';
+            showAlert({
+                message: `Kategori lokasi "${katLokasi}" mengharuskan tepat ${requiredDays} hari pengawasan. Saat ini Anda memilih ${selectedDays.length} hari.`,
                 type: "warning"
             });
             return;
@@ -951,7 +998,51 @@ export default function InputPICPage() {
                                         onToggleDay={handleToggleDay}
                                         spkStartDate={selectedSpk.waktu_mulai}
                                         spkDuration={selectedSpk.durasi}
+                                        requiredDays={requiredDays}
+                                        onDataLoaded={handleDataLoaded}
                                     />
+
+                                    {/* Validation hints below Gantt */}
+                                    {requiredDays > 0 && (
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                                            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                <Info className="w-4 h-4 text-indigo-500" />
+                                                Syarat Hari Pengawasan
+                                            </h4>
+                                            <ul className="text-xs space-y-1.5 ml-6">
+                                                <li className={`flex items-center gap-2 ${
+                                                    (selectedDays.includes(1) || selectedDays.includes(2)) ? 'text-green-600' : 'text-slate-500'
+                                                }`}>
+                                                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                                                        (selectedDays.includes(1) || selectedDays.includes(2)) ? 'border-green-500 bg-green-50 text-green-600' : 'border-slate-300'
+                                                    }`}>
+                                                        {(selectedDays.includes(1) || selectedDays.includes(2)) ? '✓' : ''}
+                                                    </span>
+                                                    Wajib pilih <strong>H1</strong> atau <strong>H2</strong> (hari pengawasan awal)
+                                                </li>
+                                                <li className={`flex items-center gap-2 ${
+                                                    ganttDuration > 0 && selectedDays.includes(ganttDuration) ? 'text-green-600' : 'text-slate-500'
+                                                }`}>
+                                                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                                                        ganttDuration > 0 && selectedDays.includes(ganttDuration) ? 'border-green-500 bg-green-50 text-green-600' : 'border-slate-300'
+                                                    }`}>
+                                                        {ganttDuration > 0 && selectedDays.includes(ganttDuration) ? '✓' : ''}
+                                                    </span>
+                                                    Wajib pilih <strong>H terakhir pekerjaan (H{ganttDuration || '?'})</strong>
+                                                </li>
+                                                <li className={`flex items-center gap-2 ${
+                                                    selectedDays.length === requiredDays ? 'text-green-600' : selectedDays.length > requiredDays ? 'text-red-600' : 'text-slate-500'
+                                                }`}>
+                                                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                                                        selectedDays.length === requiredDays ? 'border-green-500 bg-green-50 text-green-600' : selectedDays.length > requiredDays ? 'border-red-500 bg-red-50 text-red-600' : 'border-slate-300'
+                                                    }`}>
+                                                        {selectedDays.length === requiredDays ? '✓' : selectedDays.length > requiredDays ? '!' : ''}
+                                                    </span>
+                                                    Jumlah hari harus tepat <strong>{requiredDays} hari</strong> ({rabDetail?.kategori_lokasi}) — saat ini: {selectedDays.length}/{requiredDays}
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -1001,7 +1092,9 @@ export default function InputPICPage() {
                                             !selectedSpk || 
                                             !picName.trim() || 
                                             selectedDays.length === 0 ||
-                                            (!selectedDays.includes(1) && !selectedDays.includes(2))
+                                            (!selectedDays.includes(1) && !selectedDays.includes(2)) ||
+                                            (ganttDuration > 0 && !selectedDays.includes(ganttDuration)) ||
+                                            (requiredDays > 0 && selectedDays.length !== requiredDays)
                                         }
                                         className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-400 disabled:cursor-not-allowed"
                                     >
