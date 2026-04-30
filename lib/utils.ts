@@ -58,6 +58,11 @@ export const parseCurrency = (value: any): number => {
     if (typeof value === "number") return value;
     if (typeof value === "string") {
         if (value.includes("#REF!") || value.includes("Error")) return 0;
+        
+        // Handle standard numeric strings (e.g. "12500000.00" or "12500000")
+        // This prevents the "extra zero" bug where .00 is treated as thousands
+        if (/^\d+(\.\d+)?$/.test(value)) return parseFloat(value);
+        
         const cleaned = value.replace(/\./g, "").replace(/,/g, ".");
         const parsed = parseFloat(cleaned);
         return isNaN(parsed) ? 0 : parsed;

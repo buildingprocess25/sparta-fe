@@ -8,6 +8,7 @@ import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, Ale
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList } from '@/lib/api';
+import { parseCurrency } from '@/lib/utils';
 
 const getCabangCode = (cabangName: string) => {
     const map: Record<string, string> = {
@@ -297,7 +298,7 @@ export default function SPKPage() {
             kode_toko: form.kode_toko,
             waktu_mulai: form.waktu_mulai,
             durasi: parseInt(form.durasi),
-            grand_total: parseFloat(selectedRabObj["Grand Total Final"]) || 0,
+            grand_total: parseCurrency(selectedRabObj["Grand Total Final"]) || 0,
             par: fullPAR,
             spk_manual_1: form.spk_bulan,
             spk_manual_2: form.spk_tahun
@@ -400,7 +401,7 @@ export default function SPKPage() {
                                             <div><p className="text-[11px] font-bold text-slate-500 uppercase">Nama Toko</p><p className="font-semibold text-slate-800">{form.nama_toko || '-'}</p></div>
                                             <div><p className="text-[11px] font-bold text-slate-500 uppercase">Proyek</p><p className="font-semibold text-slate-800">{selectedRabObj.Proyek}</p></div>
                                             <div><p className="text-[11px] font-bold text-slate-500 uppercase">Lingkup</p><p className="font-semibold text-slate-800">{selectedRabObj.Lingkup_Pekerjaan}</p></div>
-                                            <div><p className="text-[11px] font-bold text-slate-500 uppercase">Grand Total Final</p><p className="font-bold text-red-600">{formatRupiah(selectedRabObj["Grand Total Final"])}</p></div>
+                                            <div><p className="text-[11px] font-bold text-slate-500 uppercase">Grand Total Final</p><p className="font-bold text-red-600">{formatRupiah(parseCurrency(selectedRabObj["Grand Total Final"]))}</p></div>
                                         </div>
                                     </div>
                                 )}
