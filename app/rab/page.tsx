@@ -31,7 +31,7 @@ export default function RABPage() {
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
-    proyek: '', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
+    proyek: 'Reguler', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
     logo: '', // Base64 logo string
     noPolis: '', berlakuPolis: '', fileAsuransi: '', // URL link file asuransi (jika sudah ada dari revisi)
@@ -633,29 +633,24 @@ export default function RABPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Proyek <span className="text-red-500">*</span></Label>
-                  <Select 
-                    onValueChange={(val) => handleSelectChange('proyek', val)} 
-                    value={formData.proyek} 
-                    required
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="-- Pilih Jenis Proyek --" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {formData.isRenovasi ? (
-                        <>
-                          <SelectItem value="Perpanjangan">Perpanjangan</SelectItem>
-                          <SelectItem value="Toko Tutup">Toko Tutup</SelectItem>
-                          <SelectItem value="Peremajaan/Perbaikan">Peremajaan/Perbaikan</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="Reguler">Reguler</SelectItem>
-                          <SelectItem value="Renovasi">Renovasi</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  {formData.isRenovasi ? (
+                    <Select 
+                      onValueChange={(val) => handleSelectChange('proyek', val)} 
+                      value={formData.proyek} 
+                      required
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="-- Pilih Jenis Proyek --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Perpanjangan">Perpanjangan</SelectItem>
+                        <SelectItem value="Toko Tutup">Toko Tutup</SelectItem>
+                        <SelectItem value="Peremajaan/Perbaikan">Peremajaan/Perbaikan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value="Reguler" readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
+                  )}
                 </div>
                 <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
                 <div className="space-y-2 lg:col-span-3"><Label>Alamat Cabang / Office <span className="text-xs text-slate-400 font-normal">(Otomatis dari data cabang)</span></Label><Input name="alamatCabang" value={formData.alamatCabang || ''} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} placeholder="-" /></div>
