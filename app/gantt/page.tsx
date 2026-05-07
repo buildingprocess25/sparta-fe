@@ -1420,6 +1420,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         return false;
                     }
                 }
+
+                // Dokumentasi/Foto wajib diisi untuk setiap item
+                if (!input.file && !input.dokumentasiUrl) {
+                    return false;
+                }
             }
         }
         return true;
@@ -1744,7 +1749,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 rows={2}
                                                                             />
                                                                             <div className="flex items-center text-xs">
-                                                                                <span className="text-slate-600 font-medium w-16">Foto/Dok:</span>
+                                                                                <span className="text-slate-600 font-medium w-16">Foto/Dok<span className="text-red-500">*</span>:</span>
                                                                                 <input 
                                                                                     type="file" 
                                                                                     accept="image/*,.pdf,application/pdf"
