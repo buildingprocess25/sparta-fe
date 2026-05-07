@@ -1159,6 +1159,7 @@ function GanttBoard() {
                     setShowMemoModal(true);
                 }}
                 selectedGanttId={selectedGanttId}
+                spkInfo={spkInfo}
                 onSuccess={() => {
                     setShowOpnameModal(false);
                     if (selectedGanttId) loadGanttDetail(selectedGanttId);
@@ -1766,7 +1767,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 }
 
 // Komponen OpnameModal
-function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGanttId, onSuccess }: any) {
+function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGanttId, onSuccess, spkInfo }: any) {
     const { showAlert } = useGlobalAlert();
     const [completedItems, setCompletedItems] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -2039,19 +2040,16 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 });
             }
 
-            // Trigger API Berkas Serah Terima
-            try {
-                const { API_URL } = await import('@/lib/constants');
-                const pdfRes = await fetch(`${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id_toko: Number(id_toko) })
-                });
-                if (!pdfRes.ok) {
-                    console.warn("Gagal trigger PDF serah terima:", await pdfRes.text());
+            // Trigger API Berkas Serah Terima — HANYA jika ini hari terakhir (serah terima)
+            const isLastDay = spkInfo && activeHeaderClick && (activeHeaderClick.dayIndex + 1 >= spkInfo.duration);
+            
+            if (isLastDay) {
+                try {
+                    const { createPdfSerahTerima } = await import('@/lib/api');
+                    await createPdfSerahTerima(Number(id_toko));
+                } catch (pdfErr) {
+                    console.error("Error trigger PDF serah terima:", pdfErr);
                 }
-            } catch (pdfErr) {
-                console.error("Error trigger PDF serah terima:", pdfErr);
             }
             
             showAlert({ 

@@ -1751,6 +1751,21 @@ export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number })
     return safeFetchJSON(url);
 };
 
+/**
+ * Trigger pemuatan/pembuatan PDF Berita Acara Serah Terima.
+ */
+export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima`;
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_toko }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima.");
+    return result;
+};
+
 // =============================================================================
 // 9. DOKUMENTASI BANGUNAN
 // =============================================================================
