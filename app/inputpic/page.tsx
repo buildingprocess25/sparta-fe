@@ -18,6 +18,7 @@ import {
     type SPKListItem, type RABListItem, type GanttDetailDayItem,
     type GanttDetailKategori, type GanttDetailDependency,
 } from '@/lib/api';
+import { BRANCH_GROUPS } from '@/lib/constants';
 
 // =============================================================================
 // CONSTANTS
@@ -546,6 +547,7 @@ export default function InputPICPage() {
     const [approvedSpks, setApprovedSpks] = useState<SPKListItem[]>([]);
     const [selectedSpk, setSelectedSpk] = useState<SPKListItem | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [cabangFilter, setCabangFilter] = useState('');
 
     // ── RAB detail for id_rab & kategori_lokasi ──
     const [rabDetail, setRabDetail] = useState<any>(null);
@@ -605,16 +607,24 @@ export default function InputPICPage() {
         }
     };
 
-    // ── Load approved SPKs filtered by user's cabang ──
+    // ── Load approved SPKs filtered by user's cabang (branch group aware) ──
     const loadApprovedSpks = async (cabang: string) => {
         setIsLoading(true);
         try {
             const res = await fetchSPKList({ status: 'SPK_APPROVED' });
             const allSpks = res.data || [];
-            // Filter by user's cabang via toko relationship
+            const upperCabang = cabang.toUpperCase();
+            let userGroup: string[] | null = null;
+            for (const grp of Object.values(BRANCH_GROUPS)) {
+                if (grp.includes(upperCabang)) {
+                    userGroup = grp;
+                    break;
+                }
+            }
             const filtered = allSpks.filter((s: SPKListItem) => {
                 const spkCabang = (s.toko?.cabang || '').toUpperCase();
-                return spkCabang === cabang.toUpperCase();
+                if (userGroup) return userGroup.includes(spkCabang);
+                return spkCabang === upperCabang;
             });
             setApprovedSpks(filtered);
         } catch (error: any) {
@@ -624,17 +634,36 @@ export default function InputPICPage() {
         }
     };
 
-    // ── Filtered SPKs by search ──
+    // ── Cabang options for branch group users ──
+    const cabangOptions = useMemo(() => {
+        const upper = userInfo.cabang?.toUpperCase();
+        if (!upper) return [];
+        let userGroup: string[] | null = null;
+        for (const grp of Object.values(BRANCH_GROUPS)) {
+            if (grp.includes(upper)) {
+                userGroup = grp;
+                break;
+            }
+        }
+        return userGroup ? [...userGroup].sort() : [];
+    }, [userInfo.cabang]);
+
+    // ── Filtered SPKs by search + cabang ──
     const filteredSpks = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        return approvedSpks.filter(s =>
-            (s.nomor_ulok || '').toLowerCase().includes(q) ||
-            (s.nomor_spk || '').toLowerCase().includes(q) ||
-            (s.toko?.nama_toko || '').toLowerCase().includes(q) ||
-            (s.toko?.kode_toko || s.kode_toko || '').toLowerCase().includes(q) ||
-            (s.proyek || '').toLowerCase().includes(q)
-        );
-    }, [approvedSpks, searchQuery]);
+        return approvedSpks.filter(s => {
+            const matchSearch =
+                (s.nomor_ulok || '').toLowerCase().includes(q) ||
+                (s.nomor_spk || '').toLowerCase().includes(q) ||
+                (s.toko?.nama_toko || '').toLowerCase().includes(q) ||
+                (s.toko?.kode_toko || s.kode_toko || '').toLowerCase().includes(q) ||
+                (s.proyek || '').toLowerCase().includes(q);
+            const matchCabang = cabangFilter
+                ? (s.toko?.cabang || '').toUpperCase() === cabangFilter.toUpperCase()
+                : true;
+            return matchSearch && matchCabang;
+        });
+    }, [approvedSpks, searchQuery, cabangFilter]);
 
     // ── Handle ULOK selection ──
     const handleSpkSelect = async (spkId: string) => {
@@ -892,21 +921,45 @@ export default function InputPICPage() {
                                             Memuat data SPK yang disetujui...
                                         </div>
                                     ) : (
-                                        <div className="relative">
-                                            <select
-                                                required
-                                                className="w-full p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-indigo-500 appearance-none pr-10"
-                                                value={selectedSpk?.id?.toString() || ''}
-                                                onChange={(e) => handleSpkSelect(e.target.value)}
-                                            >
-                                                <option value="">-- Klik untuk Pilih ULOK --</option>
-                                                {filteredSpks.map(s => (
-                                                    <option key={s.id} value={s.id.toString()}>
-                                                        {s.nomor_ulok} ({s.lingkup_pekerjaan}) — {s.toko?.kode_toko || s.kode_toko || ''} — {s.toko?.nama_toko || ''} — {s.proyek}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                                        <div className="flex flex-col md:flex-row gap-3">
+                                            {cabangOptions.length > 0 && (
+                                                <select
+                                                    className="w-full md:w-1/3 p-3 border rounded-lg bg-white outline-none text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                                                    value={cabangFilter}
+                                                    onChange={(e) => {
+                                                        setCabangFilter(e.target.value);
+                                                        setSelectedSpk(null);
+                                                        setSelectedDays([]);
+                                                        setRabDetail(null);
+                                                        setPicName('');
+                                                        // Reload PIC list for selected branch
+                                                        if (e.target.value) {
+                                                            loadPicList(e.target.value);
+                                                        } else {
+                                                            loadPicList(userInfo.cabang);
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="">Semua Cabang (Grup)</option>
+                                                    {cabangOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                            )}
+                                            <div className="relative flex-1">
+                                                <select
+                                                    required
+                                                    className="w-full p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-indigo-500 appearance-none pr-10"
+                                                    value={selectedSpk?.id?.toString() || ''}
+                                                    onChange={(e) => handleSpkSelect(e.target.value)}
+                                                >
+                                                    <option value="">-- Klik untuk Pilih ULOK --</option>
+                                                    {filteredSpks.map(s => (
+                                                        <option key={s.id} value={s.id.toString()}>
+                                                            {s.nomor_ulok} ({s.lingkup_pekerjaan}) — {s.toko?.kode_toko || s.kode_toko || ''} — {s.toko?.nama_toko || ''} — {s.proyek}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
