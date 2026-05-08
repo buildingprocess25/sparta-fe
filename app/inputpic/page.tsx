@@ -626,7 +626,28 @@ export default function InputPICPage() {
                 if (userGroup) return userGroup.includes(spkCabang);
                 return spkCabang === upperCabang;
             });
-            setApprovedSpks(filtered);
+            
+            // Group by ULOK
+            const map = new Map<string, SPKListItem>();
+            filtered.forEach((s: SPKListItem) => {
+                const ulok = s.nomor_ulok;
+                if (!ulok) {
+                    map.set(s.id.toString(), s);
+                    return;
+                }
+                if (!map.has(ulok)) {
+                    map.set(ulok, { ...s });
+                } else {
+                    const existing = map.get(ulok)!;
+                    const l1 = existing.lingkup_pekerjaan || '';
+                    const l2 = s.lingkup_pekerjaan || '';
+                    if (l1 && l2 && l1 !== l2 && !l1.includes(l2)) {
+                        existing.lingkup_pekerjaan = `${l1} & ${l2}`;
+                    }
+                }
+            });
+
+            setApprovedSpks(Array.from(map.values()));
         } catch (error: any) {
             setStatusMsg({ text: "Gagal memuat data SPK: " + error.message, type: 'error' });
         } finally {
