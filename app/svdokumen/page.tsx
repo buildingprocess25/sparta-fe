@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search, ExternalLink, PlusCircle, X, File,
-  CheckCircle, AlertCircle, Loader2, ArrowLeft, FolderOpen,
+  CheckCircle, AlertCircle, AlertTriangle, Loader2, ArrowLeft, FolderOpen,
   Trash2, Upload, ChevronLeft, ChevronRight, Eye, FolderArchive,
   FileText, RefreshCw, Edit, Save, MoreVertical
 } from 'lucide-react';
@@ -104,6 +104,10 @@ export default function PenyimpananDokumenPage() {
   // Upload state (per-category inline)
   const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
 
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState<PenyimpananDokumenItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // ==========================================
   // ACCESS CONTROL
   // ==========================================
@@ -137,7 +141,7 @@ export default function PenyimpananDokumenPage() {
       const res = await fetchTokoList();
       const visible = getVisibleBranches(cabang);
       const filtered = visible
-        ? res.data.filter(t => visible.includes(t.cabang.toUpperCase()))
+        ? res.data.filter(t => visible.includes((t.cabang || '').toUpperCase()))
         : res.data;
       setTokoList(filtered);
     } catch (err: any) {
@@ -226,13 +230,21 @@ export default function PenyimpananDokumenPage() {
       showToast("Anda tidak memiliki akses untuk menghapus dokumen", "error");
       return;
     }
-    if (!confirm(`Hapus dokumen ini?`)) return;
+    setDeleteModal(doc);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal) return;
+    setIsDeleting(true);
     try {
-      await deletePenyimpananDokumen(doc.id);
-      showToast("Dokumen berhasil dihapus");
+      await deletePenyimpananDokumen(deleteModal.id);
+      showToast("Dokumen berhasil dihapus", "success");
+      setDeleteModal(null);
       if (selectedToko) loadDocuments(selectedToko.id);
     } catch (err: any) {
       showToast(err.message || "Gagal menghapus", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -609,14 +621,40 @@ export default function PenyimpananDokumenPage() {
         )}
       </main>
 
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <Card className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden border-0">
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Konfirmasi Hapus</h3>
+              <p className="text-sm text-slate-500 mb-6">
+                Apakah Anda yakin ingin menghapus dokumen <br />
+                <strong className="text-slate-800">{deleteModal.nama_dokumen}</strong>?
+              </p>
+              <div className="flex gap-3 w-full">
+                <Button variant="outline" onClick={() => setDeleteModal(null)} className="flex-1 rounded-xl font-semibold border-slate-200">
+                  Batal
+                </Button>
+                <Button onClick={confirmDelete} disabled={isDeleting} className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold shadow-sm">
+                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Hapus Dokumen'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* TOAST */}
       {toast && (
-        <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-200 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300 ${
-          toast.type === 'success' ? 'bg-emerald-600 text-white' :
-          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
+        <div className={`fixed top-4 right-4 z-9999 px-4 py-3 rounded-xl shadow-lg border flex items-center gap-3 transition-all animate-in fade-in slide-in-from-top-5 ${
+          toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' :
+          toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-slate-200 text-slate-700'
         }`}>
-          {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-          <span className="text-sm font-bold tracking-tight">{toast.msg}</span>
+          {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-green-500" /> : <AlertCircle className="w-5 h-5 text-red-500" />}
+          <p className="text-sm font-semibold">{toast.msg}</p>
         </div>
       )}
     </div>
