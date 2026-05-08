@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, AlertTriangle, Calendar } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification } from '@/lib/api';
@@ -519,15 +519,22 @@ export default function SPKPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Tgl Mulai Pelaksanaan *</label>
-                                        <input 
-                                            type="date" 
-                                            required 
-                                            min={getTodayDateString()} 
-                                            className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500" 
-                                            value={form.waktu_mulai} 
-                                            onChange={e => setForm({...form, waktu_mulai: e.target.value})} 
-                                        />
-                                        <p className="text-xs text-slate-500 mt-1">Tanggal sebelum hari ini tidak bisa dipilih.</p>
+                                        <div className="relative">
+                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                                            <input 
+                                                type="date" 
+                                                required 
+                                                min={userInfo.cabang?.toUpperCase() === 'KARAWANG' ? undefined : getTodayDateString()} 
+                                                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700 font-semibold transition-all cursor-pointer hover:border-slate-400 scheme-light" 
+                                                value={form.waktu_mulai} 
+                                                onChange={e => setForm({...form, waktu_mulai: e.target.value})} 
+                                            />
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            {userInfo.cabang?.toUpperCase() === 'KARAWANG' 
+                                                ? "Cabang KARAWANG dapat memilih tanggal sebelum hari ini (backdate)."
+                                                : "Tanggal sebelum hari ini tidak bisa dipilih."}
+                                        </p>
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Durasi (Hari) *</label>
