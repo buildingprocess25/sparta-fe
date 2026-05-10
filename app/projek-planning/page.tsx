@@ -56,19 +56,40 @@ export default function ProjekPlanningPage() {
     try {
       const filters: Record<string, string> = {};
       if (statusFilter) filters.status = statusFilter;
-      if (search.trim()) filters.cabang = search.trim();
+      
+      const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
+      if (search.trim()) {
+        filters.cabang = search.trim();
+      } else if (!isHO && userCabang) {
+        filters.cabang = userCabang;
+      }
       
       const isCoor = userRole.includes("COORDINATOR") || userRole.includes("KOORDINATOR");
-      if (isCoor && userEmail) {
+      const isBM = userRole.includes("BRANCH MANAGER") || userRole.includes("BM ");
+      const isPPMgr = userRole.includes("PROJECT PLANNING MANAGER") || userRole.includes("PP MANAGER") || userEmail === "charderrabagas@gmail.com";
+      const isPP = userRole.includes("PROJECT PLANNING") || userRole.includes("PP SPECIALIST") || userEmail === "lina.yuliyanti@sat.co.id" || isPPMgr;
+
+      const isOnlyCoor = isCoor && !isBM && !isPP && !isPPMgr;
+      if (isOnlyCoor && userEmail) {
         filters.email_pembuat = userEmail;
       }
 
       const res = await fetchProjekPlanningList(filters);
-      setItems(res.data || []);
+      let data = res.data || [];
+
+      if (isPPMgr && !isCoor && !isBM) {
+        data = data.filter((d: any) => ["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status));
+      } else if (isPP && !isCoor && !isBM) {
+        data = data.filter((d: any) => !["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status));
+      } else if (isBM && !isCoor) {
+        data = data.filter((d: any) => d.status !== "DRAFT");
+      }
+
+      setItems(data);
       localStorage.setItem("last_checked_fpd", new Date().toISOString());
     } catch (e: any) { console.error(e); }
     setLoading(false);
-  }, [statusFilter, search, userRole, userEmail]);
+  }, [statusFilter, search, userRole, userEmail, userCabang]);
 
   useEffect(() => {
     const email = sessionStorage.getItem("loggedInUserEmail") || "";
