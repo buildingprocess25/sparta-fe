@@ -75,7 +75,6 @@ export default function ProjekPlanningPage() {
       }
 
       const res = await fetchProjekPlanningList(filters);
-      const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
 
       let data = res.data || [];
       
