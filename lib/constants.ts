@@ -172,6 +172,14 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "KONTRAKTOR": [
         "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen"
     ],
+
+    "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
+        "menu-projek-planning"
+    ],
+
+    "PROJECT PLANNING & DEVELOPMENT MANAGER": [
+        "menu-projek-planning"
+    ],
 };
 
 // -----------------------------------------------------------------------------
