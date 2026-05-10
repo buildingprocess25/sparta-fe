@@ -26,8 +26,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   WAITING_PP_APPROVAL_1: { label: "Menunggu PP (1)", color: "bg-blue-50 text-blue-700 border-blue-300", icon: <Clock className="w-3 h-3" /> },
   PP_DESIGN_3D_REQUIRED: { label: "Design 3D", color: "bg-purple-50 text-purple-700 border-purple-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_RAB_UPLOAD: { label: "Upload RAB", color: "bg-orange-50 text-orange-700 border-orange-300", icon: <Clock className="w-3 h-3" /> },
-  WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr", color: "bg-indigo-50 text-indigo-700 border-indigo-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_PP_APPROVAL_2: { label: "Menunggu PP (2)", color: "bg-cyan-50 text-cyan-700 border-cyan-300", icon: <Clock className="w-3 h-3" /> },
+  WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr (Final)", color: "bg-indigo-50 text-indigo-700 border-indigo-300", icon: <Clock className="w-3 h-3" /> },
   COMPLETED: { label: "Selesai", color: "bg-green-50 text-green-700 border-green-300", icon: <CheckCircle2 className="w-3 h-3" /> },
   REJECTED: { label: "Ditolak", color: "bg-red-50 text-red-700 border-red-300", icon: <XCircle className="w-3 h-3" /> },
 };

@@ -28,8 +28,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   WAITING_PP_APPROVAL_1: { label: "Menunggu PP (Tahap 1)", color: "bg-blue-100 text-blue-800" },
   PP_DESIGN_3D_REQUIRED: { label: "Perlu Design 3D", color: "bg-purple-100 text-purple-800" },
   WAITING_RAB_UPLOAD: { label: "Upload RAB & Gambar Kerja", color: "bg-orange-100 text-orange-800" },
-  WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Manager", color: "bg-indigo-100 text-indigo-800" },
-  WAITING_PP_APPROVAL_2: { label: "Menunggu PP Final", color: "bg-cyan-100 text-cyan-800" },
+  WAITING_PP_APPROVAL_2: { label: "Menunggu PP Specialist", color: "bg-cyan-100 text-cyan-800" },
+  WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Manager (Final)", color: "bg-indigo-100 text-indigo-800" },
   COMPLETED: { label: "Selesai", color: "bg-green-100 text-green-800" },
   REJECTED: { label: "Ditolak", color: "bg-red-100 text-red-700" },
 };
@@ -114,7 +114,12 @@ export default function DetailProjekPlanning() {
       else if (pendingAction === "pp_mgr") await processPpManagerApproval(id, payload);
       else if (pendingAction === "pp2") await processPpApproval2(id, payload);
       setShowRejectDialog(false); setRejectReason("");
-      showAlert("Ditolak", "Pengajuan telah ditolak dan dikembalikan ke Coordinator.");
+      
+      const rejectMsg = (pendingAction === "pp_mgr" || pendingAction === "pp2")
+        ? "Pengajuan dikembalikan ke Cabang untuk Upload Ulang RAB & Gambar Kerja." 
+        : "Pengajuan telah ditolak dan dikembalikan ke Coordinator dari awal.";
+        
+      showAlert("Ditolak", rejectMsg);
       await load();
     } catch (e: any) { showAlert("Gagal", e.message); }
     setActionLoading(false);
@@ -303,15 +308,15 @@ export default function DetailProjekPlanning() {
           </Card>
         )}
 
-        {/* PP Manager */}
-        {data.status === "WAITING_PP_MANAGER_APPROVAL" && (
-          <Card className="border-indigo-200 bg-indigo-50/50">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-indigo-800">Approval PP Manager</CardTitle></CardHeader>
+        {/* PP Specialist 2 */}
+        {data.status === "WAITING_PP_APPROVAL_2" && (
+          <Card className="border-cyan-200 bg-cyan-50/50">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-cyan-800">Approval PP Specialist</CardTitle></CardHeader>
             <CardContent className="flex gap-2">
-              <Button onClick={() => handleApprove("pp_mgr")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
+              <Button onClick={() => handleApprove("pp2")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
                 <CheckCircle2 className="w-4 h-4" /> Setujui
               </Button>
-              <Button variant="outline" onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} disabled={actionLoading}
+              <Button variant="outline" onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} disabled={actionLoading}
                 className="border-red-300 text-red-600 hover:bg-red-50 gap-1 flex-1">
                 <XCircle className="w-4 h-4" /> Tolak
               </Button>
@@ -319,17 +324,17 @@ export default function DetailProjekPlanning() {
           </Card>
         )}
 
-        {/* PP Final */}
-        {data.status === "WAITING_PP_APPROVAL_2" && (
-          <Card className="border-cyan-200 bg-cyan-50/50">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-cyan-800">Approval PP Specialist (Final)</CardTitle></CardHeader>
+        {/* PP Manager Final */}
+        {data.status === "WAITING_PP_MANAGER_APPROVAL" && (
+          <Card className="border-indigo-200 bg-indigo-50/50">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-indigo-800">Approval PP Manager (Final)</CardTitle></CardHeader>
             <CardContent className="flex gap-2">
-              <Button onClick={() => handleApprove("pp2")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
+              <Button onClick={() => handleApprove("pp_mgr")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
                 <CheckCircle2 className="w-4 h-4" /> Setujui (Selesai)
               </Button>
-              <Button variant="outline" onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} disabled={actionLoading}
+              <Button variant="outline" onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} disabled={actionLoading}
                 className="border-red-300 text-red-600 hover:bg-red-50 gap-1 flex-1">
-                <XCircle className="w-4 h-4" /> Tolak
+                <XCircle className="w-4 h-4" /> Tolak (Ke RAB Upload)
               </Button>
             </CardContent>
           </Card>

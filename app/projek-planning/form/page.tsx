@@ -13,7 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList } from "lucide-react";
+import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText } from "lucide-react";
 import { fetchTokoList, submitProjekPlanning } from "@/lib/api";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
@@ -31,6 +31,8 @@ export default function FormProjekPlanning() {
   const [userEmail, setUserEmail] = useState("");
 
   // Form state
+  const [ketentuanCount, setKetentuanCount] = useState(1);
+  const [catatanCount, setCatatanCount] = useState(1);
   const [f, setF] = useState({
     id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "",
     nama_pengaju: "", nama_lokasi: "", jenis_pengajuan: "", jenis_pengajuan_lainnya: "",
@@ -188,36 +190,63 @@ export default function FormProjekPlanning() {
 
               {/* === SECTION: Ketentuan === */}
               <SectionTitle icon={<FileText className="w-4 h-4" />} title="Ketentuan dari Pengelola / Landlord / Pihak Ketiga" />
-              {[1, 2, 3, 4, 5].map(n => (
-                <div key={n}>
-                  <Label className="text-xs text-slate-500">Ketentuan {n}</Label>
-                  <Input value={(f as any)[`ketentuan_${n}`]} onChange={e => set(`ketentuan_${n}`, e.target.value)}
-                    placeholder={`Ketentuan ${n}...`} className="mt-1" />
-                </div>
-              ))}
+              {Array.from({ length: ketentuanCount }).map((_, i) => {
+                const n = i + 1;
+                return (
+                  <div key={n} className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <Label className="text-xs text-slate-500">Ketentuan {n}</Label>
+                      <Input value={(f as any)[`ketentuan_${n}`]} onChange={e => set(`ketentuan_${n}`, e.target.value)}
+                        placeholder={`Ketentuan ${n}...`} className="mt-1" />
+                    </div>
+                  </div>
+                );
+              })}
+              {ketentuanCount < 5 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setKetentuanCount(prev => prev + 1)} className="mt-2 text-xs">
+                  + Tambah Ketentuan
+                </Button>
+              )}
 
               {/* === SECTION: Catatan Design === */}
               <SectionTitle icon={<ClipboardList className="w-4 h-4" />} title="Catatan Design (Hasil Ukur & Kondisi Lingkungan)" />
-              {[1, 2, 3, 4, 5].map(n => (
-                <div key={n}>
-                  <Label className="text-xs text-slate-500">Catatan {n}</Label>
-                  <Textarea value={(f as any)[`catatan_design_${n}`]} onChange={e => set(`catatan_design_${n}`, e.target.value)}
-                    placeholder={`Catatan ${n}...`} rows={2} className="mt-1" />
-                </div>
-              ))}
+              {Array.from({ length: catatanCount }).map((_, i) => {
+                const n = i + 1;
+                return (
+                  <div key={n}>
+                    <Label className="text-xs text-slate-500">Catatan {n}</Label>
+                    <Textarea value={(f as any)[`catatan_design_${n}`]} onChange={e => set(`catatan_design_${n}`, e.target.value)}
+                      placeholder={`Catatan ${n}...`} rows={2} className="mt-1" />
+                  </div>
+                );
+              })}
+              {catatanCount < 5 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setCatatanCount(prev => prev + 1)} className="mt-2 text-xs">
+                  + Tambah Catatan
+                </Button>
+              )}
 
               {/* === SECTION: Upload Files === */}
               <SectionTitle icon={<FileText className="w-4 h-4" />} title="Upload Gambar Kerja & RAB" />
-              <div>
-                <Label className="text-xs font-semibold text-slate-600">Link Gambar Kerja & RAB Sipil + Foto Eksisting</Label>
-                <Input value={f.link_gambar_rab_sipil} onChange={e => set("link_gambar_rab_sipil", e.target.value)}
-                  placeholder="https://drive.google.com/..." className="mt-1" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">Gambar Kerja / Foto Eksisting</Label>
+                  <Input type="file" accept="image/*,.pdf" className="mt-1 file:bg-red-50 file:text-red-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-red-100 cursor-pointer" 
+                    onChange={e => set("link_fpd", e.target.value ? "https://file-terupload.com/gambar-kerja" : "")} />
+                  <p className="text-[10px] text-slate-400 mt-1">* Format: JPG, PNG, PDF</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">File RAB Sipil</Label>
+                  <Input type="file" accept=".pdf,.xls,.xlsx" className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
+                    onChange={e => set("link_gambar_rab_sipil", e.target.value ? "https://file-terupload.com/rab-sipil" : "")} />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">File RAB ME</Label>
+                  <Input type="file" accept=".pdf,.xls,.xlsx" className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
+                    onChange={e => set("link_gambar_rab_me", e.target.value ? "https://file-terupload.com/rab-me" : "")} />
+                </div>
               </div>
-              <div>
-                <Label className="text-xs font-semibold text-slate-600">Link Gambar Kerja & RAB ME</Label>
-                <Input value={f.link_gambar_rab_me} onChange={e => set("link_gambar_rab_me", e.target.value)}
-                  placeholder="https://drive.google.com/..." className="mt-1" />
-              </div>
+              
               <div>
                 <Label className="text-xs font-semibold text-slate-600">Keterangan Tambahan</Label>
                 <Textarea value={f.keterangan} onChange={e => set("keterangan", e.target.value)}
