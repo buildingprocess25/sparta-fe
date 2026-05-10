@@ -2192,7 +2192,10 @@ export const submitProjekPlanning = async (payload: Record<string, unknown>, fil
     });
     const result = await res.json();
     if (res.status === 409) throw new Error(result.message || "Project planning aktif sudah ada untuk toko ini.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan seluruh form terisi.");
+    if (res.status === 422) {
+        const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
+        throw new Error((result.message || "Validasi gagal. Pastikan seluruh form terisi.") + (issuesMsg ? ` (${issuesMsg})` : ""));
+    }
     if (!res.ok) throw new Error(result.message || "Gagal menyimpan pengajuan.");
     return result;
 };
@@ -2225,7 +2228,10 @@ export const resubmitProjekPlanning = async (id: number, payload: Record<string,
     });
     const result = await res.json();
     if (res.status === 409) throw new Error(result.message || "Hanya DRAFT yang bisa di-resubmit.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal.");
+    if (res.status === 422) {
+        const issuesMsg = result.issues ? result.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ") : "";
+        throw new Error((result.message || "Validasi gagal.") + (issuesMsg ? ` (${issuesMsg})` : ""));
+    }
     if (!res.ok) throw new Error(result.message || "Gagal mengajukan ulang.");
     return result;
 };
