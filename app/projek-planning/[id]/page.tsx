@@ -45,7 +45,7 @@ const FPD_STEPS = [
 
 function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   const isRejected = currentStatus === "REJECTED";
-  
+
   let activeIndex = -1;
   if (currentStatus === "WAITING_BM_APPROVAL") activeIndex = 0;
   if (currentStatus === "WAITING_PP_APPROVAL_1") activeIndex = 1;
@@ -55,15 +55,15 @@ function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   if (currentStatus === "COMPLETED") activeIndex = 5;
 
   return (
-    <div className="mb-8 mt-2 w-full relative">
+    <div className="mb-8 mt-0 w-full relative">
       <div className="relative flex justify-between items-center w-full px-2 sm:px-6">
         <div className="absolute left-4 right-4 sm:left-10 sm:right-10 top-1/2 -translate-y-1/2 h-1 bg-slate-200 z-0"></div>
         <div className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-1 bg-green-500 z-0 transition-all duration-500" style={{ width: `calc(${Math.max(0, (activeIndex / (FPD_STEPS.length - 1)) * 100)}% - 2rem)` }}></div>
         {FPD_STEPS.map((step, idx) => {
           const isCompleted = activeIndex > idx || currentStatus === "COMPLETED";
           const isActive = activeIndex === idx;
-          const isError = isRejected; 
-          
+          const isError = isRejected;
+
           let color = "bg-slate-200 text-slate-400";
           if (isCompleted) color = "bg-green-500 text-white";
           if (isActive && !isError) color = "bg-blue-500 text-white shadow-md";
@@ -93,9 +93,9 @@ function InfoRow({ label, value, link, onClickLink }: { label: string; value: st
     <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 py-1.5 border-b border-slate-50 last:border-0">
       <span className="text-xs font-semibold text-slate-500 sm:w-48 shrink-0">{label}</span>
       {link ? (
-        <a href={value} target="_blank" rel="noopener noreferrer" 
-           onClick={() => onClickLink && onClickLink(value)}
-           className="text-sm text-blue-600 hover:underline flex items-center gap-1 break-all">
+        <a href={value} target="_blank" rel="noopener noreferrer"
+          onClick={() => onClickLink && onClickLink(value)}
+          className="text-sm text-blue-600 hover:underline flex items-center gap-1 break-all">
           <ExternalLink className="w-3 h-3 shrink-0" /> {value.length > 60 ? value.slice(0, 60) + "..." : value}
         </a>
       ) : <span className="text-sm text-slate-800">{value}</span>}
@@ -181,11 +181,11 @@ export default function DetailProjekPlanning() {
       else if (pendingAction === "pp_mgr") await processPpManagerApproval(id, payload);
       else if (pendingAction === "pp2") await processPpApproval2(id, payload);
       setShowRejectDialog(false); setRejectReason("");
-      
+
       const rejectMsg = (pendingAction === "pp_mgr" || pendingAction === "pp2")
-        ? "Pengajuan dikembalikan ke Cabang untuk Upload Ulang RAB & Gambar Kerja." 
+        ? "Pengajuan dikembalikan ke Cabang untuk Upload Ulang RAB & Gambar Kerja."
         : "Pengajuan telah ditolak dan dikembalikan ke Coordinator dari awal.";
-        
+
       showAlert("Ditolak", rejectMsg);
       await load();
     } catch (e: any) { showAlert("Gagal", e.message); }
@@ -299,7 +299,7 @@ export default function DetailProjekPlanning() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Ketentuan Pengelola / Landlord</CardTitle></CardHeader>
             <CardContent className="space-y-0">
-              {[1,2,3,4,5].map(n => <InfoRow key={n} label={`Ketentuan ${n}`} value={(data as any)[`ketentuan_${n}`]} />)}
+              {[1, 2, 3, 4, 5].map(n => <InfoRow key={n} label={`Ketentuan ${n}`} value={(data as any)[`ketentuan_${n}`]} />)}
             </CardContent>
           </Card>
         )}
@@ -307,7 +307,7 @@ export default function DetailProjekPlanning() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Catatan Design</CardTitle></CardHeader>
             <CardContent className="space-y-0">
-              {[1,2,3,4,5].map(n => <InfoRow key={n} label={`Catatan ${n}`} value={(data as any)[`catatan_design_${n}`]} />)}
+              {[1, 2, 3, 4, 5].map(n => <InfoRow key={n} label={`Catatan ${n}`} value={(data as any)[`catatan_design_${n}`]} />)}
             </CardContent>
           </Card>
         )}
