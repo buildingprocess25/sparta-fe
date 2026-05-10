@@ -66,8 +66,8 @@ export default function ProjekPlanningPage() {
       
       const isCoor = userRole.includes("COORDINATOR") || userRole.includes("KOORDINATOR");
       const isBM = userRole.includes("BRANCH MANAGER") || userRole.includes("BM ");
-      const isPPMgr = userRole.includes("PROJECT PLANNING MANAGER") || userRole.includes("PP MANAGER") || userEmail === "charderrabagas@gmail.com";
-      const isPP = userRole.includes("PROJECT PLANNING") || userRole.includes("PP SPECIALIST") || userEmail === "lina.yuliyanti@sat.co.id" || isPPMgr;
+      const isPPMgr = userRole.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || userRole.includes("PROJECT PLANNING MANAGER") || userRole.includes("PP MANAGER") || userEmail === "charderrabagas@gmail.com" || userEmail === "wildan.pp.manager@gmail.com";
+      const isPP = userRole.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || userRole.includes("PROJECT PLANNING") || userRole.includes("PP SPECIALIST") || userEmail === "lina.yuliyanti@sat.co.id" || userEmail === "wildan.pp@gmail.com" || isPPMgr;
 
       const isOnlyCoor = isCoor && !isBM && !isPP && !isPPMgr;
       if (isOnlyCoor && userEmail) {

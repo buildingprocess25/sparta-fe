@@ -77,8 +77,8 @@ export default function DashboardPage() {
             
             const isCoor = roles.some(r => r.includes("COORDINATOR") || r.includes("KOORDINATOR"));
             const isBM = roles.some(r => r.includes("BRANCH MANAGER") || r.includes("BM "));
-            const isPPMgr = roles.some(r => r.includes("PROJECT PLANNING MANAGER") || r.includes("PP MANAGER")) || email === "charderrabagas@gmail.com";
-            const isPP = roles.some(r => r.includes("PROJECT PLANNING") || r.includes("PP SPECIALIST")) || email === "lina.yuliyanti@sat.co.id" || isPPMgr;
+            const isPPMgr = roles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || r.includes("PROJECT PLANNING MANAGER") || r.includes("PP MANAGER")) || email === "charderrabagas@gmail.com" || email === "wildan.pp.manager@gmail.com";
+            const isPP = roles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || r.includes("PROJECT PLANNING") || r.includes("PP SPECIALIST")) || email === "lina.yuliyanti@sat.co.id" || email === "wildan.pp@gmail.com" || isPPMgr;
             
             const isOnlyCoor = isCoor && !isBM && !isPP && !isPPMgr;
             if (isOnlyCoor) filters.email_pembuat = email;
