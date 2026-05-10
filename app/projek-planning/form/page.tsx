@@ -227,23 +227,26 @@ export default function FormProjekPlanning() {
               )}
 
               {/* === SECTION: Upload Files === */}
-              <SectionTitle icon={<FileText className="w-4 h-4" />} title="Upload Gambar Kerja & RAB" />
+              <SectionTitle icon={<FileText className="w-4 h-4" />} title="Upload Gambar Kerja & RAB (Link / File Lokal)" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-2">
                   <Label className="text-xs font-semibold text-slate-600">Gambar Kerja / Foto Eksisting</Label>
+                  <Input placeholder="Link Google Drive..." value={(f as any).link_fpd} onChange={e => set("link_fpd", e.target.value)} className="bg-white" />
                   <Input type="file" accept="image/*,.pdf" className="mt-1 file:bg-red-50 file:text-red-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-red-100 cursor-pointer" 
-                    onChange={e => set("link_fpd", e.target.value ? "https://file-terupload.com/gambar-kerja" : "")} />
-                  <p className="text-[10px] text-slate-400 mt-1">* Format: JPG, PNG, PDF</p>
+                    onChange={e => set("link_fpd", e.target.files?.[0] ? URL.createObjectURL(e.target.files[0]) : "")} />
+                  <p className="text-[10px] text-slate-400 mt-1">Pilih File (hanya tampil di PC Anda) atau Paste Link</p>
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label className="text-xs font-semibold text-slate-600">File RAB Sipil</Label>
+                  <Input placeholder="Link Google Drive..." value={(f as any).link_gambar_rab_sipil} onChange={e => set("link_gambar_rab_sipil", e.target.value)} className="bg-white" />
                   <Input type="file" accept=".pdf,.xls,.xlsx" className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
-                    onChange={e => set("link_gambar_rab_sipil", e.target.value ? "https://file-terupload.com/rab-sipil" : "")} />
+                    onChange={e => set("link_gambar_rab_sipil", e.target.files?.[0] ? URL.createObjectURL(e.target.files[0]) : "")} />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label className="text-xs font-semibold text-slate-600">File RAB ME</Label>
+                  <Input placeholder="Link Google Drive..." value={(f as any).link_gambar_rab_me} onChange={e => set("link_gambar_rab_me", e.target.value)} className="bg-white" />
                   <Input type="file" accept=".pdf,.xls,.xlsx" className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
-                    onChange={e => set("link_gambar_rab_me", e.target.value ? "https://file-terupload.com/rab-me" : "")} />
+                    onChange={e => set("link_gambar_rab_me", e.target.files?.[0] ? URL.createObjectURL(e.target.files[0]) : "")} />
                 </div>
               </div>
               

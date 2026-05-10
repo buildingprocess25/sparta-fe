@@ -34,13 +34,15 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   REJECTED: { label: "Ditolak", color: "bg-red-100 text-red-700" },
 };
 
-function InfoRow({ label, value, link }: { label: string; value: string | null; link?: boolean }) {
+function InfoRow({ label, value, link, onClickLink }: { label: string; value: string | null; link?: boolean; onClickLink?: (url: string) => void }) {
   if (!value) return null;
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 py-1.5 border-b border-slate-50 last:border-0">
       <span className="text-xs font-semibold text-slate-500 sm:w-48 shrink-0">{label}</span>
       {link ? (
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1 break-all">
+        <a href={value} target="_blank" rel="noopener noreferrer" 
+           onClick={() => onClickLink && onClickLink(value)}
+           className="text-sm text-blue-600 hover:underline flex items-center gap-1 break-all">
           <ExternalLink className="w-3 h-3 shrink-0" /> {value.length > 60 ? value.slice(0, 60) + "..." : value}
         </a>
       ) : <span className="text-sm text-slate-800">{value}</span>}
@@ -68,6 +70,15 @@ export default function DetailProjekPlanning() {
   const [link3d, setLink3d] = useState("");
   const [linkRab, setLinkRab] = useState("");
   const [linkGambar, setLinkGambar] = useState("");
+  const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
+
+  const handleLinkClick = (url: string) => {
+    setOpenedLinks(prev => {
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  };
 
   const load = async () => {
     setLoading(true);
@@ -140,9 +151,18 @@ export default function DetailProjekPlanning() {
     setActionLoading(true);
     try {
       await uploadRabGambarKerja(id, { uploader_email: userEmail, link_rab: linkRab, link_gambar_kerja: linkGambar });
-      showAlert("Berhasil", "RAB & Gambar Kerja berhasil diupload."); await load();
+      showAlert("Berhasil", "RAB & Gambar Kerja berhasil diupload."); setLinkRab(""); setLinkGambar(""); await load();
     } catch (e: any) { showAlert("Gagal", e.message); }
     setActionLoading(false);
+  };
+
+  const handleFileChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setter(URL.createObjectURL(file));
+    } else {
+      setter("");
+    }
   };
 
   const fmt = (d: string | null) => {
@@ -165,11 +185,14 @@ export default function DetailProjekPlanning() {
   );
 
   const st = STATUS_MAP[data.status] || { label: data.status, color: "bg-slate-100" };
-  const isBM = userRole.includes("MANAGER") && !userRole.includes("BUILDING") && !userRole.includes("PROJECT") && !userRole.includes("PP");
-  const isBBMM = userRole.includes("BUILDING") && userRole.includes("MAINTENANCE") && userRole.includes("MANAGER");
+  const isBM = userRole.includes("BRANCH MANAGER");
+  const isBBMM = userRole.includes("MAINTENANCE MANAGER") || userRole.includes("BBMM");
   const isCoor = userRole.includes("COORDINATOR");
   const isPPMgr = userRole.includes("PROJECT PLANNING MANAGER") || userRole.includes("PP MANAGER") || userEmail === "charderrabagas@gmail.com";
   const isPP = userRole.includes("PROJECT PLANNING") || userRole.includes("PP SPECIALIST") || userEmail === "lina.yuliyanti@sat.co.id" || isPPMgr;
+
+  const requiredLinks = [data.link_gambar_rab_sipil, data.link_gambar_rab_me, data.link_fpd, data.link_desain_3d, data.link_rab, data.link_gambar_kerja, data.link_fpd_approved].filter(Boolean) as string[];
+  const allLinksOpened = requiredLinks.length === 0 || requiredLinks.every(url => openedLinks.has(url));
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -232,15 +255,20 @@ export default function DetailProjekPlanning() {
 
         {/* Links */}
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Dokumen & File</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold flex justify-between items-center">
+              <span>Dokumen & File</span>
+              {!allLinksOpened && <span className="text-xs text-red-500 font-normal">Harap buka (klik) semua link untuk melakukan persetujuan</span>}
+            </CardTitle>
+          </CardHeader>
           <CardContent className="space-y-0">
-            <InfoRow label="RAB Sipil + Foto" value={data.link_gambar_rab_sipil} link />
-            <InfoRow label="RAB ME" value={data.link_gambar_rab_me} link />
-            <InfoRow label="FPD" value={data.link_fpd} link />
-            <InfoRow label="Desain 3D" value={data.link_desain_3d} link />
-            <InfoRow label="RAB" value={data.link_rab} link />
-            <InfoRow label="Gambar Kerja" value={data.link_gambar_kerja} link />
-            <InfoRow label="FPD Approved" value={data.link_fpd_approved} link />
+            <InfoRow label="RAB Sipil + Foto" value={data.link_gambar_rab_sipil} link onClickLink={handleLinkClick} />
+            <InfoRow label="RAB ME" value={data.link_gambar_rab_me} link onClickLink={handleLinkClick} />
+            <InfoRow label="FPD" value={data.link_fpd} link onClickLink={handleLinkClick} />
+            <InfoRow label="Desain 3D" value={data.link_desain_3d} link onClickLink={handleLinkClick} />
+            <InfoRow label="RAB" value={data.link_rab} link onClickLink={handleLinkClick} />
+            <InfoRow label="Gambar Kerja" value={data.link_gambar_kerja} link onClickLink={handleLinkClick} />
+            <InfoRow label="FPD Approved" value={data.link_fpd_approved} link onClickLink={handleLinkClick} />
           </CardContent>
         </Card>
 
@@ -249,13 +277,12 @@ export default function DetailProjekPlanning() {
         {data.status === "WAITING_BM_APPROVAL" && (isBM || isBBMM) && (
           <Card className="border-amber-200 bg-amber-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager</CardTitle></CardHeader>
-            <CardContent className="flex gap-2">
-              <Button onClick={() => handleApprove("bm")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
-                <CheckCircle2 className="w-4 h-4" /> Setujui
+            <CardContent className="p-4 flex gap-3">
+              <Button onClick={() => { setPendingAction("bm"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+                <XCircle className="w-4 h-4 mr-1.5" /> Tolak
               </Button>
-              <Button variant="outline" onClick={() => { setPendingAction("bm"); setShowRejectDialog(true); }} disabled={actionLoading}
-                className="border-red-300 text-red-600 hover:bg-red-50 gap-1 flex-1">
-                <XCircle className="w-4 h-4" /> Tolak
+              <Button onClick={() => handleApprove("bm")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
               </Button>
             </CardContent>
           </Card>
@@ -270,13 +297,12 @@ export default function DetailProjekPlanning() {
                 <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded" />
                 <label htmlFor="need3d" className="text-sm">Butuh Desain 3D</label>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={() => handleApprove("pp1")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
-                  <CheckCircle2 className="w-4 h-4" /> Setujui
+              <div className="flex gap-3">
+                <Button onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+                  <XCircle className="w-4 h-4 mr-1.5" /> Tolak
                 </Button>
-                <Button variant="outline" onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} disabled={actionLoading}
-                  className="border-red-300 text-red-600 hover:bg-red-50 gap-1 flex-1">
-                  <XCircle className="w-4 h-4" /> Tolak
+                <Button onClick={() => handleApprove("pp1")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui (Lanjut ke RAB)
                 </Button>
               </div>
             </CardContent>
@@ -287,10 +313,19 @@ export default function DetailProjekPlanning() {
         {data.status === "PP_DESIGN_3D_REQUIRED" && isPP && (
           <Card className="border-purple-200 bg-purple-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-purple-800">Upload Desain 3D</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <Input value={link3d} onChange={e => setLink3d(e.target.value)} placeholder="Link desain 3D..." />
-              <Button onClick={handleUpload3d} disabled={actionLoading || !link3d.trim()} className="bg-purple-600 hover:bg-purple-700 text-white gap-1 w-full">
-                <Send className="w-4 h-4" /> Upload Desain 3D
+            <CardContent className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs mb-1 block">Link Desain 3D GDrive</Label>
+                  <Input placeholder="https://drive.google.com/..." value={link3d} onChange={e => setLink3d(e.target.value)} className="bg-white" />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Atau Pilih File (Otomatis jadi Link Lokal)</Label>
+                  <Input type="file" onChange={handleFileChange(setLink3d)} className="bg-white file:bg-purple-50 file:text-purple-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                </div>
+              </div>
+              <Button onClick={handleUpload3d} className="w-full bg-purple-400 hover:bg-purple-500 text-white" disabled={actionLoading || !link3d.trim()}>
+                <Send className="w-4 h-4 mr-1.5" /> Upload Desain 3D
               </Button>
             </CardContent>
           </Card>
@@ -300,11 +335,21 @@ export default function DetailProjekPlanning() {
         {data.status === "WAITING_RAB_UPLOAD" && isCoor && (
           <Card className="border-orange-200 bg-orange-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-orange-800">Upload RAB & Gambar Kerja</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <Input value={linkRab} onChange={e => setLinkRab(e.target.value)} placeholder="Link RAB..." />
-              <Input value={linkGambar} onChange={e => setLinkGambar(e.target.value)} placeholder="Link Gambar Kerja..." />
-              <Button onClick={handleUploadRab} disabled={actionLoading || (!linkRab.trim() && !linkGambar.trim())} className="bg-orange-600 hover:bg-orange-700 text-white gap-1 w-full">
-                <Send className="w-4 h-4" /> Upload
+            <CardContent className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label className="text-xs font-semibold text-slate-700">Link RAB Final</Label>
+                  <Input placeholder="Link RAB..." value={linkRab} onChange={e => setLinkRab(e.target.value)} className="bg-white" />
+                  <Input type="file" onChange={handleFileChange(setLinkRab)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-xs font-semibold text-slate-700">Link Gambar Kerja</Label>
+                  <Input placeholder="Link Gambar Kerja..." value={linkGambar} onChange={e => setLinkGambar(e.target.value)} className="bg-white" />
+                  <Input type="file" onChange={handleFileChange(setLinkGambar)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                </div>
+              </div>
+              <Button onClick={handleUploadRab} className="w-full bg-orange-400 hover:bg-orange-500 text-white" disabled={actionLoading || (!linkRab.trim() && !linkGambar.trim())}>
+                <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar
               </Button>
             </CardContent>
           </Card>
@@ -314,13 +359,12 @@ export default function DetailProjekPlanning() {
         {data.status === "WAITING_PP_APPROVAL_2" && isPP && (
           <Card className="border-cyan-200 bg-cyan-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-cyan-800">Approval PP Specialist</CardTitle></CardHeader>
-            <CardContent className="flex gap-2">
-              <Button onClick={() => handleApprove("pp2")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
-                <CheckCircle2 className="w-4 h-4" /> Setujui
+            <CardContent className="p-4 flex gap-3">
+              <Button onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+                <XCircle className="w-4 h-4 mr-1.5" /> Tolak
               </Button>
-              <Button variant="outline" onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} disabled={actionLoading}
-                className="border-red-300 text-red-600 hover:bg-red-50 gap-1 flex-1">
-                <XCircle className="w-4 h-4" /> Tolak
+              <Button onClick={() => handleApprove("pp2")} className="flex-1 bg-cyan-600 hover:bg-cyan-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
               </Button>
             </CardContent>
           </Card>
@@ -330,13 +374,12 @@ export default function DetailProjekPlanning() {
         {data.status === "WAITING_PP_MANAGER_APPROVAL" && isPPMgr && (
           <Card className="border-indigo-200 bg-indigo-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-indigo-800">Approval PP Manager (Final)</CardTitle></CardHeader>
-            <CardContent className="flex gap-2">
-              <Button onClick={() => handleApprove("pp_mgr")} disabled={actionLoading} className="bg-green-600 hover:bg-green-700 text-white gap-1 flex-1">
-                <CheckCircle2 className="w-4 h-4" /> Setujui (Selesai)
+            <CardContent className="p-4 flex gap-3">
+              <Button onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+                <XCircle className="w-4 h-4 mr-1.5" /> Tolak
               </Button>
-              <Button variant="outline" onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} disabled={actionLoading}
-                className="border-red-300 text-red-600 hover:bg-red-50 gap-1 flex-1">
-                <XCircle className="w-4 h-4" /> Tolak (Ke RAB Upload)
+              <Button onClick={() => handleApprove("pp_mgr")} className="flex-1 bg-indigo-600 hover:bg-indigo-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Final Approve
               </Button>
             </CardContent>
           </Card>
