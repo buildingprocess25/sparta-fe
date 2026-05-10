@@ -58,20 +58,22 @@ export default function ProjekPlanningPage() {
       if (statusFilter) filters.status = statusFilter;
       
       const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
-      if (search.trim()) {
-        filters.cabang = search.trim();
-      } else if (!isHO && userCabang) {
-        filters.cabang = userCabang;
-      }
-      
       const isCoor = userRole.includes("COORDINATOR") || userRole.includes("KOORDINATOR");
       const isBM = userRole.includes("BRANCH MANAGER") || userRole.includes("BM ");
       const isPPMgr = userRole.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || userRole.includes("PROJECT PLANNING MANAGER") || userRole.includes("PP MANAGER") || userEmail === "charderrabagas@gmail.com" || userEmail === "wildan.pp.manager@gmail.com";
       const isPP = userRole.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || userRole.includes("PROJECT PLANNING") || userRole.includes("PP SPECIALIST") || userEmail === "lina.yuliyanti@sat.co.id" || userEmail === "wildan.pp@gmail.com" || isPPMgr;
 
       const isOnlyCoor = isCoor && !isBM && !isPP && !isPPMgr;
+
+      // Coordinator: filter by email only — their FPDs may be for any branch
       if (isOnlyCoor && userEmail) {
         filters.email_pembuat = userEmail;
+      } else if (search.trim()) {
+        // Manual search override
+        filters.cabang = search.trim();
+      } else if (!isHO && !isCoor && userCabang) {
+        // BM, PP, Manager: filter by their own cabang
+        filters.cabang = userCabang;
       }
 
       const res = await fetchProjekPlanningList(filters);
