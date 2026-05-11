@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText } from "lucide-react";
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail } from "@/lib/api";
+import { getPpRoles, BRANCH_TO_ULOK } from "@/lib/constants";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
 
@@ -60,7 +61,30 @@ function FormProjekPlanningInner() {
     setUserEmail(email);
     const nama = sessionStorage.getItem("nama_lengkap") || "";
     set("nama_pengaju", nama);
-    fetchTokoList().then(r => setTokoList(r.data || [])).catch(console.error);
+    
+    fetchTokoList().then(r => {
+      let data = r.data || [];
+      const role = sessionStorage.getItem("userRole") || "";
+      const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
+      const { isPP, isPPMgr } = getPpRoles(role, email);
+      
+      // Jika BUKAN PP / PP Manager (artinya Coordinator atau BM), WAJIB difilter ke cabangnya sendiri
+      if (!isPP && !isPPMgr && cabang) {
+        // Cari pemetaan Ulok (Kode Cabang vs Nama Cabang)
+        const ulokEntry = Object.entries(BRANCH_TO_ULOK).find(([nama, kode]) => 
+          nama === cabang.toUpperCase() || kode === cabang.toUpperCase()
+        );
+        
+        const allowedCabang = [cabang.toUpperCase()];
+        if (ulokEntry) {
+          allowedCabang.push(ulokEntry[0]); // ex: KLATEN
+          allowedCabang.push(ulokEntry[1]); // ex: OZ01
+        }
+
+        data = data.filter(t => t.cabang && allowedCabang.includes(t.cabang.toUpperCase()));
+      }
+      setTokoList(data);
+    }).catch(console.error);
 
     if (resubmitId) {
       fetchProjekPlanningDetail(Number(resubmitId)).then(r => {
