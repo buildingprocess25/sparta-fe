@@ -21,6 +21,7 @@ import {
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
   type ProjekPlanningItem, type ProjekPlanningLog,
 } from "@/lib/api";
+import { getPpRoles } from "@/lib/constants";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
@@ -242,11 +243,8 @@ export default function DetailProjekPlanning() {
   );
 
   const st = STATUS_MAP[data.status] || { label: data.status, color: "bg-slate-100" };
-  const isBM = userRole.includes("BRANCH MANAGER");
+  const { isCoor, isBM, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
   const isBBMM = userRole.includes("MAINTENANCE MANAGER") || userRole.includes("BBMM");
-  const isCoor = userRole.includes("COORDINATOR");
-  const isPPMgr = userRole.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || userRole.includes("PROJECT PLANNING MANAGER") || userRole.includes("PP MANAGER") || userEmail === "charderrabagas@gmail.com" || userEmail === "wildan.pp.manager@gmail.com";
-  const isPP = userRole.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || userRole.includes("PROJECT PLANNING") || userRole.includes("PP SPECIALIST") || userEmail === "lina.yuliyanti@sat.co.id" || userEmail === "wildan.pp@gmail.com" || isPPMgr;
 
   const requiredLinks = [data.link_gambar_rab_sipil, data.link_gambar_rab_me, data.link_fpd, data.link_desain_3d, data.link_rab, data.link_gambar_kerja, data.link_fpd_approved].filter(Boolean) as string[];
   const allLinksOpened = requiredLinks.length === 0 || requiredLinks.every(url => openedLinks.has(url));
