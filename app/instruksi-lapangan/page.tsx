@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Save, Loader2, Upload, X } from 'lucide-react';
-import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail } from '@/lib/api';
+import { DatePicker } from '@/components/ui/date-picker';
+import { fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, fetchSPKList } from '@/lib/api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -20,8 +21,9 @@ export default function InstruksiLapanganPage() {
     const router = useRouter();
 
     const [cabang, setCabang] = useState('');
-    const [tokoList, setTokoList] = useState<any[]>([]);
+    const [spkList, setSpkList] = useState<any[]>([]);
     const [selectedToko, setSelectedToko] = useState<any>(null);
+    const [spkStartDate, setSpkStartDate] = useState('');
     const [prices, setPrices] = useState<any>({});
     const [tableRows, setTableRows] = useState<any[]>([]);
 
@@ -45,28 +47,34 @@ export default function InstruksiLapanganPage() {
         }
         setCabang(userCabang);
 
-        fetchTokoList().then(res => {
-            const filtered = res.data.filter(t => (t.cabang || "").toUpperCase() === userCabang);
-            setTokoList(filtered);
+        fetchSPKList({ status: "SPK_APPROVED" }).then(res => {
+            const filtered = res.data.filter(spk => (spk.toko?.cabang || (spk as any).cabang || "").toUpperCase() === userCabang);
+            setSpkList(filtered);
         }).catch(err => {
             console.error(err);
-            showAlert("Error", "Gagal memuat daftar toko", "error");
+            showAlert("Error", "Gagal memuat daftar SPK", "error");
         });
     }, [router]);
 
-    const handleTokoChange = async (tokoIdStr: string) => {
-        const tokoId = Number(tokoIdStr);
-        const tokoItem = tokoList.find(t => t.id === tokoId);
-        if (!tokoItem) return;
+    const handleSpkChange = async (spkIdStr: string) => {
+        const spkId = Number(spkIdStr);
+        const spkItem = spkList.find(s => s.id === spkId);
+        if (!spkItem) return;
 
         setIsTokoLoading(true);
         try {
-            // Fetch toko detail based on ID
-            const resDetail = await fetchTokoDetail(tokoId);
+            // Fetch toko detail based on SPK's id_toko
+            const resDetail = await fetchTokoDetail(spkItem.id_toko);
             const toko = resDetail.data;
 
             setSelectedToko(toko || null);
             setTableRows([]);
+            
+            let startDate = '';
+            if (spkItem.waktu_mulai) {
+                startDate = spkItem.waktu_mulai.split('T')[0];
+            }
+            setSpkStartDate(startDate);
             setTanggalMulai('');
             setTanggalSelesai('');
             
@@ -251,37 +259,19 @@ export default function InstruksiLapanganPage() {
                         <CardContent className="pt-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label>Pilih Toko <span className="text-red-500">*</span></Label>
-                                    <Select onValueChange={handleTokoChange} required>
+                                    <Label>Pilih Ulok/Toko <span className="text-red-500">*</span></Label>
+                                    <Select onValueChange={handleSpkChange} required>
                                         <SelectTrigger className="bg-white">
-                                            <SelectValue placeholder="-- Pilih Toko Berdasarkan Cabang --" />
+                                            <SelectValue placeholder="-- Pilih Toko Berdasarkan SPK Approved --" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {tokoList.map(toko => (
-                                                <SelectItem key={toko.id} value={String(toko.id)}>
-                                                    {toko.nomor_ulok} - {toko.nama_toko} ({toko.lingkup_pekerjaan})
+                                            {spkList.map(spk => (
+                                                <SelectItem key={spk.id} value={String(spk.id)}>
+                                                    {spk.nomor_ulok} - {spk.toko?.nama_toko || (spk as any).nama_toko || spk.nomor_ulok} ({spk.lingkup_pekerjaan})
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Tanggal Mulai <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={tanggalMulai}
-                                        onChange={(e) => setTanggalMulai(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Tanggal Selesai <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={tanggalSelesai}
-                                        onChange={(e) => setTanggalSelesai(e.target.value)}
-                                        required
-                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Lampiran Pendukung (Opsional)</Label>
@@ -305,6 +295,24 @@ export default function InstruksiLapanganPage() {
                                             />
                                         </label>
                                     )}
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Tanggal Mulai <span className="text-red-500">*</span></Label>
+                                    <DatePicker
+                                        value={tanggalMulai}
+                                        onChange={(val) => setTanggalMulai(val)}
+                                        min={spkStartDate}
+                                        disabled={!selectedToko}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Tanggal Selesai <span className="text-red-500">*</span></Label>
+                                    <DatePicker
+                                        value={tanggalSelesai}
+                                        onChange={(val) => setTanggalSelesai(val)}
+                                        min={tanggalMulai || spkStartDate}
+                                        disabled={!selectedToko}
+                                    />
                                 </div>
                             </div>
                         </CardContent>

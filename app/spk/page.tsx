@@ -10,6 +10,7 @@ import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification } from '@/lib/api';
 import { BRANCH_GROUPS } from '@/lib/constants';
 import { parseCurrency } from '@/lib/utils';
+import { DatePicker } from '@/components/ui/date-picker';
 
 const getCabangCode = (cabangName: string) => {
     const map: Record<string, string> = {
@@ -519,17 +520,12 @@ export default function SPKPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Tgl Mulai Pelaksanaan *</label>
-                                        <div className="relative">
-                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                                            <input 
-                                                type="date" 
-                                                required 
-                                                min={userInfo.cabang?.toUpperCase() === 'KARAWANG' ? undefined : getTodayDateString()} 
-                                                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700 font-semibold transition-all cursor-pointer hover:border-slate-400 scheme-light" 
-                                                value={form.waktu_mulai} 
-                                                onChange={e => setForm({...form, waktu_mulai: e.target.value})} 
-                                            />
-                                        </div>
+                                        <DatePicker
+                                            value={form.waktu_mulai}
+                                            onChange={val => setForm({...form, waktu_mulai: val})}
+                                            min={userInfo.cabang?.toUpperCase() === 'KARAWANG' ? undefined : getTodayDateString()}
+                                            className="font-semibold"
+                                        />
                                         <p className="text-xs text-slate-500 mt-1">
                                             {userInfo.cabang?.toUpperCase() === 'KARAWANG' 
                                                 ? "Cabang KARAWANG dapat memilih tanggal sebelum hari ini (backdate)."

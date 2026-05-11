@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
 import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fetchTokoDetail, getRABLogoDownloadUrl, getRABInsuranceDownloadUrl } from '@/lib/api';
@@ -714,7 +715,10 @@ export default function RABPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Masa Berlaku <span className="text-red-500">*</span></Label>
-                  <Input type="date" name="berlakuPolis" value={formData.berlakuPolis} onChange={handleInputChange} className="bg-white" required />
+                  <DatePicker
+                    value={formData.berlakuPolis}
+                    onChange={val => setFormData(prev => ({ ...prev, berlakuPolis: val }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Upload File Asuransi <span className="text-red-500">*</span></Label>

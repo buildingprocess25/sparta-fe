@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Save, Loader2, Upload, X, FileText } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail } from '@/lib/api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
@@ -284,20 +285,16 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Tanggal Mulai <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            type="date"
+                                        <DatePicker
                                             value={tanggalMulai}
-                                            onChange={(e) => setTanggalMulai(e.target.value)}
-                                            required
+                                            onChange={(val) => setTanggalMulai(val)}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Tanggal Selesai <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            type="date"
+                                        <DatePicker
                                             value={tanggalSelesai}
-                                            onChange={(e) => setTanggalSelesai(e.target.value)}
-                                            required
+                                            onChange={(val) => setTanggalSelesai(val)}
                                         />
                                     </div>
                                     <div className="space-y-2">

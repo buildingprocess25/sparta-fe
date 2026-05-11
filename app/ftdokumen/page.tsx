@@ -10,6 +10,7 @@ import {
     Camera, ArrowRight, ArrowLeft, FileText, CheckCircle,
     Loader2, Image as ImageIcon, Ban, ChevronDown, Search
 } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { PHOTO_POINTS, ALL_POINTS, TOTAL_PHOTOS, FLOOR_IMAGES, PAGE_LABELS, type PhotoPoint } from './photoPoints';
@@ -301,11 +302,11 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                         </div>
                         <div className="space-y-2">
                             <Label>SPK Awal <span className="text-red-500">*</span></Label>
-                            <Input type="date" readOnly value={formData.spkAwal} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200" tabIndex={-1} />
+                            <DatePicker value={formData.spkAwal} onChange={() => {}} disabled />
                         </div>
                         <div className="space-y-2">
                             <Label>SPK Akhir <span className="text-red-500">*</span></Label>
-                            <Input type="date" readOnly value={formData.spkAkhir} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200" tabIndex={-1} />
+                            <DatePicker value={formData.spkAkhir} onChange={() => {}} disabled />
                         </div>
                         <div className="space-y-2">
                             <Label>Kode Toko <span className="text-red-500">*</span></Label>
@@ -317,15 +318,15 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal GO <span className="text-red-500">*</span></Label>
-                            <Input type="date" value={formData.tanggalGo} onChange={e => onChange('tanggalGo', e.target.value)} className="bg-white" required />
+                            <DatePicker value={formData.tanggalGo} onChange={val => onChange('tanggalGo', val)} />
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal ST <span className="text-red-500">*</span></Label>
-                            <Input type="date" value={formData.tanggalSt} onChange={e => onChange('tanggalSt', e.target.value)} className="bg-white" required />
+                            <DatePicker value={formData.tanggalSt} onChange={val => onChange('tanggalSt', val)} />
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal Ambil Foto <span className="text-red-500">*</span></Label>
-                            <Input type="date" value={formData.tanggalAmbilFoto} onChange={e => onChange('tanggalAmbilFoto', e.target.value)} className="bg-white" required />
+                            <DatePicker value={formData.tanggalAmbilFoto} onChange={val => onChange('tanggalAmbilFoto', val)} />
                         </div>
                     </div>
                     <div className="flex justify-end mt-8 border-t border-slate-100 pt-6">
