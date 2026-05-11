@@ -2119,6 +2119,9 @@ export type ProjekPlanningItem = {
     link_fpd_approved: string | null;
     link_gambar_rab_sipil: string | null;
     link_gambar_rab_me: string | null;
+    fasilitas?: any[];
+    ketentuan?: any[];
+    catatan_design?: any[];
     status: string;
     butuh_desain_3d: boolean;
     bm_approver_email: string | null;

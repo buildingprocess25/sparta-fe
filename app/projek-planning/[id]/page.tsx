@@ -92,7 +92,7 @@ function InfoRow({ label, value, link, onClickLink }: { label: string; value: st
   if (!value) return null;
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 py-1.5 border-b border-slate-50 last:border-0">
-      <span className="text-xs font-semibold text-slate-500 sm:w-48 shrink-0">{label}</span>
+      <span className="text-xs font-semibold text-slate-500 sm:w-48 shrink-0">{String(label)}</span>
       {link ? (
         <a href={value} target="_blank" rel="noopener noreferrer"
           onClick={() => onClickLink && onClickLink(value)}
@@ -141,7 +141,31 @@ export default function DetailProjekPlanning() {
     setLoading(true);
     try {
       const res = await fetchProjekPlanningDetail(id);
-      setData(res.data.projek);
+      const projek = res.data.projek;
+
+      // Normalize flat fields into arrays if not already present as arrays
+      if (!projek.fasilitas) {
+        projek.fasilitas = [
+          { jenis_fasilitas: 'AIR_BERSIH', is_tersedia: projek.fasilitas_air_bersih, keterangan: projek.fasilitas_air_bersih_keterangan },
+          { jenis_fasilitas: 'DRAINASE', is_tersedia: projek.fasilitas_drain, keterangan: projek.fasilitas_drain_keterangan },
+          { jenis_fasilitas: 'AC', is_tersedia: projek.fasilitas_ac, keterangan: projek.fasilitas_ac_keterangan },
+          { jenis_fasilitas: 'LAINNYA', is_tersedia: !!projek.fasilitas_lainnya, nama_fasilitas_lainnya: projek.fasilitas_lainnya, keterangan: projek.fasilitas_lainnya_keterangan },
+        ].filter(f => f.is_tersedia || f.keterangan);
+      }
+
+      if (!projek.ketentuan) {
+        projek.ketentuan = [
+          projek.ketentuan_1, projek.ketentuan_2, projek.ketentuan_3, projek.ketentuan_4, projek.ketentuan_5
+        ].filter(Boolean).map(isi => ({ isi_ketentuan: isi }));
+      }
+
+      if (!projek.catatan_design) {
+        projek.catatan_design = [
+          projek.catatan_design_1, projek.catatan_design_2, projek.catatan_design_3, projek.catatan_design_4, projek.catatan_design_5
+        ].filter(Boolean).map(isi => ({ isi_catatan: isi }));
+      }
+
+      setData(projek);
       setLogs(res.data.logs);
     } catch (e: any) {
       setAlertMsg({ title: "Error", desc: e.message }); setAlertOpen(true);
