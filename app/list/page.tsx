@@ -258,7 +258,7 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
     },
     DOKUMENTASI_BANGUNAN: {
         label: 'Dokumentasi Bangunan Toko Baru',
-        fullLabel: 'Dokumentasi Bangunan',
+        fullLabel: 'Dokumentasi Bangunan Toko Baru',
         icon: <Camera className="w-10 h-10" />,
         color: 'text-rose-600',
         bgColor: 'bg-rose-50',
