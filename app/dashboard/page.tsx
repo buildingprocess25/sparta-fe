@@ -12,8 +12,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-<<<<<<< HEAD
-import { fetchDashboardAll } from '@/lib/api';
+import { fetchDashboardAll, fetchProjekPlanningList } from '@/lib/api';
 import { 
     Activity, CheckCircle2, ChevronRight, Clock, FileCheck, FileEdit, FileText, 
     HardHat, Layers, Search, Store, Users, MapPin, RefreshCw,
@@ -24,12 +23,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-
-
-=======
-import { fetchProjekPlanningList } from '@/lib/api';
->>>>>>> 93c942b9046fa1b3fd5b9c9248b520548b5c2bef
 
 // =============================================================================
 // MAIN COMPONENT
@@ -456,9 +449,9 @@ export default function DashboardPage() {
                                         <IconComp className="w-3.5 h-3.5 text-slate-500 group-hover:text-red-600 transition-colors" />
                                     </div>
                                     <div className="flex-1 min-w-0 flex items-center justify-between pr-2">
-                                        <div>
-                                            <p className="text-[12px] font-semibold text-slate-700 group-hover:text-red-700 truncate leading-tight transition-colors">{menu.title}</p>
-                                            <p className="text-[10px] text-slate-400 truncate leading-tight">{menu.desc}</p>
+                                        <div className="flex-1 min-w-0 pr-1">
+                                            <p className="text-[12px] font-semibold text-slate-700 group-hover:text-red-700 leading-snug transition-colors wrap-break-word">{menu.title}</p>
+                                            <p className="text-[10px] text-slate-400 leading-snug wrap-break-word mt-0.5">{menu.desc}</p>
                                         </div>
                                         {menu.id === 'project_planning' && fpdHasUpdate && (
                                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-2 shrink-0" title="Ada FPD baru atau diperbarui" />
