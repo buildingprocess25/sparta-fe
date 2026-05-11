@@ -147,7 +147,7 @@ export default function ProjekPlanningPage() {
               className="pl-9 h-9 text-sm" onKeyDown={e => e.key === "Enter" && load()} />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            className="h-9 px-3 border rounded-md text-sm bg-white text-slate-700 min-w-[160px]">
+            className="h-9 px-3 border rounded-md text-sm bg-white text-slate-700 min-w-40">
             <option value="">Semua Status</option>
             {Object.entries(STATUS_CONFIG).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
@@ -193,7 +193,7 @@ export default function ProjekPlanningPage() {
                     <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-2.5 text-slate-500">{idx + 1}</td>
                       <td className="px-4 py-2.5 font-mono text-xs font-semibold">{item.nomor_ulok}</td>
-                      <td className="px-4 py-2.5 font-medium max-w-[180px] truncate">{item.nama_toko || "-"}</td>
+                      <td className="px-4 py-2.5 font-medium max-w-45 truncate">{item.nama_toko || "-"}</td>
                       <td className="px-4 py-2.5">{item.cabang || "-"}</td>
                       <td className="px-4 py-2.5 text-xs">{item.nama_pengaju || item.email_pembuat}</td>
                       <td className="px-4 py-2.5 text-xs">{item.jenis_pengajuan || "-"}</td>
