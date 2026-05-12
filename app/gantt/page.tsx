@@ -1581,7 +1581,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         method: "POST",
                         body: formData
                     });
-                    if(!response.ok) throw new Error("Gagal mengupdate pengawasan bulk dengan file.");
+                    if (!response.ok) {
+                        const responseText = await response.text();
+                        throw new Error(
+                            `Gagal mengupdate pengawasan bulk dengan file (${response.status}). ${responseText.slice(0, 200)}`
+                        );
+                    }
                 } else {
                     // JSON request aman berjalan dengan HTTP PUT murni
                     await updatePengawasanBulk({ items: itemsArrayUpdate });
@@ -1609,7 +1614,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 onConfirm: () => onSuccess()
             });
         } catch (err: any) {
-            showAlert({ message: `Gagal menyimpan: ${err.message}`, type: "error" });
+            const debugMessage = (() => {
+                if (!err) return "Unknown error";
+                if (typeof err === "string") return err;
+                if (err instanceof Error) return err.message || "Unknown error";
+                if (typeof err.message === "string") return err.message;
+                try {
+                    return JSON.stringify(err);
+                } catch {
+                    return "Unknown error";
+                }
+            })();
+
+            showAlert({ message: `Gagal menyimpan: ${debugMessage}`, type: "error" });
         } finally {
             setIsSubmitting(false);
         }
