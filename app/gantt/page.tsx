@@ -1566,10 +1566,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             // --- B. Eksekusi UPDATE (PUT) ---
             if (itemsArrayUpdate.length > 0) {
                 if (filesMapUpdate.length > 0) {
-                    // [PERBAIKAN 3]: Gunakan method spoofing ke POST agar payload Multipart FormData tidak drop di server PHP/Laravel
                     const formData = new FormData();
                     formData.append('items', JSON.stringify(itemsArrayUpdate));
-                    formData.append('_method', 'PUT'); 
 
                     filesMapUpdate.forEach(f => {
                         formData.append('rev_file_dokumentasi', f.file);
@@ -1578,7 +1576,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     formData.append('rev_file_dokumentasi_indexes', JSON.stringify(indexes));
                     
                     const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
-                        method: "POST",
+                        method: "PUT",
                         body: formData
                     });
                     if (!response.ok) {
