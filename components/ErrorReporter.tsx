@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useGlobalAlert } from "@/context/GlobalAlertContext";
+import { setApiErrorHandler } from "@/lib/api";
 
 type NormalizedError = {
   message: string;
@@ -87,9 +88,23 @@ export default function ErrorReporter() {
     window.addEventListener("error", handleError);
     window.addEventListener("unhandledrejection", handleRejection);
 
+    setApiErrorHandler((error, context) => {
+      const details = isDev
+        ? [context?.url ? `URL: ${context.url}` : null, error.stack].filter(Boolean).join("\n")
+        : undefined;
+
+      showAlert({
+        title: "Error",
+        message: isDev ? error.message : "Terjadi kesalahan. Silakan coba lagi.",
+        type: "error",
+        details,
+      });
+    });
+
     return () => {
       window.removeEventListener("error", handleError);
       window.removeEventListener("unhandledrejection", handleRejection);
+      setApiErrorHandler(null);
     };
   }, [showAlert]);
 

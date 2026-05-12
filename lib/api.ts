@@ -15,6 +15,27 @@
 
 import { API_URL } from "./constants";
 
+export type ApiErrorContext = {
+    url?: string;
+    status?: number;
+    responseBody?: unknown;
+    contentType?: string | null;
+};
+
+export type ApiErrorHandler = (error: Error, context?: ApiErrorContext) => void;
+
+let apiErrorHandler: ApiErrorHandler | null = null;
+
+export const setApiErrorHandler = (handler: ApiErrorHandler | null) => {
+    apiErrorHandler = handler;
+};
+
+const reportApiError = (error: Error, context?: ApiErrorContext) => {
+    if (apiErrorHandler) {
+        apiErrorHandler(error, context);
+    }
+};
+
 // =============================================================================
 // 1. GLOBAL  FETCH HELPER
 // =============================================================================
@@ -26,20 +47,35 @@ import { API_URL } from "./constants";
  * - Menghindari crash saat server mengembalikan HTML (misalnya halaman error nginx)
  */
 export const safeFetchJSON = async (url: string, options?: RequestInit) => {
-    const res = await fetch(url, options);
-    const contentType = res.headers.get("content-type");
+    let reported = false;
+    try {
+        const res = await fetch(url, options);
+        const contentType = res.headers.get("content-type");
 
-    if (contentType?.includes("application/json")) {
-        if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.message || `Error Server (${res.status})`);
+        if (contentType?.includes("application/json")) {
+            const data = await res.json();
+            if (!res.ok) {
+                const err = new Error(data.message || `Error Server (${res.status})`);
+                reportApiError(err, { url, status: res.status, responseBody: data, contentType });
+                reported = true;
+                throw err;
+            }
+            return data;
         }
-        return res.json();
-    }
 
-    const text = await res.text();
-    console.error("Server mengembalikan non-JSON:", text);
-    throw new Error(`Endpoint salah atau tidak ditemukan (Status ${res.status}).`);
+        const text = await res.text();
+        console.error("Server mengembalikan non-JSON:", text);
+        const err = new Error(`Endpoint salah atau tidak ditemukan (Status ${res.status}).`);
+        reportApiError(err, { url, status: res.status, responseBody: text, contentType });
+        reported = true;
+        throw err;
+    } catch (error) {
+        if (!reported) {
+            const err = error instanceof Error ? error : new Error("Terjadi kesalahan pada API.");
+            reportApiError(err, { url });
+        }
+        throw error;
+    }
 };
 
 // =============================================================================
