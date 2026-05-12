@@ -17,6 +17,7 @@ import {
     // RAB
     fetchRABList, fetchRABDetail, processRABApproval, downloadRABPdf,
     type RABListItem, type RABDetailItem,
+    fetchUserCabangList,
     // SPK
     fetchSPKList, fetchSPKDetail, processSPKApproval, downloadSPKPdf,
     type SPKListItem,
@@ -749,8 +750,21 @@ export default function ApprovalPage() {
         setProcessingId(item.id);
         try {
             if (item.tipe === 'RAB') {
+                let currentName = userInfo.name;
+                if (jabatan === 'DIREKTUR' && item.status.toUpperCase() === 'MENUNGGU PERSETUJUAN DIREKTUR') {
+                    try {
+                        const userRes = await fetchUserCabangList({ email_sat: userInfo.email, jabatan: 'DIREKTUR' });
+                        if (userRes.data && userRes.data.length > 0) {
+                            currentName = userRes.data[0].nama_lengkap;
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch direktur name', err);
+                    }
+                }
+                
                 await processRABApproval(item.id as number, {
                     approver_email: userInfo.email,
+                    approver_name:  currentName,
                     jabatan:        jabatan ?? 'KOORDINATOR',
                     tindakan:       'APPROVE',
                 });
@@ -807,8 +821,21 @@ export default function ApprovalPage() {
         setProcessingId(item.id);
         try {
             if (item.tipe === 'RAB') {
+                let currentName = userInfo.name;
+                if (jabatan === 'DIREKTUR' && item.status.toUpperCase() === 'MENUNGGU PERSETUJUAN DIREKTUR') {
+                    try {
+                        const userRes = await fetchUserCabangList({ email_sat: userInfo.email, jabatan: 'DIREKTUR' });
+                        if (userRes.data && userRes.data.length > 0) {
+                            currentName = userRes.data[0].nama_lengkap;
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch direktur name', err);
+                    }
+                }
+                
                 await processRABApproval(item.id as number, {
                     approver_email:   userInfo.email,
+                    approver_name:    currentName,
                     jabatan:          jabatan ?? 'KOORDINATOR',
                     tindakan:         'REJECT',
                     alasan_penolakan: rejectNote,
