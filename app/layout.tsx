@@ -38,6 +38,7 @@ export const viewport: Viewport = {
 
 import { GlobalAlertProvider } from "@/context/GlobalAlertContext";
 import { GlobalAlert } from "@/components/GlobalAlert";
+import ErrorReporter from "@/components/ErrorReporter";
 
 export default function RootLayout({
   children,
@@ -54,6 +55,7 @@ export default function RootLayout({
       >
         <GlobalAlertProvider>
           {children}
+          <ErrorReporter />
           <GlobalAlert />
         </GlobalAlertProvider>
         <ServiceWorkerRegister />

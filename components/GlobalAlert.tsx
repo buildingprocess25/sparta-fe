@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 export function GlobalAlert() {
   const { alertState, closeAlert } = useGlobalAlert();
-  const { isOpen, title, message, type, onConfirm, confirmMode, onCancel, confirmText, cancelText } = alertState;
+  const { isOpen, title, message, type, onConfirm, confirmMode, onCancel, confirmText, cancelText, details } = alertState;
 
   const getIcon = () => {
     switch (type) {
@@ -102,6 +102,14 @@ export function GlobalAlert() {
                 {message}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {details ? (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white/70 p-3 text-left">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detail</div>
+                <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-700">
+                  {details}
+                </pre>
+              </div>
+            ) : null}
           </div>
         </div>
         <AlertDialogFooter className={cn("p-4 bg-white/50 backdrop-blur-sm", confirmMode ? "sm:justify-center gap-3" : "sm:justify-center")}>

@@ -9,6 +9,7 @@ interface AlertOptions {
   message: string;
   type?: AlertType;
   onConfirm?: () => void;
+  details?: string;
   /** Enable confirmation mode: shows Confirm + Cancel buttons instead of single OK button */
   confirmMode?: boolean;
   onCancel?: () => void;
@@ -22,6 +23,7 @@ interface AlertState {
   message: string;
   type: AlertType;
   onConfirm?: () => void;
+  details?: string;
   confirmMode: boolean;
   onCancel?: () => void;
   confirmText: string;
@@ -47,7 +49,7 @@ export function GlobalAlertProvider({ children }: { children: ReactNode }) {
     cancelText: "Batal",
   });
 
-  const showAlert = useCallback(({ title, message, type = "info", onConfirm, confirmMode = false, onCancel, confirmText, cancelText }: AlertOptions) => {
+  const showAlert = useCallback(({ title, message, type = "info", onConfirm, details, confirmMode = false, onCancel, confirmText, cancelText }: AlertOptions) => {
     // Mapping default titles if not provided
     const defaultTitles: Record<AlertType, string> = {
       success: "Berhasil",
@@ -62,6 +64,7 @@ export function GlobalAlertProvider({ children }: { children: ReactNode }) {
       message,
       type,
       onConfirm,
+      details,
       confirmMode,
       onCancel,
       confirmText: confirmText || "Konfirmasi",
