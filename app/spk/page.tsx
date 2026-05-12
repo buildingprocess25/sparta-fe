@@ -523,12 +523,12 @@ export default function SPKPage() {
                                         <DatePicker
                                             value={form.waktu_mulai}
                                             onChange={val => setForm({...form, waktu_mulai: val})}
-                                            min={userInfo.cabang?.toUpperCase() === 'KARAWANG' ? undefined : getTodayDateString()}
+                                            min={['KARAWANG', 'BANJARMASIN'].includes(userInfo.cabang?.toUpperCase()) ? undefined : getTodayDateString()}
                                             className="font-semibold"
                                         />
                                         <p className="text-xs text-slate-500 mt-1">
-                                            {userInfo.cabang?.toUpperCase() === 'KARAWANG' 
-                                                ? "Cabang KARAWANG dapat memilih tanggal sebelum hari ini (backdate)."
+                                            {['KARAWANG', 'BANJARMASIN'].includes(userInfo.cabang?.toUpperCase()) 
+                                                ? `Cabang ${userInfo.cabang?.toUpperCase()} dapat memilih tanggal sebelum hari ini (backdate).`
                                                 : "Tanggal sebelum hari ini tidak bisa dipilih."}
                                         </p>
                                     </div>
