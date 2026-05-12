@@ -12,7 +12,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { fetchDashboardAll, fetchRABDetail } from '@/lib/api';
+import { fetchDashboardAll, fetchRABDetail, fetchOpnameList } from '@/lib/api';
 import { 
     Activity, CheckCircle2, ChevronRight, Clock, FileCheck, FileEdit, FileText, 
     HardHat, Layers, Search, Store, Users, MapPin, RefreshCw,
@@ -50,6 +50,10 @@ export default function DashboardPage() {
     // Caching RAB items for Cost/m2 calculations
     const fetchingIds = useRef<Set<number>>(new Set());
     const [rabItemsMap, setRabItemsMap] = useState<Record<number, any[]>>({});
+
+    // Caching Opname items for Nilai Toko calculations
+    const fetchingOpnameIds = useRef<Set<number>>(new Set());
+    const [opnameItemsMap, setOpnameItemsMap] = useState<Record<number, any[]>>({});
 
     const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
     const [featureAlertOpen, setFeatureAlertOpen] = useState(false);
@@ -189,6 +193,37 @@ export default function DashboardPage() {
         fetchAll();
     }, [filteredProjects, rabItemsMap]);
 
+    // Fetch Opname Items asynchronously for Nilai Toko calculations
+    useEffect(() => {
+        if (!filteredProjects || filteredProjects.length === 0) return;
+        
+        const missingIds: number[] = [];
+        filteredProjects.forEach(p => {
+            if (p.toko && p.toko.id && !opnameItemsMap[p.toko.id] && !fetchingOpnameIds.current.has(p.toko.id)) {
+                missingIds.push(p.toko.id);
+                fetchingOpnameIds.current.add(p.toko.id);
+            }
+        });
+
+        if (missingIds.length === 0) return;
+
+        const fetchAll = async () => {
+            const newMap: Record<number, any[]> = {};
+            await Promise.all(missingIds.map(async (id_toko) => {
+                try {
+                    const res = await fetchOpnameList({ id_toko });
+                    newMap[id_toko] = res?.data || [];
+                } catch (e) {
+                    newMap[id_toko] = [];
+                }
+            }));
+            
+            setOpnameItemsMap(prev => ({ ...prev, ...newMap }));
+        };
+
+        fetchAll();
+    }, [filteredProjects, opnameItemsMap]);
+
     // Summary Stats
     const stats = useMemo(() => {
         let totalPenawaran = 0;
@@ -202,6 +237,7 @@ export default function DashboardPage() {
         let sumRatioTerbangun = 0; let countTerbangun = 0;
 
         let totalNilaiToko = 0;
+        let countNilaiToko = 0;
         let totalNilaiKontraktor = 0;
         let totalBeanspot = 0;
         let attentionCount = 0;
@@ -209,6 +245,11 @@ export default function DashboardPage() {
 
         let miniStats = { 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0, 'Done': 0 };
         let miniPerhatian = { 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
+
+        const contractorScores: Record<string, { totalNilai: number, count: number, stores: any[] }> = {};
+        const beanspotStores: { nama_toko: string, nomor_ulok: string, cabang: string, nominal: number }[] = [];
+        let sumBeanspot = 0;
+        let countBeanspot = 0;
 
         filteredProjects.forEach(p => {
             // Mapping Category (Funnel)
@@ -378,8 +419,38 @@ export default function DashboardPage() {
             }
             totalJHK += projectJHK;
 
-            totalNilaiToko += Number(p.toko?.nilai_toko || 0);
-            totalNilaiKontraktor += Number(p.toko?.nilai_kontraktor || 0);
+            // Perhitungan Rata-rata Nilai Toko dari Opname Items
+            const opnameItems = opnameItemsMap[p.toko?.id] || [];
+            if (opnameItems.length > 0) {
+                const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
+                const countKualitasBaik = opnameItems.filter((i: any) => i.kualitas === 'Baik').length;
+                const countSpesifikasiSesuai = opnameItems.filter((i: any) => i.spesifikasi === 'Sesuai').length;
+
+                const nilaiDesain = (countDesainSesuai / opnameItems.length) * 30;
+                const nilaiKualitas = (countKualitasBaik / opnameItems.length) * 35;
+                const nilaiSpesifikasi = (countSpesifikasiSesuai / opnameItems.length) * 35;
+
+                totalNilaiToko += (nilaiDesain + nilaiKualitas + nilaiSpesifikasi);
+                countNilaiToko++;
+
+                const p_total = nilaiDesain + nilaiKualitas + nilaiSpesifikasi;
+                const kn = p.toko?.nama_kontraktor;
+                if (kn) {
+                    const knUpper = kn.toUpperCase();
+                    if (!contractorScores[knUpper]) contractorScores[knUpper] = { totalNilai: 0, count: 0, stores: [] };
+                    contractorScores[knUpper].totalNilai += p_total;
+                    contractorScores[knUpper].count++;
+                    contractorScores[knUpper].stores.push({
+                        nama_toko: p.toko?.nama_toko,
+                        nomor_ulok: p.toko?.nomor_ulok,
+                        cabang: p.toko?.cabang,
+                        nilai: p_total,
+                        desain: nilaiDesain,
+                        kualitas: nilaiKualitas,
+                        spesifikasi: nilaiSpesifikasi
+                    });
+                }
+            }
 
             // Perhitungan Cost/m2 per Toko/Ulok
             let costTerbukaToko = 0;
@@ -388,6 +459,7 @@ export default function DashboardPage() {
             let luasTerbukaToko = 0;
             let luasBangunanToko = 0;
             let luasTerbangunToko = 0;
+            let beanspotTokoNominal = 0;
 
             const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
             rabArr.forEach((rab: any) => {
@@ -413,6 +485,9 @@ export default function DashboardPage() {
                         } else {
                             costBangunanToko += itemTotal;
                         }
+                        if (kat === 'PEKERJAAN BEANSPOT') {
+                            beanspotTokoNominal += itemTotal;
+                        }
                     });
                 } else {
                     // Fallback jika tidak ada items sama sekali
@@ -432,7 +507,36 @@ export default function DashboardPage() {
                 sumRatioTerbangun += (costTerbangunToko / luasTerbangunToko);
                 countTerbangun++;
             }
+
+            if (beanspotTokoNominal > 0) {
+                beanspotStores.push({
+                    nama_toko: p.toko?.nama_toko || '-',
+                    nomor_ulok: p.toko?.nomor_ulok || '-',
+                    cabang: p.toko?.cabang || '-',
+                    nominal: beanspotTokoNominal,
+                });
+                sumBeanspot += beanspotTokoNominal;
+                countBeanspot++;
+            }
         });
+
+        let sumNilaiKontraktor = 0;
+        let countKontraktor = 0;
+        Object.values(contractorScores).forEach(c => {
+            if (c.count > 0) {
+                sumNilaiKontraktor += (c.totalNilai / c.count);
+                countKontraktor++;
+            }
+        });
+        const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
+
+        const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
+            type: 'KONTRAKTOR',
+            nama_kontraktor: nama,
+            nilai: data.count > 0 ? (data.totalNilai / data.count) : 0,
+            tokoCount: data.count,
+            stores: data.stores
+        }));
 
         const count = filteredProjects.length || 1;
 
@@ -447,13 +551,15 @@ export default function DashboardPage() {
             avgCostTerbuka: countTerbuka > 0 ? Math.round(sumRatioTerbuka / countTerbuka) : 0,
             avgCostBangunan: countBangunan > 0 ? Math.round(sumRatioBangunan / countBangunan) : 0,
             avgCostTerbangun: countTerbangun > 0 ? Math.round(sumRatioTerbangun / countTerbangun) : 0,
-            avgNilaiToko: (totalNilaiToko / count).toFixed(1),
-            avgNilaiKontraktor: (totalNilaiKontraktor / count).toFixed(1),
-            avgBeanspot: totalBeanspot,
+            avgNilaiToko: countNilaiToko > 0 ? (totalNilaiToko / countNilaiToko).toFixed(1) : '0.0',
+            avgNilaiKontraktor: finalAvgNilaiKontraktor,
+            contractorGrouped,
+            avgBeanspot: countBeanspot > 0 ? Math.round(sumBeanspot / countBeanspot) : 0,
+            beanspotStores,
             miniStats,
             miniPerhatian
         };
-    }, [filteredProjects, rabItemsMap]);
+    }, [filteredProjects, rabItemsMap, opnameItemsMap]);
 
     const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
 
@@ -757,7 +863,7 @@ export default function DashboardPage() {
                                     icon={<Coffee />} 
                                     bgColor="#fdf2f8"
                                     textColor="#db2777"
-                                    subLabel="Cost /Store"
+                                    subLabel="Rata-rata Nominal Beanspot/Toko"
                                     isLoading={isDataLoading}
                                     onClick={() => setDetailModal({ open: true, title: 'Rincian Nilai Beanspot', context: 'BEANSPOT', subContext: '' })}
                                 />
@@ -863,14 +969,25 @@ export default function DashboardPage() {
                         )}
 
                         {(detailModal.subContext || !['PROJECT', 'ATTENTION'].includes(detailModal.context)) && (() => {
-                            const modalData = filteredProjects.filter(p => {
-                                if (!detailModal.subContext) {
+                            let modalData: any[] = [];
+                            
+                            if (detailModal.context === 'NILAI_KONTRAKTOR') {
+                                modalData = stats.contractorGrouped || [];
+                            } else if (detailModal.context === 'BEANSPOT') {
+                                modalData = stats.beanspotStores || [];
+                            } else {
+                                modalData = filteredProjects.filter(p => {
+                                    if (!detailModal.subContext) {
                                     // Context-specific filtering for summary views
                                     if (detailModal.context === 'SPK') {
                                         return (Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).some((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase()));
                                     }
                                     if (detailModal.context === 'PENAWARAN' || detailModal.context === 'COST_M2') {
                                         return (p.rab || []).length > 0;
+                                    }
+                                    if (detailModal.context === 'NILAI_TOKO') {
+                                        const opnameItems = opnameItemsMap[p.toko?.id] || [];
+                                        return opnameItems.length > 0;
                                     }
                                     if (detailModal.context === 'JHK' || detailModal.context === 'DELAY' || detailModal.context === 'DENDA') {
                                         const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
@@ -998,6 +1115,7 @@ export default function DashboardPage() {
 
                                 return true;
                             });
+                            }
 
                             const totalPages = Math.ceil(modalData.length / itemsPerPage);
                             const paginatedData = modalData.slice((modalPage - 1) * itemsPerPage, modalPage * itemsPerPage);
@@ -1015,16 +1133,20 @@ export default function DashboardPage() {
                                         </Button>
                                     )}
                                     
-                                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead className="bg-slate-50 border-b border-slate-100">
+                                    <div className="bg-white rounded-2xl border border-slate-300 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left border-collapse table-fixed">
+                                            <thead className="bg-slate-50 border-b border-slate-300">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Toko / Ulok</th>
-                                                    <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cabang</th>
-                                                    <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Informasi</th>
+                                                    <th className={`px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>
+                                                        {detailModal.context === 'NILAI_KONTRAKTOR' ? 'Nama Kontraktor' : 'Toko / Ulok'}
+                                                    </th>
+                                                    {detailModal.context !== 'NILAI_KONTRAKTOR' && (
+                                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 w-1/3">Cabang</th>
+                                                    )}
+                                                    <th className={`px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>Informasi</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-100">
+                                            <tbody className="divide-y divide-slate-300">
                                                 {paginatedData.map((p, i) => {
                                                     let rTerbuka = 0, rBangunan = 0, rTerbangun = 0;
                                                     
@@ -1068,11 +1190,11 @@ export default function DashboardPage() {
                                                                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                                                                     onClick={() => setExpandedRow(expandedRow === i ? null : i)}
                                                                 >
-                                                                    <td className="px-4 py-3">
-                                                                        <div className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.toko?.nama_toko}</div>
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
                                                                         <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                                     </td>
-                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                                     <td className="px-4 py-3 text-right">
                                                                         <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
                                                                             {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/m²</span>
@@ -1082,20 +1204,20 @@ export default function DashboardPage() {
                                                                     </td>
                                                                 </tr>
                                                                 {expandedRow === i && (
-                                                                    <tr className="bg-slate-50 border-t border-slate-100">
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
                                                                         <td colSpan={3} className="px-4 py-4">
                                                                             <div className="grid grid-cols-3 gap-3">
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terbangun</p>
                                                                                     <p className="text-sm font-black text-slate-800">{formatRupiah(rTerbangun)}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">/ m²</p>
                                                                                 </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Bangunan</p>
                                                                                     <p className="text-sm font-black text-slate-800">{formatRupiah(rBangunan)}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">/ m²</p>
                                                                                 </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terbuka</p>
                                                                                     <p className="text-sm font-black text-slate-800">{formatRupiah(rTerbuka)}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">/ m²</p>
@@ -1131,11 +1253,11 @@ export default function DashboardPage() {
                                                                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                                                                     onClick={() => setExpandedRow(expandedRow === i ? null : i)}
                                                                 >
-                                                                    <td className="px-4 py-3">
-                                                                        <div className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.toko?.nama_toko}</div>
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
                                                                         <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                                     </td>
-                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                                     <td className="px-4 py-3 text-right">
                                                                         <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
                                                                             {jhkTotal} <span className="text-[9px] text-slate-400 font-normal">Hari</span>
@@ -1145,20 +1267,20 @@ export default function DashboardPage() {
                                                                     </td>
                                                                 </tr>
                                                                 {expandedRow === i && (
-                                                                    <tr className="bg-slate-50 border-t border-slate-100">
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
                                                                         <td colSpan={3} className="px-4 py-4">
                                                                             <div className="grid grid-cols-3 gap-3">
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Durasi SPK</p>
                                                                                     <p className="text-sm font-black text-slate-800">{durasi}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
                                                                                 </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Tambah SPK</p>
                                                                                     <p className="text-sm font-black text-slate-800">{totalPertambahan}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
                                                                                 </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terlambat</p>
                                                                                     <p className="text-sm font-black text-slate-800">{keterlambatan}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
@@ -1171,13 +1293,137 @@ export default function DashboardPage() {
                                                         );
                                                     }
 
+                                                    if (detailModal.context === 'NILAI_TOKO') {
+                                                        const opnameItems = opnameItemsMap[p.toko?.id] || [];
+                                                        let p_nilaiDesain = 0, p_nilaiKualitas = 0, p_nilaiSpesifikasi = 0, p_total = 0;
+                                                        if (opnameItems.length > 0) {
+                                                            const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
+                                                            const countKualitasBaik = opnameItems.filter((i: any) => i.kualitas === 'Baik').length;
+                                                            const countSpesifikasiSesuai = opnameItems.filter((i: any) => i.spesifikasi === 'Sesuai').length;
+                                            
+                                                            p_nilaiDesain = (countDesainSesuai / opnameItems.length) * 30;
+                                                            p_nilaiKualitas = (countKualitasBaik / opnameItems.length) * 35;
+                                                            p_nilaiSpesifikasi = (countSpesifikasiSesuai / opnameItems.length) * 35;
+                                                            p_total = p_nilaiDesain + p_nilaiKualitas + p_nilaiSpesifikasi;
+                                                        }
+
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
+                                                                        <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {p_total.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
+                                                                        <td colSpan={3} className="px-4 py-4">
+                                                                            <div className="grid grid-cols-3 gap-3">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Desain</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiDesain.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 30</span></p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Kualitas</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiKualitas.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Spesifikasi</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiSpesifikasi.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+
+                                                    if (detailModal.context === 'NILAI_KONTRAKTOR') {
+                                                        const pK = p as any;
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pK.nama_kontraktor}</div>
+                                                                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{pK.tokoCount} Toko / Ulok</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {pK.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
+                                                                        <td colSpan={2} className="px-4 py-4">
+                                                                            <div className="space-y-3">
+                                                                                {(pK.stores || []).map((st: any, idx: number) => (
+                                                                                    <div key={idx} className="bg-white rounded-xl p-3 border border-slate-300 shadow-sm flex items-center justify-between">
+                                                                                        <div>
+                                                                                            <div className="font-bold text-slate-700 text-xs">{st.nama_toko}</div>
+                                                                                            <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-2">
+                                                                                                <span>{st.nomor_ulok}</span>
+                                                                                                <span>•</span>
+                                                                                                <span>{st.cabang}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="text-right">
+                                                                                            <div className="text-sm font-black text-slate-800">{st.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 100</span></div>
+                                                                                            <div className="text-[8px] text-slate-400 flex items-center gap-1.5 mt-0.5 justify-end">
+                                                                                                <span>Des: {st.desain.toFixed(1)}</span>
+                                                                                                <span>Kual: {st.kualitas.toFixed(1)}</span>
+                                                                                                <span>Spes: {st.spesifikasi.toFixed(1)}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+
+                                                    if (detailModal.context === 'BEANSPOT') {
+                                                        const pB = p as any;
+                                                        return (
+                                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                                                                <td className="px-4 py-3 border-r border-slate-300">
+                                                                    <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pB.nama_toko}</div>
+                                                                    <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{pB.nomor_ulok}</div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{pB.cabang}</td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="text-[11px] font-black text-slate-700">{formatRupiah(pB.nominal)}</div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+
                                                     return (
                                                     <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-4 py-3">
-                                                            <div className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.toko?.nama_toko}</div>
+                                                        <td className="px-4 py-3 border-r border-slate-300">
+                                                            <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
                                                             <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-[10px] font-semibold text-slate-500">{p.toko?.cabang}</td>
+                                                        <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                         <td className="px-4 py-3 text-right">
                                                             <div className="text-[11px] font-black text-slate-700">
                                                                 {detailModal.context === 'PENAWARAN' 
@@ -1224,9 +1470,7 @@ export default function DashboardPage() {
                                                                                     }
                                                                                     return formatRupiah(denda);
                                                                                 })()
-                                                                            : detailModal.context === 'NILAI_TOKO'
-                                                                                ? `${p.toko?.nilai_toko || 0}`
-                                                                                : p.toko?.proyek
+                                                                            : p.toko?.proyek
                                                                 }
                                                             </div>
                                                             <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
