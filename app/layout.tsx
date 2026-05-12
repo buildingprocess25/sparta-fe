@@ -16,12 +16,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SPARTA",
+  title: "SPARTA Building",
   description: "Sistem Pemantauan dan Administrasi Real-time Toko Alfamart",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "SPARTA",
+    title: "SPARTA Building",
   },
   formatDetection: {
     telephone: false,

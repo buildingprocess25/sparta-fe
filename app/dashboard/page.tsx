@@ -36,6 +36,7 @@ export default function DashboardPage() {
     const [isDataLoading, setIsDataLoading] = useState(false);
     const [detailModal, setDetailModal] = useState({ open: false, title: '', context: '', subContext: '' });
     const [modalPage, setModalPage] = useState(1);
+    const [expandedRow, setExpandedRow] = useState<number | null>(null);
     const itemsPerPage = 5;
     const [sidebarOpen, setSidebarOpen]     = useState(true);
     const [isContractor, setIsContractor]   = useState(false);
@@ -105,7 +106,10 @@ export default function DashboardPage() {
     }, [router]);
 
     useEffect(() => {
-        if (detailModal.open) setModalPage(1);
+        if (detailModal.open) {
+            setModalPage(1);
+            setExpandedRow(null);
+        }
     }, [detailModal.open, detailModal.context, detailModal.subContext]);
 
     const fetchDashboardData = async (userCabang: string) => {
@@ -865,7 +869,7 @@ export default function DashboardPage() {
                                     if (detailModal.context === 'SPK') {
                                         return (Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).some((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase()));
                                     }
-                                    if (detailModal.context === 'PENAWARAN') {
+                                    if (detailModal.context === 'PENAWARAN' || detailModal.context === 'COST_M2') {
                                         return (p.rab || []).length > 0;
                                     }
                                     if (detailModal.context === 'JHK' || detailModal.context === 'DELAY' || detailModal.context === 'DENDA') {
@@ -1021,7 +1025,153 @@ export default function DashboardPage() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {paginatedData.map((p, i) => (
+                                                {paginatedData.map((p, i) => {
+                                                    let rTerbuka = 0, rBangunan = 0, rTerbangun = 0;
+                                                    
+                                                    if (detailModal.context === 'COST_M2') {
+                                                        let costTerbuka = 0; let costBangunan = 0; let costTerbangun = 0;
+                                                        let luasTerbuka = 0; let luasBangunan = 0; let luasTerbangun = 0;
+                                                        const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
+                                                        rabArr.forEach((rab: any) => {
+                                                            luasTerbuka = Math.max(luasTerbuka, Number(rab.luas_area_terbuka || 0));
+                                                            luasBangunan = Math.max(luasBangunan, Number(rab.luas_bangunan || 0));
+                                                            luasTerbangun = Math.max(luasTerbangun, Number(rab.luas_terbangun || 0));
+                                                            costTerbangun += Number(rab.grand_total_final || 0);
+                                                            
+                                                            const itemsFromCache = rabItemsMap[rab.id] || [];
+                                                            const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
+                                                            const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
+                                                            const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
+                                                            
+                                                            if (finalItems.length > 0) {
+                                                                finalItems.forEach((item: any) => {
+                                                                    const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
+                                                                    const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
+                                                                    if (kat === 'PEKERJAAN AREA TERBUKA') {
+                                                                        costTerbuka += itemTotal;
+                                                                    } else {
+                                                                        costBangunan += itemTotal;
+                                                                    }
+                                                                });
+                                                            } else {
+                                                                costBangunan += Number(rab.grand_total_final || 0);
+                                                            }
+                                                        });
+                                                        
+                                                        rTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
+                                                        rBangunan = luasBangunan > 0 && costBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
+                                                        rTerbangun = luasTerbangun > 0 && costTerbangun > 0 ? Math.round(costTerbangun / luasTerbangun) : 0;
+
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.toko?.nama_toko}</div>
+                                                                        <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/m²</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-100">
+                                                                        <td colSpan={3} className="px-4 py-4">
+                                                                            <div className="grid grid-cols-3 gap-3">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terbangun</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{formatRupiah(rTerbangun)}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">/ m²</p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Bangunan</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{formatRupiah(rBangunan)}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">/ m²</p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terbuka</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{formatRupiah(rTerbuka)}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">/ m²</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+                                                    
+                                                    if (detailModal.context === 'JHK') {
+                                                        const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
+                                                        const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
+                                                        
+                                                        let jhkTotal = 0, durasi = 0, totalPertambahan = 0, keterlambatan = 0;
+                                                        if (validSpk) {
+                                                            durasi = Number(validSpk.durasi || 0);
+                                                            const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
+                                                            totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
+                                                            const totalAllowedDays = durasi + totalPertambahan;
+                                                            const deadlineMs = new Date(validSpk.created_at || Date.now()).getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
+                                                            const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
+                                                            const compareDateMs = stArr[0] ? new Date(stArr[0].created_at).getTime() : Date.now();
+                                                            if (compareDateMs > deadlineMs) keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
+                                                            jhkTotal = totalAllowedDays + keterlambatan;
+                                                        }
+
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.toko?.nama_toko}</div>
+                                                                        <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {jhkTotal} <span className="text-[9px] text-slate-400 font-normal">Hari</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-100">
+                                                                        <td colSpan={3} className="px-4 py-4">
+                                                                            <div className="grid grid-cols-3 gap-3">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Durasi SPK</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{durasi}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Tambah SPK</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{totalPertambahan}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terlambat</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{keterlambatan}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+
+                                                    return (
                                                     <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
                                                         <td className="px-4 py-3">
                                                             <div className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.toko?.nama_toko}</div>
@@ -1034,23 +1184,7 @@ export default function DashboardPage() {
                                                                     ? formatRupiah(parseCurrency(p.rab?.[0]?.grand_total_final))
                                                                     : detailModal.context === 'SPK' 
                                                                         ? formatRupiah((Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase())).reduce((acc: number, s: any) => acc + parseCurrency(s.grand_total || s.total_harga), 0))
-                                                                        : detailModal.context === 'JHK' 
-                                                                            ? (() => {
-                                                                                const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                                                                const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
-                                                                                if (!validSpk) return '-';
-                                                                                const durasi = Number(validSpk.durasi || 0);
-                                                                                const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
-                                                                                const totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                                                                                const totalAllowedDays = durasi + totalPertambahan;
-                                                                                const deadlineMs = new Date(validSpk.created_at || Date.now()).getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
-                                                                                const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
-                                                                                let keterlambatan = 0;
-                                                                                const compareDateMs = stArr[0] ? new Date(stArr[0].created_at).getTime() : Date.now();
-                                                                                if (compareDateMs > deadlineMs) keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
-                                                                                return `${totalAllowedDays + keterlambatan} Hari (Durasi SPK : ${durasi}, Tambah SPK: ${totalPertambahan}, Terlambat: ${keterlambatan})`;
-                                                                            })()
-                                                                            : detailModal.context === 'DELAY'
+                                                                        : detailModal.context === 'DELAY'
                                                                                 ? (() => {
                                                                                     const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
                                                                                     const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
@@ -1090,49 +1224,6 @@ export default function DashboardPage() {
                                                                                     }
                                                                                     return formatRupiah(denda);
                                                                                 })()
-                                                                            : detailModal.context === 'COST_M2'
-                                                                                ? (() => {
-                                                                                    let costTerbuka = 0; let costBangunan = 0; let costTerbangun = 0;
-                                                                                    let luasTerbuka = 0; let luasBangunan = 0; let luasTerbangun = 0;
-                                                                                    const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
-                                                                                    rabArr.forEach((rab: any) => {
-                                                                                        luasTerbuka = Math.max(luasTerbuka, Number(rab.luas_area_terbuka || 0));
-                                                                                        luasBangunan = Math.max(luasBangunan, Number(rab.luas_bangunan || 0));
-                                                                                        luasTerbangun = Math.max(luasTerbangun, Number(rab.luas_terbangun || 0));
-                                                                                        costTerbangun += Number(rab.grand_total_final || 0);
-                                                                                        
-                                                                                        const itemsFromCache = rabItemsMap[rab.id] || [];
-                                                                                        const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
-                                                                                        const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
-                                                                                        const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
-                                                                                        
-                                                                                        if (finalItems.length > 0) {
-                                                                                            finalItems.forEach((item: any) => {
-                                                                                                const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
-                                                                                                const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
-                                                                                                if (kat === 'PEKERJAAN AREA TERBUKA') {
-                                                                                                    costTerbuka += itemTotal;
-                                                                                                } else {
-                                                                                                    costBangunan += itemTotal;
-                                                                                                }
-                                                                                            });
-                                                                                        } else {
-                                                                                            costBangunan += Number(rab.grand_total_final || 0);
-                                                                                        }
-                                                                                    });
-                                                                                    
-                                                                                    const rTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
-                                                                                    const rBangunan = luasBangunan > 0 && costBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
-                                                                                    const rTerbangun = luasTerbangun > 0 && costTerbangun > 0 ? Math.round(costTerbangun / luasTerbangun) : 0;
-                                                                                    
-                                                                                    return (
-                                                                                        <div className="flex flex-col gap-1 text-right">
-                                                                                            <span className="text-[10px] text-slate-500">Terbangun: <span className="text-slate-800 font-bold">{formatRupiah(rTerbangun)}</span>/m²</span>
-                                                                                            <span className="text-[10px] text-slate-500">Bangunan: <span className="text-slate-800 font-bold">{formatRupiah(rBangunan)}</span>/m²</span>
-                                                                                            <span className="text-[10px] text-slate-500">Terbuka: <span className="text-slate-800 font-bold">{formatRupiah(rTerbuka)}</span>/m²</span>
-                                                                                        </div>
-                                                                                    );
-                                                                                })()
                                                                             : detailModal.context === 'NILAI_TOKO'
                                                                                 ? `${p.toko?.nilai_toko || 0}`
                                                                                 : p.toko?.proyek
@@ -1141,7 +1232,8 @@ export default function DashboardPage() {
                                                             <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                    );
+                                                })}
                                                 {paginatedData.length === 0 && (
                                                     <tr>
                                                         <td colSpan={3} className="px-4 py-12 text-center text-xs text-slate-400 italic">

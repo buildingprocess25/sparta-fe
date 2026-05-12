@@ -30,7 +30,7 @@ export default function GlobalError({
             {isDev ? error.message : "Silakan coba lagi atau hubungi admin."}
           </div>
           {isDev && error.stack ? (
-            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-700">
+            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap wrap-break-word text-xs text-slate-700">
               {error.stack}
             </pre>
           ) : null}
