@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -560,16 +561,12 @@ export default function DaftarDokumenPage() {
     // =========================================================================
     // AUTH + INIT
     // =========================================================================
+    const { user } = useSession();
+
     useEffect(() => {
-        const isAuth  = sessionStorage.getItem("authenticated");
-        const role    = sessionStorage.getItem("userRole") || '';
-        const email   = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang  = sessionStorage.getItem("loggedInUserCabang") || '';
-        const namaLengkap = sessionStorage.getItem("nama_lengkap") || email.split('@')[0];
+        if (!user) return;
 
-        const nama_pt = sessionStorage.getItem("nama_pt") || '';
-
-        if (isAuth !== "true" || !role) { router.push('/auth'); return; }
+        const { role, email, cabang, namaLengkap, namaPt: nama_pt } = user;
 
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
@@ -577,7 +574,7 @@ export default function DaftarDokumenPage() {
         setIsContractor(contractorFlag);
         setIsDirektur(direkturFlag);
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email, nama_pt });
-    }, [router]);
+    }, [user]);
 
     // =========================================================================
     // TOAST

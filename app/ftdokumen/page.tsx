@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,10 +56,12 @@ export default function FTDokumenPage() {
     const [ulokOptions, setUlokOptions] = useState<UlokOption[]>([]);
     const [isLoadingUlok, setIsLoadingUlok] = useState(true);
 
+    const { user } = useSession();
+
     // Populate cabang from session + fetch ULOK data from SPK list
     useEffect(() => {
-        const cabang = typeof window !== 'undefined' ? sessionStorage.getItem('loggedInUserCabang') || '' : '';
-        setFormData(prev => ({ ...prev, cabang }));
+        if (!user) return;
+        setFormData(prev => ({ ...prev, cabang: user.cabang }));
 
         const loadUlokData = async () => {
             setIsLoadingUlok(true);
@@ -121,7 +124,7 @@ export default function FTDokumenPage() {
         };
 
         loadUlokData();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const completedCount = Object.keys(photos).length;
     const progressPct = Math.round((completedCount / TOTAL_PHOTOS) * 100);
@@ -176,9 +179,9 @@ export default function FTDokumenPage() {
                 tanggal_go: formData.tanggalGo,
                 tanggal_serah_terima: formData.tanggalSt,
                 tanggal_ambil_foto: formData.tanggalAmbilFoto,
-                email_pengirim: sessionStorage.getItem('loggedInUserEmail') || '',
+                email_pengirim: user?.email || '',
                 status_validasi: 'submitted',
-                pic_dokumentasi: sessionStorage.getItem('nama_lengkap') || sessionStorage.getItem('loggedInUserEmail')?.split('@')[0] || 'PIC'
+                pic_dokumentasi: user?.namaLengkap || user?.email?.split('@')[0] || 'PIC'
             };
 
             await submitDokumentasiBangunan(payloadFields, photos);

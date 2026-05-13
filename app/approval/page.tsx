@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -392,15 +393,12 @@ export default function ApprovalPage() {
     // ==========================================
     // AUTH INIT
     // ==========================================
-    useEffect(() => {
-        const isAuth  = sessionStorage.getItem("authenticated");
-        const role    = sessionStorage.getItem("userRole") || '';
-        const email   = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang  = sessionStorage.getItem("loggedInUserCabang") || '';
-        const namaLengkap = sessionStorage.getItem("nama_lengkap") || email.split('@')[0];
-        const nama_pt = sessionStorage.getItem("nama_pt") || '';
+    const { user } = useSession();
 
-        if (isAuth !== "true" || !role) { router.push('/auth'); return; }
+    useEffect(() => {
+        if (!user) return;
+
+        const { role, email, cabang, namaLengkap, namaPt: nama_pt } = user;
 
         // Handle Multi-Role
         const roles = role.split(',').map(r => r.trim().toUpperCase());
@@ -438,7 +436,7 @@ export default function ApprovalPage() {
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email, nama_pt });
         setAccessibleTypes(typesArr);
         setJabatan(currentJabatan);
-    }, [router]);
+    }, [user, router]);
 
     // ==========================================
     // SESSION STORAGE ANTI-REFRESH

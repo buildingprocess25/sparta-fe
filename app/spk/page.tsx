@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, AlertTriangle, Calendar } from 'lucide-react';
@@ -98,13 +99,12 @@ export default function SPKPage() {
         par_no: '', par_bulan: '', par_tahun: new Date().getFullYear().toString()
     });
 
-    useEffect(() => {
-        const isAuth = sessionStorage.getItem("authenticated");
-        const role = sessionStorage.getItem("userRole");
-        const email = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang = sessionStorage.getItem("loggedInUserCabang") || '';
+    const { user } = useSession();
 
-        if (isAuth !== "true" || !role) { router.push('/auth'); return; }
+    useEffect(() => {
+        if (!user) return;
+
+        const { role, email, cabang } = user;
 
         const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT'];
         if (!picRoles.includes(role.toUpperCase())) {
@@ -117,7 +117,7 @@ export default function SPKPage() {
         setForm(prev => ({ ...prev, kode_cabang: getCabangCode(cabang) }));
 
         loadApprovedRabs(cabang);
-    }, [router]);
+    }, [user, router]);
 
     const loadApprovedRabs = async (cabang: string) => {
         setIsLoading(true);

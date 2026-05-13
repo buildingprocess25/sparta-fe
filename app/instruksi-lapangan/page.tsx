@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import AppNavbar from '@/components/AppNavbar';
 import LoadingOverlay from '@/components/LoadingOverlay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,12 +40,12 @@ export default function InstruksiLapanganPage() {
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState<{title: string, desc: string, type: 'info' | 'error' | 'success' | 'warning'}>({ title: "", desc: "", type: "info" });
 
+    const { user } = useSession();
+
     useEffect(() => {
-        const userCabang = sessionStorage.getItem('loggedInUserCabang')?.toUpperCase();
-        if (!userCabang) {
-            router.push('/auth');
-            return;
-        }
+        if (!user) return;
+
+        const userCabang = user.cabang.toUpperCase();
         setCabang(userCabang);
 
         fetchSPKList({ status: "SPK_APPROVED" }).then(res => {
@@ -54,7 +55,7 @@ export default function InstruksiLapanganPage() {
             console.error(err);
             showAlert("Error", "Gagal memuat daftar SPK", "error");
         });
-    }, [router]);
+    }, [user]);
 
     const handleSpkChange = async (spkIdStr: string) => {
         const spkId = Number(spkIdStr);

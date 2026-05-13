@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 // Import AppNavbar
 import AppNavbar from '@/components/AppNavbar';
 import LoadingOverlay from '@/components/LoadingOverlay';
@@ -73,15 +74,14 @@ export default function RABPage() {
       : true;
 
   // --- 1. INISIALISASI SESI & CEK STATUS REVISI ---
-  useEffect(() => {
-    const userCabang = sessionStorage.getItem('loggedInUserCabang')?.toUpperCase();
-    const userEmail = sessionStorage.getItem('loggedInUserEmail');
-    const userAlamatCabang = sessionStorage.getItem('alamat_cabang') || '';
+  const { user } = useSession();
 
-    if (!userCabang) {
-      router.push('/auth');
-      return;
-    }
+  useEffect(() => {
+    if (!user) return;
+
+    const userCabang = user.cabang.toUpperCase();
+    const userEmail = user.email;
+    const userAlamatCabang = user.alamatCabang || '';
     
     setAvailableCabang(BRANCH_GROUPS[userCabang] || [userCabang]);
     let defaultLokasiCabang = userCabang === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[userCabang] || "KODE");
@@ -96,7 +96,7 @@ export default function RABPage() {
             }
         }).catch(err => console.log("Gagal periksa revisi", err));
     }
-  }, [router]);
+  }, [user]);
 
   // --- 2. FETCH HARGA OTOMATIS ---
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,25 +60,25 @@ export default function DashboardPage() {
     const [featureAlertOpen, setFeatureAlertOpen] = useState(false);
 
     // =========================================================================
+    // SESSION
+    // =========================================================================
+    const { user } = useSession();
+
+    // =========================================================================
     // INIT
     // =========================================================================
     useEffect(() => {
-        const userRole    = sessionStorage.getItem('userRole') || '';
-        const userCabang  = sessionStorage.getItem('loggedInUserCabang') || '';
-        const email       = sessionStorage.getItem('loggedInUserEmail') || '';
-        const namaLengkap = sessionStorage.getItem('nama_lengkap') || email.split('@')[0];
+        if (!user) return;
 
-        if (!userRole) { router.push('/'); return; }
-        
+        const { role, cabang: userCabang, namaLengkap, roles, isHO } = user;
+
         // Handle Multi-Role (DIREKTUR, KONTRAKTOR)
-        const roles = userRole.split(',').map(r => r.trim().toUpperCase());
         const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
-        const isHO = userCabang.toUpperCase().trim() === 'HEAD OFFICE';
 
         let combinedAllowedIds: string[] = [];
-        roles.forEach(role => {
-            if (ROLE_CONFIG[role]) {
-                combinedAllowedIds = [...combinedAllowedIds, ...ROLE_CONFIG[role]];
+        roles.forEach(r => {
+            if (ROLE_CONFIG[r]) {
+                combinedAllowedIds = [...combinedAllowedIds, ...ROLE_CONFIG[r]];
             }
         });
 
@@ -107,7 +108,7 @@ export default function DashboardPage() {
         // Initial Data Fetch
         fetchDashboardData(userCabang.toUpperCase());
         setIsLoading(false);
-    }, [router]);
+    }, [user]);
 
     useEffect(() => {
         if (detailModal.open) {

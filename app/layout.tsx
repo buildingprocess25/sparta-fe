@@ -39,6 +39,7 @@ export const viewport: Viewport = {
 import { GlobalAlertProvider } from "@/context/GlobalAlertContext";
 import { GlobalAlert } from "@/components/GlobalAlert";
 import ErrorReporter from "@/components/ErrorReporter";
+import { SessionProvider } from "@/context/SessionContext";
 
 export default function RootLayout({
   children,
@@ -54,7 +55,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <GlobalAlertProvider>
-          {children}
+          <SessionProvider>
+            {children}
+          </SessionProvider>
           <ErrorReporter />
           <GlobalAlert />
         </GlobalAlertProvider>

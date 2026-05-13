@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import {
   Search, ExternalLink, PlusCircle, X, File,
   CheckCircle, AlertCircle, AlertTriangle, Loader2, ArrowLeft, FolderOpen,
@@ -125,15 +126,14 @@ export default function PenyimpananDokumenPage() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
+  const { user } = useSession();
+
   useEffect(() => {
-    const auth = sessionStorage.getItem("authenticated");
-    const email = sessionStorage.getItem("loggedInUserEmail") || "";
-    const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
-    const role = sessionStorage.getItem("userRole") || "";
-    if (auth !== "true" || !email) { router.push('/auth'); return; }
+    if (!user) return;
+    const { email, cabang, role } = user;
     setUserInfo({ email, cabang, role });
     loadTokoList(cabang);
-  }, [router]);
+  }, [user]);
 
   const loadTokoList = async (cabang: string) => {
     setIsLoading(true);

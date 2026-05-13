@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,17 +68,12 @@ export default function UsersPage() {
     // =========================================================================
     // INIT & AUTH
     // =========================================================================
-    useEffect(() => {
-        const isAuth = sessionStorage.getItem("authenticated");
-        const role = sessionStorage.getItem("userRole") || '';
-        const email = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang = sessionStorage.getItem("loggedInUserCabang") || '';
-        const namaLengkap = sessionStorage.getItem("nama_lengkap") || email.split('@')[0];
+    const { user } = useSession();
 
-        if (isAuth !== "true" || !role) {
-            router.push('/auth');
-            return;
-        }
+    useEffect(() => {
+        if (!user) return;
+
+        const { role, email, cabang, namaLengkap } = user;
 
         // Hanya HEAD OFFICE yang boleh akses
         if (cabang.toUpperCase() !== 'HEAD OFFICE') {
@@ -88,7 +84,7 @@ export default function UsersPage() {
 
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email });
         loadUsers();
-    }, [router]);
+    }, [user, router]);
 
     const showToast = (msg: string, type: 'success' | 'error') => {
         setToast({ msg, type });

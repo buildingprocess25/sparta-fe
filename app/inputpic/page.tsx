@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -570,13 +571,12 @@ export default function InputPICPage() {
     }, [rabDetail]);
 
     // ── Auth guard: Only BRANCH BUILDING COORDINATOR ──
-    useEffect(() => {
-        const isAuth = sessionStorage.getItem("authenticated");
-        const role = sessionStorage.getItem("userRole");
-        const email = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang = sessionStorage.getItem("loggedInUserCabang") || '';
+    const { user } = useSession();
 
-        if (isAuth !== "true" || !role) { router.push('/auth'); return; }
+    useEffect(() => {
+        if (!user) return;
+
+        const { role, email, cabang } = user;
 
         const roleUpper = role.toUpperCase();
         const cabangUpper = cabang.toUpperCase();
@@ -599,7 +599,7 @@ export default function InputPICPage() {
         loadApprovedSpks(cabang);
         loadPicList(cabang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [router]);
+    }, [user, router]);
 
     const loadPicList = async (cabang: string) => {
         try {

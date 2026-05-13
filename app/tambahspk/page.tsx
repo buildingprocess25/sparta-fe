@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -142,13 +143,12 @@ export default function TambahSPKPage() {
     //   EFFECTS
     // ════════════════════════════════════════════════════════════════════
 
-    useEffect(() => {
-        const isAuth = sessionStorage.getItem("authenticated");
-        const role = sessionStorage.getItem("userRole");
-        const email = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang = sessionStorage.getItem("loggedInUserCabang") || '';
+    const { user } = useSession();
 
-        if (isAuth !== "true" || !role) { router.push('/auth'); return; }
+    useEffect(() => {
+        if (!user) return;
+
+        const { role, email, cabang } = user;
 
         const allowedRoles = [
             'BRANCH BUILDING & MAINTENANCE MANAGER',
@@ -164,7 +164,7 @@ export default function TambahSPKPage() {
 
         loadApprovedSpks(cabang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [router]);
+    }, [user, router]);
 
     // ════════════════════════════════════════════════════════════════════
     //   DATA LOADING

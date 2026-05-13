@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import AppNavbar from '@/components/AppNavbar';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
@@ -84,10 +85,13 @@ function GanttBoard() {
     const [showOpnameModal, setShowOpnameModal] = useState(false);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
 
+    const { user } = useSession();
+
     useEffect(() => {
-        const role = sessionStorage.getItem('userRole');
-        const cabang = sessionStorage.getItem('loggedInUserCabang'); 
-        const upperCabang = cabang ? cabang.toUpperCase() : '';
+        if (!user) return;
+
+        const { role, email, cabang } = user;
+        const upperCabang = cabang.toUpperCase();
         let userGroup: string[] | null = null;
         if (upperCabang) {
             for (const grp of Object.values(BRANCH_GROUPS)) {
@@ -96,12 +100,6 @@ function GanttBoard() {
                     break;
                 }
             }
-        }
-        const email = sessionStorage.getItem('loggedInUserEmail'); 
-
-        if (!role) {
-            showAlert({ message: "Sesi Anda telah habis. Silakan login kembali.", type: "warning", onConfirm: () => router.push('/auth') });
-            return;
         }
 
         setUserRole(role);
@@ -157,7 +155,7 @@ function GanttBoard() {
             })
             .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
         
-    }, [router, urlIdToko, urlIdRab]);
+    }, [user, urlIdToko, urlIdRab]);
 
     const loadDataByRab = async (idRab: number, fallbackIdToko?: number) => {
         setIsLoading(true);

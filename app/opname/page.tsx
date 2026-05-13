@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1747,17 +1748,12 @@ export default function OpnamePage() {
     const [appMode, setAppMode] = useState<'pic' | 'kontraktor' | null>(null);
     const [userInfo, setUserInfo] = useState({ name: '', role: '', cabang: '', email: '' });
 
+    const { user } = useSession();
+
     useEffect(() => {
-        const isAuth = sessionStorage.getItem("authenticated");
-        const role = sessionStorage.getItem("userRole") || '';
-        const email = sessionStorage.getItem("loggedInUserEmail") || '';
-        const cabang = sessionStorage.getItem("loggedInUserCabang") || '';
+        if (!user) return;
 
-        if (isAuth !== "true" || !role) {
-            router.push('/auth');
-            return;
-        }
-
+        const { role, email, cabang } = user;
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         const picRoles = [
             'BRANCH BUILDING & MAINTENANCE MANAGER',
@@ -1766,7 +1762,7 @@ export default function OpnamePage() {
             'BRANCH BUILDING SUPPORT DOKUMENTASI',
         ];
 
-        const name = (sessionStorage.getItem('loggedInUserName') || email.split('@')[0]).toUpperCase();
+        const name = (user.namaLengkap || email.split('@')[0]).toUpperCase();
         setUserInfo({ name, role, cabang, email });
 
         if (roles.includes('KONTRAKTOR')) {
@@ -1776,7 +1772,7 @@ export default function OpnamePage() {
         } else {
             showAlert({ message: "Anda tidak memiliki akses ke halaman ini.", type: "error", onConfirm: () => router.push('/dashboard') });
         }
-    }, [router]);
+    }, [user, router, showAlert]);
 
     if (!appMode) {
         return (
