@@ -176,7 +176,7 @@ export default function DashboardPage() {
 
         if (missingIds.length === 0) return;
 
-        const BATCH_SIZE = 10;
+        const BATCH_SIZE = 20;
         const fetchAll = async () => {
             const newMap: Record<number, any[]> = {};
             for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {

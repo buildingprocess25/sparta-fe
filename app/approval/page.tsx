@@ -744,6 +744,26 @@ export default function ApprovalPage() {
     };
 
     // ==========================================
+    // HELPER: Ambil nama Direktur berdasarkan email
+    // (email bisa shared dengan Kontraktor, jadi cari yg jabatan-nya mengandung 'DIREKTUR')
+    // ==========================================
+    const fetchDirekturName = async (email: string): Promise<string | null> => {
+        try {
+            const res = await fetchUserCabangList({ email_sat: email });
+            if (res.data && res.data.length > 0) {
+                // Cari entry dengan jabatan yang mengandung 'DIREKTUR'
+                const direkturEntry = res.data.find(
+                    (u: any) => (u.jabatan ?? '').toUpperCase().includes('DIREKTUR')
+                );
+                if (direkturEntry) return direkturEntry.nama_lengkap;
+            }
+        } catch (err) {
+            console.error('fetchDirekturName failed:', err);
+        }
+        return null;
+    };
+
+    // ==========================================
     // APPROVE
     // ==========================================
     const handleApprove = async (item: NormalizedListItem | NormalizedDetail) => {
@@ -752,14 +772,8 @@ export default function ApprovalPage() {
             if (item.tipe === 'RAB') {
                 let currentName = userInfo.name;
                 if (jabatan === 'DIREKTUR' && item.status.toUpperCase() === 'MENUNGGU PERSETUJUAN DIREKTUR') {
-                    try {
-                        const userRes = await fetchUserCabangList({ email_sat: userInfo.email, jabatan: 'DIREKTUR' });
-                        if (userRes.data && userRes.data.length > 0) {
-                            currentName = userRes.data[0].nama_lengkap;
-                        }
-                    } catch (err) {
-                        console.error('Failed to fetch direktur name', err);
-                    }
+                    const direkturName = await fetchDirekturName(userInfo.email);
+                    if (direkturName) currentName = direkturName;
                 }
                 
                 await processRABApproval(item.id as number, {
@@ -823,14 +837,8 @@ export default function ApprovalPage() {
             if (item.tipe === 'RAB') {
                 let currentName = userInfo.name;
                 if (jabatan === 'DIREKTUR' && item.status.toUpperCase() === 'MENUNGGU PERSETUJUAN DIREKTUR') {
-                    try {
-                        const userRes = await fetchUserCabangList({ email_sat: userInfo.email, jabatan: 'DIREKTUR' });
-                        if (userRes.data && userRes.data.length > 0) {
-                            currentName = userRes.data[0].nama_lengkap;
-                        }
-                    } catch (err) {
-                        console.error('Failed to fetch direktur name', err);
-                    }
+                    const direkturName = await fetchDirekturName(userInfo.email);
+                    if (direkturName) currentName = direkturName;
                 }
                 
                 await processRABApproval(item.id as number, {
