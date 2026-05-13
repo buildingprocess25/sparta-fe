@@ -79,6 +79,14 @@ export default function FTDokumenPage() {
                     const ulok = spk.nomor_ulok;
                     if (!ulok) continue;
 
+                    // Filter based on user branch
+                    if (user.cabang !== 'HEAD OFFICE') {
+                        const spkCabang = (spk as any).cabang || spk.toko?.cabang || '';
+                        if (spkCabang.toUpperCase() !== user.cabang.toUpperCase()) {
+                            continue;
+                        }
+                    }
+
                     const mulai = formatDate(spk.waktu_mulai);
                     const selesai = formatDate(spk.waktu_selesai);
 
