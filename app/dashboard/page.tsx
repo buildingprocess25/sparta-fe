@@ -159,7 +159,7 @@ export default function DashboardPage() {
         });
     }, [projects, searchQuery, selectedCabang]);
 
-    // Fetch RAB Details asynchronously for Cost/m2 items calculations
+    // Fetch RAB Details asynchronously for Cost/m2 & Beanspot calculations (batched, progressive)
     useEffect(() => {
         if (!filteredProjects || filteredProjects.length === 0) return;
         
@@ -176,7 +176,7 @@ export default function DashboardPage() {
 
         if (missingIds.length === 0) return;
 
-        const BATCH_SIZE = 5;
+        const BATCH_SIZE = 10;
         const fetchAll = async () => {
             const newMap: Record<number, any[]> = {};
             for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
@@ -189,14 +189,15 @@ export default function DashboardPage() {
                         newMap[id] = [];
                     }
                 }));
+                // Progressive update per batch — Beanspot & Cost/m2 cards populate as data arrives
+                setRabItemsMap(prev => ({ ...prev, ...newMap }));
             }
-            setRabItemsMap(prev => ({ ...prev, ...newMap }));
         };
 
         fetchAll();
     }, [filteredProjects, rabItemsMap]);
 
-    // Fetch Opname Items asynchronously for Nilai Toko calculations (batched)
+    // Fetch Opname Items asynchronously for Nilai Toko & Nilai Kontraktor (batched, progressive)
     useEffect(() => {
         if (!filteredProjects || filteredProjects.length === 0) return;
         
@@ -210,7 +211,7 @@ export default function DashboardPage() {
 
         if (missingIds.length === 0) return;
 
-        const BATCH_SIZE = 5;
+        const BATCH_SIZE = 10;
         const fetchAll = async () => {
             const newMap: Record<number, any[]> = {};
             for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
@@ -223,13 +224,14 @@ export default function DashboardPage() {
                         newMap[id_toko] = [];
                     }
                 }));
-                // Update map after each batch so stat-cards progressively populate
+                // Progressive update per batch — Nilai Toko & Kontraktor cards populate as data arrives
                 setOpnameItemsMap(prev => ({ ...prev, ...newMap }));
             }
         };
 
         fetchAll();
     }, [filteredProjects, opnameItemsMap]);
+
 
 
     // Summary Stats
