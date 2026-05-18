@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import AppNavbar from '@/components/AppNavbar';
-import { ALL_MENUS, ROLE_CONFIG } from '@/lib/constants';
+import { ALL_MENUS, ROLE_CONFIG, BRANCH_GROUPS } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
 import { fetchDashboardAll, fetchRABDetail, fetchOpnameList } from '@/lib/api';
 import { 
@@ -124,16 +124,24 @@ export default function DashboardPage() {
             const json = await fetchDashboardAll();
             let data = json.data || [];
             
-            // Filter by branch for non-HO users (except if ALL is selected)
-            if (userInfo.cabang !== 'HEAD OFFICE' && userCabang !== 'HEAD OFFICE' && userCabang !== 'ALL') {
-                data = data.filter((p: any) => p.toko?.cabang?.toUpperCase() === userCabang);
+            // Tentukan allowedBranches berdasarkan branch group
+            let allowedBranches: string[] = [];
+            if (userCabang !== 'HEAD OFFICE') {
+                const group = Object.values(BRANCH_GROUPS).find(g => g.includes(userCabang));
+                if (group) {
+                    allowedBranches = group;
+                } else {
+                    allowedBranches = [userCabang];
+                }
+                // Filter data sesuai allowed branches
+                data = data.filter((p: any) => allowedBranches.includes(p.toko?.cabang?.toUpperCase()));
+                setCabangList(allowedBranches.sort());
+            } else {
+                allowedBranches = Array.from(new Set(data.map((p: any) => p.toko?.cabang?.toUpperCase()).filter(Boolean)));
+                setCabangList(allowedBranches.sort());
             }
 
             setProjects(data);
-            
-            // Extract unique branches for HO selector
-            const branches: string[] = Array.from(new Set(data.map((p: any) => p.toko?.cabang?.toUpperCase()).filter(Boolean)));
-            setCabangList(branches.sort());
 
             // Fetch semua RAB items sekaligus (background) untuk Cost/m2 & Beanspot
             if (!rabFetched.current) {
@@ -680,8 +688,8 @@ export default function DashboardPage() {
 
                         {/* Kanan: judul & filter info + ACTION (Moved from content) */}
                         <div className="flex items-center gap-3 shrink-0">
-                            {/* Branch Select (For HO only) */}
-                            {userInfo.cabang === 'HEAD OFFICE' && (
+                            {/* Branch Select (For HO or Group) */}
+                            {(userInfo.cabang === 'HEAD OFFICE' || cabangList.length > 1) && (
                                 <Select value={selectedCabang} onValueChange={setSelectedCabang}>
                                     <SelectTrigger className="w-full md:w-40 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
                                         <SelectValue placeholder="Pilih Cabang" />
@@ -718,7 +726,6 @@ export default function DashboardPage() {
                         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-2 custom-scrollbar">
                             
                             {/* 1.1 SUMMARY CARDS - GRID BARU */}
-                            {userInfo.cabang === 'HEAD OFFICE' ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-3 auto-rows-min">
                                 <StatCard 
                                     title="Total Proyek" 
@@ -854,12 +861,6 @@ export default function DashboardPage() {
                                     onClick={() => setDetailModal({ open: true, title: 'Rincian Nilai Beanspot', context: 'BEANSPOT', subContext: '' })}
                                 />
                                 </div>
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 py-20">
-                                    <Activity className="w-12 h-12 text-slate-200" />
-                                    <p className="text-sm font-medium">Monitoring Dashboard khusus akses Head Office</p>
-                                </div>
-                            )}
 
 
                         </div>
