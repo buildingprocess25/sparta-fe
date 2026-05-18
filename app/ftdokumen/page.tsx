@@ -17,7 +17,7 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { PHOTO_POINTS, ALL_POINTS, TOTAL_PHOTOS, FLOOR_IMAGES, PAGE_LABELS, type PhotoPoint } from './photoPoints';
 import CameraModal from './CameraModal';
-import { submitDokumentasiBangunan, fetchSPKList } from '@/lib/api';
+import { submitDokumentasiBangunan, fetchRABList } from '@/lib/api';
 
 
 // =============================================================================
@@ -70,63 +70,49 @@ export default function FTDokumenPage() {
         const loadUlokData = async () => {
             setIsLoadingUlok(true);
             try {
-                // Ambil SPK yang sudah approved untuk mendapatkan data proyek
-                const res = await fetchSPKList({ status: 'SPK_APPROVED' });
-                const spkList = res.data || [];
+                // Ambil data dari RAB
+                const res = await fetchRABList();
+                const rabList = res.data || [];
 
-                // Kelompokkan SPK berdasarkan nomor_ulok, pisahkan kontraktor sipil & ME
                 const grouped: Record<string, UlokOption> = {};
-                
-                const formatDate = (isoString?: string) => isoString ? isoString.substring(0, 10) : '';
 
-                for (const spk of spkList) {
-                    const ulok = spk.nomor_ulok;
+                for (const rab of rabList) {
+                    const ulok = rab.nomor_ulok || rab.toko?.nomor_ulok;
                     if (!ulok) continue;
 
                     // Filter based on user branch
-                    const spkCabang = (spk as any).cabang || spk.toko?.cabang || '';
+                    const rabCabang = rab.cabang || rab.toko?.cabang || '';
                     if (user.cabang !== 'HEAD OFFICE') {
-                        if (spkCabang.toUpperCase() !== user.cabang.toUpperCase()) {
+                        if (rabCabang.toUpperCase() !== user.cabang.toUpperCase()) {
                             continue;
                         }
                     }
-
-                    const mulai = formatDate(spk.waktu_mulai);
-                    const selesai = formatDate(spk.waktu_selesai);
 
                     if (!grouped[ulok]) {
                         grouped[ulok] = {
                             nomorUlok: ulok,
                             kontraktorSipil: '',
                             kontraktorMe: '',
-                            spkAwal: mulai,
-                            spkAkhir: selesai,
-                            kodeToko: spk.kode_toko || spk.toko?.kode_toko || '',
-                            namaToko: spk.toko?.nama_toko || '',
-                            cabang: spkCabang,
+                            spkAwal: '',
+                            spkAkhir: '',
+                            kodeToko: (rab as any).toko?.kode_toko || (rab as any).kode_toko || '',
+                            namaToko: rab.nama_toko || rab.toko?.nama_toko || '',
+                            cabang: rabCabang,
                         };
                     }
 
-                    // Tentukan kontraktor sipil vs ME berdasarkan lingkup_pekerjaan
-                    const lingkup = (spk.lingkup_pekerjaan || '').toUpperCase();
+                    // Tentukan kontraktor sipil vs ME berdasarkan proyek / lingkup_pekerjaan
+                    const lingkup = (rab.proyek || (rab.toko as any)?.lingkup_pekerjaan || '').toUpperCase();
                     if (lingkup.includes('ME') || lingkup.includes('MEKANIKAL') || lingkup.includes('ELEKTRIKAL')) {
-                        grouped[ulok].kontraktorMe = spk.nama_kontraktor || '';
+                        grouped[ulok].kontraktorMe = rab.nama_pt || '';
                     } else {
-                        grouped[ulok].kontraktorSipil = spk.nama_kontraktor || '';
-                    }
-
-                    // Gunakan tanggal paling awal dan paling akhir
-                    if (mulai && (!grouped[ulok].spkAwal || mulai < grouped[ulok].spkAwal)) {
-                        grouped[ulok].spkAwal = mulai;
-                    }
-                    if (selesai && (!grouped[ulok].spkAkhir || selesai > grouped[ulok].spkAkhir)) {
-                        grouped[ulok].spkAkhir = selesai;
+                        grouped[ulok].kontraktorSipil = rab.nama_pt || '';
                     }
                 }
 
                 setUlokOptions(Object.values(grouped));
                 if (Object.keys(grouped).length === 0) {
-                    showAlert({ message: 'Tidak ada data SPK yang disetujui. Pastikan sudah ada SPK dengan status approved.', type: 'warning' });
+                    showAlert({ message: 'Tidak ada data proyek/RAB yang terdaftar.', type: 'warning' });
                 }
             } catch (err) {
                 console.error('Gagal memuat data ULOK:', err);
