@@ -35,6 +35,13 @@ export default function LoginPage() {
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpToken, setOtpToken] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpLoginData, setOtpLoginData] = useState<{ email: string; cabang: string } | null>(null);
+
   // Modal untuk multi-role
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
@@ -59,6 +66,88 @@ export default function LoginPage() {
     } catch (error) {
       console.error("Failed to log login attempt:", error);
     }
+  };
+
+  const processLoginSuccess = async (result: any, fallbackEmail: string, fallbackCabang: string) => {
+    const jabatanFromAPI = String(result?.data?.jabatan || "").toUpperCase().trim();
+    const namaLengkapFromAPI = (result?.data?.nama_lengkap || "").trim();
+    const cabangFromAPI = (result?.data?.cabang || fallbackCabang).trim();
+    const emailFromAPI = (result?.data?.email_sat || fallbackEmail).trim();
+    const namaPtFromAPI = (result?.data?.nama_pt || "").trim();
+
+    let mappedRole = jabatanFromAPI;
+
+    if (jabatanFromAPI.includes("BUILDING MAINTENANCE MANAGER") || jabatanFromAPI === "BBMM") {
+      mappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
+    }
+    else if (jabatanFromAPI.includes("BRANCH MANAGER") || jabatanFromAPI === "BM") {
+      mappedRole = "BRANCH MANAGER";
+    }
+    else if (jabatanFromAPI.includes("DOKUMENTASI") || jabatanFromAPI === "BBSD") {
+      mappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
+    }
+    else if (jabatanFromAPI.includes("COORDINATOR") || jabatanFromAPI === "BBC") {
+      mappedRole = "BRANCH BUILDING COORDINATOR";
+    }
+    else if (jabatanFromAPI.includes("SUPPORT") || jabatanFromAPI === "BBS") {
+      mappedRole = "BRANCH BUILDING SUPPORT";
+    }
+    else if (jabatanFromAPI.includes("KONTRAKTOR") && jabatanFromAPI.includes("DIREKTUR")) {
+      mappedRole = "DIREKTUR, KONTRAKTOR";
+    }
+    else if (jabatanFromAPI.includes("KONTRAKTOR")) {
+      mappedRole = "KONTRAKTOR";
+    }
+    else if (jabatanFromAPI.includes("DIREKTUR")) {
+      mappedRole = "DIREKTUR";
+    }
+
+    try {
+      const userList = await fetchUserCabangList({ email_sat: emailFromAPI });
+      if (userList?.data && userList.data.length > 1) {
+        setAvailableRoles(userList.data);
+        setPendingLoginData({ emailFromAPI, cabangFromAPI, namaPtFromAPI, mappedRole, result });
+        setIsLoading(false);
+        setRoleSelectOpen(true);
+        return;
+      } else if (userList?.data && userList.data.length === 1) {
+        const realName = userList.data[0].nama_lengkap;
+        const realJabatan = userList.data[0].jabatan;
+        sessionStorage.setItem("nama_lengkap", realName);
+
+        let realMappedRole = realJabatan;
+        if (realJabatan.includes("BUILDING MAINTENANCE MANAGER") || realJabatan === "BBMM") realMappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
+        else if (realJabatan.includes("BRANCH MANAGER") || realJabatan === "BM") realMappedRole = "BRANCH MANAGER";
+        else if (realJabatan.includes("DOKUMENTASI") || realJabatan === "BBSD") realMappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
+        else if (realJabatan.includes("COORDINATOR") || realJabatan === "BBC") realMappedRole = "BRANCH BUILDING COORDINATOR";
+        else if (realJabatan.includes("SUPPORT") || realJabatan === "BBS") realMappedRole = "BRANCH BUILDING SUPPORT";
+        else if (realJabatan.includes("KONTRAKTOR")) realMappedRole = "KONTRAKTOR";
+        else if (realJabatan.includes("DIREKTUR")) realMappedRole = "DIREKTUR";
+
+        sessionStorage.setItem("userRole", realMappedRole);
+        mappedRole = realMappedRole;
+      } else {
+        sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
+        sessionStorage.setItem("userRole", mappedRole);
+      }
+    } catch (e) {
+      console.error("Gagal mengecek multi-role", e);
+      sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
+      sessionStorage.setItem("userRole", mappedRole);
+    }
+
+    setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
+
+    sessionStorage.setItem("authenticated", "true");
+    sessionStorage.setItem("loggedInUserEmail", emailFromAPI);
+    sessionStorage.setItem("loggedInUserCabang", cabangFromAPI);
+    sessionStorage.setItem("nama_pt", namaPtFromAPI);
+    sessionStorage.setItem("alamat_cabang", result?.data?.alamat_cabang || "");
+
+    setIsLoading(false);
+    setTimeout(() => {
+      router.push("/dashboard");
+    }, 900);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -90,100 +179,21 @@ export default function LoginPage() {
       if (response.ok) {
         logLoginAttempt(email, password, "Success");
 
-        // 1. Tangkap data dari response API
-        const rawJabatan = 
-          result?.data?.jabatan || 
-          result.jabatan || 
-          result?.user?.jabatan || 
-          result?.data?.role ||
-          result.role;
-        
-        // 1. Tangkap data dari response API
-        const jabatanFromAPI = String(result?.data?.jabatan || "").toUpperCase().trim();
-        const namaLengkapFromAPI = (result?.data?.nama_lengkap || "").trim();
-        const cabangFromAPI = (result?.data?.cabang || password).trim(); 
-        const emailFromAPI = (result?.data?.email_sat || email).trim();
-        const namaPtFromAPI = (result?.data?.nama_pt || "").trim();
-
-        // 2. FUNGSI PEMETAAN (MAPPING) JABATAN
-        let mappedRole = jabatanFromAPI;
-
-        if (jabatanFromAPI.includes("BUILDING MAINTENANCE MANAGER") || jabatanFromAPI === "BBMM") {
-            mappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
-        }
-        else if (jabatanFromAPI.includes("BRANCH MANAGER") || jabatanFromAPI === "BM") {
-            mappedRole = "BRANCH MANAGER";
-        } 
-        else if (jabatanFromAPI.includes("DOKUMENTASI") || jabatanFromAPI === "BBSD") {
-            mappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
-        }
-        else if (jabatanFromAPI.includes("COORDINATOR") || jabatanFromAPI === "BBC") {
-            mappedRole = "BRANCH BUILDING COORDINATOR";
-        }
-        else if (jabatanFromAPI.includes("SUPPORT") || jabatanFromAPI === "BBS") {
-            mappedRole = "BRANCH BUILDING SUPPORT";
-        }
-        else if (jabatanFromAPI.includes("KONTRAKTOR") && jabatanFromAPI.includes("DIREKTUR")) {
-            mappedRole = "DIREKTUR, KONTRAKTOR";
-        }
-        else if (jabatanFromAPI.includes("KONTRAKTOR")) {
-            mappedRole = "KONTRAKTOR";
-        }
-        else if (jabatanFromAPI.includes("DIREKTUR")) {
-            mappedRole = "DIREKTUR";
+        if (result?.data?.requires_otp) {
+          setOtpToken(result.data.otp_token || "");
+          setOtpLoginData({
+            email: result?.data?.email_sat || email,
+            cabang: result?.data?.cabang || password
+          });
+          setOtpCode("");
+          setOtpError("");
+          setOtpOpen(true);
+          setIsLoading(false);
+          setMessage({ text: "OTP sudah dikirim ke email Anda.", type: "info" });
+          return;
         }
 
-        // 3. Cek apakah ada multiple role di database untuk email ini
-        try {
-          const userList = await fetchUserCabangList({ email_sat: emailFromAPI });
-          if (userList?.data && userList.data.length > 1) {
-            // Ada lebih dari satu role untuk email ini
-            setAvailableRoles(userList.data);
-            setPendingLoginData({ emailFromAPI, cabangFromAPI, namaPtFromAPI, mappedRole, result });
-            setIsLoading(false);
-            setRoleSelectOpen(true);
-            return;
-          } else if (userList?.data && userList.data.length === 1) {
-            // Update nama_lengkap dari data user_cabang jika tersedia agar valid
-            const realName = userList.data[0].nama_lengkap;
-            const realJabatan = userList.data[0].jabatan;
-            sessionStorage.setItem("nama_lengkap", realName);
-            
-            // Re-map real jabatan from DB
-            let realMappedRole = realJabatan;
-            if (realJabatan.includes("BUILDING MAINTENANCE MANAGER") || realJabatan === "BBMM") realMappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
-            else if (realJabatan.includes("BRANCH MANAGER") || realJabatan === "BM") realMappedRole = "BRANCH MANAGER";
-            else if (realJabatan.includes("DOKUMENTASI") || realJabatan === "BBSD") realMappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
-            else if (realJabatan.includes("COORDINATOR") || realJabatan === "BBC") realMappedRole = "BRANCH BUILDING COORDINATOR";
-            else if (realJabatan.includes("SUPPORT") || realJabatan === "BBS") realMappedRole = "BRANCH BUILDING SUPPORT";
-            else if (realJabatan.includes("KONTRAKTOR")) realMappedRole = "KONTRAKTOR";
-            else if (realJabatan.includes("DIREKTUR")) realMappedRole = "DIREKTUR";
-            
-            sessionStorage.setItem("userRole", realMappedRole);
-            mappedRole = realMappedRole; // Just in case it's used below
-          } else {
-             sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
-             sessionStorage.setItem("userRole", mappedRole);
-          }
-        } catch (e) {
-          console.error("Gagal mengecek multi-role", e);
-          sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
-          sessionStorage.setItem("userRole", mappedRole);
-        }
-
-        setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
-
-        // 4. Simpan sisa data ke sessionStorage
-        sessionStorage.setItem("authenticated", "true");
-        sessionStorage.setItem("loggedInUserEmail", emailFromAPI);
-        sessionStorage.setItem("loggedInUserCabang", cabangFromAPI); 
-        sessionStorage.setItem("nama_pt", namaPtFromAPI);
-        sessionStorage.setItem("alamat_cabang", result?.data?.alamat_cabang || "");
-
-        setTimeout(() => {
-          router.push("/dashboard"); 
-        }, 900);
-
+        await processLoginSuccess(result, email, password);
       } else {
         const errorMessage = result.message ? result.message.toLowerCase() : "";
         let errorText = result.message || "Login gagal!";
@@ -203,6 +213,48 @@ export default function LoginPage() {
       logLoginAttempt(email, password, "Failed");
       setMessage({ text: "Gagal terhubung ke server. Silakan coba lagi.", type: "error" });
       setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpLoginData) return;
+
+    setOtpLoading(true);
+    setOtpError("");
+
+    try {
+      const cleanBaseUrl = API_URL.replace(/\/$/, "");
+      const verifyEndpoint = `${cleanBaseUrl}/api/auth/verify-otp`;
+
+      const response = await fetch(verifyEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_sat: otpLoginData.email,
+          cabang: otpLoginData.cabang,
+          otp_token: otpToken,
+          otp_code: otpCode
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setOtpOpen(false);
+        setOtpCode("");
+        setOtpToken("");
+        setOtpLoginData(null);
+        setOtpLoading(false);
+        await processLoginSuccess(result, otpLoginData.email, otpLoginData.cabang);
+        return;
+      }
+
+      setOtpError(result.message || "OTP tidak valid.");
+      setOtpLoading(false);
+    } catch (error) {
+      console.error(error);
+      setOtpError("Gagal verifikasi OTP. Silakan coba lagi.");
+      setOtpLoading(false);
     }
   };
 
@@ -314,6 +366,49 @@ export default function LoginPage() {
             <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white px-8 rounded-lg w-full">
               Tutup
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* MODAL OTP HEAD OFFICE */}
+      <AlertDialog open={otpOpen} onOpenChange={setOtpOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-slate-800">Verifikasi OTP</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600">
+              Masukkan kode OTP yang dikirim ke email Anda.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 mt-4">
+            <Label htmlFor="otpCode" className="text-slate-600 font-medium">Kode OTP</Label>
+            <Input
+              id="otpCode"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="6 digit"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+              className="h-11 tracking-widest text-center"
+            />
+            {otpError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-md p-2">{otpError}</p>
+            )}
+          </div>
+          <AlertDialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setOtpOpen(false)}
+              disabled={otpLoading}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleVerifyOtp}
+              disabled={otpLoading || otpCode.length !== 6}
+              className="bg-[#005a9e] hover:bg-[#004a80]"
+            >
+              {otpLoading ? "Memverifikasi..." : "Verifikasi"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
