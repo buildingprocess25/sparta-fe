@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -21,9 +21,9 @@ import { getPpRoles } from "@/lib/constants";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700 border-slate-300", icon: <FileText className="w-3 h-3" /> },
-  WAITING_BM_APPROVAL: { label: "Menunggu BM", color: "bg-amber-50 text-amber-700 border-amber-300", icon: <Clock className="w-3 h-3" /> },
+  WAITING_BM_APPROVAL: { label: "Menunggu B&M", color: "bg-amber-50 text-amber-700 border-amber-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_PP_APPROVAL_1: { label: "Menunggu PP (1)", color: "bg-blue-50 text-blue-700 border-blue-300", icon: <Clock className="w-3 h-3" /> },
-  PP_DESIGN_3D_REQUIRED: { label: "Design 3D", color: "bg-purple-50 text-purple-700 border-purple-300", icon: <Clock className="w-3 h-3" /> },
+  PP_DESIGN_3D_REQUIRED: { label: "Desain 3D", color: "bg-purple-50 text-purple-700 border-purple-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_RAB_UPLOAD: { label: "Upload RAB", color: "bg-orange-50 text-orange-700 border-orange-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_PP_APPROVAL_2: { label: "Menunggu PP (2)", color: "bg-cyan-50 text-cyan-700 border-cyan-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr (Final)", color: "bg-indigo-50 text-indigo-700 border-indigo-300", icon: <Clock className="w-3 h-3" /> },
@@ -77,13 +77,14 @@ export default function ProjekPlanningPage() {
       let data = res.data || [];
       
       data = data.filter((d: any) => {
-        if (isHO) return true; // HEAD OFFICE sees all
+        if (!isCoor && d.status !== "COMPLETED") return false;
+        if (isHO && !isCoor && !isBM && !isPP && !isPPMgr) return true; // Admin/Direktur
         
         let visible = false;
         if (isCoor && d.email_pembuat === userEmail) visible = true;
-        if (isBM && d.status !== "DRAFT") visible = true;
-        if (isPP && !["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status)) visible = true;
-        if (isPPMgr && ["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status)) visible = true;
+        if (isBM && (d.status !== "DRAFT" || d.bm_alasan_penolakan)) visible = true;
+        if (isPP && (!["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status) || d.pp1_alasan_penolakan || d.pp2_alasan_penolakan)) visible = true;
+        if (isPPMgr && (["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status) || d.pp_manager_alasan_penolakan)) visible = true;
         
         return visible;
       });
@@ -124,7 +125,7 @@ export default function ProjekPlanningPage() {
             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-red-600" /> Project Planning
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Form Pengajuan Data (FPD) — Pengajuan Design Toko</p>
+            <p className="text-sm text-slate-500 mt-0.5">Form Pengajuan Desain (FPD) — Pengajuan Desain Toko</p>
           </div>
           {isCoor && (
             <Link href="/projek-planning/form">

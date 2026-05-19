@@ -68,6 +68,22 @@ export default function LoginPage() {
     }
   };
 
+  const normalizeJabatanRole = (jabatan: string) => {
+    const upper = String(jabatan || "").toUpperCase().trim();
+    if (upper.includes("PROJECT PLANNING") && upper.includes("MANAGER")) return "PROJECT PLANNING & DEVELOPMENT MANAGER";
+    if (upper.includes("PP MANAGER")) return "PROJECT PLANNING & DEVELOPMENT MANAGER";
+    if (upper.includes("PROJECT PLANNING") || upper.includes("PP SPECIALIST")) return "PROJECT PLANNING & DEVELOPMENT SPECIALIST";
+    if (upper.includes("BUILDING MAINTENANCE MANAGER") || upper === "BBMM") return "BRANCH BUILDING & MAINTENANCE MANAGER";
+    if (upper.includes("BRANCH MANAGER") || upper === "BM") return "BRANCH MANAGER";
+    if (upper.includes("DOKUMENTASI") || upper === "BBSD") return "BRANCH BUILDING SUPPORT DOKUMENTASI";
+    if (upper.includes("COORDINATOR") || upper === "BBC") return "BRANCH BUILDING COORDINATOR";
+    if (upper.includes("SUPPORT") || upper === "BBS") return "BRANCH BUILDING SUPPORT";
+    if (upper.includes("KONTRAKTOR") && upper.includes("DIREKTUR")) return "DIREKTUR, KONTRAKTOR";
+    if (upper.includes("KONTRAKTOR")) return "KONTRAKTOR";
+    if (upper.includes("DIREKTUR")) return "DIREKTUR";
+    return upper;
+  };
+
   const processLoginSuccess = async (result: any, fallbackEmail: string, fallbackCabang: string) => {
     const jabatanFromAPI = String(result?.data?.jabatan || "").toUpperCase().trim();
     const namaLengkapFromAPI = (result?.data?.nama_lengkap || "").trim();
@@ -75,54 +91,28 @@ export default function LoginPage() {
     const emailFromAPI = (result?.data?.email_sat || fallbackEmail).trim();
     const namaPtFromAPI = (result?.data?.nama_pt || "").trim();
 
-    let mappedRole = jabatanFromAPI;
-
-    if (jabatanFromAPI.includes("BUILDING MAINTENANCE MANAGER") || jabatanFromAPI === "BBMM") {
-      mappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
-    }
-    else if (jabatanFromAPI.includes("BRANCH MANAGER") || jabatanFromAPI === "BM") {
-      mappedRole = "BRANCH MANAGER";
-    }
-    else if (jabatanFromAPI.includes("DOKUMENTASI") || jabatanFromAPI === "BBSD") {
-      mappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
-    }
-    else if (jabatanFromAPI.includes("COORDINATOR") || jabatanFromAPI === "BBC") {
-      mappedRole = "BRANCH BUILDING COORDINATOR";
-    }
-    else if (jabatanFromAPI.includes("SUPPORT") || jabatanFromAPI === "BBS") {
-      mappedRole = "BRANCH BUILDING SUPPORT";
-    }
-    else if (jabatanFromAPI.includes("KONTRAKTOR") && jabatanFromAPI.includes("DIREKTUR")) {
-      mappedRole = "DIREKTUR, KONTRAKTOR";
-    }
-    else if (jabatanFromAPI.includes("KONTRAKTOR")) {
-      mappedRole = "KONTRAKTOR";
-    }
-    else if (jabatanFromAPI.includes("DIREKTUR")) {
-      mappedRole = "DIREKTUR";
-    }
+    let mappedRole = normalizeJabatanRole(jabatanFromAPI);
 
     try {
       const userList = await fetchUserCabangList({ email_sat: emailFromAPI });
-      if (userList?.data && userList.data.length > 1) {
-        setAvailableRoles(userList.data);
+      
+      // Filter list role yang didapat berdasarkan password/cabang yang dimasukkan saat login
+      const filteredUsers = userList?.data ? userList.data.filter((u: any) => 
+        (u.cabang || "").trim().toUpperCase() === fallbackCabang.trim().toUpperCase()
+      ) : [];
+
+      if (filteredUsers.length > 1) {
+        setAvailableRoles(filteredUsers);
         setPendingLoginData({ emailFromAPI, cabangFromAPI, namaPtFromAPI, mappedRole, result });
         setIsLoading(false);
         setRoleSelectOpen(true);
         return;
-      } else if (userList?.data && userList.data.length === 1) {
-        const realName = userList.data[0].nama_lengkap;
-        const realJabatan = userList.data[0].jabatan;
+      } else if (filteredUsers.length === 1) {
+        const realName = filteredUsers[0].nama_lengkap;
+        const realJabatan = filteredUsers[0].jabatan;
         sessionStorage.setItem("nama_lengkap", realName);
 
-        let realMappedRole = realJabatan;
-        if (realJabatan.includes("BUILDING MAINTENANCE MANAGER") || realJabatan === "BBMM") realMappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
-        else if (realJabatan.includes("BRANCH MANAGER") || realJabatan === "BM") realMappedRole = "BRANCH MANAGER";
-        else if (realJabatan.includes("DOKUMENTASI") || realJabatan === "BBSD") realMappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
-        else if (realJabatan.includes("COORDINATOR") || realJabatan === "BBC") realMappedRole = "BRANCH BUILDING COORDINATOR";
-        else if (realJabatan.includes("SUPPORT") || realJabatan === "BBS") realMappedRole = "BRANCH BUILDING SUPPORT";
-        else if (realJabatan.includes("KONTRAKTOR")) realMappedRole = "KONTRAKTOR";
-        else if (realJabatan.includes("DIREKTUR")) realMappedRole = "DIREKTUR";
+        let realMappedRole = normalizeJabatanRole(realJabatan);
 
         sessionStorage.setItem("userRole", realMappedRole);
         mappedRole = realMappedRole;
@@ -429,14 +419,7 @@ export default function LoginPage() {
                 variant="outline"
                 className="w-full justify-start h-auto py-3 px-4 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
                 onClick={() => {
-                  let realMappedRole = role.jabatan;
-                  if (role.jabatan.includes("BUILDING MAINTENANCE MANAGER") || role.jabatan === "BBMM") realMappedRole = "BRANCH BUILDING & MAINTENANCE MANAGER";
-                  else if (role.jabatan.includes("BRANCH MANAGER") || role.jabatan === "BM") realMappedRole = "BRANCH MANAGER";
-                  else if (role.jabatan.includes("DOKUMENTASI") || role.jabatan === "BBSD") realMappedRole = "BRANCH BUILDING SUPPORT DOKUMENTASI";
-                  else if (role.jabatan.includes("COORDINATOR") || role.jabatan === "BBC") realMappedRole = "BRANCH BUILDING COORDINATOR";
-                  else if (role.jabatan.includes("SUPPORT") || role.jabatan === "BBS") realMappedRole = "BRANCH BUILDING SUPPORT";
-                  else if (role.jabatan.includes("KONTRAKTOR")) realMappedRole = "KONTRAKTOR";
-                  else if (role.jabatan.includes("DIREKTUR")) realMappedRole = "DIREKTUR";
+                  let realMappedRole = normalizeJabatanRole(role.jabatan);
 
                   sessionStorage.setItem("authenticated", "true");
                   sessionStorage.setItem("loggedInUserEmail", pendingLoginData.emailFromAPI);

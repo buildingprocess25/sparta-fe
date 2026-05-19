@@ -95,13 +95,7 @@ export const ALL_MENUS = [
         icon: AlertTriangle,
         isAlert: true,
     },
-    {
-        id: "menu-monitoring",
-        title: "Monitoring Dashboard",
-        desc: "Pantau grafik progres dan status proyek real-time.",
-        href: "/monitoring",
-        icon: PieChart,
-    },
+
     {
         id: "menu-approval",
         title: "Approval Dokumen",
@@ -152,7 +146,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
         "menu-spk", "menu-opname", "menu-tambahspk",
         "menu-gantt", "menu-dokumentasi", "menu-svdokumen", "menu-sp",
-        "menu-approval", "menu-daftardokumen"
+        "menu-approval", "menu-daftardokumen", "menu-projek-planning"
     ],
 
     "BRANCH BUILDING SUPPORT DOKUMENTASI": [
@@ -181,11 +175,19 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
-        "menu-projek-planning"
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen"
     ],
 
     "PROJECT PLANNING & DEVELOPMENT MANAGER": [
-        "menu-projek-planning"
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen"
+    ],
+
+    // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
+    "BUILDING & MAINTENANCE SUPER HUMAN": [
+        "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
+        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-il", "menu-users", "menu-projek-planning",
     ],
 
     "BUILDING & MAINTENANCE SUPER HUMAN": [
@@ -306,9 +308,15 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
     const upperRoles = roles.map(r => r.toUpperCase());
     
     const isCoor = upperRoles.some(r => r.includes("COORDINATOR") || r.includes("KOORDINATOR"));
-    const isBM = upperRoles.some(r => r.includes("BRANCH MANAGER") || r.includes("BM "));
-    const isPPMgr = upperRoles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || r.includes("PROJECT PLANNING MANAGER") || r.includes("PP MANAGER")) || email === "charderrabagas@gmail.com" || email === "wildan.pp.manager@gmail.com";
-    const isPP = upperRoles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || r.includes("PROJECT PLANNING") || r.includes("PP SPECIALIST")) || email === "lina.yuliyanti@sat.co.id" || email === "wildan.pp@gmail.com" || isPPMgr;
+    const isBM = upperRoles.some(r =>
+        r.includes("BRANCH BUILDING & MAINTENANCE MANAGER") ||
+        r.includes("MAINTENANCE MANAGER") ||
+        r.includes("BRANCH MANAGER") ||
+        r.includes("BBMM") ||
+        r.includes("BM ")
+    );
+    const isPPMgr = upperRoles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || r.includes("PROJECT PLANNING MANAGER") || r.includes("PP MANAGER")) || email === "wildan.pp.manager@gmail.com";
+    const isPP = upperRoles.some(r => (r.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || r.includes("PP SPECIALIST") || (r.includes("PROJECT PLANNING") && !r.includes("MANAGER")))) || email === "wildan.pp@gmail.com";
     
     return { isCoor, isBM, isPP, isPPMgr };
 };

@@ -29,6 +29,8 @@ import {
     fetchOpnameFinalList, fetchOpnameFinalDetail, approveOpnameFinal, downloadOpnameFinalPdf,
     downloadOpnameFoto,
     sendEmailNotification,
+    fetchProjekPlanningList,
+    type ProjekPlanningItem,
 } from '@/lib/api';
 import {
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail,
@@ -41,7 +43,7 @@ import { BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
 // =============================================
 // TYPES INTERNAL
 // =============================================
-type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'INSTRUKSI_LAPANGAN';
+type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 
@@ -139,6 +141,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     PERTAMBAHAN_SPK: ['BRANCH MANAGER', 'MANAGER'],
     OPNAME_FINAL: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
     INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'KONTRAKTOR', 'COORDINATOR', 'MANAGER'],
+    PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
 };
 
 const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR'> = {
@@ -203,6 +206,15 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         description: 'Instruksi Lapangan yang menunggu persetujuan.',
         emptyMsg: 'Tidak ada pengajuan Instruksi Lapangan yang menunggu persetujuan.',
     },
+    PROJECT_PLANNING: {
+        label: 'Approval Project Planning',
+        icon: <ClipboardList className="w-10 h-10" />,
+        color: 'text-red-700',
+        hoverBorder: 'hover:border-red-500',
+        badgeColor: 'bg-red-100 text-red-700 border-red-200',
+        description: 'FPD Project Planning yang memerlukan review atau persetujuan.',
+        emptyMsg: 'Tidak ada project planning yang menunggu persetujuan.',
+    },
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
@@ -252,6 +264,13 @@ const STATUS_LABEL: Record<string, string> = {
     // Instruksi Lapangan
     'MENUNGGU PERSETUJUAN KONTRAKTOR':  'PENDING (KONTR.)',
     'DITOLAK OLEH KONTRAKTOR':          'REJECTED (KONTR.)',
+    // Project Planning
+    WAITING_BM_APPROVAL:                'PENDING B&M',
+    WAITING_PP_APPROVAL_1:              'PENDING PP 1',
+    PP_DESIGN_3D_REQUIRED:              'DESAIN 3D',
+    WAITING_RAB_UPLOAD:                 'UPLOAD RAB',
+    WAITING_PP_APPROVAL_2:              'PENDING PP 2',
+    WAITING_PP_MANAGER_APPROVAL:        'PENDING PP MGR',
 };
 
 // =============================================
@@ -335,6 +354,20 @@ const normalizeInstruksiLapanganList = (items: any[]): NormalizedListItem[] =>
         _raw: i,
     }));
 
+const normalizeProjekPlanningList = (items: ProjekPlanningItem[]): NormalizedListItem[] =>
+    items.map(p => ({
+        id: p.id,
+        tipe: 'PROJECT_PLANNING' as ApprovalType,
+        nomor_ulok:    p.nomor_ulok ?? '-',
+        nama_toko:     p.nama_lokasi || p.nama_toko || '-',
+        cabang:        p.cabang || '-',
+        status:        p.status,
+        total_nilai:   parseCurrency(p.estimasi_biaya ?? '0'),
+        email_pembuat: p.email_pembuat,
+        created_at:    p.created_at,
+        _raw: p,
+    }));
+
 // =============================================
 // SUB-COMPONENTS
 // =============================================
@@ -405,9 +438,20 @@ export default function ApprovalPage() {
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         
         const isHO = cabang?.toUpperCase() === 'HEAD OFFICE';
+        const isSuperHuman = user.isSuperHuman ?? false;
+        const isProjectPlanningApprovalRole = roles.some(r =>
+            r.includes('PROJECT PLANNING & DEVELOPMENT SPECIALIST') ||
+            r.includes('PROJECT PLANNING & DEVELOPMENT MANAGER') ||
+            r.includes('PP SPECIALIST') ||
+            r.includes('PP MANAGER')
+        );
+
         // Find all accessible types across all roles
         const allAccessibleTypes = new Set<ApprovalType>();
-        if (isHO) {
+        if (isProjectPlanningApprovalRole && !isSuperHuman) {
+            allAccessibleTypes.add('PROJECT_PLANNING');
+        } else if (isHO || isSuperHuman) {
+            // HO dan Super Human melihat semua tipe approval
             allAccessibleTypes.add('RAB');
             allAccessibleTypes.add('SPK');
             allAccessibleTypes.add('PERTAMBAHAN_SPK');
@@ -432,8 +476,11 @@ export default function ApprovalPage() {
         }
 
         // Prioritas Jabatan: DIREKTUR > MANAGER > KOORDINATOR, KONTRAKTOR for IL
+        // Super Human mendapat jabatan MANAGER untuk bisa approve semua level
         let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR' | null = null;
-        if (roles.includes('DIREKTUR')) {
+        if (isSuperHuman) {
+            currentJabatan = 'MANAGER';
+        } else if (roles.includes('DIREKTUR')) {
             currentJabatan = 'DIREKTUR';
         } else if (roles.includes('KONTRAKTOR')) {
             currentJabatan = 'KONTRAKTOR';
@@ -503,18 +550,76 @@ export default function ApprovalPage() {
             } else if (type === 'INSTRUKSI_LAPANGAN') {
                 const res = await fetchInstruksiLapanganList();
                 normalized = normalizeInstruksiLapanganList(res.data ?? []);
+            } else if (type === 'PROJECT_PLANNING') {
+                const res = await fetchProjekPlanningList();
+                normalized = normalizeProjekPlanningList(res.data ?? []);
             }
 
             // Filter Berdasarkan Role & Jabatan & Cabang
             normalized = normalized.filter(item => {
                 const upper = (item.status ?? '').toUpperCase();
                 const upperUserCabang = userInfo.cabang?.toUpperCase();
+                const isHOUser = upperUserCabang === 'HEAD OFFICE';
+                const isSuperHumanUser = user?.isSuperHuman ?? false;
+                const userRoles = userInfo.role
+                    .split(',')
+                    .map(r => r.trim().toUpperCase())
+                    .filter(Boolean);
 
-                if (upperUserCabang === 'HEAD OFFICE') {
-                    // Only show pending items for RAB & IL
-                    if (type === 'RAB' || type === 'INSTRUKSI_LAPANGAN') {
-                        return upper.includes('MENUNGGU') || upper.startsWith('PENDING');
+                if (type === 'PROJECT_PLANNING') {
+                    if (isSuperHumanUser) {
+                        return !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper);
                     }
+                    const projek = item._raw as ProjekPlanningItem;
+
+                    const isBmManager = userRoles.some(r =>
+                        r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
+                        r.includes('MAINTENANCE MANAGER') ||
+                        r.includes('BBMM')
+                    );
+                    const isPpSpecialist = userRoles.some(r =>
+                        r.includes('PROJECT PLANNING & DEVELOPMENT SPECIALIST') ||
+                        r.includes('PP SPECIALIST')
+                    );
+                    const isPpManager = userRoles.some(r =>
+                        r.includes('PROJECT PLANNING & DEVELOPMENT MANAGER') ||
+                        r.includes('PP MANAGER')
+                    );
+
+                    const statusMatchesRole =
+                        (isBmManager && !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper)) ||
+                        (isPpSpecialist && !['DRAFT', 'WAITING_BM_APPROVAL', 'COMPLETED', 'REJECTED'].includes(upper)) ||
+                        (isPpManager && (
+                            upper === 'WAITING_PP_MANAGER_APPROVAL' ||
+                            (upper === 'WAITING_RAB_UPLOAD' && !!projek.pp_manager_approver_email)
+                        ));
+
+                    if (!statusMatchesRole) return false;
+                    if (isHOUser) return true;
+                    if (!upperUserCabang || !item.cabang || item.cabang === '-') return true;
+
+                    let userGroup: string[] | null = null;
+                    for (const grp of Object.values(BRANCH_GROUPS)) {
+                        if (grp.includes(upperUserCabang)) {
+                            userGroup = grp;
+                            break;
+                        }
+                    }
+
+                    const itemCabangUpper = item.cabang.toUpperCase();
+                    return userGroup ? userGroup.includes(itemCabangUpper) : itemCabangUpper === upperUserCabang;
+                }
+
+                // Super Human dan HO melihat semua cabang
+                if (isHOUser || isSuperHumanUser) {
+                    // HO murni (bukan SH): hanya tampilkan pending untuk RAB & IL
+                    if (isHOUser && !isSuperHumanUser) {
+                        if (type === 'RAB' || type === 'INSTRUKSI_LAPANGAN') {
+                            return upper.includes('MENUNGGU') || upper.startsWith('PENDING');
+                        }
+                        return true;
+                    }
+                    // Super Human: lihat semua status
                     return true;
                 }
 
@@ -572,6 +677,11 @@ export default function ApprovalPage() {
     // LOAD DETAIL
     // ==========================================
     const loadDetail = async (item: NormalizedListItem) => {
+        if (item.tipe === 'PROJECT_PLANNING') {
+            router.push(`/projek-planning/${item.id}?from=approval`);
+            return;
+        }
+
         setIsDetailLoading(true);
         setActiveView('detail');
         try {
@@ -987,12 +1097,18 @@ export default function ApprovalPage() {
      *   - "Ditolak"  / "Rejected"
      */
     const isActionableByRole = (status: string, tipe: ApprovalType): boolean => {
-        if (userInfo.cabang?.toUpperCase() === 'HEAD OFFICE') return false;
+        // Pure HO (bukan Super Human) tidak bisa aksi
+        const isHOUser = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
+        const isSuperHumanUser = user?.isSuperHuman ?? false;
+        if (isHOUser && !isSuperHumanUser) return false;
         const upper = (status ?? '').toUpperCase();
         
         // Cek Tolak/Setuju secara universal termasuk SPK
         if (upper.includes('TOLAK') || upper === 'REJECTED' || upper === 'SPK_REJECTED') return false;
         if (upper.includes('DISETUJUI') || upper === 'APPROVED' || upper === 'SPK_APPROVED') return false;
+
+        // Project Planning diproses di halaman detail FPD, bukan tombol approve umum di sini.
+        if (tipe === 'PROJECT_PLANNING') return false;
 
         // Validasi tombol Action khusus SPK (hanya untuk Branch Manager)
         if (tipe === 'SPK') {
@@ -1023,6 +1139,8 @@ export default function ApprovalPage() {
     };
 
     const isHO = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
+    const isSuperHuman = user?.isSuperHuman ?? false;
+    const isReadOnly = isHO && !isSuperHuman;
     const isHeadGroup = useMemo(() => {
         if (!userInfo.cabang) return false;
         const upper = userInfo.cabang.toUpperCase();

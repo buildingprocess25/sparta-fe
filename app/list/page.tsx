@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from '@/context/SessionContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +12,7 @@ import {
     Eye, FileDown, Building2, CalendarDays, User, XCircle,
     CheckCircle, Hash, Clock, ChevronRight, Filter,
     RefreshCw, AlertTriangle, Download, FilePlus, CheckSquare,
-    ClipboardList, Camera, MapPin,
+    ClipboardList, ExternalLink, MapPin,
 } from 'lucide-react';
 
 import {
@@ -28,15 +27,16 @@ import {
     fetchGanttList, fetchGanttDetail,
     updateRABStatus, fetchBerkasSerahTerimaList,
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
-    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, generateDokumentasiBangunanPdf,
+    fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
+    type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
-import { BRANCH_GROUPS, BRANCH_TO_ULOK } from '@/lib/constants';
+import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles } from '@/lib/constants';
 
 // =============================================================================
 // TYPES
 // =============================================================================
-type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'DOKUMENTASI_BANGUNAN';
+type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
@@ -65,14 +65,15 @@ interface NormalizedDoc {
     tanggal_spk_akhir_setelah_perpanjangan?: string;
     status_persetujuan?: string;
     dibuat_oleh?: string;
+    // Project Planning specific
+    jenis_proyek?: string;
+    jenis_pengajuan?: string;
+    nama_pengaju?: string;
     // Pengawasan specific
     id_gantt?: number;
     id_pengawasan_gantt?: number;
     tanggal_pengawasan?: string;
     grouped_items?: any[];
-    // Dokumentasi Bangunan specific
-    kode_toko?: string;
-    pic_dokumentasi?: string;
 }
 
 interface NormalizedDetail {
@@ -153,17 +154,34 @@ interface NormalizedDetail {
     link_pdf_pengawasan?: string | null;
     tanggal_pengawasan?: string;
     pengawasan_items?: any[];
-    // Dokumentasi Bangunan specific
-    kode_toko?: string;
-    tanggal_go?: string;
-    tanggal_serah_terima?: string;
-    tanggal_ambil_foto?: string;
-    spk_awal?: string;
-    spk_akhir?: string;
-    kontraktor_sipil?: string;
-    kontraktor_me?: string;
-    pic_dokumentasi?: string;
-    dokumentasi_items?: any[];
+    // Project Planning specific
+    jenis_proyek_pp?: string;
+    jenis_pengajuan_pp?: string;
+    jenis_pengajuan_lainnya_pp?: string;
+    nama_pengaju_pp?: string;
+    nama_lokasi_pp?: string;
+    estimasi_biaya_pp?: string;
+    keterangan_pp?: string;
+    link_fpd_pp?: string | null;
+    link_desain_3d_pp?: string | null;
+    link_gambar_kerja_pp?: string | null;
+    link_rab_pp?: string | null;
+    link_fpd_approved_pp?: string | null;
+    link_gambar_rab_sipil_pp?: string | null;
+    link_gambar_rab_me_pp?: string | null;
+    link_gambar_kompetitor_pp?: string | null;
+    link_google_maps_pp?: string | null;
+    link_rab_sipil_pp?: string | null;
+    link_rab_me_pp?: string | null;
+    link_gambar_kerja_final_pp?: string | null;
+    link_gambar_kerja_final_sipil_pp?: string | null;
+    link_gambar_kerja_final_me_pp?: string | null;
+    foto_items_pp?: { id?: number; item_index: number; link_foto: string }[];
+    butuh_desain_3d_pp?: boolean;
+    bm_approval_pp?: { pemberi: string | null; waktu: string | null };
+    pp1_approval?: { pemberi: string | null; waktu: string | null };
+    pp2_approval?: { pemberi: string | null; waktu: string | null };
+    pp_manager_approval?: { pemberi: string | null; waktu: string | null };
 }
 
 // =============================================================================
@@ -257,16 +275,16 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         badgeColor: 'bg-pink-100 text-pink-700 border-pink-200',
         description: 'Daftar dokumen instruksi lapangan.',
     },
-    DOKUMENTASI_BANGUNAN: {
-        label: 'Dokumentasi Bangunan Toko Baru',
-        fullLabel: 'Dokumentasi Bangunan Toko Baru',
-        icon: <Camera className="w-10 h-10" />,
-        color: 'text-rose-600',
-        bgColor: 'bg-rose-50',
-        borderColor: 'border-rose-200',
-        hoverBorder: 'hover:border-rose-400',
-        badgeColor: 'bg-rose-100 text-rose-700 border-rose-200',
-        description: 'Daftar dokumentasi foto bangunan toko baru.',
+    PROJECT_PLANNING: {
+        label: 'Project Planning',
+        fullLabel: 'Project Planning',
+        icon: <ClipboardList className="w-10 h-10" />,
+        color: 'text-cyan-600',
+        bgColor: 'bg-cyan-50',
+        borderColor: 'border-cyan-200',
+        hoverBorder: 'hover:border-cyan-400',
+        badgeColor: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+        description: 'Daftar dokumen FPD project planning.',
     },
 };
 
@@ -292,6 +310,14 @@ const STATUS_BADGE: Record<string, string> = {
     'SELESAI':                           'bg-green-100 text-green-700 border-green-200',
     'PROGRESS':                          'bg-blue-100 text-blue-700 border-blue-200',
     'TERLAMBAT':                         'bg-red-100 text-red-700 border-red-200',
+    'DRAFT':                             'bg-slate-100 text-slate-600 border-slate-200',
+    'WAITING_BM_APPROVAL':               'bg-amber-100 text-amber-700 border-amber-200',
+    'WAITING_PP_APPROVAL_1':             'bg-blue-100 text-blue-700 border-blue-200',
+    'PP_DESIGN_3D_REQUIRED':             'bg-purple-100 text-purple-700 border-purple-200',
+    'WAITING_RAB_UPLOAD':                'bg-orange-100 text-orange-700 border-orange-200',
+    'WAITING_PP_APPROVAL_2':             'bg-cyan-100 text-cyan-700 border-cyan-200',
+    'WAITING_PP_MANAGER_APPROVAL':       'bg-indigo-100 text-indigo-700 border-indigo-200',
+    'COMPLETED':                         'bg-green-100 text-green-700 border-green-200',
 };
 
 const STATUS_OPTIONS = [
@@ -350,8 +376,50 @@ const getStatusLabel = (status: string) => {
     if (upper.includes('DIREKTUR')) return 'Pending Dir.';
     if (upper === 'WAITING_FOR_BM_APPROVAL' || upper === 'MENUNGGU PERSETUJUAN') return 'Pending BM';
     if (upper.includes('PENDING')) return 'Pending';
+
+    // Project Planning statuses
+    if (upper === 'DRAFT') return 'Draft';
+    if (upper === 'WAITING_BM_APPROVAL') return 'Pending BM';
+    if (upper === 'WAITING_PP_APPROVAL_1') return 'Pending PP (1)';
+    if (upper === 'PP_DESIGN_3D_REQUIRED') return 'Design 3D';
+    if (upper === 'WAITING_RAB_UPLOAD') return 'Upload RAB';
+    if (upper === 'WAITING_PP_MANAGER_APPROVAL') return 'Pending PP Mgr';
+    if (upper === 'WAITING_PP_APPROVAL_2') return 'Pending PP (2)';
+    if (upper === 'COMPLETED') return 'Selesai';
+
     return status;
 };
+
+type ProjectPlanningAttachment = {
+    label: string;
+    url: string | null | undefined;
+    field?: string;
+    itemIndex?: number;
+    icon?: React.ReactNode;
+};
+
+const hasLink = (url?: string | null) => !!url && url.trim() !== '';
+
+const isUploadedDriveFileLink = (url: string) => {
+    const lower = url.toLowerCase();
+    return (
+        lower.includes('drive.google.com/file/d/') ||
+        lower.includes('drive.google.com/open?id=') ||
+        lower.includes('drive.google.com/uc?id=') ||
+        lower.includes('drive.google.com/thumbnail?id=')
+    );
+};
+
+const isExternalOnlyLink = (url: string) => {
+    const lower = url.toLowerCase();
+    return (
+        lower.includes('google.com/maps') ||
+        lower.includes('maps.app.goo.gl') ||
+        !isUploadedDriveFileLink(url)
+    );
+};
+
+const isDownloadableAttachment = (url: string) => isUploadedDriveFileLink(url);
 
 // =============================================================================
 // NORMALIZE HELPERS
@@ -501,22 +569,23 @@ const normalizeInstruksiLapanganDocs = (items: any[]): NormalizedDoc[] =>
         created_at:    i.created_at ?? i.timestamp ?? '-',
         link_pdf:      i.link_pdf_gabungan ?? null,
     }));
- 
-const normalizeDokumentasiBangunanDocs = (items: any[]): NormalizedDoc[] =>
-    items.map(d => ({
-        id: d.id,
-        tipe: 'DOKUMENTASI_BANGUNAN' as DokumenKategori,
-        nomor_ulok:    d.nomor_ulok || '-',
-        nama_toko:     d.nama_toko  || '-',
-        cabang:        d.cabang     || '-',
-        proyek:        '-', // Dokumentasi bangunan doesn't usually have project name field in DB
-        status:        d.status_validasi || 'submitted',
-        email_pembuat: d.email_pengirim || '-',
-        total_nilai:   0,
-        created_at:    d.created_at,
-        link_pdf:      d.link_pdf || null,
-        kode_toko:     d.kode_toko,
-        pic_dokumentasi: d.pic_dokumentasi,
+
+const normalizeProjekPlanningDocs = (items: ProjekPlanningItem[]): NormalizedDoc[] =>
+    items.map(p => ({
+        id: p.id,
+        tipe: 'PROJECT_PLANNING' as DokumenKategori,
+        nomor_ulok:      p.nomor_ulok ?? '-',
+        nama_toko:       p.nama_toko  ?? '-',
+        cabang:          p.cabang     ?? '-',
+        proyek:          p.proyek     ?? '-',
+        status:          p.status,
+        email_pembuat:   p.email_pembuat ?? '-',
+        total_nilai:     parseCurrency(p.estimasi_biaya),
+        created_at:      p.created_at,
+        link_pdf:        null,
+        jenis_proyek:    p.jenis_proyek ?? undefined,
+        jenis_pengajuan: p.jenis_pengajuan ?? undefined,
+        nama_pengaju:    p.nama_pengaju ?? undefined,
     }));
 
 // =============================================================================
@@ -529,6 +598,7 @@ export default function DaftarDokumenPage() {
     const [userInfo, setUserInfo] = useState({ name: '', role: '', cabang: '', email: '', nama_pt: '' });
     const [isContractor, setIsContractor] = useState(false);
     const [isDirektur, setIsDirektur] = useState(false);
+    const [isPPOnly, setIsPPOnly] = useState(false);
 
     // --- Navigation ---
     const [activeView, setActiveView] = useState<ActiveView>('menu');
@@ -554,27 +624,30 @@ export default function DaftarDokumenPage() {
     const [selectedNewStatus, setSelectedNewStatus] = useState('');
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-    // --- Foto Pagination (Dokumentasi Bangunan) ---
-    const [fotoPage, setFotoPage] = useState(1);
-    const FOTO_PER_PAGE = 10;
-
     // =========================================================================
     // AUTH + INIT
     // =========================================================================
-    const { user } = useSession();
-
     useEffect(() => {
-        if (!user) return;
+        const isAuth  = sessionStorage.getItem("authenticated");
+        const role    = sessionStorage.getItem("userRole") || '';
+        const email   = sessionStorage.getItem("loggedInUserEmail") || '';
+        const cabang  = sessionStorage.getItem("loggedInUserCabang") || '';
+        const namaLengkap = sessionStorage.getItem("nama_lengkap") || email.split('@')[0];
 
-        const { role, email, cabang, namaLengkap, namaPt: nama_pt } = user;
+        const nama_pt = sessionStorage.getItem("nama_pt") || '';
+
+        if (isAuth !== "true" || !role) { router.push('/auth'); return; }
 
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
         const direkturFlag = roles.some(r => r.includes('DIREKTUR'));
         setIsContractor(contractorFlag);
         setIsDirektur(direkturFlag);
+        const ppRoles = getPpRoles(role, email);
+        const ppOnlyFlag = (ppRoles.isPP || ppRoles.isPPMgr) && !ppRoles.isCoor && !ppRoles.isBM && !contractorFlag && !direkturFlag;
+        setIsPPOnly(ppOnlyFlag);
         setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email, nama_pt });
-    }, [user]);
+    }, [router]);
 
     // =========================================================================
     // TOAST
@@ -626,9 +699,9 @@ export default function DaftarDokumenPage() {
             } else if (kategori === 'INSTRUKSI_LAPANGAN') {
                 const res = await fetchInstruksiLapanganList();
                 docs = normalizeInstruksiLapanganDocs(res.data ?? []);
-            } else if (kategori === 'DOKUMENTASI_BANGUNAN') {
-                const res = await fetchDokumentasiBangunanList();
-                docs = normalizeDokumentasiBangunanDocs(res.data ?? []);
+            } else if (kategori === 'PROJECT_PLANNING') {
+                const res = await fetchProjekPlanningList();
+                docs = normalizeProjekPlanningDocs(res.data ?? []);
             }
 
             // Filter by cabang for non-HO users (branch group aware)
@@ -870,38 +943,51 @@ export default function DaftarDokumenPage() {
                         catatan:         it.instruksi || it.keterangan || it.catatan || '-',
                     })),
                 };
-            } else if (doc.tipe === 'DOKUMENTASI_BANGUNAN') {
-                const res = await fetchDokumentasiBangunanDetail(doc.id);
-                const d = res.data.dokumentasi;
-                const pdfObj = res.data.pdf;
+            } else if (doc.tipe === 'PROJECT_PLANNING') {
+                const res = await fetchProjekPlanningDetail(doc.id);
+                const d = res.data.projek;
                 detail = {
                     id: d.id,
-                    tipe: 'DOKUMENTASI_BANGUNAN',
-                    nomor_ulok:        d.nomor_ulok,
-                    nama_toko:         d.nama_toko,
-                    kode_toko:         d.kode_toko,
-                    cabang:            d.cabang,
-                    proyek:            '-',
-                    status:            d.status_validasi,
-                    email_pembuat:     d.email_pengirim,
-                    total_nilai:       0,
+                    tipe: 'PROJECT_PLANNING',
+                    nomor_ulok:        d.nomor_ulok || doc.nomor_ulok,
+                    nama_toko:         d.nama_toko || doc.nama_toko,
+                    cabang:            d.cabang || doc.cabang,
+                    proyek:            d.proyek || doc.proyek,
+                    status:            d.status,
+                    email_pembuat:     d.email_pembuat,
+                    total_nilai:       parseCurrency(d.estimasi_biaya),
                     created_at:        d.created_at,
-                    tanggal_go:        d.tanggal_go,
-                    tanggal_serah_terima: d.tanggal_serah_terima,
-                    tanggal_ambil_foto: d.tanggal_ambil_foto,
-                    spk_awal:          d.spk_awal,
-                    spk_akhir:         d.spk_akhir,
-                    kontraktor_sipil:  d.kontraktor_sipil,
-                    kontraktor_me:     d.kontraktor_me,
-                    pic_dokumentasi:   d.pic_dokumentasi,
-                    alasan_penolakan:  d.alasan_revisi,
-                    link_pdf:          pdfObj?.link_pdf || d.link_pdf,
-                    dokumentasi_items: res.data.items || [],
+                    jenis_proyek_pp:         d.jenis_proyek ?? undefined,
+                    jenis_pengajuan_pp:      d.jenis_pengajuan ?? undefined,
+                    jenis_pengajuan_lainnya_pp: d.jenis_pengajuan_lainnya ?? undefined,
+                    nama_pengaju_pp:         d.nama_pengaju ?? undefined,
+                    nama_lokasi_pp:          d.nama_lokasi ?? undefined,
+                    estimasi_biaya_pp:       d.estimasi_biaya ?? undefined,
+                    keterangan_pp:           d.keterangan ?? undefined,
+                    link_fpd_pp:             d.link_fpd,
+                    link_desain_3d_pp:       d.link_desain_3d,
+                    link_gambar_kerja_pp:    d.link_gambar_kerja,
+                    link_rab_pp:             d.link_rab,
+                    link_fpd_approved_pp:    d.link_fpd_approved,
+                    link_gambar_rab_sipil_pp: d.link_gambar_rab_sipil,
+                    link_gambar_rab_me_pp:   d.link_gambar_rab_me,
+                    link_gambar_kompetitor_pp: d.link_gambar_kompetitor,
+                    link_google_maps_pp:     d.link_google_maps,
+                    link_rab_sipil_pp:       d.link_rab_sipil,
+                    link_rab_me_pp:          d.link_rab_me,
+                    link_gambar_kerja_final_pp: d.link_gambar_kerja_final,
+                    link_gambar_kerja_final_sipil_pp: d.link_gambar_kerja_final_sipil,
+                    link_gambar_kerja_final_me_pp: d.link_gambar_kerja_final_me,
+                    foto_items_pp:           d.foto_items ?? [],
+                    butuh_desain_3d_pp:      d.butuh_desain_3d,
+                    bm_approval_pp:    { pemberi: d.bm_approver_email, waktu: d.bm_waktu_persetujuan },
+                    pp1_approval:      { pemberi: d.pp1_approver_email, waktu: d.pp1_waktu_persetujuan },
+                    pp2_approval:      { pemberi: d.pp2_approver_email, waktu: d.pp2_waktu_persetujuan },
+                    pp_manager_approval: { pemberi: d.pp_manager_approver_email, waktu: d.pp_manager_waktu_persetujuan },
                 };
             }
- 
+
             setSelectedDetail(detail);
-            setFotoPage(1); // reset foto pagination on new detail
         } catch (err: any) {
             showToast(err.message || 'Gagal memuat detail.', 'error');
             setActiveView('list');
@@ -924,14 +1010,8 @@ export default function DaftarDokumenPage() {
                 await downloadOpnameFinalPdf(id);
             } else if (tipe === 'INSTRUKSI_LAPANGAN') {
                 await downloadInstruksiLapanganPdf(id);
-            } else if (tipe === 'DOKUMENTASI_BANGUNAN') {
-                const result = await generateDokumentasiBangunanPdf(id);
-                const pdfLink = result?.data?.link_pdf;
-                if (pdfLink) {
-                    window.open(pdfLink, '_blank', 'noopener,noreferrer');
-                } else {
-                    throw new Error('Link PDF tidak tersedia setelah generate.');
-                }
+            } else if (tipe === 'PROJECT_PLANNING') {
+                await downloadProjekPlanningPdf(id);
             }
             showToast('PDF berhasil diunduh.', 'success');
         } catch (err: any) {
@@ -940,6 +1020,27 @@ export default function DaftarDokumenPage() {
             setDownloadingId(null);
         }
     }, [showToast]);
+
+    const handleDownloadProjectPlanningAttachment = useCallback(async (field: string, itemIndex?: number) => {
+        if (!selectedDetail || selectedDetail.tipe !== 'PROJECT_PLANNING') return;
+        setDownloadingId(selectedDetail.id);
+        try {
+            await proxyProjekPlanningFile(selectedDetail.id, field, 'download', itemIndex);
+        } catch (err: any) {
+            showToast(err.message || 'Gagal mengunduh dokumen.', 'error');
+        } finally {
+            setDownloadingId(null);
+        }
+    }, [selectedDetail, showToast]);
+
+    const handleViewProjectPlanningAttachment = useCallback(async (field: string, itemIndex?: number) => {
+        if (!selectedDetail || selectedDetail.tipe !== 'PROJECT_PLANNING') return;
+        try {
+            await proxyProjekPlanningFile(selectedDetail.id, field, 'view', itemIndex);
+        } catch (err: any) {
+            showToast(err.message || 'Gagal membuka dokumen.', 'error');
+        }
+    }, [selectedDetail, showToast]);
 
     // =========================================================================
     // NAVIGATION
@@ -1166,6 +1267,10 @@ export default function DaftarDokumenPage() {
                             {(Object.keys(KATEGORI_CONFIG) as DokumenKategori[]).filter(kat => {
                                 // Hide PERTAMBAHAN_SPK, PENGAWASAN, BERKAS_SERAH_TERIMA and INSTRUKSI_LAPANGAN from KONTRAKTOR and DIREKTUR
                                 if ((kat === 'PERTAMBAHAN_SPK' || kat === 'PENGAWASAN' || kat === 'BERKAS_SERAH_TERIMA' || kat === 'INSTRUKSI_LAPANGAN') && (isContractor || isDirektur)) return false;
+                                // PP-only roles: hanya tampilkan card PROJECT_PLANNING
+                                if (isPPOnly && kat !== 'PROJECT_PLANNING') return false;
+                                // Hide PROJECT_PLANNING dari KONTRAKTOR dan DIREKTUR
+                                if (kat === 'PROJECT_PLANNING' && (isContractor || isDirektur)) return false;
                                 return true;
                             }).map(kat => {
                                 const cfg = KATEGORI_CONFIG[kat];
@@ -1304,8 +1409,8 @@ export default function DaftarDokumenPage() {
                                                                 ? <CheckCircle className="w-5 h-5" />
                                                                 : selectedKategori === 'INSTRUKSI_LAPANGAN'
                                                                 ? <ClipboardList className="w-5 h-5" />
-                                                                : selectedKategori === 'DOKUMENTASI_BANGUNAN'
-                                                                ? <Camera className="w-5 h-5" />
+                                                                : selectedKategori === 'PROJECT_PLANNING'
+                                                                ? <ClipboardList className="w-5 h-5" />
                                                                 : <FilePlus className="w-5 h-5" />
                                                             }
                                                         </div>
@@ -1313,11 +1418,9 @@ export default function DaftarDokumenPage() {
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="font-bold text-slate-800 text-sm">{doc.nomor_ulok}</span>
-                                                            {doc.status && doc.status !== 'submitted' && (
-                                                                <Badge className={`${getStatusBadgeClass(doc.status)} text-[10px] font-semibold border px-2 py-0`}>
-                                                                    {getStatusLabel(doc.status)}
-                                                                </Badge>
-                                                            )}
+                                                            <Badge className={`${getStatusBadgeClass(doc.status)} text-[10px] font-semibold border px-2 py-0`}>
+                                                                {getStatusLabel(doc.status)}
+                                                            </Badge>
                                                         </div>
                                                         <p className="text-sm text-slate-600 truncate mt-0.5">
                                                             {selectedKategori === 'RAB' 
@@ -1347,7 +1450,7 @@ export default function DaftarDokumenPage() {
                                                         <p className="text-sm font-bold text-slate-800">
                                                             {selectedKategori === 'PERTAMBAHAN_SPK'
                                                                 ? `+${doc.pertambahan_hari || '-'} Hari`
-                                                                : (selectedKategori === 'PENGAWASAN' || selectedKategori === 'DOKUMENTASI_BANGUNAN')
+                                                                : selectedKategori === 'PENGAWASAN'
                                                                 ? null
                                                                 : formatRupiah(doc.total_nilai)
                                                             }
@@ -1394,7 +1497,7 @@ export default function DaftarDokumenPage() {
                                         : selectedDetail.tipe === 'PENGAWASAN' ? 'bg-linear-to-r from-indigo-50 to-indigo-100/50 border-b border-indigo-100'
                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'bg-linear-to-r from-teal-50 to-teal-100/50 border-b border-teal-100'
                                         : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-linear-to-r from-pink-50 to-pink-100/50 border-b border-pink-100'
-                                        : selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ? 'bg-linear-to-r from-rose-50 to-rose-100/50 border-b border-rose-100'
+                                        : selectedDetail.tipe === 'PROJECT_PLANNING' ? 'bg-linear-to-r from-cyan-50 to-cyan-100/50 border-b border-cyan-100'
                                         : 'bg-linear-to-r from-purple-50 to-purple-100/50 border-b border-purple-100'
                                     }`}>
                                         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1406,7 +1509,7 @@ export default function DaftarDokumenPage() {
                                                     : selectedDetail.tipe === 'PENGAWASAN' ? 'bg-indigo-100'
                                                     : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'bg-teal-100'
                                                     : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-pink-100'
-                                                    : selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ? 'bg-rose-100'
+                                                    : selectedDetail.tipe === 'PROJECT_PLANNING' ? 'bg-cyan-100'
                                                     : 'bg-purple-100'
                                                 } flex items-center justify-center`}>
                                                     {selectedDetail.tipe === 'RAB'
@@ -1421,8 +1524,8 @@ export default function DaftarDokumenPage() {
                                                         ? <CheckCircle className="w-5 h-5 text-teal-600" />
                                                         : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN'
                                                         ? <ClipboardList className="w-5 h-5 text-pink-600" />
-                                                        : selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN'
-                                                        ? <Camera className="w-5 h-5 text-rose-600" />
+                                                        : selectedDetail.tipe === 'PROJECT_PLANNING'
+                                                        ? <ClipboardList className="w-5 h-5 text-cyan-600" />
                                                         : <FileSignature className="w-5 h-5 text-purple-600" />
                                                     }
                                                 </div>
@@ -1435,18 +1538,16 @@ export default function DaftarDokumenPage() {
                                                         : selectedDetail.tipe === 'PENGAWASAN' ? 'Detail Pengawasan'
                                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'Detail Serah Terima'
                                                         : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'Detail Instruksi Lapangan'
-                                                        : selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ? 'Detail Dokumentasi Bangunan'
+                                                        : selectedDetail.tipe === 'PROJECT_PLANNING' ? 'Detail Project Planning'
                                                         : 'Detail Dokumen'}
                                                     </h3>
                                                     <p className="text-sm text-slate-500">ID: {selectedDetail.id}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                {selectedDetail.status && selectedDetail.status !== 'submitted' && (
-                                                    <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
-                                                        {getStatusLabel(selectedDetail.status)}
-                                                    </Badge>
-                                                )}
+                                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
+                                                    {getStatusLabel(selectedDetail.status)}
+                                                </Badge>
                                                 {isHO && selectedDetail.tipe === 'RAB' && (
                                                     <Button
                                                         size="sm"
@@ -1557,27 +1658,35 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                 </>
                                             )}
- 
-                                            {/* Dokumentasi Bangunan-specific fields */}
-                                            {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' && (
+                                            {/* Project Planning-specific fields */}
+                                            {selectedDetail.tipe === 'PROJECT_PLANNING' && (
                                                 <>
-                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Kode Toko" value={selectedDetail.kode_toko || '-'} />
-                                                    <InfoRow icon={<User className="w-4 h-4" />} label="PIC Dokumentasi" value={selectedDetail.pic_dokumentasi || '-'} />
-                                                    <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal GO" value={selectedDetail.tanggal_go ? formatDateFull(selectedDetail.tanggal_go) : '-'} />
-                                                    <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Serah Terima" value={selectedDetail.tanggal_serah_terima ? formatDateFull(selectedDetail.tanggal_serah_terima) : '-'} />
-                                                    <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Ambil Foto" value={selectedDetail.tanggal_ambil_foto ? formatDateFull(selectedDetail.tanggal_ambil_foto) : '-'} />
-                                                    <InfoRow icon={<FileText className="w-4 h-4" />} label="SPK Awal" value={selectedDetail.spk_awal || '-'} />
-                                                    <InfoRow icon={<FileText className="w-4 h-4" />} label="SPK Akhir" value={selectedDetail.spk_akhir || '-'} />
-                                                    <InfoRow icon={<Building2 className="w-4 h-4" />} label="Kontraktor Sipil" value={selectedDetail.kontraktor_sipil || '-'} />
-                                                    <InfoRow icon={<Building2 className="w-4 h-4" />} label="Kontraktor ME" value={selectedDetail.kontraktor_me || '-'} />
+                                                    {selectedDetail.nama_pengaju_pp && (
+                                                        <InfoRow icon={<User className="w-4 h-4" />} label="Nama Pengaju" value={selectedDetail.nama_pengaju_pp} />
+                                                    )}
+                                                    {selectedDetail.nama_lokasi_pp && (
+                                                        <InfoRow icon={<Building2 className="w-4 h-4" />} label="Nama Lokasi" value={selectedDetail.nama_lokasi_pp} />
+                                                    )}
+                                                    {selectedDetail.jenis_proyek_pp && (
+                                                        <InfoRow icon={<FileText className="w-4 h-4" />} label="Jenis Proyek" value={selectedDetail.jenis_proyek_pp} />
+                                                    )}
+                                                    {selectedDetail.jenis_pengajuan_pp && (
+                                                        <InfoRow icon={<ClipboardList className="w-4 h-4" />} label="Jenis Pengajuan" value={selectedDetail.jenis_pengajuan_lainnya_pp ? `${selectedDetail.jenis_pengajuan_pp} — ${selectedDetail.jenis_pengajuan_lainnya_pp}` : selectedDetail.jenis_pengajuan_pp} />
+                                                    )}
+                                                    {/* Estimasi biaya di-hide untuk sementara */}
+                                                    {selectedDetail.keterangan_pp && (
+                                                        <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                            <InfoRow icon={<FileText className="w-4 h-4" />} label="Keterangan" value={selectedDetail.keterangan_pp} />
+                                                        </div>
+                                                    )}
                                                 </>
                                             )}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN & DOKUMENTASI_BANGUNAN */}
-                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && (
+                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN & PROJECT_PLANNING */}
+                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                                         <div className="w-1.5 h-5 bg-red-500 rounded-full" />
@@ -1610,41 +1719,26 @@ export default function DaftarDokumenPage() {
                                 </div>
                                 )}
 
-                                 {/* Approval Trail (RAB, INSTRUKSI_LAPANGAN & DOKUMENTASI_BANGUNAN) */}
-                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' || selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN') && (
+                                {/* Approval Trail (RAB & INSTRUKSI_LAPANGAN) */}
+                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && (
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                         <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                            <div className={`w-1.5 h-5 ${selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ? 'bg-rose-500' : 'bg-green-500'} rounded-full`} />
-                                            {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ? 'Status Validasi' : 'Riwayat Persetujuan'}
+                                            <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                                            Riwayat Persetujuan
                                         </h4>
                                         <div className="space-y-3">
-                                            {selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && (
-                                                <>
-                                                    <ApprovalRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} />
-                                                    <ApprovalRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} />
-                                                    {selectedDetail.tipe === 'RAB' ? (
-                                                        <ApprovalRow label="Direktur" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} />
-                                                    ) : (
-                                                        <ApprovalRow label="Kontraktor" pemberi={selectedDetail.approval_kontraktor?.pemberi} waktu={selectedDetail.approval_kontraktor?.waktu} />
-                                                    )}
-                                                </>
-                                            )}
-                                            {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' && (
-                                                <div className="flex items-center gap-3 text-sm">
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                                                        <User className="w-5 h-5 text-slate-500" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[11px] text-slate-400 font-medium uppercase">PIC Dokumentasi</p>
-                                                        <p className="text-sm text-slate-800 font-bold">{selectedDetail.pic_dokumentasi}</p>
-                                                    </div>
-                                                </div>
+                                            <ApprovalRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} />
+                                            <ApprovalRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} />
+                                            {selectedDetail.tipe === 'RAB' ? (
+                                                <ApprovalRow label="Direktur" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} />
+                                            ) : (
+                                                <ApprovalRow label="Kontraktor" pemberi={selectedDetail.approval_kontraktor?.pemberi} waktu={selectedDetail.approval_kontraktor?.waktu} />
                                             )}
                                             {selectedDetail.alasan_penolakan && (
                                                 <div className="flex items-start gap-3 text-sm mt-2 bg-red-50 rounded-lg p-3 border border-red-100">
                                                     <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                                                     <div>
-                                                        <span className="text-red-700 font-semibold">{selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ? 'Alasan Revisi: ' : 'Alasan Penolakan: '}</span>
+                                                        <span className="text-red-700 font-semibold">Alasan Penolakan: </span>
                                                         <span className="text-red-600">{selectedDetail.alasan_penolakan}</span>
                                                     </div>
                                                 </div>
@@ -1697,6 +1791,88 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 )}
 
+                                {/* Approval Trail (PROJECT_PLANNING) */}
+                                {selectedDetail.tipe === 'PROJECT_PLANNING' && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                                        <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                            <div className="w-1.5 h-5 bg-cyan-500 rounded-full" />
+                                            Riwayat Persetujuan
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <ApprovalRow label="B&M Manager" pemberi={selectedDetail.bm_approval_pp?.pemberi} waktu={selectedDetail.bm_approval_pp?.waktu} />
+                                            <ApprovalRow label="PP Specialist" pemberi={selectedDetail.pp1_approval?.pemberi} waktu={selectedDetail.pp1_approval?.waktu} />
+                                            <ApprovalRow label="PP Review" pemberi={selectedDetail.pp2_approval?.pemberi} waktu={selectedDetail.pp2_approval?.waktu} />
+                                            <ApprovalRow label="PP Manager" pemberi={selectedDetail.pp_manager_approval?.pemberi} waktu={selectedDetail.pp_manager_approval?.waktu} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Dokumen Lampiran (PROJECT_PLANNING) */}
+                                {selectedDetail.tipe === 'PROJECT_PLANNING' && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                                        <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                            <div className="w-1.5 h-5 bg-cyan-500 rounded-full" />
+                                            Dokumen Lampiran
+                                        </h4>
+                                        {(() => {
+                                            const koordinatorDocs: ProjectPlanningAttachment[] = [
+                                                { label: 'Google Maps', url: selectedDetail.link_google_maps_pp, icon: <MapPin className="w-4 h-4" /> },
+                                                { label: 'Gambar Kerja Sipil / FPD', url: selectedDetail.link_fpd_pp, field: 'fpd' },
+                                                { label: 'Gambar Kerja ME', url: selectedDetail.link_gambar_kerja_pp, field: 'gambar_kerja_awal' },
+                                                { label: 'RAB Sipil Awal', url: selectedDetail.link_gambar_rab_sipil_pp, field: 'rab_sipil_awal' },
+                                                { label: 'RAB ME Awal', url: selectedDetail.link_gambar_rab_me_pp, field: 'rab_me_awal' },
+                                                { label: 'Gambar Kompetitor', url: selectedDetail.link_gambar_kompetitor_pp, field: 'gambar_kompetitor' },
+                                                ...(selectedDetail.foto_items_pp ?? []).map(foto => ({
+                                                    label: `Foto Lokasi ${foto.item_index}`,
+                                                    url: foto.link_foto,
+                                                    field: 'foto_item',
+                                                    itemIndex: foto.item_index,
+                                                })),
+                                            ];
+                                            const ppDocs: ProjectPlanningAttachment[] = [
+                                                { label: 'Desain 3D', url: selectedDetail.link_desain_3d_pp, field: 'desain_3d' },
+                                                { label: 'Gambar Kerja Disetujui', url: selectedDetail.link_fpd_approved_pp, field: 'fpd_approved' },
+                                            ];
+                                            const finalDocs: ProjectPlanningAttachment[] = [
+                                                { label: 'RAB Sipil Final', url: selectedDetail.link_rab_sipil_pp, field: 'rab_sipil_final' },
+                                                { label: 'RAB ME Final', url: selectedDetail.link_rab_me_pp, field: 'rab_me_final' },
+                                                { label: 'RAB Final', url: selectedDetail.link_rab_pp, field: 'rab' },
+                                                { label: 'Gambar Kerja Final Sipil', url: selectedDetail.link_gambar_kerja_final_sipil_pp || selectedDetail.link_gambar_kerja_final_pp, field: 'gambar_kerja_final_sipil' },
+                                                { label: 'Gambar Kerja Final ME', url: selectedDetail.link_gambar_kerja_final_me_pp, field: 'gambar_kerja_final_me' },
+                                            ];
+                                            const hasAnyDocs = [...koordinatorDocs, ...ppDocs, ...finalDocs].some(doc => hasLink(doc.url));
+
+                                            return hasAnyDocs ? (
+                                                <div className="space-y-5">
+                                                    <ProjectPlanningAttachmentGroup
+                                                        title="Diunggah Koordinator"
+                                                        items={koordinatorDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
+                                                        onDownload={handleDownloadProjectPlanningAttachment}
+                                                        isDownloading={downloadingId === selectedDetail.id}
+                                                    />
+                                                    <ProjectPlanningAttachmentGroup
+                                                        title="Diunggah PP Specialist"
+                                                        items={ppDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
+                                                        onDownload={handleDownloadProjectPlanningAttachment}
+                                                        isDownloading={downloadingId === selectedDetail.id}
+                                                    />
+                                                    <ProjectPlanningAttachmentGroup
+                                                        title="Diunggah Koordinator Final"
+                                                        items={finalDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
+                                                        onDownload={handleDownloadProjectPlanningAttachment}
+                                                        isDownloading={downloadingId === selectedDetail.id}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-slate-400 italic">Belum ada dokumen lampiran.</p>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+
                                 {/* Items Table (RAB, OPNAME_FINAL & INSTRUKSI_LAPANGAN) */}
                                 {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1712,7 +1888,7 @@ export default function DaftarDokumenPage() {
                                                     <tr>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">No</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Kategori</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap min-w-62.5">Jenis Pekerjaan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Jenis Pekerjaan</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs min-w-48">Catatan</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Satuan</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Volume</th>
@@ -1726,7 +1902,7 @@ export default function DaftarDokumenPage() {
                                                         <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50">
                                                             <td className="px-4 py-2.5 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
                                                             <td className="px-4 py-2.5 text-slate-600 font-medium text-xs whitespace-nowrap">{item.kategori}</td>
-                                                            <td className="px-4 py-2.5 text-slate-700 whitespace-normal min-w-62.5">{item.jenis_pekerjaan}</td>
+                                                            <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{item.jenis_pekerjaan}</td>
                                                             <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
                                                             <td className="px-4 py-2.5 text-center text-slate-500 whitespace-nowrap">{item.satuan}</td>
                                                             <td className="px-4 py-2.5 text-center text-slate-600 whitespace-nowrap">{item.volume}</td>
@@ -1764,7 +1940,7 @@ export default function DaftarDokumenPage() {
                                                     <tr>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">No</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Kategori</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap min-w-62.5">Jenis Pekerjaan</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Jenis Pekerjaan</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs min-w-48">Catatan</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Status</th>
                                                         <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Dokumentasi</th>
@@ -1775,7 +1951,7 @@ export default function DaftarDokumenPage() {
                                                         <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50">
                                                             <td className="px-4 py-2.5 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
                                                             <td className="px-4 py-2.5 text-slate-600 font-medium text-xs whitespace-nowrap">{item.kategori_pekerjaan}</td>
-                                                            <td className="px-4 py-2.5 text-slate-700 whitespace-normal min-w-62.5">{item.jenis_pekerjaan}</td>
+                                                            <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{item.jenis_pekerjaan}</td>
                                                             <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
                                                             <td className="px-4 py-2.5 text-center whitespace-nowrap">
                                                                 <Badge className={`${getStatusBadgeClass(item.status)} text-[10px] font-semibold border px-2 py-0`}>
@@ -1799,73 +1975,6 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 )}
 
-                                {/* Photo List with Pagination (DOKUMENTASI_BANGUNAN) */}
-                                {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' && selectedDetail.dokumentasi_items && selectedDetail.dokumentasi_items.length > 0 && (() => {
-                                    const totalPages = Math.ceil(selectedDetail.dokumentasi_items.length / FOTO_PER_PAGE);
-                                    const startIdx = (fotoPage - 1) * FOTO_PER_PAGE;
-                                    const pageItems = selectedDetail.dokumentasi_items.slice(startIdx, startIdx + FOTO_PER_PAGE);
-                                    return (
-                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                                                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                                    <div className="w-1.5 h-5 bg-rose-500 rounded-full" />
-                                                    Daftar Foto Dokumentasi
-                                                </h4>
-                                                <Badge className="bg-rose-100 text-rose-700 border-rose-200 border text-xs font-semibold">
-                                                    {selectedDetail.dokumentasi_items.length} Foto
-                                                </Badge>
-                                            </div>
-                                            <div className="divide-y divide-slate-100">
-                                                {pageItems.map((item: any, idx: number) => (
-                                                    <div key={item.id} className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-7 h-7 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
-                                                                <span className="text-[11px] font-bold text-rose-500">{startIdx + idx + 1}</span>
-                                                            </div>
-                                                            <span className="text-sm text-slate-600">Foto #{startIdx + idx + 1}</span>
-                                                            {item.created_at && (
-                                                                <span className="text-[11px] text-slate-400 hidden sm:block">{formatDateFull(item.created_at)}</span>
-                                                            )}
-                                                        </div>
-                                                        <a href={item.link_foto} target="_blank" rel="noopener noreferrer">
-                                                            <Button variant="outline" size="sm" className="h-7 text-xs border-rose-200 text-rose-600 hover:bg-rose-50">
-                                                                <Eye className="w-3 h-3 mr-1" /> Lihat Foto
-                                                            </Button>
-                                                        </a>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {totalPages > 1 && (
-                                                <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50">
-                                                    <span className="text-xs text-slate-500">
-                                                        Halaman {fotoPage} dari {totalPages}
-                                                    </span>
-                                                    <div className="flex gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-7 text-xs"
-                                                            disabled={fotoPage <= 1}
-                                                            onClick={() => setFotoPage(p => Math.max(1, p - 1))}
-                                                        >
-                                                            ← Sebelumnya
-                                                        </Button>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-7 text-xs"
-                                                            disabled={fotoPage >= totalPages}
-                                                            onClick={() => setFotoPage(p => Math.min(totalPages, p + 1))}
-                                                        >
-                                                            Berikutnya →
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
-
                                 {/* PDF Download Actions */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
@@ -1873,12 +1982,13 @@ export default function DaftarDokumenPage() {
                                         Unduh Dokumen
                                     </h4>
                                     <div className="flex flex-wrap gap-3">
-                                        {/* Download button for RAB, SPK, OPNAME_FINAL, INSTRUKSI_LAPANGAN, DOKUMENTASI_BANGUNAN */}
+                                        {/* Download button for RAB, SPK, OPNAME_FINAL, INSTRUKSI_LAPANGAN */}
                                         {(
                                             (selectedDetail.tipe === 'RAB' && selectedDetail.link_pdf_gabungan) ||
                                             (selectedDetail.tipe === 'SPK' && selectedDetail.link_pdf) ||
                                             (selectedDetail.tipe === 'OPNAME_FINAL' && selectedDetail.link_pdf) ||
-                                            (selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' && selectedDetail.link_pdf_gabungan)
+                                            (selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' && selectedDetail.link_pdf_gabungan) ||
+                                            (selectedDetail.tipe === 'PROJECT_PLANNING')
                                         ) && (
                                             <Button
                                                 className="bg-red-600 hover:bg-red-700 text-white"
@@ -1891,22 +2001,6 @@ export default function DaftarDokumenPage() {
                                                     <Download className="w-4 h-4 mr-2" />
                                                 )}
                                                 Unduh PDF {selectedDetail.tipe}
-                                            </Button>
-                                        )}
-
-                                        {/* Dokumentasi Bangunan — Generate & Open PDF */}
-                                        {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' && (
-                                            <Button
-                                                className="bg-rose-600 hover:bg-rose-700 text-white"
-                                                disabled={downloadingId === selectedDetail.id}
-                                                onClick={() => handleDownloadPDF(selectedDetail.id, selectedDetail.tipe)}
-                                            >
-                                                {downloadingId === selectedDetail.id ? (
-                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                ) : (
-                                                    <Download className="w-4 h-4 mr-2" />
-                                                )}
-                                                Generate & Unduh PDF
                                             </Button>
                                         )}
 
@@ -1997,6 +2091,81 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
             <div className="min-w-0">
                 <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
                 <p className="text-sm text-slate-800 font-semibold truncate">{value}</p>
+            </div>
+        </div>
+    );
+}
+
+function ProjectPlanningAttachmentGroup({
+    title,
+    items,
+    onView,
+    onDownload,
+    isDownloading,
+}: {
+    title: string;
+    items: ProjectPlanningAttachment[];
+    onView: (field: string, itemIndex?: number) => void;
+    onDownload: (field: string, itemIndex?: number) => void;
+    isDownloading: boolean;
+}) {
+    const availableItems = items.filter(item => hasLink(item.url));
+    if (availableItems.length === 0) return null;
+
+    return (
+        <div className="space-y-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 pb-2 border-b border-slate-200">{title}</p>
+            <div className="divide-y divide-slate-100">
+                {availableItems.map(item => {
+                    const url = item.url!.trim();
+                    const canDownload = !!item.field && isDownloadableAttachment(url);
+                    const canProxyView = !!item.field && !isExternalOnlyLink(url);
+                    return (
+                        <div key={`${title}-${item.label}-${item.itemIndex ?? 'main'}`} className="flex flex-col sm:flex-row sm:items-center gap-2 py-3">
+                            <span className="text-xs font-semibold text-slate-700 sm:w-56 shrink-0 flex items-center gap-2">
+                                {item.icon ?? <FileText className="w-3.5 h-3.5 text-slate-400" />}
+                                {item.label}
+                            </span>
+                            <div className="flex gap-2">
+                            {canProxyView ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 px-3 rounded-lg border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold"
+                                    onClick={() => onView(item.field!, item.itemIndex)}
+                                >
+                                    <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                    Lihat
+                                </Button>
+                            ) : (
+                                <a href={url} target="_blank" rel="noopener noreferrer">
+                                    <Button variant="outline" className="h-8 px-3 rounded-lg border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold">
+                                        <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                        Lihat
+                                        <ExternalLink className="w-3 h-3 ml-1.5" />
+                                    </Button>
+                                </a>
+                            )}
+                            {canDownload && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 px-3 rounded-lg border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-semibold"
+                                    disabled={isDownloading}
+                                    onClick={() => onDownload(item.field!, item.itemIndex)}
+                                >
+                                    {isDownloading ? (
+                                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                    ) : (
+                                        <Download className="w-3.5 h-3.5 mr-1.5" />
+                                    )}
+                                    Unduh
+                                </Button>
+                            )}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

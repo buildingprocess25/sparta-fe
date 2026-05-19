@@ -41,6 +41,7 @@ export default function DashboardPage() {
     const itemsPerPage = 5;
     const [sidebarOpen, setSidebarOpen]     = useState(true);
     const [isContractor, setIsContractor]   = useState(false);
+    const [canViewMonitoringDashboard, setCanViewMonitoringDashboard] = useState(false);
 
     // Data State
     const [projects, setProjects] = useState<any[]>([]);
@@ -70,7 +71,7 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!user) return;
 
-        const { role, cabang: userCabang, namaLengkap, roles, isHO } = user;
+        const { role, cabang: userCabang, namaLengkap, roles, isHO, isSuperHuman } = user;
 
         // Handle Multi-Role (DIREKTUR, KONTRAKTOR)
         const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
@@ -85,13 +86,14 @@ export default function DashboardPage() {
         // Unique IDs
         let allowedIds = Array.from(new Set(combinedAllowedIds));
 
-        if (allowedIds.length === 0) {
-            allowedIds = isHO
-                ? [...(ROLE_CONFIG['BRANCH BUILDING & MAINTENANCE MANAGER'] ?? [])]
-                : [...(ROLE_CONFIG['BRANCH BUILDING SUPPORT'] ?? [])];
+        if (isSuperHuman) {
+            allowedIds = ALL_MENUS.map(m => m.id);
+        } else if (allowedIds.length === 0) {
+            allowedIds = isHO ? [] : [...(ROLE_CONFIG['BRANCH BUILDING SUPPORT'] ?? [])];
         }
 
-        if (isHO) {
+        // Super Human gets menu-users explicitly (already in ROLE_CONFIG but ensure it)
+        if (isSuperHuman) {
             allowedIds.push("menu-users");
         }
 
@@ -99,14 +101,24 @@ export default function DashboardPage() {
             allowedIds.push("menu-inputpic");
         }
 
-        setAllowedMenus(ALL_MENUS.filter(m => allowedIds.includes(m.id)));
+        const menuList = ALL_MENUS.filter(m => allowedIds.includes(m.id));
+        setAllowedMenus(menuList);
         setUserInfo({ name: namaLengkap.toUpperCase(), roles: roles, cabang: userCabang.toUpperCase() });
         setIsContractor(contractorFlag);
         
         if (window.innerWidth <= 768) setSidebarOpen(false);
-        
-        // Initial Data Fetch
-        fetchDashboardData(userCabang.toUpperCase());
+
+        const canViewMonitoring = isHO || isSuperHuman;
+        setCanViewMonitoringDashboard(canViewMonitoring);
+        if (!canViewMonitoring) {
+            setProjects([]);
+            setCabangList([]);
+            setIsLoading(false);
+            return;
+        }
+
+        // Initial Data Fetch - dashboard monitoring hanya untuk Head Office/Super Human
+        fetchDashboardData(userCabang.toUpperCase(), isSuperHuman);
         setIsLoading(false);
     }, [user]);
 
@@ -117,7 +129,7 @@ export default function DashboardPage() {
         }
     }, [detailModal.open, detailModal.context, detailModal.subContext]);
 
-    const fetchDashboardData = async (userCabang: string) => {
+    const fetchDashboardData = async (userCabang: string, isSuperHuman = false) => {
         setIsDataLoading(true);
         try {
             // Fetch dari API real
@@ -125,8 +137,9 @@ export default function DashboardPage() {
             let data = json.data || [];
             
             // Tentukan allowedBranches berdasarkan branch group
+            // HEAD OFFICE dan SUPER HUMAN melihat semua cabang
             let allowedBranches: string[] = [];
-            if (userCabang !== 'HEAD OFFICE') {
+            if (userCabang !== 'HEAD OFFICE' && !isSuperHuman) {
                 const group = Object.values(BRANCH_GROUPS).find(g => g.includes(userCabang));
                 if (group) {
                     allowedBranches = group;
@@ -194,6 +207,7 @@ export default function DashboardPage() {
 
     // Fetch semua Opname Items sekaligus (1 request) untuk Nilai Toko, Kontraktor
     useEffect(() => {
+        if (!user?.isHO && !user?.isSuperHuman) return;
         if (opnameFetched.current) return;
         opnameFetched.current = true;
 
@@ -216,7 +230,7 @@ export default function DashboardPage() {
         };
 
         fetchAll();
-    }, []);
+    }, [user?.isHO, user?.isSuperHuman]);
 
 
     // Summary Stats
@@ -237,6 +251,7 @@ export default function DashboardPage() {
         let totalBeanspot = 0;
         let attentionCount = 0;
         let jhkProjectCount = 0;
+        let delayProjectCount = 0;
 
         let miniStats = { 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0, 'Done': 0 };
         let miniPerhatian = { 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
@@ -401,6 +416,7 @@ export default function DashboardPage() {
                     
                     let projectDenda = 0;
                     if (keterlambatan > 0) {
+                        delayProjectCount++;
                         const hariPertama = Math.min(keterlambatan, 5);
                         const hariBerikutnya = Math.max(0, Math.min(keterlambatan - 5, 10));
                         projectDenda = (hariPertama * 1000000) + (hariBerikutnya * 500000);
@@ -540,7 +556,7 @@ export default function DashboardPage() {
             penawaran: totalPenawaran,
             spk: totalSPK,
             avgJHK: Math.round(totalJHK / (jhkProjectCount || 1)),
-            avgDelay: Math.round(totalDelay / (jhkProjectCount || 1)),
+            avgDelay: Math.round(totalDelay / (delayProjectCount || 1)),
             totalDenda: totalDenda,
             avgCostTerbuka: countTerbuka > 0 ? Math.round(sumRatioTerbuka / countTerbuka) : 0,
             avgCostBangunan: countBangunan > 0 ? Math.round(sumRatioBangunan / countBangunan) : 0,
@@ -608,7 +624,7 @@ export default function DashboardPage() {
                         transition-all duration-300 ease-in-out overflow-hidden
                         absolute md:relative top-0 left-0 h-full
                         ${sidebarOpen
-                            ? 'w-62.5 translate-x-0 shadow-xl md:shadow-none'
+                            ? 'w-75 translate-x-0 shadow-xl md:shadow-none'
                             : 'w-0 -translate-x-full md:translate-x-0 md:w-0'}
                     `}
                 >
@@ -686,47 +702,48 @@ export default function DashboardPage() {
                             )}
                         </div>
 
-                        {/* Kanan: judul & filter info + ACTION (Moved from content) */}
-                        <div className="flex items-center gap-3 shrink-0">
-                            {/* Branch Select (For HO or Group) */}
-                            {(userInfo.cabang === 'HEAD OFFICE' || cabangList.length > 1) && (
-                                <Select value={selectedCabang} onValueChange={setSelectedCabang}>
-                                    <SelectTrigger className="w-full md:w-40 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
-                                        <SelectValue placeholder="Pilih Cabang" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ALL">Semua Cabang</SelectItem>
-                                        {cabangList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
+                        {canViewMonitoringDashboard && (
+                            <div className="flex items-center gap-3 shrink-0">
+                                {/* Branch Select (For HO or Group) */}
+                                {(userInfo.cabang === 'HEAD OFFICE' || cabangList.length > 1) && (
+                                    <Select value={selectedCabang} onValueChange={setSelectedCabang}>
+                                        <SelectTrigger className="w-full md:w-40 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
+                                            <SelectValue placeholder="Pilih Cabang" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">Semua Cabang</SelectItem>
+                                            {cabangList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                )}
 
-                            {/* Refresh Button */}
-                            <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8 shrink-0 bg-slate-50 border-slate-200" 
-                                onClick={() => fetchDashboardData(userInfo.cabang)}
-                                disabled={isDataLoading}
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 ${isDataLoading ? 'animate-spin' : ''}`} />
-                            </Button>
+                                {/* Refresh Button */}
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0 bg-slate-50 border-slate-200"
+                                    onClick={() => fetchDashboardData(userInfo.cabang)}
+                                    disabled={isDataLoading}
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isDataLoading ? 'animate-spin' : ''}`} />
+                                </Button>
 
-                            <div className="text-right hidden sm:block border-l border-slate-200 pl-3">
-                                <p className="text-xs font-bold text-slate-700 leading-tight">Live Dashboard</p>
-                                <p className="text-[10px] text-slate-400 leading-tight">Project Monitoring</p>
+                                <div className="text-right hidden sm:block border-l border-slate-200 pl-3">
+                                    <p className="text-xs font-bold text-slate-700 leading-tight">Live Dashboard</p>
+                                    <p className="text-[10px] text-slate-400 leading-tight">Project Monitoring</p>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
-                    {/* === WELCOME AREA -> MONITORING DASHBOARD === */}
+                    {canViewMonitoringDashboard ? (
                     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 rounded-xl border border-slate-200">
                         
                         {/* 1. SCROLLABLE CONTENT */}
                         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-2 custom-scrollbar">
                             
                             {/* 1.1 SUMMARY CARDS - GRID BARU */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-3 auto-rows-min">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 auto-rows-min">
                                 <StatCard 
                                     title="Total Proyek" 
                                     value={stats.total} 
@@ -767,6 +784,33 @@ export default function DashboardPage() {
                                                     <span className={`text-[12px] font-black mt-1 leading-none ${val > 0 ? 'text-red-600' : 'text-slate-400'}`}>{val}</span>
                                                 </div>
                                             ))}
+                                        </div>
+                                    }
+                                />
+                                <StatCard 
+                                    title="Rata-rata Cost/m²" 
+                                    value="" 
+                                    icon={<Layers />} 
+                                    bgColor="#faf5ff"
+                                    textColor="#805ad5"
+                                    subLabel="Rata-rata Biaya Per Meter Persegi"
+                                    className="xl:col-span-2"
+                                    isLoading={isDataLoading}
+                                    onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/m²', context: 'COST_M2', subContext: '' })}
+                                    renderExtra={
+                                        <div className="grid grid-cols-3 gap-10 w-full mt-2 md:mt-0 md:w-auto">
+                                            <div className="bg-purple-50/60 border border-purple-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-purple-100/40 transition-colors">
+                                                <span className="text-[8px] font-bold text-purple-500 uppercase tracking-wider leading-none text-center">Terbangun</span>
+                                                <span className="text-[10px] sm:text-[11px] font-black text-purple-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostTerbangun)}</span>
+                                            </div>
+                                            <div className="bg-blue-50/60 border border-blue-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-blue-100/40 transition-colors">
+                                                <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider leading-none text-center">Bangunan</span>
+                                                <span className="text-[10px] sm:text-[11px] font-black text-blue-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostBangunan)}</span>
+                                            </div>
+                                            <div className="bg-emerald-50/60 border border-emerald-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-emerald-100/40 transition-colors">
+                                                <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider leading-none text-center">Terbuka</span>
+                                                <span className="text-[10px] sm:text-[11px] font-black text-emerald-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostTerbuka)}</span>
+                                            </div>
                                         </div>
                                     }
                                 />
@@ -821,24 +865,14 @@ export default function DashboardPage() {
                                     onClick={() => setDetailModal({ open: true, title: 'Rincian Denda', context: 'DENDA', subContext: '' })}
                                 />
                                 <StatCard 
-                                    title="Rata-rata Cost/m²" 
-                                    value={formatRupiah(stats.avgCostTerbangun)} 
-                                    icon={<Layers />} 
-                                    bgColor="#faf5ff"
-                                    textColor="#805ad5"
-                                    subLabel="Nilai Area Terbangun (Detail klik sini)"
+                                    title="Rata-rata Nilai Beanspot" 
+                                    value={formatRupiah(stats.avgBeanspot)} 
+                                    icon={<Coffee />} 
+                                    bgColor="#fdf2f8"
+                                    textColor="#db2777"
+                                    subLabel="Rata-rata Nominal Beanspot/Toko"
                                     isLoading={isDataLoading}
-                                    onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/m²', context: 'COST_M2', subContext: '' })}
-                                />
-                                <StatCard 
-                                    title="Rata-rata Nilai Toko" 
-                                    value={stats.avgNilaiToko} 
-                                    icon={<Tag />} 
-                                    bgColor="#fef3c7"
-                                    textColor="#d97706"
-                                    subLabel="Nilai Toko"
-                                    isLoading={isDataLoading}
-                                    onClick={() => setDetailModal({ open: true, title: 'Rata-rata Nilai Toko', context: 'NILAI_TOKO', subContext: '' })}
+                                    onClick={() => setDetailModal({ open: true, title: 'Rincian Nilai Beanspot', context: 'BEANSPOT', subContext: '' })}
                                 />
                                 <StatCard 
                                     title="Rata-rata Nilai Kontraktor" 
@@ -851,20 +885,29 @@ export default function DashboardPage() {
                                     onClick={() => setDetailModal({ open: true, title: 'Rata-rata Nilai Kontraktor', context: 'NILAI_KONTRAKTOR', subContext: '' })}
                                 />
                                 <StatCard 
-                                    title="Rata-rata Nilai Beanspot" 
-                                    value={formatRupiah(stats.avgBeanspot)} 
-                                    icon={<Coffee />} 
-                                    bgColor="#fdf2f8"
-                                    textColor="#db2777"
-                                    subLabel="Rata-rata Nominal Beanspot/Toko"
+                                    title="Rata-rata Nilai Toko" 
+                                    value={stats.avgNilaiToko} 
+                                    icon={<Tag />} 
+                                    bgColor="#fef3c7"
+                                    textColor="#d97706"
+                                    subLabel="Nilai Toko"
                                     isLoading={isDataLoading}
-                                    onClick={() => setDetailModal({ open: true, title: 'Rincian Nilai Beanspot', context: 'BEANSPOT', subContext: '' })}
+                                    onClick={() => setDetailModal({ open: true, title: 'Rata-rata Nilai Toko', context: 'NILAI_TOKO', subContext: '' })}
                                 />
                                 </div>
 
 
                         </div>
                     </div>
+                    ) : (
+                    <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-200">
+                        <div className="text-center px-6">
+                            <Layers className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-slate-700">Pilih fitur dari navigasi</p>
+                            <p className="text-xs text-slate-400 mt-1">Dashboard monitoring hanya dimuat untuk Head Office.</p>
+                        </div>
+                    </div>
+                    )}
 
                 </main>
             </div>
@@ -1591,9 +1634,11 @@ function StatCard({
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
-                        <h3 className="text-lg font-black text-slate-800 truncate" style={{ color: valueColor }}>
-                            <AnimatedNumber value={value} isLoading={isLoading} />
-                        </h3>
+                        {value !== undefined && value !== null && value !== '' && (
+                            <h3 className="text-lg font-black text-slate-800 truncate" style={{ color: valueColor }}>
+                                <AnimatedNumber value={value} isLoading={isLoading} />
+                            </h3>
+                        )}
                         {subLabel && <p className="text-[9px] font-medium text-slate-500 leading-tight mt-0.5 line-clamp-1">{subLabel}</p>}
                     </div>
                 </div>
