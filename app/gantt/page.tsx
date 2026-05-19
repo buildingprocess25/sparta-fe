@@ -926,8 +926,8 @@ function GanttBoard() {
                     
                     {tasks.length > 0 ? (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left border-collapse min-w-225">
-                                <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
+                        <table className="w-full text-sm text-left border-collapse min-w-225">
+                            <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
                                     <tr>
                                         <th className="p-4 w-12 text-center border-r">No</th>
                                         <th className="p-4 w-[30%] border-r">Tahapan Pekerjaan</th>
