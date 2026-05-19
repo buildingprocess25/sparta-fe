@@ -678,7 +678,7 @@ export default function ApprovalPage() {
     // ==========================================
     const loadDetail = async (item: NormalizedListItem) => {
         if (item.tipe === 'PROJECT_PLANNING') {
-            router.push(`/projek-planning/${item.id}`);
+            router.push(`/projek-planning/${item.id}?from=approval`);
             return;
         }
 

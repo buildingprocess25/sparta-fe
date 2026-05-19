@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useSession } from "@/context/SessionContext";
 import AppNavbar from "@/components/AppNavbar";
 import { Button } from "@/components/ui/button";
@@ -109,7 +109,9 @@ function InfoRow({ label, value, link, onClickLink }: { label: string; value: st
 export default function DetailProjekPlanning() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = Number(params.id);
+  const backHref = searchParams.get("from") === "approval" ? "/approval" : "/projek-planning";
 
   const [data, setData] = useState<ProjekPlanningItem | null>(null);
   const [logs, setLogs] = useState<ProjekPlanningLog[]>([]);
@@ -265,7 +267,7 @@ export default function DetailProjekPlanning() {
 
   if (!data) return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <AppNavbar title="Detail" showBackButton backHref="/projek-planning" />
+      <AppNavbar title="Detail" showBackButton backHref={backHref} />
       <div className="text-center py-20 text-slate-400">Data tidak ditemukan</div>
     </div>
   );
@@ -294,7 +296,7 @@ export default function DetailProjekPlanning() {
 
   if (!canView) return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <AppNavbar title="Detail FPD" showBackButton backHref="/projek-planning" />
+      <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
       <div className="max-w-xl mx-auto p-6">
         <Card>
           <CardContent className="py-12 text-center text-slate-500">
@@ -312,7 +314,7 @@ export default function DetailProjekPlanning() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AppNavbar title="Detail FPD" showBackButton backHref="/projek-planning" />
+      <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
       <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
 
         <FpdTimeline currentStatus={data.status} />
