@@ -139,12 +139,13 @@ function GanttBoard() {
         } else {
             const filters = currentAppMode === 'kontraktor'
                 ? { email_pembuat: email || '' }
-                : { status: 'active' };
+                : {};
 
             fetchGanttList(filters)
                 .then(res => {
                     const data = res.data || [];
                     const filtered = upperCabang ? data.filter(item => {
+                        if (roles.includes('BUILDING & MAINTENANCE SUPER HUMAN') || (user as any).isSuperHuman || upperCabang === 'HEAD OFFICE') return true;
                         if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
                         return item.cabang?.toUpperCase() === upperCabang;
                     }) : data;
@@ -158,16 +159,31 @@ function GanttBoard() {
             setIsDirectAccess(true);
         }
 
-        fetchRABList()
-            .then(res => {
-                const data = res.data || [];
-                const filtered = upperCabang ? data.filter(item => {
-                    if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
-                    return item.cabang?.toUpperCase() === upperCabang;
-                }) : data;
-                setAllTokoList(filtered);
-            })
-            .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
+        if (currentAppMode === 'pic') {
+            fetchGanttList()
+                .then(res => {
+                    const data = res.data || [];
+                    const filtered = upperCabang ? data.filter(item => {
+                        if (roles.includes('BUILDING & MAINTENANCE SUPER HUMAN') || (user as any).isSuperHuman || upperCabang === 'HEAD OFFICE') return true;
+                        if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
+                        return item.cabang?.toUpperCase() === upperCabang;
+                    }) : data;
+                    setAllTokoList(filtered);
+                })
+                .catch(err => console.error("Gagal memuat semua daftar Gantt:", err));
+        } else {
+            fetchRABList()
+                .then(res => {
+                    const data = res.data || [];
+                    const filtered = upperCabang ? data.filter(item => {
+                        if (roles.includes('BUILDING & MAINTENANCE SUPER HUMAN') || (user as any).isSuperHuman || upperCabang === 'HEAD OFFICE') return true;
+                        if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
+                        return item.cabang?.toUpperCase() === upperCabang;
+                    }) : data;
+                    setAllTokoList(filtered);
+                })
+                .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
+        }
         
     }, [user, urlIdToko, urlIdRab]);
 
@@ -895,8 +911,9 @@ function GanttBoard() {
                                                 />
                                             </div>
                                         </div>
-                                        {filteredTokoList.length > 0 ? (
-                                            filteredTokoList.map((toko) => {
+                                        {(() => {
+                                            const uniqueMap = new Map();
+                                            filteredTokoList.forEach((toko) => {
                                                 const tID = toko.id_toko || toko.id;
                                                 const ganttMatch = availableProjects.find((p: any) => {
                                                     if (p.id_toko && tID) return p.id_toko === tID;
@@ -904,24 +921,36 @@ function GanttBoard() {
                                                     const matchLingkup = !p.lingkup_pekerjaan || !toko.lingkup_pekerjaan || (p.lingkup_pekerjaan?.toUpperCase() === toko.lingkup_pekerjaan?.toUpperCase());
                                                     return matchUlok && matchLingkup;
                                                 });
+                                                const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
+                                                
+                                                if (!uniqueMap.has(val)) {
+                                                    uniqueMap.set(val, { toko, ganttMatch, val });
+                                                }
+                                            });
+                                            
+                                            const dedupedList = Array.from(uniqueMap.values());
+                                            
+                                            if (dedupedList.length === 0) {
+                                                return (
+                                                    <div className="px-2 py-4 text-center text-sm text-slate-500">
+                                                        Pencarian tidak ditemukan
+                                                    </div>
+                                                );
+                                            }
+
+                                            return dedupedList.map(({ toko, ganttMatch, val }) => {
                                                 const ulok = formatUlokWithDash(toko.nomor_ulok);
                                                 const label = [ulok, toko.nama_toko, toko.cabang, toko.lingkup_pekerjaan]
                                                     .filter(Boolean).join(' · ');
                                                 const statusBadge = ganttMatch?.status === 'terkunci' ? ' (Terkunci)' : (ganttMatch?.status === 'active' ? ' (Aktif)' : '');
-                                                
-                                                const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
                                                 
                                                 return (
                                                     <SelectItem key={val} value={val}>
                                                         {label || ulok}{statusBadge}
                                                     </SelectItem>
                                                 );
-                                            })
-                                        ) : (
-                                            <div className="px-2 py-4 text-center text-sm text-slate-500">
-                                                Pencarian tidak ditemukan
-                                            </div>
-                                        )}
+                                            });
+                                        })()}
                                     </SelectContent>
                                 </Select>
                             )}

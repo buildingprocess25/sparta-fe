@@ -2258,6 +2258,7 @@ export type ProjekPlanningItem = {
     link_gambar_kerja_final: string | null;
     link_gambar_kerja_final_sipil?: string | null;
     link_gambar_kerja_final_me?: string | null;
+    link_pdf: string | null;
     is_ruko: boolean;
     jumlah_lantai: number | null;
     status: string;
