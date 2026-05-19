@@ -608,7 +608,7 @@ const normalizeProjekPlanningDocs = (items: ProjekPlanningItem[]): NormalizedDoc
         email_pembuat:   p.email_pembuat ?? '-',
         total_nilai:     parseCurrency(p.estimasi_biaya),
         created_at:      p.created_at,
-        link_pdf:        null,
+        link_pdf:        p.link_pdf ?? null,
         jenis_proyek:    p.jenis_proyek ?? undefined,
         jenis_pengajuan: p.jenis_pengajuan ?? undefined,
         nama_pengaju:    p.nama_pengaju ?? undefined,
