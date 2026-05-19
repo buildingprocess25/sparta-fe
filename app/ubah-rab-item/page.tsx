@@ -136,7 +136,10 @@ export default function UbahRabItemPage() {
 
     const userCabang = user.cabang.toUpperCase();
     if (user.isHO) {
-      const allCabang = Array.from(new Set(Object.values(BRANCH_GROUPS).flat())).sort();
+      const allCabang = Array.from(new Set([
+        "HEAD OFFICE",
+        ...Object.values(BRANCH_GROUPS).flat()
+      ])).sort();
       setCabangOptions(allCabang);
     } else {
       const group = Object.values(BRANCH_GROUPS).find(g => g.includes(userCabang));
