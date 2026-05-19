@@ -104,15 +104,21 @@ export default function LoginPage() {
 
     try {
       const userList = await fetchUserCabangList({ email_sat: emailFromAPI });
-      if (userList?.data && userList.data.length > 1) {
-        setAvailableRoles(userList.data);
+      
+      // Filter list role yang didapat berdasarkan password/cabang yang dimasukkan saat login
+      const filteredUsers = userList?.data ? userList.data.filter((u: any) => 
+        (u.cabang || "").trim().toUpperCase() === fallbackCabang.trim().toUpperCase()
+      ) : [];
+
+      if (filteredUsers.length > 1) {
+        setAvailableRoles(filteredUsers);
         setPendingLoginData({ emailFromAPI, cabangFromAPI, namaPtFromAPI, mappedRole, result });
         setIsLoading(false);
         setRoleSelectOpen(true);
         return;
-      } else if (userList?.data && userList.data.length === 1) {
-        const realName = userList.data[0].nama_lengkap;
-        const realJabatan = userList.data[0].jabatan;
+      } else if (filteredUsers.length === 1) {
+        const realName = filteredUsers[0].nama_lengkap;
+        const realJabatan = filteredUsers[0].jabatan;
         sessionStorage.setItem("nama_lengkap", realName);
 
         let realMappedRole = realJabatan;
