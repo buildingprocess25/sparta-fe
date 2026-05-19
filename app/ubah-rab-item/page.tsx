@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Download, Plus, Save, Trash2, Upload, Info, FileSpreadsheet, Search } from "lucide-react";
 import { useSession } from "@/context/SessionContext";
-import { BRANCH_GROUPS, ME_CATEGORIES, SIPIL_CATEGORIES } from "@/lib/constants";
+import { BRANCH_GROUPS, ME_CATEGORIES, SIPIL_CATEGORIES, BRANCH_TO_ULOK } from "@/lib/constants";
 import {
   fetchPricesData,
   fetchRABDetail,
@@ -152,7 +152,7 @@ export default function UbahRabItemPage() {
     if (user.isHO) {
       const allCabang = Array.from(new Set([
         "HEAD OFFICE",
-        ...Object.values(BRANCH_GROUPS).flat()
+        ...Object.keys(BRANCH_TO_ULOK)
       ])).sort();
       setCabangOptions(allCabang);
     } else {
