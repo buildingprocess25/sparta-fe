@@ -17,7 +17,7 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { PHOTO_POINTS, ALL_POINTS, TOTAL_PHOTOS, FLOOR_IMAGES, PAGE_LABELS, type PhotoPoint } from './photoPoints';
 import CameraModal from './CameraModal';
-import { submitDokumentasiBangunan, fetchRABList } from '@/lib/api';
+import { submitDokumentasiBangunan, fetchRABList, fetchDokumentasiBangunanList } from '@/lib/api';
 
 
 // =============================================================================
@@ -70,15 +70,22 @@ export default function FTDokumenPage() {
         const loadUlokData = async () => {
             setIsLoadingUlok(true);
             try {
-                // Ambil data dari RAB
-                const res = await fetchRABList();
-                const rabList = res.data || [];
+                // Ambil data dari RAB dan Dokumentasi Bangunan
+                const [rabRes, dokRes] = await Promise.all([
+                    fetchRABList(),
+                    fetchDokumentasiBangunanList()
+                ]);
+                const rabList = rabRes.data || [];
+                const dokList = dokRes.data || [];
+
+                // Kumpulkan ULOK yang sudah pernah submit
+                const submittedUloks = new Set(dokList.map((d: any) => d.nomor_ulok));
 
                 const grouped: Record<string, UlokOption> = {};
 
                 for (const rab of rabList) {
                     const ulok = rab.nomor_ulok || rab.toko?.nomor_ulok;
-                    if (!ulok) continue;
+                    if (!ulok || submittedUloks.has(ulok)) continue;
 
                     // Filter based on user branch
                     const rabCabang = rab.cabang || rab.toko?.cabang || '';
