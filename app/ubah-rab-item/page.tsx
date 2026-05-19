@@ -501,7 +501,7 @@ export default function UbahRabItemPage() {
                   <SelectTrigger className="h-10 focus:ring-red-500">
                     <SelectValue placeholder="Pilih Nomor ULOK" />
                   </SelectTrigger>
-                  <SelectContent position="popper">
+                  <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
                     <div className="px-2 pb-2 pt-2 sticky top-0 bg-white z-10 border-b border-slate-100 mb-1">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-2 h-4 w-4 text-slate-500" />

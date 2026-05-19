@@ -898,7 +898,7 @@ function GanttBoard() {
                                     <SelectTrigger className="h-12 w-full text-base focus:ring-blue-500 font-medium text-slate-700 bg-white">
                                         <SelectValue placeholder="-- Pilih Proyek / RAB Anda --" />
                                     </SelectTrigger>
-                                    <SelectContent position="popper">
+                                    <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
                                         <div className="px-2 pb-2 pt-2 sticky top-0 bg-white z-10 border-b border-slate-100 mb-1">
                                             <div className="relative">
                                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />

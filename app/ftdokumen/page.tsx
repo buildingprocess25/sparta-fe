@@ -316,7 +316,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                     <SelectTrigger className="bg-white h-auto min-h-10 whitespace-normal wrap-break-word text-left">
                                         <SelectValue placeholder="-- Pilih Nomor ULOK --" />
                                     </SelectTrigger>
-                                    <SelectContent className="max-w-[90vw] sm:max-w-100 max-h-80">
+                                    <SelectContent position="popper" side="bottom" className="max-w-[90vw] sm:max-w-100 max-h-75 w-(--radix-select-trigger-width)">
                                         <div className="p-2 sticky top-0 bg-white z-10 border-b border-slate-100">
                                             <div className="relative">
                                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
