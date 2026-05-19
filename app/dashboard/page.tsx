@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import AppNavbar from '@/components/AppNavbar';
-import { ALL_MENUS, ROLE_CONFIG, BRANCH_GROUPS } from '@/lib/constants';
+import { ALL_MENUS, ROLE_CONFIG, BRANCH_GROUPS, canAccessProjectPlanningByCabang } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
 import { fetchDashboardAll, fetchRABDetail, fetchOpnameList } from '@/lib/api';
 import { 
@@ -99,6 +99,10 @@ export default function DashboardPage() {
 
         if (userCabang.toUpperCase() === 'MANADO' && roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER')) {
             allowedIds.push("menu-inputpic");
+        }
+
+        if (!canAccessProjectPlanningByCabang(userCabang)) {
+            allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
         }
 
         const menuList = ALL_MENUS.filter(m => allowedIds.includes(m.id));

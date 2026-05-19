@@ -185,6 +185,9 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 };
 
+export const canAccessProjectPlanningByCabang = (cabang?: string | null): boolean =>
+    String(cabang ?? "").trim().toUpperCase() === "HEAD OFFICE";
+
 // -----------------------------------------------------------------------------
 // KATEGORI PEKERJAAN
 // Digunakan untuk validasi dan tampilan form RAB / Opname.

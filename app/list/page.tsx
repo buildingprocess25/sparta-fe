@@ -32,7 +32,7 @@ import {
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
-import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles } from '@/lib/constants';
+import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles, canAccessProjectPlanningByCabang } from '@/lib/constants';
 
 // =============================================================================
 // TYPES
@@ -667,8 +667,8 @@ export default function DaftarDokumenPage() {
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     // --- SPK Intervention (Super Human only) ---
+    const [showSpkInterventionModal, setShowSpkInterventionModal] = useState(false);
     const [spkInterventionStatus, setSpkInterventionStatus] = useState<'WAITING_FOR_BM_APPROVAL' | 'SPK_APPROVED' | 'SPK_REJECTED'>('SPK_REJECTED');
-    const [spkInterventionReason, setSpkInterventionReason] = useState('');
     const [isInterveningSPK, setIsInterveningSPK] = useState(false);
 
     // =========================================================================
@@ -710,6 +710,10 @@ export default function DaftarDokumenPage() {
     // LOAD LIST
     // =========================================================================
     const loadList = useCallback(async (kategori: DokumenKategori) => {
+        if (kategori === 'PROJECT_PLANNING' && !canAccessProjectPlanningByCabang(sessionStorage.getItem('loggedInUserCabang') || '')) {
+            showToast('Project Planning sementara hanya dapat diakses oleh user cabang HEAD OFFICE.', 'error');
+            return;
+        }
         setIsLoading(true);
         setSearchQuery('');
         setStatusFilter('');
@@ -1156,6 +1160,12 @@ export default function DaftarDokumenPage() {
         { value: 'Ditolak oleh Direktur', label: 'Ditolak oleh Direktur' },
     ];
 
+    const SPK_STATUS_OPTIONS: Array<{ value: 'WAITING_FOR_BM_APPROVAL' | 'SPK_APPROVED' | 'SPK_REJECTED'; label: string }> = [
+        { value: 'SPK_REJECTED', label: 'Ditolak untuk Revisi' },
+        { value: 'WAITING_FOR_BM_APPROVAL', label: 'Menunggu Persetujuan Branch Manager' },
+        { value: 'SPK_APPROVED', label: 'Disetujui' },
+    ];
+
     const handleUpdateRABStatus = useCallback(async () => {
         if (!selectedDetail || !selectedNewStatus || !selectedDetail.id_toko) return;
         setIsUpdatingStatus(true);
@@ -1182,10 +1192,6 @@ export default function DaftarDokumenPage() {
 
     const handleInterveneSPKStatus = useCallback(async () => {
         if (!selectedDetail || selectedDetail.tipe !== 'SPK') return;
-        if (!spkInterventionReason.trim()) {
-            showToast('Alasan intervensi wajib diisi.', 'error');
-            return;
-        }
         if (selectedDetail.status === spkInterventionStatus) {
             showToast('Status SPK sudah sama dengan target intervensi.', 'error');
             return;
@@ -1194,15 +1200,13 @@ export default function DaftarDokumenPage() {
         setIsInterveningSPK(true);
         const oldStatus = selectedDetail.status;
         const targetStatus = spkInterventionStatus;
-        const reason = spkInterventionReason.trim();
-        const logReason = `[INTERVENSI SUPER HUMAN] ${oldStatus} -> ${targetStatus}. ${reason}`;
+        const logReason = `[INTERVENSI SUPER HUMAN] ${oldStatus} -> ${targetStatus}`;
 
         try {
             await interveneSPKStatus(selectedDetail.id, {
                 actor_email: userInfo.email,
                 actor_role: userInfo.role,
                 target_status: targetStatus,
-                alasan_intervensi: reason,
             });
 
             const fresh = await fetchSPKDetail(selectedDetail.id).catch(() => null);
@@ -1237,14 +1241,14 @@ export default function DaftarDokumenPage() {
                     ? { ...d, status: targetStatus, link_pdf: targetStatus === 'SPK_APPROVED' ? d.link_pdf : null }
                     : d
             ));
-            setSpkInterventionReason('');
+            setShowSpkInterventionModal(false);
             showToast(`Intervensi SPK berhasil: ${oldStatus} menjadi ${targetStatus}.`, 'success');
         } catch (err: any) {
             showToast(err.message || 'Gagal melakukan intervensi SPK.', 'error');
         } finally {
             setIsInterveningSPK(false);
         }
-    }, [selectedDetail, spkInterventionReason, spkInterventionStatus, showToast, userInfo.email, userInfo.role]);
+    }, [selectedDetail, spkInterventionStatus, showToast, userInfo.email, userInfo.role]);
 
     // =========================================================================
     // FILTERED LIST
@@ -1386,6 +1390,79 @@ export default function DaftarDokumenPage() {
                 </div>
             )}
 
+            {/* SPK STATUS INTERVENTION MODAL (SUPER HUMAN ONLY) */}
+            {showSpkInterventionModal && selectedDetail && selectedDetail.tipe === 'SPK' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="px-6 py-4 bg-linear-to-r from-red-50 to-red-100/50 border-b border-red-100">
+                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-red-500" />
+                                Ubah Status SPK
+                            </h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                                {selectedDetail.nama_toko} — {selectedDetail.nomor_ulok}
+                            </p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <p className="text-sm font-medium text-slate-600 mb-1">Status Saat Ini</p>
+                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
+                                    {getStatusLabel(selectedDetail.status)}
+                                </Badge>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-slate-600 mb-2 block">Ubah Menjadi</label>
+                                <div className="space-y-2">
+                                    {SPK_STATUS_OPTIONS.map(opt => (
+                                        <label
+                                            key={opt.value}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                                spkInterventionStatus === opt.value
+                                                    ? 'border-red-400 bg-red-50'
+                                                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                                            } ${selectedDetail.status === opt.value ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="spk-status"
+                                                value={opt.value}
+                                                checked={spkInterventionStatus === opt.value}
+                                                disabled={selectedDetail.status === opt.value}
+                                                onChange={() => setSpkInterventionStatus(opt.value)}
+                                                className="accent-red-500"
+                                            />
+                                            <span className="text-sm font-medium text-slate-700">{opt.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => setShowSpkInterventionModal(false)}
+                                    disabled={isInterveningSPK}
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                    disabled={selectedDetail.status === spkInterventionStatus || isInterveningSPK}
+                                    onClick={handleInterveneSPKStatus}
+                                >
+                                    {isInterveningSPK ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <AlertTriangle className="w-4 h-4 mr-2" />
+                                    )}
+                                    {isInterveningSPK ? 'Memproses...' : 'Konfirmasi'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* NAVBAR */}
             <AppNavbar
                 title={selectedKategori ? `Dokumen ${KATEGORI_CONFIG[selectedKategori].label}` : 'Daftar Dokumen'}
@@ -1418,6 +1495,7 @@ export default function DaftarDokumenPage() {
                                 if (isPPOnly && kat !== 'PROJECT_PLANNING') return false;
                                 // Hide PROJECT_PLANNING dari KONTRAKTOR dan DIREKTUR
                                 if (kat === 'PROJECT_PLANNING' && (isContractor || isDirektur)) return false;
+                                if (kat === 'PROJECT_PLANNING' && !canAccessProjectPlanningByCabang(userInfo.cabang)) return false;
                                 return true;
                             }).map(kat => {
                                 const cfg = KATEGORI_CONFIG[kat];
@@ -1709,6 +1787,20 @@ export default function DaftarDokumenPage() {
                                                         <AlertTriangle className="w-3 h-3 mr-1" /> Ubah Status
                                                     </Button>
                                                 )}
+                                                {isSuperHuman && selectedDetail.tipe === 'SPK' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="border-red-200 text-red-600 hover:bg-red-50 text-xs h-7"
+                                                        onClick={() => {
+                                                            const nextStatus = selectedDetail.status === 'SPK_REJECTED' ? 'WAITING_FOR_BM_APPROVAL' : 'SPK_REJECTED';
+                                                            setSpkInterventionStatus(nextStatus);
+                                                            setShowSpkInterventionModal(true);
+                                                        }}
+                                                    >
+                                                        <AlertTriangle className="w-3 h-3 mr-1" /> Ubah Status
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1984,48 +2076,6 @@ export default function DaftarDokumenPage() {
                                                 <p className="text-sm font-bold text-red-700">Alasan Penolakan</p>
                                                 <p className="text-sm text-red-600 mt-1">{selectedDetail.alasan_penolakan}</p>
                                             </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Super Human Intervention (SPK) */}
-                                {selectedDetail.tipe === 'SPK' && isSuperHuman && (
-                                    <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-6">
-                                        <div className="flex items-start gap-3 mb-5">
-                                            <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
-                                                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-bold text-slate-800">Intervensi Super Human</h4>
-                                                <p className="text-sm text-slate-500 mt-1">
-                                                    Ubah status SPK untuk membuka revisi atau mengembalikan proses approval. PDF approved lama akan dibersihkan saat status dikembalikan/reject.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr_auto] gap-3 items-start">
-                                            <select
-                                                value={spkInterventionStatus}
-                                                onChange={(e) => setSpkInterventionStatus(e.target.value as 'WAITING_FOR_BM_APPROVAL' | 'SPK_APPROVED' | 'SPK_REJECTED')}
-                                                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                                            >
-                                                <option value="SPK_REJECTED">Reject untuk revisi</option>
-                                                <option value="WAITING_FOR_BM_APPROVAL">Kembalikan ke Approval BM</option>
-                                                <option value="SPK_APPROVED">Setujui paksa</option>
-                                            </select>
-                                            <textarea
-                                                value={spkInterventionReason}
-                                                onChange={(e) => setSpkInterventionReason(e.target.value)}
-                                                placeholder="Alasan intervensi, contoh: Ada perubahan nilai kontrak, wajib revisi ulang."
-                                                className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                                            />
-                                            <Button
-                                                className="h-11 bg-amber-600 hover:bg-amber-700 text-white"
-                                                disabled={isInterveningSPK || selectedDetail.status === spkInterventionStatus || !spkInterventionReason.trim()}
-                                                onClick={handleInterveneSPKStatus}
-                                            >
-                                                {isInterveningSPK ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                                Proses
-                                            </Button>
                                         </div>
                                     </div>
                                 )}

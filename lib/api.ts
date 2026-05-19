@@ -1323,7 +1323,7 @@ export type SPKInterventionPayload = {
     actor_email: string;
     actor_role: string;
     target_status: "WAITING_FOR_BM_APPROVAL" | "SPK_APPROVED" | "SPK_REJECTED";
-    alasan_intervensi: string;
+    alasan_intervensi?: string;
 };
 
 // --- Fungsi ---
@@ -1437,7 +1437,7 @@ export const interveneSPKStatus = async (
     if (res.status === 403) throw new Error(result.message || "Akses intervensi hanya untuk Super Human.");
     if (res.status === 404) throw new Error("Data SPK tidak ditemukan.");
     if (res.status === 409) throw new Error(result.message || "Status SPK sudah sama.");
-    if (res.status === 422) throw new Error(result.message || "Alasan intervensi wajib diisi.");
+    if (res.status === 422) throw new Error(result.message || "Validasi intervensi SPK gagal.");
     if (!res.ok) throw new Error(result.message || `Gagal melakukan intervensi SPK (${res.status}).`);
     return result;
 };
@@ -2711,4 +2711,3 @@ export const processPpApproval2 = async (id: number, payload: {
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval final PP.");
     return result;
 };
-

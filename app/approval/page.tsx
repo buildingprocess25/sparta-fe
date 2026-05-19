@@ -448,7 +448,7 @@ export default function ApprovalPage() {
 
         // Find all accessible types across all roles
         const allAccessibleTypes = new Set<ApprovalType>();
-        if (isProjectPlanningApprovalRole && !isSuperHuman) {
+        if (isProjectPlanningApprovalRole && isHO && !isSuperHuman) {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isHO || isSuperHuman) {
             // HO dan Super Human melihat semua tipe approval
@@ -465,6 +465,9 @@ export default function ApprovalPage() {
                     }
                 });
             });
+        }
+        if (isHO && roles.some(r => ROLE_ACCESS.PROJECT_PLANNING.some(allowedRole => allowedRole.toUpperCase() === r))) {
+            allAccessibleTypes.add('PROJECT_PLANNING');
         }
 
         const typesArr = Array.from(allAccessibleTypes);
@@ -567,6 +570,7 @@ export default function ApprovalPage() {
                     .filter(Boolean);
 
                 if (type === 'PROJECT_PLANNING') {
+                    if (!isHOUser) return false;
                     if (isSuperHumanUser) {
                         return !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper);
                     }
