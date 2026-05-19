@@ -1,3 +1,4 @@
+// app/ubah-rab-item/page.tsx
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Download, Plus, Save, Trash2, Upload } from "lucide-react";
+import { Download, Plus, Save, Trash2, Upload, Info, FileSpreadsheet } from "lucide-react";
 import { useSession } from "@/context/SessionContext";
 import { BRANCH_GROUPS, ME_CATEGORIES, SIPIL_CATEGORIES } from "@/lib/constants";
 import {
@@ -128,10 +129,10 @@ export default function UbahRabItemPage() {
   };
 
   const getAlertStyle = () => {
-    if (alertMessage.type === "error") return { bgIcon: "bg-red-100 text-red-600", btn: "bg-red-600 hover:bg-red-700" };
-    if (alertMessage.type === "warning") return { bgIcon: "bg-amber-100 text-amber-600", btn: "bg-amber-500 hover:bg-amber-600" };
-    if (alertMessage.type === "success") return { bgIcon: "bg-green-100 text-green-600", btn: "bg-green-600 hover:bg-green-700" };
-    return { bgIcon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700" };
+    if (alertMessage.type === "error") return { bgIcon: "bg-red-100 text-red-600", btn: "bg-red-600 hover:bg-red-700 focus:ring-red-600" };
+    if (alertMessage.type === "warning") return { bgIcon: "bg-amber-100 text-amber-600", btn: "bg-amber-500 hover:bg-amber-600 focus:ring-amber-500" };
+    if (alertMessage.type === "success") return { bgIcon: "bg-green-100 text-green-600", btn: "bg-green-600 hover:bg-green-700 focus:ring-green-600" };
+    return { bgIcon: "bg-blue-100 text-blue-600", btn: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-600" };
   };
 
   useEffect(() => {
@@ -201,8 +202,6 @@ export default function UbahRabItemPage() {
 
         const rows: RowItem[] = (detailRes.data.items || []).map((item) => {
           const tempId = `id-${item.id}`;
-          const isMatCond = false;
-          const isUpahCond = false;
           return {
             tempId,
             id: item.id,
@@ -215,7 +214,7 @@ export default function UbahRabItemPage() {
             totalMaterial: Number(item.total_material) || 0,
             totalUpah: Number(item.total_upah) || 0,
             totalHarga: Number(item.total_harga) || 0,
-            isKondisional: isMatCond || isUpahCond,
+            isKondisional: false,
             catatan: item.catatan || ""
           };
         });
@@ -306,18 +305,7 @@ export default function UbahRabItemPage() {
   };
 
   const downloadTemplate = () => {
-    const header = [
-      "kategori_pekerjaan",
-      "jenis_pekerjaan",
-      "satuan",
-      "volume",
-      "harga_material",
-      "harga_upah",
-      "total_material",
-      "total_upah",
-      "total_harga",
-      "catatan"
-    ];
+    const header = ["kategori_pekerjaan", "jenis_pekerjaan", "satuan", "volume", "harga_material", "harga_upah", "total_material", "total_upah", "total_harga", "catatan"];
     const sample = ["PEKERJAAN PERSIAPAN", "Contoh Item", "Ls", "1", "0", "0", "0", "0", "0", ""];
     const csv = `${header.join(",")}\n${sample.join(",")}\n`;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -346,14 +334,11 @@ export default function UbahRabItemPage() {
 
     const headers = rows[0].map(normalizeHeader);
     const dataRows = rows.slice(1);
-
     const parsed: RowItem[] = [];
 
     dataRows.forEach((cells, idx) => {
       const row: Record<string, string> = {};
-      headers.forEach((header, i) => {
-        row[header] = cells[i] ? cells[i].trim() : "";
-      });
+      headers.forEach((header, i) => { row[header] = cells[i] ? cells[i].trim() : ""; });
 
       const kategori = row.kategori_pekerjaan || "";
       const jenis = row.jenis_pekerjaan || "";
@@ -386,7 +371,6 @@ export default function UbahRabItemPage() {
         if (!row.harga_upah) baseRow.hargaUpah = (isMatCond || isUpahCond) ? 0 : Number(itemData["Harga Upah"]) || 0;
         if (baseRow.satuan === "Ls" && !row.volume) baseRow.volume = 1;
       }
-
       parsed.push(baseRow);
     });
 
@@ -394,7 +378,6 @@ export default function UbahRabItemPage() {
       showAlert("Peringatan", "Tidak ada baris CSV yang valid.", "warning");
       return;
     }
-
     setTableRows(parsed);
     setReplaceMode(true);
   };
@@ -422,7 +405,7 @@ export default function UbahRabItemPage() {
       }));
 
     if (itemsPayload.length === 0) {
-      showAlert("Peringatan", "Minimal harus ada 1 item dengan volume.", "warning");
+      showAlert("Peringatan", "Minimal harus ada 1 item dengan volume > 0.", "warning");
       return;
     }
 
@@ -433,7 +416,7 @@ export default function UbahRabItemPage() {
       } else {
         const missingId = itemsPayload.some(item => !item.id);
         if (missingId) {
-          showAlert("Peringatan", "Ada item baru tanpa ID. Gunakan replace untuk menyimpan.", "warning");
+          showAlert("Peringatan", "Ada item baru tanpa ID. Gunakan mode replace untuk menyimpan secara menyeluruh.", "warning");
           setLoading(false);
           return;
         }
@@ -470,60 +453,76 @@ export default function UbahRabItemPage() {
   const alertStyle = getAlertStyle();
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-800 pb-10">
       <AppNavbar title="Ubah RAB Item" showBackButton backHref="/dashboard" />
 
-      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-5">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Pilih ULOK</CardTitle>
+      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        {/* SECTION: FILTER & SELECTION */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="pb-4 border-b border-slate-100">
+            <CardTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-red-600" />
+              Pemilihan ULOK
+            </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label>Cabang</Label>
-              <Select value={selectedCabang} onValueChange={setSelectedCabang}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Pilih Cabang" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cabangOptions.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <Label>Nomor ULOK</Label>
-              <Select
-                value={selectedRabId ? String(selectedRabId) : ""}
-                onValueChange={(val) => setSelectedRabId(val ? Number(val) : null)}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Pilih ULOK" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rabOptions.map(item => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.nomor_ulok} {item.nama_toko ? `- ${item.nama_toko}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {rabDetail?.toko && (
-              <div className="md:col-span-3 text-xs text-slate-500">
-                {rabDetail.toko.nama_toko || "-"} | {rabDetail.toko.cabang || "-"} | Lingkup: {rabDetail.toko.lingkup_pekerjaan || "-"}
+          <CardContent className="pt-5">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+              <div className="md:col-span-4 space-y-1.5">
+                <Label className="text-sm font-medium text-slate-700">Cabang</Label>
+                <Select value={selectedCabang} onValueChange={setSelectedCabang}>
+                  <SelectTrigger className="h-10 focus:ring-red-500">
+                    <SelectValue placeholder="Pilih Cabang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cabangOptions.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <div className="md:col-span-8 space-y-1.5">
+                <Label className="text-sm font-medium text-slate-700">Nomor ULOK / Pekerjaan</Label>
+                <Select
+                  value={selectedRabId ? String(selectedRabId) : ""}
+                  onValueChange={(val) => setSelectedRabId(val ? Number(val) : null)}
+                  disabled={!selectedCabang || loading}
+                >
+                  <SelectTrigger className="h-10 focus:ring-red-500">
+                    <SelectValue placeholder="Pilih Nomor ULOK" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rabOptions.map(item => (
+                      <SelectItem key={item.id} value={String(item.id)}>
+                        <span className="font-medium">{item.nomor_ulok}</span>
+                        {item.nama_toko && <span className="text-slate-500 ml-1">- {item.nama_toko}</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* INFO BOX TOKO */}
+              {rabDetail?.toko && (
+                <div className="md:col-span-12 mt-2 bg-blue-50/50 border border-blue-100 rounded-lg p-3.5 flex items-start md:items-center flex-col md:flex-row gap-2 md:gap-4 text-sm text-slate-700">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5 md:mt-0" />
+                  <div className="flex flex-wrap gap-x-6 gap-y-1">
+                    <p><span className="text-slate-500">Toko:</span> <span className="font-medium text-slate-900">{rabDetail.toko.nama_toko || "-"}</span></p>
+                    <p><span className="text-slate-500">Cabang:</span> <span className="font-medium text-slate-900">{rabDetail.toko.cabang || "-"}</span></p>
+                    <p><span className="text-slate-500">Lingkup:</span> <span className="font-medium text-slate-900">{rabDetail.toko.lingkup_pekerjaan || "-"}</span></p>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <CardTitle className="text-base">Item RAB</CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="gap-1.5 h-8 text-xs" onClick={downloadTemplate}>
-                <Download className="w-3.5 h-3.5" /> Download Template CSV
+        {/* SECTION: TABLE RAB */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-4 border-b border-slate-100">
+            <CardTitle className="text-lg font-semibold text-slate-800">Detail Item Pekerjaan</CardTitle>
+            <div className="flex flex-wrap gap-2.5">
+              <Button variant="outline" className="gap-2 h-9 text-sm border-slate-300 hover:bg-slate-50" onClick={downloadTemplate}>
+                <Download className="w-4 h-4 text-slate-500" /> Unduh Template CSV
               </Button>
               <input
                 ref={fileInputRef}
@@ -538,46 +537,48 @@ export default function UbahRabItemPage() {
               />
               <Button
                 variant="outline"
-                className="gap-1.5 h-8 text-xs"
+                className="gap-2 h-9 text-sm border-slate-300 hover:bg-slate-50"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!selectedRabId}
               >
-                <Upload className="w-3.5 h-3.5" /> Replace via CSV
+                <Upload className="w-4 h-4 text-slate-500" /> Replace CSV
               </Button>
-              <Button className="gap-1.5 h-8 text-xs bg-red-600 hover:bg-red-700" onClick={addRow} disabled={!selectedRabId}>
-                <Plus className="w-3.5 h-3.5" /> Tambah Item
+              <Button className="gap-2 h-9 text-sm bg-red-600 hover:bg-red-700 shadow-sm" onClick={addRow} disabled={!selectedRabId}>
+                <Plus className="w-4 h-4" /> Tambah Item
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+
+          <CardContent className="pt-5 p-0 sm:p-6">
             {replaceMode && (
-              <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                Mode replace aktif: item baru akan mengganti seluruh item RAB.
+              <div className="mb-4 text-sm text-amber-800 bg-amber-50/80 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2 mx-4 sm:mx-0">
+                <Info className="w-4 h-4 text-amber-600" />
+                <span><strong>Mode Replace Aktif:</strong> Data lama akan ditimpa seluruhnya dengan susunan baris ini saat disimpan.</span>
               </div>
             )}
 
-            <div className="overflow-x-auto border rounded-lg bg-white">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 border-b">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 mx-4 sm:mx-0">
+              <table className="w-full text-sm text-left whitespace-nowrap">
+                <thead className="bg-slate-100/80 text-slate-600 font-medium border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-2.5 py-2 font-semibold">Kategori</th>
-                    <th className="text-left px-2.5 py-2 font-semibold">Item</th>
-                    <th className="text-left px-2.5 py-2 font-semibold">Satuan</th>
-                    <th className="text-left px-2.5 py-2 font-semibold">Volume</th>
-                    <th className="text-left px-2.5 py-2 font-semibold">Harga Material</th>
-                    <th className="text-left px-2.5 py-2 font-semibold">Harga Upah</th>
-                    <th className="text-left px-2.5 py-2 font-semibold">Catatan</th>
-                    <th className="text-right px-2.5 py-2 font-semibold">Total</th>
-                    <th className="text-center px-2.5 py-2 font-semibold">Aksi</th>
+                    <th className="px-3 py-3 w-[15%]">Kategori</th>
+                    <th className="px-3 py-3 w-[25%]">Jenis Pekerjaan</th>
+                    <th className="px-3 py-3 w-[8%]">Satuan</th>
+                    <th className="px-3 py-3 w-[10%]">Volume</th>
+                    <th className="px-3 py-3 w-[12%]">Harga Material</th>
+                    <th className="px-3 py-3 w-[12%]">Harga Upah</th>
+                    <th className="px-3 py-3 w-[12%]">Catatan</th>
+                    <th className="px-3 py-3 w-[15%] text-right">Total Harga</th>
+                    <th className="px-3 py-3 w-[5%] text-center">Aksi</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100 bg-white">
                   {tableRows.map(row => (
-                    <tr key={row.tempId} className="border-b last:border-b-0">
-                      <td className="px-2.5 py-2 min-w-48">
+                    <tr key={row.tempId} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-3 py-2.5">
                         <Select value={row.category} onValueChange={(val) => updateRow(row.tempId, "category", val)}>
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Kategori" />
+                          <SelectTrigger className="h-9 w-full min-w-35 focus:ring-red-500">
+                            <SelectValue placeholder="Pilih Kategori" />
                           </SelectTrigger>
                           <SelectContent>
                             {activeCategories.map(cat => (
@@ -586,10 +587,10 @@ export default function UbahRabItemPage() {
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="px-2.5 py-2 min-w-60">
+                      <td className="px-3 py-2.5">
                         <Select value={row.jenisPekerjaan} onValueChange={(val) => updateRow(row.tempId, "jenisPekerjaan", val)}>
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Pilih item" />
+                          <SelectTrigger className="h-9 w-full min-w-50 focus:ring-red-500">
+                            <SelectValue placeholder="Pilih Pekerjaan" />
                           </SelectTrigger>
                           <SelectContent>
                             {(prices[row.category] || []).map((item: any) => (
@@ -600,62 +601,77 @@ export default function UbahRabItemPage() {
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="px-2.5 py-2 min-w-20">
+                      <td className="px-3 py-2.5">
                         <Input
                           value={row.satuan}
                           onChange={(e) => updateRow(row.tempId, "satuan", e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-9 w-full min-w-17.5 focus-visible:ring-red-500"
+                          placeholder="Satuan"
                         />
                       </td>
-                      <td className="px-2.5 py-2 min-w-24">
+                      <td className="px-3 py-2.5">
                         <Input
                           type="number"
                           min="0"
                           step="0.01"
-                          value={row.volume}
-                          onChange={(e) => updateRow(row.tempId, "volume", Number(e.target.value))}
-                          className="h-8 text-xs"
+                          value={row.volume || ""}
+                          onChange={(e) => updateRow(row.tempId, "volume", e.target.valueAsNumber || 0)}
+                          className="h-9 w-full min-w-20 focus-visible:ring-red-500"
                         />
                       </td>
-                      <td className="px-2.5 py-2 min-w-28">
+                      <td className="px-3 py-2.5">
                         <Input
                           type="number"
                           min="0"
-                          value={row.hargaMaterial}
-                          onChange={(e) => updateRow(row.tempId, "hargaMaterial", Number(e.target.value))}
-                          className="h-8 text-xs"
+                          value={row.hargaMaterial || ""}
+                          onChange={(e) => updateRow(row.tempId, "hargaMaterial", e.target.valueAsNumber || 0)}
+                          disabled={row.isKondisional}
+                          className="h-9 w-full min-w-27.5 focus-visible:ring-red-500 disabled:bg-slate-100 disabled:text-slate-400"
                         />
                       </td>
-                      <td className="px-2.5 py-2 min-w-28">
+                      <td className="px-3 py-2.5">
                         <Input
                           type="number"
                           min="0"
-                          value={row.hargaUpah}
-                          onChange={(e) => updateRow(row.tempId, "hargaUpah", Number(e.target.value))}
-                          className="h-8 text-xs"
+                          value={row.hargaUpah || ""}
+                          onChange={(e) => updateRow(row.tempId, "hargaUpah", e.target.valueAsNumber || 0)}
+                          disabled={row.isKondisional}
+                          className="h-9 w-full min-w-27.5 focus-visible:ring-red-500 disabled:bg-slate-100 disabled:text-slate-400"
                         />
                       </td>
-                      <td className="px-2.5 py-2 min-w-32">
+                      <td className="px-3 py-2.5">
                         <Input
                           value={row.catatan}
                           onChange={(e) => updateRow(row.tempId, "catatan", e.target.value)}
-                          className="h-8 text-xs"
+                          className="h-9 w-full min-w-35 focus-visible:ring-red-500"
+                          placeholder="Catatan..."
                         />
                       </td>
-                      <td className="px-2.5 py-2 text-right text-xs font-semibold">
+                      <td className="px-3 py-2.5 text-right font-semibold text-slate-700">
                         {toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}
                       </td>
-                      <td className="px-2.5 py-2 text-center">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeRow(row.tempId)}>
-                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                      <td className="px-3 py-2.5 text-center">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" 
+                          onClick={() => removeRow(row.tempId)}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </td>
                     </tr>
                   ))}
+
+                  {/* EMPTY STATE */}
                   {tableRows.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="text-center text-slate-400 py-6">
-                        Pilih ULOK untuk menampilkan item.
+                      <td colSpan={9} className="py-12 text-center text-slate-500 bg-slate-50/50">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <FileSpreadsheet className="w-10 h-10 text-slate-300" />
+                          <p className="text-sm font-medium">Belum ada item untuk ditampilkan</p>
+                          <p className="text-xs text-slate-400">Pilih ULOK terlebih dahulu atau Tambah Item secara manual.</p>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -663,29 +679,41 @@ export default function UbahRabItemPage() {
               </table>
             </div>
 
-            <div className="flex justify-end mt-4">
-              <Button className="gap-2 bg-red-600 hover:bg-red-700" onClick={handleSave} disabled={!selectedRabId || loading}>
-                <Save className="w-4 h-4" /> {loading ? "Menyimpan..." : "Simpan"}
+            {/* ACTION FOOTER */}
+            <div className="flex justify-end mt-6 border-t border-slate-100 pt-5 mx-4 sm:mx-0">
+              <Button 
+                size="lg"
+                className="gap-2 bg-red-600 hover:bg-red-700 text-white shadow-md font-medium px-8 transition-all active:scale-95" 
+                onClick={handleSave} 
+                disabled={!selectedRabId || loading || tableRows.length === 0}
+              >
+                <Save className="w-4 h-4" /> 
+                {loading ? "Menyimpan Data..." : "Simpan Perubahan"}
               </Button>
             </div>
           </CardContent>
         </Card>
       </main>
 
+      {/* ALERT DIALOG */}
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <span className={`w-8 h-8 inline-flex items-center justify-center rounded-full ${alertStyle.bgIcon}`}>
-                !
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader className="gap-3">
+            <div className="flex items-center gap-3">
+              <span className={`w-10 h-10 inline-flex items-center justify-center rounded-full shrink-0 ${alertStyle.bgIcon}`}>
+                <Info className="w-5 h-5" />
               </span>
-              {alertMessage.title}
-            </AlertDialogTitle>
-            <AlertDialogDescription>{alertMessage.desc}</AlertDialogDescription>
+              <AlertDialogTitle className="text-lg">{alertMessage.title}</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-sm text-slate-600 pl-13">
+              {alertMessage.desc}
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Tutup</AlertDialogCancel>
-            <AlertDialogAction className={alertStyle.btn}>OK</AlertDialogAction>
+          <AlertDialogFooter className="mt-2">
+            {alertMessage.type !== "error" && alertMessage.type !== "success" && (
+              <AlertDialogCancel className="h-9">Tutup</AlertDialogCancel>
+            )}
+            <AlertDialogAction className={`h-9 px-6 ${alertStyle.btn}`}>OK</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
