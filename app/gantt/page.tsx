@@ -105,7 +105,7 @@ function GanttBoard() {
         setUserRole(role);
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         let currentAppMode: 'kontraktor' | 'pic' = 'kontraktor';
-        const picRoles = ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT', 'DIREKTUR'];
+        const picRoles = ['BUILDING & MAINTENANCE SUPER HUMAN', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT', 'DIREKTUR'];
         
         if (roles.includes('KONTRAKTOR')) {
             currentAppMode = 'kontraktor';
@@ -926,8 +926,8 @@ function GanttBoard() {
                     
                     {tasks.length > 0 ? (
                         <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left border-collapse min-w-225">
-                            <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
+                            <table className="w-full text-sm text-left border-collapse" style={{ minWidth: '900px' }}>
+                                <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
                                     <tr>
                                         <th className="p-4 w-12 text-center border-r">No</th>
                                         <th className="p-4 w-[30%] border-r">Tahapan Pekerjaan</th>
@@ -1021,9 +1021,9 @@ function GanttBoard() {
                             <p className="font-semibold text-slate-700">Mempersiapkan Jadwal Proyek...</p>
                         </div>
                     ) : chartData ? (
-                        <div>
-                            <div className="flex sticky top-0 bg-white z-20 border-b-2 border-slate-300 shadow-sm" style={{ minWidth: 250 + chartData.totalChartWidth }}>
-                                <div className="w-62.5 shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 shadow-[2px_0_10px_rgba(0,0,0,0.1)]">Tahapan</div>
+                        <div style={{ width: 'max-content', minWidth: '100%' }}>
+                            <div className="flex sticky top-0 bg-white z-20 border-b-2 border-slate-300 shadow-sm" style={{ width: 250 + chartData.totalChartWidth }}>
+                                <div className="shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: 250, minWidth: 250, maxWidth: 250 }}>Tahapan</div>
                                 <div className="flex" style={{ width: chartData.totalChartWidth }}>
                                 {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
                                     let label: string = String(i + 1);
@@ -1071,7 +1071,7 @@ function GanttBoard() {
                                 </div>
                             </div>
                             
-                            <div className="relative" style={{ minWidth: 250 + chartData.totalChartWidth }}>
+                            <div className="relative" style={{ width: 250 + chartData.totalChartWidth }}>
                                 {/* Garis Live Day - kolom hijau samar full height */}
                                 {chartData.liveDayIndex !== -1 && (
                                     <div 
@@ -1097,8 +1097,8 @@ function GanttBoard() {
                                 {chartData.processedTasks.map((task: any, idx: number) => {
                                     const shift = task.computed.shift || 0;
                                     return (
-                                        <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', minWidth: 250 + chartData.totalChartWidth }}>
-                                            <div className="w-62.5 shrink-0 px-2.5 py-1 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)]">
+                                        <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: 250 + chartData.totalChartWidth }}>
+                                            <div className="shrink-0 px-2.5 py-1 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: 250, minWidth: 250, maxWidth: 250 }}>
                                                 <span className="text-[13px] font-semibold text-slate-800 leading-tight">{task.name}</span>
                                             </div>
                                             <div className="relative" style={{ width: chartData.totalChartWidth }}>
