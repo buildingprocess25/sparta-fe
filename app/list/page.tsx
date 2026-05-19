@@ -1026,6 +1026,15 @@ export default function DaftarDokumenPage() {
         }
     }, [selectedDetail, showToast]);
 
+    const handleViewProjectPlanningAttachment = useCallback(async (field: string, itemIndex?: number) => {
+        if (!selectedDetail || selectedDetail.tipe !== 'PROJECT_PLANNING') return;
+        try {
+            await proxyProjekPlanningFile(selectedDetail.id, field, 'view', itemIndex);
+        } catch (err: any) {
+            showToast(err.message || 'Gagal membuka dokumen.', 'error');
+        }
+    }, [selectedDetail, showToast]);
+
     // =========================================================================
     // NAVIGATION
     // =========================================================================
@@ -1831,18 +1840,21 @@ export default function DaftarDokumenPage() {
                                                     <ProjectPlanningAttachmentGroup
                                                         title="Diunggah Koordinator"
                                                         items={koordinatorDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
                                                         onDownload={handleDownloadProjectPlanningAttachment}
                                                         isDownloading={downloadingId === selectedDetail.id}
                                                     />
                                                     <ProjectPlanningAttachmentGroup
                                                         title="Diunggah PP Specialist"
                                                         items={ppDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
                                                         onDownload={handleDownloadProjectPlanningAttachment}
                                                         isDownloading={downloadingId === selectedDetail.id}
                                                     />
                                                     <ProjectPlanningAttachmentGroup
                                                         title="Diunggah Koordinator Final"
                                                         items={finalDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
                                                         onDownload={handleDownloadProjectPlanningAttachment}
                                                         isDownloading={downloadingId === selectedDetail.id}
                                                     />
@@ -2080,11 +2092,13 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 function ProjectPlanningAttachmentGroup({
     title,
     items,
+    onView,
     onDownload,
     isDownloading,
 }: {
     title: string;
     items: ProjectPlanningAttachment[];
+    onView: (field: string, itemIndex?: number) => void;
     onDownload: (field: string, itemIndex?: number) => void;
     isDownloading: boolean;
 }) {
@@ -2098,15 +2112,28 @@ function ProjectPlanningAttachmentGroup({
                 {availableItems.map(item => {
                     const url = item.url!.trim();
                     const canDownload = !!item.field && isDownloadableAttachment(url);
+                    const canProxyView = canDownload;
                     return (
                         <div key={`${title}-${item.label}-${item.itemIndex ?? 'main'}`} className="flex items-center gap-2">
-                            <a href={url} target="_blank" rel="noopener noreferrer">
-                                <Button variant="outline" className="border-cyan-200 text-cyan-700 hover:bg-cyan-50">
+                            {canProxyView ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                                    onClick={() => onView(item.field!, item.itemIndex)}
+                                >
                                     {item.icon ?? <Eye className="w-4 h-4" />}
                                     <span className="ml-2">{item.label}</span>
-                                    {isExternalOnlyLink(url) && <ExternalLink className="w-3.5 h-3.5 ml-2" />}
                                 </Button>
-                            </a>
+                            ) : (
+                                <a href={url} target="_blank" rel="noopener noreferrer">
+                                    <Button variant="outline" className="border-cyan-200 text-cyan-700 hover:bg-cyan-50">
+                                        {item.icon ?? <Eye className="w-4 h-4" />}
+                                        <span className="ml-2">{item.label}</span>
+                                        <ExternalLink className="w-3.5 h-3.5 ml-2" />
+                                    </Button>
+                                </a>
+                            )}
                             {canDownload && (
                                 <Button
                                     type="button"
