@@ -286,8 +286,11 @@ export default function DetailProjekPlanning() {
     isSuperHuman ||
     (isCoorRaw && (data.email_pembuat || "").toLowerCase() === userEmail.toLowerCase()) ||
     (isBmParticipant && !["DRAFT", "REJECTED"].includes(data.status) && (isHO || sameBranch)) ||
-    (isPPRaw && ["WAITING_PP_APPROVAL_1", "PP_DESIGN_3D_REQUIRED", "WAITING_PP_APPROVAL_2", "COMPLETED"].includes(data.status)) ||
-    (isPPMgrRaw && ["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(data.status));
+    (isPPRaw && !["DRAFT", "WAITING_BM_APPROVAL", "REJECTED"].includes(data.status)) ||
+    (isPPMgrRaw && (
+      ["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(data.status) ||
+      (data.status === "WAITING_RAB_UPLOAD" && !!data.pp_manager_approver_email)
+    ));
 
   if (!canView) return (
     <div className="min-h-screen bg-slate-50 font-sans">

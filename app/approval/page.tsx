@@ -570,6 +570,7 @@ export default function ApprovalPage() {
                     if (isSuperHumanUser) {
                         return !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper);
                     }
+                    const projek = item._raw as ProjekPlanningItem;
 
                     const isBmManager = userRoles.some(r =>
                         r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
@@ -587,8 +588,11 @@ export default function ApprovalPage() {
 
                     const statusMatchesRole =
                         (isBmManager && !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper)) ||
-                        (isPpSpecialist && ['WAITING_PP_APPROVAL_1', 'PP_DESIGN_3D_REQUIRED', 'WAITING_PP_APPROVAL_2'].includes(upper)) ||
-                        (isPpManager && upper === 'WAITING_PP_MANAGER_APPROVAL');
+                        (isPpSpecialist && !['DRAFT', 'WAITING_BM_APPROVAL', 'COMPLETED', 'REJECTED'].includes(upper)) ||
+                        (isPpManager && (
+                            upper === 'WAITING_PP_MANAGER_APPROVAL' ||
+                            (upper === 'WAITING_RAB_UPLOAD' && !!projek.pp_manager_approver_email)
+                        ));
 
                     if (!statusMatchesRole) return false;
                     if (isHOUser) return true;
