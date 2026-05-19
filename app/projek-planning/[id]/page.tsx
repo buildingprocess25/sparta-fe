@@ -1,8 +1,7 @@
-"use client"
+﻿"use client"
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useSession } from "@/context/SessionContext";
 import AppNavbar from "@/components/AppNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,22 +13,22 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CheckCircle2, XCircle, Clock, FileText, ExternalLink, ClipboardList,
-  User, Building2, Droplets, Wind, Zap, History, Loader2, Send,
+  CheckCircle2, XCircle, Clock, FileText, ClipboardList,
+  User, Building2, Droplets, Wind, Zap, History, Loader2, Send, Eye, Download, AlertTriangle,
 } from "lucide-react";
 import {
   fetchProjekPlanningDetail, processBmApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
-  downloadProjekPlanningPdf,
+  downloadProjekPlanningPdf, proxyProjekPlanningFile,
   type ProjekPlanningItem, type ProjekPlanningLog,
 } from "@/lib/api";
 import { getPpRoles } from "@/lib/constants";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
-  WAITING_BM_APPROVAL: { label: "Menunggu BM", color: "bg-amber-100 text-amber-800" },
+  WAITING_BM_APPROVAL: { label: "Menunggu B&M", color: "bg-amber-100 text-amber-800" },
   WAITING_PP_APPROVAL_1: { label: "Menunggu PP (1)", color: "bg-blue-100 text-blue-800" },
-  PP_DESIGN_3D_REQUIRED: { label: "Design 3D Required", color: "bg-purple-100 text-purple-800" },
+  PP_DESIGN_3D_REQUIRED: { label: "Desain 3D", color: "bg-purple-100 text-purple-800" },
   WAITING_RAB_UPLOAD: { label: "Upload RAB", color: "bg-orange-100 text-orange-800" },
   WAITING_PP_APPROVAL_2: { label: "Menunggu PP (2)", color: "bg-cyan-100 text-cyan-800" },
   WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr (Final)", color: "bg-indigo-100 text-indigo-800" },
@@ -38,9 +37,9 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 const FPD_STEPS = [
-  { id: "WAITING_BM_APPROVAL", label: "BM Manager" },
+  { id: "WAITING_BM_APPROVAL", label: "B&M Manager" },
   { id: "WAITING_PP_APPROVAL_1", label: "PP Tahap 1" },
-  { id: "WAITING_RAB_UPLOAD", label: "Upload Data" },
+  { id: "WAITING_RAB_UPLOAD", label: "Upload RAB" },
   { id: "WAITING_PP_APPROVAL_2", label: "PP Tahap 2" },
   { id: "WAITING_PP_MANAGER_APPROVAL", label: "PP Manager" },
   { id: "COMPLETED", label: "Selesai" },
@@ -90,18 +89,102 @@ function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   );
 }
 
-function InfoRow({ label, value, link, onClickLink }: { label: string; value: string | null; link?: boolean; onClickLink?: (url: string) => void }) {
+function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 py-1.5 border-b border-slate-50 last:border-0">
       <span className="text-xs font-semibold text-slate-500 sm:w-48 shrink-0">{String(label)}</span>
-      {link ? (
-        <a href={value} target="_blank" rel="noopener noreferrer"
-          onClick={() => onClickLink && onClickLink(value)}
-          className="text-sm text-blue-600 hover:underline flex items-center gap-1 break-all">
-          <ExternalLink className="w-3 h-3 shrink-0" /> {value.length > 60 ? value.slice(0, 60) + "..." : value}
-        </a>
-      ) : <span className="text-sm text-slate-800">{value}</span>}
+      <span className="text-sm text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function FileProxyRow({
+  label, hasFile, projektId, field, onViewed, onUnviewed, fileUrl
+}: {
+  label: string; hasFile: boolean; projektId: number; field: string; onViewed: (field: string) => void; onUnviewed: (field: string) => void; fileUrl?: string | null;
+}) {
+  const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
+  const [viewed, setViewed] = React.useState(false);
+
+  React.useEffect(() => {
+    const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
+    const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
+    const stored = localStorage.getItem(storageKey);
+    if (!hasFile || !stored) {
+      setViewed(false);
+      onUnviewed(field);
+      return;
+    }
+
+    if (hasFile && stored) {
+      let storedUrl: string | null = null;
+      try {
+        const parsed = JSON.parse(stored);
+        storedUrl = parsed.url || null;
+      } catch {
+        // Legacy entry "1" — no URL stored, treat as needs re-open if fileUrl exists
+        storedUrl = null;
+      }
+
+      // Jika URL file berubah (upload baru) → wajib buka ulang
+      if (fileUrl && storedUrl && storedUrl !== fileUrl) {
+        localStorage.removeItem(storageKey);
+        setViewed(false);
+        onUnviewed(field);
+        return;
+      }
+      // URL sama atau tidak ada perubahan → tetap viewed
+      if (!fileUrl || storedUrl === fileUrl || storedUrl) {
+        setViewed(true);
+        onViewed(field);
+      }
+    }
+  }, [hasFile, projektId, field, fileUrl]); // Intentional omission of onViewed
+
+  if (!hasFile) return null;
+
+  const handle = async (mode: "view" | "download") => {
+    setLoading(mode);
+    try {
+      await proxyProjekPlanningFile(projektId, field, mode);
+      setViewed(true);
+      onViewed(field);
+      const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
+      const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
+      // Lihat atau unduh sama-sama dihitung sudah membuka dokumen untuk approval.
+      localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
+    } catch (e: any) { alert(`Gagal: ${e.message}`); }
+    setLoading(null);
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 py-2 border-b border-slate-50 last:border-0">
+      <span className={`text-xs font-semibold sm:w-48 shrink-0 ${viewed ? "text-green-600" : "text-orange-500"}`}>
+        {viewed ? "✓ " : "⚠ Belum dibuka — "}{label}
+      </span>
+      <div className="flex gap-2">
+        <button
+          onClick={() => handle("view")}
+          disabled={!!loading}
+          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+            viewed
+              ? "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+              : "bg-orange-50 text-orange-700 hover:bg-orange-100 border-orange-300 animate-pulse"
+          }`}
+        >
+          {loading === "view" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+          Lihat
+        </button>
+        <button
+          onClick={() => handle("download")}
+          disabled={!!loading}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors disabled:opacity-50"
+        >
+          {loading === "download" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+          Unduh
+        </button>
+      </div>
     </div>
   );
 }
@@ -111,15 +194,12 @@ export default function DetailProjekPlanning() {
   const params = useParams();
   const searchParams = useSearchParams();
   const id = Number(params.id);
-  const backHref = searchParams.get("from") === "approval" ? "/approval" : "/projek-planning";
 
   const [data, setData] = useState<ProjekPlanningItem | null>(null);
   const [logs, setLogs] = useState<ProjekPlanningLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useSession();
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState("");
-  const [userCabang, setUserCabang] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -129,19 +209,41 @@ export default function DetailProjekPlanning() {
   const [need3d, setNeed3d] = useState(false);
   const [link3d, setLink3d] = useState("");
   const [file3d, setFile3d] = useState<File | null>(null);
-  const [linkRab, setLinkRab] = useState("");
-  const [fileRab, setFileRab] = useState<File | null>(null);
-  const [linkGambar, setLinkGambar] = useState("");
-  const [fileGambar, setFileGambar] = useState<File | null>(null);
+  const [linkRabSipil, setLinkRabSipil] = useState("");
+  const [fileRabSipil, setFileRabSipil] = useState<File[]>([]);
+  const [linkRabMe, setLinkRabMe] = useState("");
+  const [fileRabMe, setFileRabMe] = useState<File[]>([]);
+  const [linkGambarSipil, setLinkGambarSipil] = useState("");
+  const [fileGambarSipil, setFileGambarSipil] = useState<File[]>([]);
+  const [linkGambarMe, setLinkGambarMe] = useState("");
+  const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
 
-  const handleLinkClick = (url: string) => {
+  const markFieldViewed = React.useCallback((field: string) => {
     setOpenedLinks(prev => {
       const next = new Set(prev);
-      next.add(url);
+      next.add(field);
       return next;
     });
-  };
+  }, []);
+
+  const markFieldUnviewed = React.useCallback((field: string) => {
+    setOpenedLinks(prev => {
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+  }, []);
+
+  const clearViewedFields = React.useCallback((fields: string[]) => {
+    const storageEmail = sessionStorage.getItem('loggedInUserEmail') || userEmail || 'unknown';
+    fields.forEach(field => localStorage.removeItem(`pp_viewed_${storageEmail}_${id}_${field}`));
+    setOpenedLinks(prev => {
+      const next = new Set(prev);
+      fields.forEach(field => next.delete(field));
+      return next;
+    });
+  }, [id, userEmail]);
 
   const load = async () => {
     setLoading(true);
@@ -152,27 +254,39 @@ export default function DetailProjekPlanning() {
       // Normalize flat fields into arrays if not already present as arrays
       if (!projek.fasilitas) {
         projek.fasilitas = [
-          { jenis_fasilitas: 'AIR_BERSIH', is_tersedia: projek.fasilitas_air_bersih, keterangan: projek.fasilitas_air_bersih_keterangan },
-          { jenis_fasilitas: 'DRAINASE', is_tersedia: projek.fasilitas_drain, keterangan: projek.fasilitas_drain_keterangan },
-          { jenis_fasilitas: 'AC', is_tersedia: projek.fasilitas_ac, keterangan: projek.fasilitas_ac_keterangan },
-          { jenis_fasilitas: 'LAINNYA', is_tersedia: !!projek.fasilitas_lainnya, nama_fasilitas_lainnya: projek.fasilitas_lainnya, keterangan: projek.fasilitas_lainnya_keterangan },
+          { jenis_fasilitas: 'AIR_BERSIH', is_tersedia: projek.fasilitas_air_bersih, keterangan: projek.fasilitas_air_bersih_keterangan ?? undefined },
+          { jenis_fasilitas: 'DRAINASE', is_tersedia: projek.fasilitas_drain, keterangan: projek.fasilitas_drain_keterangan ?? undefined },
+          { jenis_fasilitas: 'AC', is_tersedia: projek.fasilitas_ac, keterangan: projek.fasilitas_ac_keterangan ?? undefined },
+          { jenis_fasilitas: 'LAINNYA', is_tersedia: !!projek.fasilitas_lainnya, nama_fasilitas_lainnya: projek.fasilitas_lainnya ?? undefined, keterangan: projek.fasilitas_lainnya_keterangan ?? undefined },
         ].filter(f => f.is_tersedia || f.keterangan);
       }
 
       if (!projek.ketentuan) {
         projek.ketentuan = [
           projek.ketentuan_1, projek.ketentuan_2, projek.ketentuan_3, projek.ketentuan_4, projek.ketentuan_5
-        ].filter(Boolean).map(isi => ({ isi_ketentuan: isi }));
+        ].filter(Boolean).map(isi => ({ isi_ketentuan: isi as string }));
       }
 
       if (!projek.catatan_design) {
         projek.catatan_design = [
           projek.catatan_design_1, projek.catatan_design_2, projek.catatan_design_3, projek.catatan_design_4, projek.catatan_design_5
-        ].filter(Boolean).map(isi => ({ isi_catatan: isi }));
+        ].filter(Boolean).map(isi => ({ isi_catatan: isi as string }));
       }
 
       setData(projek);
       setLogs(res.data.logs);
+
+      const isRabReupload = projek.status === "WAITING_RAB_UPLOAD" && (projek.pp2_alasan_penolakan || projek.pp_manager_alasan_penolakan);
+      if (isRabReupload) {
+        setLinkRabSipil(projek.link_rab_sipil || "");
+        setLinkRabMe(projek.link_rab_me || "");
+        setLinkGambarSipil(projek.link_gambar_kerja_final_sipil || projek.link_gambar_kerja_final || "");
+        setLinkGambarMe(projek.link_gambar_kerja_final_me || "");
+        setFileRabSipil([]);
+        setFileRabMe([]);
+        setFileGambarSipil([]);
+        setFileGambarMe([]);
+      }
     } catch (e: any) {
       setAlertMsg({ title: "Error", desc: e.message }); setAlertOpen(true);
     }
@@ -180,12 +294,13 @@ export default function DetailProjekPlanning() {
   };
 
   useEffect(() => {
-    if (!user) return;
-    setUserEmail(user.email); 
-    setUserRole(user.role.toUpperCase()); 
-    setUserCabang(user.cabang);
+    const email = sessionStorage.getItem("loggedInUserEmail") || "";
+    const role = sessionStorage.getItem("userRole") || "";
+    if (!email) { router.push("/auth"); return; }
+    const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
+    setUserEmail(email); setUserRole(role.toUpperCase());
     load();
-  }, [id, user]);
+  }, [id]);
 
   const showAlert = (title: string, desc: string) => { setAlertMsg({ title, desc }); setAlertOpen(true); };
 
@@ -234,11 +349,57 @@ export default function DetailProjekPlanning() {
   };
 
   const handleUploadRab = async () => {
-    if (!linkRab.trim() && !fileRab && !linkGambar.trim() && !fileGambar) return;
+    if (!linkRabSipil.trim() && fileRabSipil.length === 0 && !linkRabMe.trim() && fileRabMe.length === 0 && !linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
+    
+    // Wajib buka desain 3D jika ada
+    if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
+      showAlert("Peringatan", "Anda harus membuka dan melihat file Desain 3D terlebih dahulu sebelum mengupload RAB.");
+      return;
+    }
+    
+    // Validasi re-upload saat ditolak
+    if (data?.pp2_alasan_penolakan || data?.pp_manager_alasan_penolakan) {
+      const noChange = fileRabSipil.length === 0 && fileRabMe.length === 0 && fileGambarSipil.length === 0 && fileGambarMe.length === 0
+        && linkRabSipil.trim() === ((data as any).link_rab_sipil || "").trim()
+        && linkRabMe.trim() === ((data as any).link_rab_me || "").trim()
+        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || (data as any).link_gambar_kerja_final || "")).trim()
+        && linkGambarMe.trim() === ((data as any).link_gambar_kerja_final_me || "").trim();
+      if (noChange) {
+        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada peng-uploadan RAB/Gambar Kerja Final (pilih file baru atau ubah link).");
+        return;
+      }
+    }
+
+    const changedRabFields = [
+      (fileRabSipil.length > 0 || linkRabSipil.trim() !== ((data as any).link_rab_sipil || "").trim()) ? "rab_sipil_final" : null,
+      (fileRabMe.length > 0 || linkRabMe.trim() !== ((data as any).link_rab_me || "").trim()) ? "rab_me_final" : null,
+      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || (data as any).link_gambar_kerja_final || "")).trim()) ? "gambar_kerja_final_sipil" : null,
+      (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
+    ].filter(Boolean) as string[];
+
     setActionLoading(true);
     try {
-      await uploadRabGambarKerja(id, { uploader_email: userEmail, link_rab: linkRab, link_gambar_kerja: linkGambar }, fileRab ?? undefined, fileGambar ?? undefined);
-      showAlert("Berhasil", "RAB & Gambar Kerja berhasil diupload."); setLinkRab(""); setFileRab(null); setLinkGambar(""); setFileGambar(null); await load();
+      await uploadRabGambarKerja(
+        id,
+        {
+          uploader_email: userEmail,
+          link_rab_sipil: linkRabSipil,
+          link_rab_me: linkRabMe,
+          link_gambar_kerja_final_sipil: linkGambarSipil,
+          link_gambar_kerja_final_me: linkGambarMe,
+        } as any,
+        fileRabSipil,
+        fileRabMe,
+        fileGambarSipil,
+        fileGambarMe
+      );
+      clearViewedFields(changedRabFields);
+      showAlert("Berhasil", "RAB Sipil, RAB ME, Gambar Kerja Final Sipil & ME berhasil diupload.");
+      setLinkRabSipil(""); setFileRabSipil([]);
+      setLinkRabMe(""); setFileRabMe([]);
+      setLinkGambarSipil(""); setFileGambarSipil([]);
+      setLinkGambarMe(""); setFileGambarMe([]);
+      await load();
     } catch (e: any) { showAlert("Gagal", e.message); }
     setActionLoading(false);
   };
@@ -251,6 +412,12 @@ export default function DetailProjekPlanning() {
     } else {
       setFile(null);
     }
+  };
+
+  const handleMultiFileChange = (setLink: React.Dispatch<React.SetStateAction<string>>, setFiles: React.Dispatch<React.SetStateAction<File[]>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).slice(0, 2);
+    setFiles(files);
+    if (files.length > 0) setLink("");
   };
 
   const fmt = (d: string | null) => {
@@ -267,50 +434,56 @@ export default function DetailProjekPlanning() {
 
   if (!data) return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <AppNavbar title="Detail" showBackButton backHref={backHref} />
+      <AppNavbar title="Detail" showBackButton backHref="/projek-planning" />
       <div className="text-center py-20 text-slate-400">Data tidak ditemukan</div>
     </div>
   );
 
   const st = STATUS_MAP[data.status] || { label: data.status, color: "bg-slate-100" };
-  const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
-  const isSuperHuman = user?.isSuperHuman ?? false;
-  
-  const { isCoor: isCoorRaw, isBM: isBMRaw, isPP: isPPRaw, isPPMgr: isPPMgrRaw } = getPpRoles(userRole, userEmail);
-  const isCoor = isCoorRaw || isSuperHuman;
-  const isBM = isBMRaw || isSuperHuman;
-  const isPP = isPPRaw || isSuperHuman;
-  const isPPMgr = isPPMgrRaw || isSuperHuman;
-  const isBBMM = (userRole.includes("MAINTENANCE MANAGER") || userRole.includes("BBMM")) || isSuperHuman;
-  const sameBranch = (data.cabang || "").toUpperCase() === userCabang.toUpperCase();
-  const isBmParticipant = isBMRaw || isBBMM;
-  const canView =
-    isSuperHuman ||
-    (isCoorRaw && (data.email_pembuat || "").toLowerCase() === userEmail.toLowerCase()) ||
-    (isBmParticipant && !["DRAFT", "REJECTED"].includes(data.status) && (isHO || sameBranch)) ||
-    (isPPRaw && !["DRAFT", "WAITING_BM_APPROVAL", "REJECTED"].includes(data.status)) ||
-    (isPPMgrRaw && (
-      ["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(data.status) ||
-      (data.status === "WAITING_RAB_UPLOAD" && !!data.pp_manager_approver_email)
-    ));
+  const backHref = searchParams.get("from") === "approval" ? "/approval" : "/projek-planning";
+  const { isCoor, isBM, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
+  const isBBMM = userRole.includes("MAINTENANCE MANAGER") || userRole.includes("BBMM");
 
-  if (!canView) return (
-    <div className="min-h-screen bg-slate-50 font-sans">
-      <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
-      <div className="max-w-xl mx-auto p-6">
-        <Card>
-          <CardContent className="py-12 text-center text-slate-500">
-            <ClipboardList className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-            <p className="font-semibold text-slate-700">Akses project planning terbatas</p>
-            <p className="text-sm mt-1">Data ini hanya dapat dilihat oleh user yang terlibat pada alur FPD.</p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+  const requiredFields = [
+    data.link_gambar_rab_sipil ? "rab_sipil_awal" : null,
+    data.link_gambar_rab_me ? "rab_me_awal" : null,
+    data.link_fpd ? "fpd" : null,
+    data.link_gambar_kerja ? "gambar_kerja_awal" : null,
+    data.link_gambar_kompetitor ? "gambar_kompetitor" : null,
+    data.link_desain_3d && !isPP ? "desain_3d" : null,
+    data.link_fpd_approved ? "fpd_approved" : null,
+    data.link_rab_sipil ? "rab_sipil_final" : null,
+    data.link_rab_me ? "rab_me_final" : null,
+    (data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final) ? "gambar_kerja_final_sipil" : null,
+    data.link_gambar_kerja_final_me ? "gambar_kerja_final_me" : null,
+  ].filter(Boolean) as string[];
+  const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
+  const isRabReupload = !!(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan);
+  const hasRabUploadInput = !!(linkRabSipil.trim() || fileRabSipil.length > 0 || linkRabMe.trim() || fileRabMe.length > 0 || linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
+  const hasRabUploadChange = !!(
+    fileRabSipil.length > 0 ||
+    fileRabMe.length > 0 ||
+    fileGambarSipil.length > 0 ||
+    fileGambarMe.length > 0 ||
+    linkRabSipil.trim() !== ((data as any).link_rab_sipil || "").trim() ||
+    linkRabMe.trim() !== ((data as any).link_rab_me || "").trim() ||
+    linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || (data as any).link_gambar_kerja_final || "")).trim() ||
+    linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()
   );
-
-  const requiredLinks = [data.link_gambar_rab_sipil, data.link_gambar_rab_me, data.link_fpd, data.link_desain_3d, data.link_rab, data.link_gambar_kerja, data.link_fpd_approved].filter(Boolean) as string[];
-  const allLinksOpened = requiredLinks.length === 0 || requiredLinks.every(url => openedLinks.has(url));
+  const latestRevisionSummary = [...logs]
+    .reverse()
+    .find(log =>
+      log.aksi === "SUBMIT" &&
+      log.status_sebelum === "DRAFT" &&
+      log.status_sesudah === "WAITING_BM_APPROVAL" &&
+      log.keterangan?.includes("Perubahan revisi:")
+    )
+    ?.keterangan
+    ?.split("Perubahan revisi:")[1]
+    ?.trim();
+  const revisionItems = latestRevisionSummary
+    ? latestRevisionSummary.replace(/\.$/, "").split(",").map(item => item.trim()).filter(Boolean)
+    : [];
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -327,15 +500,13 @@ export default function DetailProjekPlanning() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs opacity-75">ID: {data.id}</span>
-            {data.status === "COMPLETED" && (
-              <Button size="sm" variant="outline" className="h-7 text-xs bg-white text-slate-700 border-slate-300"
-                onClick={async () => {
-                  try { await downloadProjekPlanningPdf(data.id); }
-                  catch (e: any) { showAlert("Gagal", e.message); }
-                }}>
-                <FileText className="w-3 h-3 mr-1" /> PDF
-              </Button>
-            )}
+            <Button size="sm" variant="outline" className="h-7 text-xs bg-white text-slate-700 border-slate-300"
+              onClick={async () => {
+                try { await downloadProjekPlanningPdf(data.id); }
+                catch (e: any) { showAlert("Gagal", e.message); }
+              }}>
+              <FileText className="w-3 h-3 mr-1" /> PDF
+            </Button>
           </div>
         </div>
 
@@ -347,11 +518,24 @@ export default function DetailProjekPlanning() {
             <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
             <InfoRow label="Cabang" value={data.cabang} />
             <InfoRow label="Proyek" value={data.proyek || data.jenis_proyek} />
+            <InfoRow label="Tipe Bangunan" value={`${data.is_ruko ? 'Ruko' : 'Non-Ruko'}${data.jumlah_lantai ? ` — ${data.jumlah_lantai} Lantai` : ''}`} />
+            <InfoRow label="Kategori Toko" value={(data as any).is_dark_store ? 'Dark Store' : 'Reguler'} />
             <InfoRow label="Lingkup Pekerjaan" value={data.lingkup_pekerjaan} />
             <InfoRow label="Pengaju" value={data.nama_pengaju} />
             <InfoRow label="Email Pembuat" value={data.email_pembuat} />
-            <InfoRow label="Jenis Pengajuan" value={data.jenis_pengajuan === "LAINNYA" ? `Lainnya: ${data.jenis_pengajuan_lainnya}` : data.jenis_pengajuan} />
-            <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString("id-ID")}` : null} />
+            <InfoRow label="Link Google Maps" value={(data as any).link_google_maps} />
+            <InfoRow
+              label="Jenis Pengajuan"
+              value={(() => {
+                const items = (data.jenis_pengajuan || '').split(',').map((j: string) => j.trim()).filter(Boolean);
+                const lainnya = items.includes('LAINNYA') && data.jenis_pengajuan_lainnya ? ` (${data.jenis_pengajuan_lainnya})` : '';
+                return items.join(', ') + lainnya || data.jenis_pengajuan;
+              })()}
+            />
+            {(data as any).beanspot_tipe && <InfoRow label="Tipe Bean Spot" value={(data as any).beanspot_tipe === "Basic" ? "RTD ONLY" : (data as any).beanspot_tipe} />}
+            <InfoRow label="Head to Head" value={(data as any).is_head_to_head ? '✓ Ya' : 'Tidak'} />
+            <InfoRow label="Seating Area" value={(data as any).is_seating_area ? '✓ Ya' : 'Tidak'} />
+            <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
           </CardContent>
         </Card>
 
@@ -364,7 +548,7 @@ export default function DetailProjekPlanning() {
                 let label = f.jenis_fasilitas;
                 if (label === 'AIR_BERSIH') label = "Sumber Air Bersih";
                 else if (label === 'DRAINASE') label = "Drain Air Kotor";
-                else if (label === 'LAINNYA') label = `Fasilitas Lainnya: ${f.nama_fasilitas_lainnya}`;
+                else if (label === 'LAINNYA') label = f.nama_fasilitas_lainnya || "Lainnya";
                 
                 return <InfoRow key={idx} label={label} value={f.is_tersedia ? `Ya — ${f.keterangan || ""}` : "Tidak"} />;
               })}
@@ -383,7 +567,7 @@ export default function DetailProjekPlanning() {
         )}
         {data.catatan_design && data.catatan_design.length > 0 && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Catatan Design</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Catatan Desain</CardTitle></CardHeader>
             <CardContent className="space-y-0">
               {data.catatan_design.map((c: any, idx: number) => <InfoRow key={idx} label={`Catatan ${idx + 1}`} value={c.isi_catatan} />)}
             </CardContent>
@@ -395,47 +579,136 @@ export default function DetailProjekPlanning() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex justify-between items-center">
               <span>Dokumen & File</span>
-              {!allLinksOpened && <span className="text-xs text-red-500 font-normal">Harap buka (klik) semua link untuk melakukan persetujuan</span>}
+              {!allLinksOpened && <span className="text-xs text-red-500 font-normal">Harap lihat/unduh semua dokumen untuk melakukan persetujuan</span>}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-0">
-            <InfoRow label="RAB Sipil + Foto" value={data.link_gambar_rab_sipil} link onClickLink={handleLinkClick} />
-            <InfoRow label="RAB ME" value={data.link_gambar_rab_me} link onClickLink={handleLinkClick} />
-            <InfoRow label="FPD" value={data.link_fpd} link onClickLink={handleLinkClick} />
-            <InfoRow label="Desain 3D" value={data.link_desain_3d} link onClickLink={handleLinkClick} />
-            <InfoRow label="RAB" value={data.link_rab} link onClickLink={handleLinkClick} />
-            <InfoRow label="Gambar Kerja" value={data.link_gambar_kerja} link onClickLink={handleLinkClick} />
-            <InfoRow label="FPD Approved" value={data.link_fpd_approved} link onClickLink={handleLinkClick} />
+          <CardContent className="space-y-4 pt-1">
+            
+            {/* Kategori 1: Dokumen Pengajuan Awal (Coordinator) */}
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Dokumen Pengajuan (Koordinator)</h3>
+              <FileProxyRow label="Gambar Kerja Sipil (FPD)" hasFile={!!data.link_fpd} projektId={id} field="fpd" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_fpd} />
+              <FileProxyRow label="Gambar Kerja ME" hasFile={!!data.link_gambar_kerja} projektId={id} field="gambar_kerja_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja} />
+              <FileProxyRow label="RAB Sipil Awal" hasFile={!!data.link_gambar_rab_sipil} projektId={id} field="rab_sipil_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_rab_sipil} />
+              <FileProxyRow label="RAB ME Awal" hasFile={!!data.link_gambar_rab_me} projektId={id} field="rab_me_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_rab_me} />
+              <FileProxyRow label="Gambar Kompetitor" hasFile={!!data.link_gambar_kompetitor} projektId={id} field="gambar_kompetitor" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kompetitor} />
+            </div>
+
+            {/* Kategori 2: Dokumen PP Specialist */}
+            {(data.link_desain_3d || data.link_fpd_approved) && (
+              <div className="space-y-1">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Dokumen PP Specialist</h3>
+                <FileProxyRow label="Desain 3D" hasFile={!!data.link_desain_3d} projektId={id} field="desain_3d" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_desain_3d} />
+                <FileProxyRow label="Gambar Kerja Disetujui" hasFile={!!data.link_fpd_approved} projektId={id} field="fpd_approved" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_fpd_approved} />
+              </div>
+            )}
+
+            {/* Kategori 3: Dokumen RAB & Gambar Final (Coordinator) */}
+            {(data.link_rab_sipil || data.link_rab_me || data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final_me || data.link_gambar_kerja_final) && (
+              <div className="space-y-1">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Dokumen RAB & Final (Koordinator)</h3>
+                <FileProxyRow label="RAB Sipil Final" hasFile={!!data.link_rab_sipil} projektId={id} field="rab_sipil_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_sipil} />
+                <FileProxyRow label="RAB ME Final" hasFile={!!data.link_rab_me} projektId={id} field="rab_me_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_me} />
+                <FileProxyRow label="Gambar Kerja Final Sipil" hasFile={!!(data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final)} projektId={id} field="gambar_kerja_final_sipil" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final} />
+                <FileProxyRow label="Gambar Kerja Final ME" hasFile={!!data.link_gambar_kerja_final_me} projektId={id} field="gambar_kerja_final_me" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_me} />
+              </div>
+            )}
+
+
+
+            {requiredFields.length === 0 && (
+              <p className="text-xs text-slate-400 italic py-2">Belum ada dokumen yang diupload.</p>
+            )}
           </CardContent>
         </Card>
 
         {/* ACTION PANELS */}
-        {/* BM Approval */}
-        {data.status === "WAITING_BM_APPROVAL" && (isBM || isBBMM) && (
-          <Card className="border-amber-200 bg-amber-50/50">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager</CardTitle></CardHeader>
-            <CardContent className="p-4 flex gap-3">
-              <Button onClick={() => { setPendingAction("bm"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
-                <XCircle className="w-4 h-4 mr-1.5" /> Tolak
-              </Button>
-              <Button onClick={() => handleApprove("bm")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
-                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
+        
+        {/* DRAFT (Ditolak) -> Revisi Form */}
+        {data.status === "DRAFT" && isCoor && (data.bm_alasan_penolakan || data.pp1_alasan_penolakan) && (
+          <Card className="border-red-300 bg-red-50/50">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-red-800 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Pengajuan Ditolak</CardTitle></CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <div className="text-sm text-red-700 bg-red-100/50 p-3 rounded-lg border border-red-200">
+                <span className="font-semibold block mb-1">Alasan Penolakan ({data.pp1_alasan_penolakan ? 'PP Specialist' : 'B&M Manager'}):</span>
+                {data.pp1_alasan_penolakan || data.bm_alasan_penolakan}
+              </div>
+              <Button onClick={() => router.push(`/projek-planning/form?resubmit=${id}`)} className="w-full bg-red-600 hover:bg-red-700 text-white shadow-sm">
+                <FileText className="w-4 h-4 mr-1.5" /> Revisi Pengajuan
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* PP Approval 1 */}
+        {/* BM Approval */}
+        {data.status === "WAITING_BM_APPROVAL" && (isBM || isBBMM) && (
+          <Card className="border-amber-200 bg-amber-50/50">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager</CardTitle></CardHeader>
+            <CardContent className="p-4 flex gap-3 flex-col">
+              {data.bm_alasan_penolakan && (
+                <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
+                  <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Revisi Pengajuan:</span>
+                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br/>
+                  <span className="italic">"{data.bm_alasan_penolakan}"</span>
+                </div>
+              )}
+              {data.pp1_alasan_penolakan && (
+                <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
+                  <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Catatan PP Specialist:</span>
+                  Pengajuan ini pernah ditolak oleh PP Specialist tahap 1. Pastikan revisi berikut sudah menjawab catatan ini sebelum disetujui kembali:<br/>
+                  <span className="italic">"{data.pp1_alasan_penolakan}"</span>
+                </div>
+              )}
+              {latestRevisionSummary && (
+                <div className="bg-green-50 p-3 rounded-lg border border-green-200 mb-2">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-green-800">Ringkasan Revisi Koordinator</p>
+                      <p className="text-xs text-green-700 mt-0.5">
+                        Bagian berikut berubah setelah penolakan PP Specialist dan perlu dicek ulang B&M Manager.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {revisionItems.map(item => (
+                          <span key={item} className="inline-flex items-center rounded-full border border-green-200 bg-white px-2.5 py-1 text-xs font-semibold text-green-700">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <Button onClick={() => { setPendingAction("bm"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                  <XCircle className="w-4 h-4 mr-1.5" /> Tolak
+                </Button>
+                <Button onClick={() => handleApprove("bm")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* PP Specialist 1 */}
         {data.status === "WAITING_PP_APPROVAL_1" && isPP && (
           <Card className="border-blue-200 bg-blue-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-blue-800">Approval PP Specialist (Tahap 1)</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              {data.pp1_alasan_penolakan && (
+                <div className="text-sm text-blue-800 bg-blue-100/50 p-3 rounded-lg border border-blue-200 mb-2">
+                  <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Revisi Pengajuan:</span>
+                  Koordinator telah memperbaiki form ini berdasarkan alasan penolakan Anda sebelumnya:<br/>
+                  <span className="italic">"{data.pp1_alasan_penolakan}"</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded" />
                 <label htmlFor="need3d" className="text-sm">Butuh Desain 3D</label>
               </div>
               <div className="flex gap-3">
-                <Button onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+                <Button onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <XCircle className="w-4 h-4 mr-1.5" /> Tolak
                 </Button>
                 <Button onClick={() => handleApprove("pp1")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
@@ -472,25 +745,84 @@ export default function DetailProjekPlanning() {
         {/* Upload RAB */}
         {data.status === "WAITING_RAB_UPLOAD" && isCoor && (
           <Card className="border-orange-200 bg-orange-50/50">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-orange-800">Upload RAB & Gambar Kerja</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-orange-800">Upload RAB & Gambar Kerja Final</CardTitle></CardHeader>
             <CardContent className="p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <Label className="text-xs font-semibold text-slate-700">Link / File RAB Final</Label>
-                  <Input placeholder="Link RAB..." value={linkRab} onChange={e => { setLinkRab(e.target.value); setFileRab(null); }} className="bg-white" disabled={!!fileRab} />
-                  <Input type="file" accept=".pdf,.xls,.xlsx" onChange={handleFileChange(setLinkRab, setFileRab)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
-                  {fileRab && <p className="text-[10px] text-orange-600 mt-1">File siap diupload: {fileRab.name}</p>}
+              {(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan) && (
+                <div className="text-sm text-red-700 bg-red-100/50 p-3 rounded-lg border border-red-200 mb-2">
+                  <span className="font-semibold block mb-1"><AlertTriangle className="w-4 h-4 inline mr-1" /> Alasan Penolakan ({data.pp_manager_alasan_penolakan ? 'PP Manager' : 'PP Specialist'}):</span>
+                  {data.pp_manager_alasan_penolakan || data.pp2_alasan_penolakan}
+                  <p className="text-xs text-red-600 mt-2">
+                    Data upload sebelumnya sudah dimuat. Ubah minimal satu link atau pilih file baru sebelum submit ulang.
+                  </p>
                 </div>
-                <div className="space-y-3">
-                  <Label className="text-xs font-semibold text-slate-700">Link / File Gambar Kerja</Label>
-                  <Input placeholder="Link Gambar Kerja..." value={linkGambar} onChange={e => { setLinkGambar(e.target.value); setFileGambar(null); }} className="bg-white" disabled={!!fileGambar} />
-                  <Input type="file" accept="image/*,.pdf,.dwg" onChange={handleFileChange(setLinkGambar, setFileGambar)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
-                  {fileGambar && <p className="text-[10px] text-orange-600 mt-1">File siap diupload: {fileGambar.name}</p>}
+              )}
+              {data.link_desain_3d && !openedLinks.has("desain_3d") && (
+                <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>Anda harus <strong>melihat atau mengunduh Desain 3D</strong> terlebih dahulu sebelum bisa mengupload RAB. Buka dokumen di bagian Dokumen PP Specialist di atas.</span>
+                </div>
+              )}
+
+              {/* RAB Sipil */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">📐 RAB Sipil</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input placeholder="Link RAB Sipil (GDrive)..." value={linkRabSipil} onChange={e => { setLinkRabSipil(e.target.value); setFileRabSipil([]); }} className="bg-white" disabled={fileRabSipil.length > 0} />
+                  <div>
+                    <Input type="file" accept=".pdf,.xls,.xlsx" multiple onChange={handleMultiFileChange(setLinkRabSipil, setFileRabSipil)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                    {fileRabSipil.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabSipil.map(file => file.name).join(", ")}</p>}
+                  </div>
                 </div>
               </div>
-              <Button onClick={handleUploadRab} className="w-full bg-orange-400 hover:bg-orange-500 text-white" disabled={actionLoading || (!linkRab.trim() && !fileRab && !linkGambar.trim() && !fileGambar)}>
-                <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar
+
+              {/* RAB ME */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">⚡ RAB ME (Mekanikal & Elektrikal)</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input placeholder="Link RAB ME (GDrive)..." value={linkRabMe} onChange={e => { setLinkRabMe(e.target.value); setFileRabMe([]); }} className="bg-white" disabled={fileRabMe.length > 0} />
+                  <div>
+                    <Input type="file" accept=".pdf,.xls,.xlsx" multiple onChange={handleMultiFileChange(setLinkRabMe, setFileRabMe)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                    {fileRabMe.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabMe.map(file => file.name).join(", ")}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Gambar Kerja Final Sipil */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">Gambar Kerja Final Sipil</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input placeholder="Link Gambar Kerja Final Sipil (GDrive)..." value={linkGambarSipil} onChange={e => { setLinkGambarSipil(e.target.value); setFileGambarSipil([]); }} className="bg-white" disabled={fileGambarSipil.length > 0} />
+                  <div>
+                    <Input type="file" accept="image/*,.pdf,.dwg" multiple onChange={handleMultiFileChange(setLinkGambarSipil, setFileGambarSipil)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                    {fileGambarSipil.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileGambarSipil.map(file => file.name).join(", ")}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Gambar Kerja Final ME */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">Gambar Kerja Final ME</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input placeholder="Link Gambar Kerja Final ME (GDrive)..." value={linkGambarMe} onChange={e => { setLinkGambarMe(e.target.value); setFileGambarMe([]); }} className="bg-white" disabled={fileGambarMe.length > 0} />
+                  <div>
+                    <Input type="file" accept="image/*,.pdf,.dwg" multiple onChange={handleMultiFileChange(setLinkGambarMe, setFileGambarMe)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
+                    {fileGambarMe.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileGambarMe.map(file => file.name).join(", ")}</p>}
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleUploadRab}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                disabled={actionLoading || (data.link_desain_3d ? !openedLinks.has("desain_3d") : false) || !hasRabUploadInput || (isRabReupload && !hasRabUploadChange)}
+              >
+                <Send className="w-4 h-4 mr-1.5" /> Submit RAB & Gambar Kerja Final
               </Button>
+              {isRabReupload && !hasRabUploadChange && (
+                <p className="text-xs text-orange-700 text-center font-medium">
+                  Belum ada perubahan dari upload sebelumnya.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
@@ -500,7 +832,7 @@ export default function DetailProjekPlanning() {
           <Card className="border-cyan-200 bg-cyan-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-cyan-800">Approval PP Specialist</CardTitle></CardHeader>
             <CardContent className="p-4 flex gap-3">
-              <Button onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+              <Button onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                 <XCircle className="w-4 h-4 mr-1.5" /> Tolak
               </Button>
               <Button onClick={() => handleApprove("pp2")} className="flex-1 bg-cyan-600 hover:bg-cyan-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
@@ -515,7 +847,7 @@ export default function DetailProjekPlanning() {
           <Card className="border-indigo-200 bg-indigo-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-indigo-800">Approval PP Manager (Final)</CardTitle></CardHeader>
             <CardContent className="p-4 flex gap-3">
-              <Button onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading}>
+              <Button onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                 <XCircle className="w-4 h-4 mr-1.5" /> Tolak
               </Button>
               <Button onClick={() => handleApprove("pp_mgr")} className="flex-1 bg-indigo-600 hover:bg-indigo-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
@@ -529,7 +861,7 @@ export default function DetailProjekPlanning() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><History className="w-4 h-4 text-slate-600" /> Riwayat Approval</CardTitle></CardHeader>
           <CardContent className="space-y-0">
-            <InfoRow label="BM Manager" value={data.bm_approver_email ? `${data.bm_approver_email} — ${fmt(data.bm_waktu_persetujuan)}` : null} />
+            <InfoRow label="B&M Manager" value={data.bm_approver_email ? `${data.bm_approver_email} — ${fmt(data.bm_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Specialist (1)" value={data.pp1_approver_email ? `${data.pp1_approver_email} — ${fmt(data.pp1_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Manager" value={data.pp_manager_approver_email ? `${data.pp_manager_approver_email} — ${fmt(data.pp_manager_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Specialist (2)" value={data.pp2_approver_email ? `${data.pp2_approver_email} — ${fmt(data.pp2_waktu_persetujuan)}` : null} />

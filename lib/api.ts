@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // lib/api.ts
 // Seluruh fungsi komunikasi ke backend API.
 //
@@ -1963,7 +1963,7 @@ export const generateDokumentasiBangunanPdf = async (id: number) => {
 };
 
 // =============================================================================
-// DASHBOARD  — Monitoring Transaksi ULOK
+// DASHBOARD  â€” Monitoring Transaksi ULOK
 // =============================================================================
 
 /**
@@ -2032,7 +2032,7 @@ export const fetchPenyimpananDokumenDetail = async (
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${id}`);
 };
 
-/** Upload dokumen penyimpanan — bulk (POST /api/doc/penyimpanan-dokumen) */
+/** Upload dokumen penyimpanan â€” bulk (POST /api/doc/penyimpanan-dokumen) */
 export const uploadPenyimpananDokumen = async (
     payload: { id_toko: number; nama_dokumen: string; folder_name?: string },
     files: File[]
@@ -2109,7 +2109,7 @@ export const sendEmailNotification = async (payload: {
 };
 
 // =============================================================================
-// PROJECT PLANNING (FPD — Form Pengajuan Data)
+// PROJECT PLANNING (FPD — Form Pengajuan Desain)
 // =============================================================================
 
 // --- Types ---
@@ -2156,8 +2156,21 @@ export type ProjekPlanningItem = {
     link_fpd_approved: string | null;
     link_gambar_rab_sipil: string | null;
     link_gambar_rab_me: string | null;
+    link_gambar_kompetitor: string | null;
+    link_google_maps: string | null;
+    link_rab_sipil: string | null;
+    link_rab_me: string | null;
+    link_gambar_kerja_final: string | null;
+    link_gambar_kerja_final_sipil?: string | null;
+    link_gambar_kerja_final_me?: string | null;
+    is_ruko: boolean;
+    jumlah_lantai: number | null;
     status: string;
     butuh_desain_3d: boolean;
+    is_head_to_head: boolean;
+    is_seating_area: boolean;
+    is_dark_store: boolean;
+    beanspot_tipe: string | null;
     bm_approver_email: string | null;
     bm_waktu_persetujuan: string | null;
     bm_alasan_penolakan: string | null;
@@ -2173,12 +2186,15 @@ export type ProjekPlanningItem = {
     fasilitas?: {
         id?: number;
         jenis_fasilitas: string;
-        nama_fasilitas_lainnya?: string | null;
+        nama_fasilitas_lainnya?: string;
         is_tersedia: boolean;
-        keterangan?: string | null;
+        keterangan?: string;
     }[];
-    ketentuan?: { id?: number; isi_ketentuan: string | null }[];
-    catatan_design?: { id?: number; isi_catatan: string | null }[];
+    ketentuan?: { id?: number; isi_ketentuan: string }[];
+    catatan_design?: { id?: number; isi_catatan: string }[];
+    // Additional fields returned by detail endpoint
+    alamat_toko?: string | null;
+    foto_items?: { id?: number; item_index: number; link_foto: string }[];
     created_at: string;
     updated_at: string;
 };
@@ -2209,23 +2225,53 @@ export type ProjekPlanningListFilters = {
     id_toko?: number;
 };
 
+export type ProjekPlanningTaskCounts = {
+    approval: number;
+    projectPlanning: number;
+    total: number;
+};
+
 // --- Fungsi ---
 
 /** Submit FPD baru (Coordinator/Cabang). */
-export const submitProjekPlanning = async (payload: Record<string, unknown>, fileFpd?: File, fileRabSipil?: File, fileRabMe?: File) => {
+export const submitProjekPlanning = async (
+    payload: Record<string, unknown>, 
+    fileFpd?: File | File[], 
+    fileGambarKerjaMe?: File | File[],
+    fileRabSipil?: File | File[], 
+    fileRabMe?: File | File[],
+    fileGambarKompetitor?: File | File[],
+    fotoFiles?: { [key: number]: File }
+) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/submit`;
 
     let body: BodyInit;
-    let headers: Record<string, string> = {};
+    const headers: Record<string, string> = {};
 
-    if (fileFpd || fileRabSipil || fileRabMe) {
+    const hasPhotos = fotoFiles && Object.keys(fotoFiles).length > 0;
+
+    const appendFiles = (formData: FormData, field: string, fileOrFiles?: File | File[]) => {
+        const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
+        files.slice(0, 2).forEach(file => formData.append(field, file));
+    };
+
+    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileRabSipil) ? fileRabSipil.length > 0 : !!fileRabSipil) || (Array.isArray(fileRabMe) ? fileRabMe.length > 0 : !!fileRabMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || hasPhotos) {
         const formData = new FormData();
         Object.entries(payload).forEach(([key, value]) => {
             if (value !== undefined && value !== null) formData.append(key, String(value));
         });
-        if (fileFpd) formData.append("file_fpd", fileFpd);
-        if (fileRabSipil) formData.append("file_rab_sipil", fileRabSipil);
-        if (fileRabMe) formData.append("file_rab_me", fileRabMe);
+        appendFiles(formData, "file_fpd", fileFpd);
+        appendFiles(formData, "file_gambar_kerja_me", fileGambarKerjaMe);
+        appendFiles(formData, "file_rab_sipil", fileRabSipil);
+        appendFiles(formData, "file_rab_me", fileRabMe);
+        appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
+        
+        if (fotoFiles) {
+            Object.entries(fotoFiles).forEach(([index, file]) => {
+                if (file) formData.append(`foto_items_${index}`, file);
+            });
+        }
+        
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
@@ -2248,20 +2294,45 @@ export const submitProjekPlanning = async (payload: Record<string, unknown>, fil
 };
 
 /** Resubmit FPD (Coordinator — update record DRAFT). */
-export const resubmitProjekPlanning = async (id: number, payload: Record<string, unknown>, fileFpd?: File, fileRabSipil?: File, fileRabMe?: File) => {
+export const resubmitProjekPlanning = async (
+    id: number, 
+    payload: Record<string, unknown>, 
+    fileFpd?: File | File[], 
+    fileGambarKerjaMe?: File | File[],
+    fileRabSipil?: File | File[], 
+    fileRabMe?: File | File[],
+    fileGambarKompetitor?: File | File[],
+    fotoFiles?: { [key: number]: File }
+) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/resubmit`;
 
     let body: BodyInit;
-    let headers: Record<string, string> = {};
+    const headers: Record<string, string> = {};
 
-    if (fileFpd || fileRabSipil || fileRabMe) {
+    const hasPhotos = fotoFiles && Object.keys(fotoFiles).length > 0;
+
+    const appendFiles = (formData: FormData, field: string, fileOrFiles?: File | File[]) => {
+        const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
+        files.slice(0, 2).forEach(file => formData.append(field, file));
+    };
+
+    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileRabSipil) ? fileRabSipil.length > 0 : !!fileRabSipil) || (Array.isArray(fileRabMe) ? fileRabMe.length > 0 : !!fileRabMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || hasPhotos) {
         const formData = new FormData();
         Object.entries(payload).forEach(([key, value]) => {
             if (value !== undefined && value !== null) formData.append(key, String(value));
         });
-        if (fileFpd) formData.append("file_fpd", fileFpd);
-        if (fileRabSipil) formData.append("file_rab_sipil", fileRabSipil);
-        if (fileRabMe) formData.append("file_rab_me", fileRabMe);
+        appendFiles(formData, "file_fpd", fileFpd);
+        appendFiles(formData, "file_gambar_kerja_me", fileGambarKerjaMe);
+        appendFiles(formData, "file_rab_sipil", fileRabSipil);
+        appendFiles(formData, "file_rab_me", fileRabMe);
+        appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
+        
+        if (fotoFiles) {
+            Object.entries(fotoFiles).forEach(([index, file]) => {
+                if (file) formData.append(`foto_items_${index}`, file);
+            });
+        }
+        
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
@@ -2296,6 +2367,28 @@ export const fetchProjekPlanningList = async (
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
     const url = `${base}/api/projek-planning${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
+};
+
+export const fetchProjekPlanningTaskCounts = async (params: {
+    roles: string[];
+    cabang?: string;
+    email?: string;
+}): Promise<{ status: string; data: ProjekPlanningTaskCounts }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const query = new URLSearchParams();
+    if (params.roles.length > 0) query.append("roles", params.roles.join(","));
+    if (params.cabang) query.append("cabang", params.cabang);
+    if (params.email) query.append("email", params.email);
+
+    const res = await fetch(`${base}/api/projek-planning/task-counts?${query.toString()}`);
+    if (!res.ok) {
+        return {
+            status: "error",
+            data: { approval: 0, projectPlanning: 0, total: 0 },
+        };
+    }
+
+    return res.json();
 };
 
 /** Ambil detail Project Planning berdasarkan ID. */
@@ -2348,6 +2441,48 @@ export const downloadProjekPlanningPdf = async (id: number): Promise<boolean> =>
     return true;
 };
 
+/**
+ * Proxy file dari GDrive melalui backend OAuth.
+ * mode: "view" = buka di tab baru (inline), "download" = download langsung
+ */
+export const proxyProjekPlanningFile = async (
+    id: number,
+    field: string,
+    mode: "view" | "download" = "view",
+    itemIndex?: number
+): Promise<void> => {
+    let url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/proxy-file?field=${field}&mode=${mode}`;
+    if (itemIndex !== undefined) url += `&item_index=${itemIndex}`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengambil file (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    const contentType = res.headers.get("Content-Type") || "application/octet-stream";
+    const disposition = res.headers.get("Content-Disposition") || "";
+    let filename = `file_${field}_${id}`;
+    const fnMatch = disposition.match(/filename="?([^";\n]+)"?/);
+    if (fnMatch?.[1]) filename = decodeURIComponent(fnMatch[1]);
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    if (mode === "view" && (contentType.startsWith("image/") || contentType === "application/pdf")) {
+        window.open(blobUrl, "_blank");
+    } else {
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+};
+
 /** Proses approval BM Manager. */
 export const processBmApproval = async (id: number, payload: {
     approver_email: string;
@@ -2388,7 +2523,7 @@ export const uploadDesain3d = async (id: number, payload: {
     keterangan?: string;
 }, file?: File) => {
     let body: BodyInit;
-    let headers: Record<string, string> = {};
+    const headers: Record<string, string> = {};
 
     if (file) {
         const formData = new FormData();
@@ -2412,24 +2547,38 @@ export const uploadDesain3d = async (id: number, payload: {
     return result;
 };
 
-/** Upload RAB & Gambar Kerja (Coordinator/Cabang). */
+/** Upload RAB Sipil, RAB ME & Gambar Kerja (Coordinator/Cabang). */
 export const uploadRabGambarKerja = async (id: number, payload: {
     uploader_email: string;
-    link_rab?: string;
+    link_rab_sipil?: string;
+    link_rab_me?: string;
     link_gambar_kerja?: string;
+    link_gambar_kerja_final_sipil?: string;
+    link_gambar_kerja_final_me?: string;
     keterangan?: string;
-}, fileRab?: File, fileGambar?: File) => {
+}, fileRabSipil?: File | File[], fileRabMe?: File | File[], fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
     let body: BodyInit;
-    let headers: Record<string, string> = {};
+    const headers: Record<string, string> = {};
 
-    if (fileRab || fileGambar) {
+    const appendFiles = (formData: FormData, field: string, fileOrFiles?: File | File[]) => {
+        const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
+        files.slice(0, 2).forEach(file => formData.append(field, file));
+    };
+    const hasFiles = [fileRabSipil, fileRabMe, fileGambarSipil, fileGambarMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
+
+    if (hasFiles) {
         const formData = new FormData();
         formData.append("uploader_email", payload.uploader_email);
-        if (payload.link_rab) formData.append("link_rab", payload.link_rab);
+        if (payload.link_rab_sipil) formData.append("link_rab_sipil", payload.link_rab_sipil);
+        if (payload.link_rab_me) formData.append("link_rab_me", payload.link_rab_me);
         if (payload.link_gambar_kerja) formData.append("link_gambar_kerja", payload.link_gambar_kerja);
+        if (payload.link_gambar_kerja_final_sipil) formData.append("link_gambar_kerja_final_sipil", payload.link_gambar_kerja_final_sipil);
+        if (payload.link_gambar_kerja_final_me) formData.append("link_gambar_kerja_final_me", payload.link_gambar_kerja_final_me);
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
-        if (fileRab) formData.append("file_rab", fileRab);
-        if (fileGambar) formData.append("file_gambar_kerja", fileGambar);
+        appendFiles(formData, "file_rab_sipil", fileRabSipil);
+        appendFiles(formData, "file_rab_me", fileRabMe);
+        appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
+        appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
