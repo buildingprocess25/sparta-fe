@@ -168,11 +168,11 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
-        "menu-projek-planning", "menu-daftardokumen"
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen"
     ],
 
     "PROJECT PLANNING & DEVELOPMENT MANAGER": [
-        "menu-projek-planning", "menu-daftardokumen"
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen"
     ],
 
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────

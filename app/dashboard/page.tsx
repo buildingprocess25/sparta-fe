@@ -41,6 +41,7 @@ export default function DashboardPage() {
     const itemsPerPage = 5;
     const [sidebarOpen, setSidebarOpen]     = useState(true);
     const [isContractor, setIsContractor]   = useState(false);
+    const [canViewMonitoringDashboard, setCanViewMonitoringDashboard] = useState(false);
 
     // Data State
     const [projects, setProjects] = useState<any[]>([]);
@@ -107,12 +108,11 @@ export default function DashboardPage() {
         
         if (window.innerWidth <= 768) setSidebarOpen(false);
 
-        const canViewMonitoringDashboard = isHO || isSuperHuman;
-        if (!canViewMonitoringDashboard) {
-            const firstMenu = menuList.find(m => !m.isAlert && !("external" in m) && m.href && m.href !== "#");
-            if (firstMenu) {
-                router.replace(firstMenu.href);
-            }
+        const canViewMonitoring = isHO || isSuperHuman;
+        setCanViewMonitoringDashboard(canViewMonitoring);
+        if (!canViewMonitoring) {
+            setProjects([]);
+            setCabangList([]);
             setIsLoading(false);
             return;
         }
@@ -120,7 +120,7 @@ export default function DashboardPage() {
         // Initial Data Fetch - dashboard monitoring hanya untuk Head Office/Super Human
         fetchDashboardData(userCabang.toUpperCase(), isSuperHuman);
         setIsLoading(false);
-    }, [user, router]);
+    }, [user]);
 
     useEffect(() => {
         if (detailModal.open) {
@@ -700,40 +700,41 @@ export default function DashboardPage() {
                             )}
                         </div>
 
-                        {/* Kanan: judul & filter info + ACTION (Moved from content) */}
-                        <div className="flex items-center gap-3 shrink-0">
-                            {/* Branch Select (For HO or Group) */}
-                            {(userInfo.cabang === 'HEAD OFFICE' || cabangList.length > 1) && (
-                                <Select value={selectedCabang} onValueChange={setSelectedCabang}>
-                                    <SelectTrigger className="w-full md:w-40 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
-                                        <SelectValue placeholder="Pilih Cabang" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ALL">Semua Cabang</SelectItem>
-                                        {cabangList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            )}
+                        {canViewMonitoringDashboard && (
+                            <div className="flex items-center gap-3 shrink-0">
+                                {/* Branch Select (For HO or Group) */}
+                                {(userInfo.cabang === 'HEAD OFFICE' || cabangList.length > 1) && (
+                                    <Select value={selectedCabang} onValueChange={setSelectedCabang}>
+                                        <SelectTrigger className="w-full md:w-40 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
+                                            <SelectValue placeholder="Pilih Cabang" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">Semua Cabang</SelectItem>
+                                            {cabangList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                )}
 
-                            {/* Refresh Button */}
-                            <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8 shrink-0 bg-slate-50 border-slate-200" 
-                                onClick={() => fetchDashboardData(userInfo.cabang)}
-                                disabled={isDataLoading}
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 ${isDataLoading ? 'animate-spin' : ''}`} />
-                            </Button>
+                                {/* Refresh Button */}
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0 bg-slate-50 border-slate-200"
+                                    onClick={() => fetchDashboardData(userInfo.cabang)}
+                                    disabled={isDataLoading}
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isDataLoading ? 'animate-spin' : ''}`} />
+                                </Button>
 
-                            <div className="text-right hidden sm:block border-l border-slate-200 pl-3">
-                                <p className="text-xs font-bold text-slate-700 leading-tight">Live Dashboard</p>
-                                <p className="text-[10px] text-slate-400 leading-tight">Project Monitoring</p>
+                                <div className="text-right hidden sm:block border-l border-slate-200 pl-3">
+                                    <p className="text-xs font-bold text-slate-700 leading-tight">Live Dashboard</p>
+                                    <p className="text-[10px] text-slate-400 leading-tight">Project Monitoring</p>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
-                    {/* === WELCOME AREA -> MONITORING DASHBOARD === */}
+                    {canViewMonitoringDashboard ? (
                     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 rounded-xl border border-slate-200">
                         
                         {/* 1. SCROLLABLE CONTENT */}
@@ -896,6 +897,15 @@ export default function DashboardPage() {
 
                         </div>
                     </div>
+                    ) : (
+                    <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-200">
+                        <div className="text-center px-6">
+                            <Layers className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-slate-700">Pilih fitur dari navigasi</p>
+                            <p className="text-xs text-slate-400 mt-1">Dashboard monitoring hanya dimuat untuk Head Office.</p>
+                        </div>
+                    </div>
+                    )}
 
                 </main>
             </div>
