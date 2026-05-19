@@ -424,12 +424,12 @@ function FormProjekPlanningInner() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AppNavbar title="Form Pengajuan Desain (FPD)" showBackButton backHref="/projek-planning" />
+      <AppNavbar title="Form Permintaan Desain (FPD)" showBackButton backHref="/projek-planning" />
       <main className="max-w-5xl mx-auto p-4 md:p-6">
         <Card className="shadow-sm border-slate-200">
           <CardHeader className="pb-2 border-b">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-red-600" /> Form Pengajuan Desain (FPD)
+              <ClipboardList className="w-5 h-5 text-red-600" /> Form Permintaan Desain (FPD)
             </CardTitle>
             <p className="text-sm text-slate-500">Pengajuan desain dengan fasilitas untuk toko Alfamart</p>
           </CardHeader>
@@ -589,7 +589,7 @@ function FormProjekPlanningInner() {
               </div>
 
               {/* === SECTION: Jenis Pengajuan === */}
-              <SectionTitle icon={<FileText className="w-4 h-4" />} title="Form Pengajuan Desain Dengan Fasilitas" />
+              <SectionTitle icon={<FileText className="w-4 h-4" />} title="Form Permintaan Desain Dengan Fasilitas" />
               <p className="text-xs text-slate-500 mb-2">Pilih satu atau lebih jenis pengajuan desain (bisa multi-pilih)</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {JENIS_OPTIONS.map(j => {
@@ -831,7 +831,7 @@ function FormProjekPlanningInner() {
                 + Tambah Ketentuan
               </Button>
 
-              {/* === SECTION: Catatan Design === */}
+              {/* === SECTION: Catatan Desain === */}
               <SectionTitle icon={<ClipboardList className="w-4 h-4" />} title="Catatan Desain (Hasil Ukur & Kondisi Lingkungan)" />
               {catatanDesign.map((c, i) => (
                 <div key={i} className="flex gap-2 items-start">

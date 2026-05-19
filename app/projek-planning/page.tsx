@@ -125,7 +125,7 @@ export default function ProjekPlanningPage() {
             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-red-600" /> Project Planning
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Form Pengajuan Desain (FPD) — Pengajuan Desain Toko</p>
+            <p className="text-sm text-slate-500 mt-0.5">Form Permintaan Desain (FPD) — Permintaan Desain Toko</p>
           </div>
           {isCoor && (
             <Link href="/projek-planning/form">
