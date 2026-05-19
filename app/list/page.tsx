@@ -28,6 +28,7 @@ import {
     updateRABStatus, fetchBerkasSerahTerimaList,
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
+    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail,
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
@@ -36,7 +37,7 @@ import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles } from '@/lib/constants';
 // =============================================================================
 // TYPES
 // =============================================================================
-type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
+type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
@@ -182,6 +183,20 @@ interface NormalizedDetail {
     pp1_approval?: { pemberi: string | null; waktu: string | null };
     pp2_approval?: { pemberi: string | null; waktu: string | null };
     pp_manager_approval?: { pemberi: string | null; waktu: string | null };
+    // Dokumentasi Bangunan specific
+    kode_toko?: string;
+    tanggal_go?: string;
+    tanggal_serah_terima?: string;
+    tanggal_ambil_foto?: string;
+    spk_awal?: string;
+    spk_akhir?: string;
+    kontraktor_sipil?: string;
+    kontraktor_me?: string;
+    email_pengirim?: string;
+    status_validasi?: string;
+    alasan_revisi?: string;
+    pic_dokumentasi?: string;
+    dokumentasi_items?: any[];
 }
 
 // =============================================================================
@@ -285,6 +300,17 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         hoverBorder: 'hover:border-cyan-400',
         badgeColor: 'bg-cyan-100 text-cyan-700 border-cyan-200',
         description: 'Daftar dokumen FPD project planning.',
+    },
+    DOKUMENTASI_BANGUNAN: {
+        label: 'Dok. Bangunan',
+        fullLabel: 'Dokumentasi Bangunan Toko Baru',
+        icon: <Building2 className="w-10 h-10" />,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50',
+        borderColor: 'border-amber-200',
+        hoverBorder: 'hover:border-amber-400',
+        badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
+        description: 'Daftar dokumen dokumentasi bangunan toko baru.',
     },
 };
 
@@ -588,6 +614,21 @@ const normalizeProjekPlanningDocs = (items: ProjekPlanningItem[]): NormalizedDoc
         nama_pengaju:    p.nama_pengaju ?? undefined,
     }));
 
+const normalizeDokumentasiBangunanDocs = (items: any[]): NormalizedDoc[] =>
+    items.map(d => ({
+        id: d.id,
+        tipe: 'DOKUMENTASI_BANGUNAN' as DokumenKategori,
+        nomor_ulok:      d.nomor_ulok ?? '-',
+        nama_toko:       d.nama_toko  ?? '-',
+        cabang:          d.cabang     ?? '-',
+        proyek:          '-',
+        status:          d.status_validasi ?? 'SELESAI',
+        email_pembuat:   d.email_pengirim ?? '-',
+        total_nilai:     0,
+        created_at:      d.created_at,
+        link_pdf:        d.link_pdf ?? null,
+    }));
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -702,6 +743,9 @@ export default function DaftarDokumenPage() {
             } else if (kategori === 'PROJECT_PLANNING') {
                 const res = await fetchProjekPlanningList();
                 docs = normalizeProjekPlanningDocs(res.data ?? []);
+            } else if (kategori === 'DOKUMENTASI_BANGUNAN') {
+                const res = await fetchDokumentasiBangunanList();
+                docs = normalizeDokumentasiBangunanDocs(res.data ?? []);
             }
 
             // Filter by cabang for non-HO users (branch group aware)
@@ -984,6 +1028,35 @@ export default function DaftarDokumenPage() {
                     pp1_approval:      { pemberi: d.pp1_approver_email, waktu: d.pp1_waktu_persetujuan },
                     pp2_approval:      { pemberi: d.pp2_approver_email, waktu: d.pp2_waktu_persetujuan },
                     pp_manager_approval: { pemberi: d.pp_manager_approver_email, waktu: d.pp_manager_waktu_persetujuan },
+                };
+            } else if (doc.tipe === 'DOKUMENTASI_BANGUNAN') {
+                const res = await fetchDokumentasiBangunanDetail(doc.id);
+                const d = res.data.dokumentasi;
+                detail = {
+                    id: d.id,
+                    tipe: 'DOKUMENTASI_BANGUNAN',
+                    nomor_ulok:        d.nomor_ulok || doc.nomor_ulok,
+                    nama_toko:         d.nama_toko || doc.nama_toko,
+                    cabang:            d.cabang || doc.cabang,
+                    proyek:            '-',
+                    status:            d.status_validasi || doc.status,
+                    email_pembuat:     d.email_pengirim || doc.email_pembuat,
+                    total_nilai:       0,
+                    created_at:        d.created_at || doc.created_at,
+                    kode_toko:         d.kode_toko,
+                    tanggal_go:        d.tanggal_go,
+                    tanggal_serah_terima: d.tanggal_serah_terima,
+                    tanggal_ambil_foto: d.tanggal_ambil_foto,
+                    spk_awal:          d.spk_awal,
+                    spk_akhir:         d.spk_akhir,
+                    kontraktor_sipil:  d.kontraktor_sipil,
+                    kontraktor_me:     d.kontraktor_me,
+                    email_pengirim:    d.email_pengirim,
+                    status_validasi:   d.status_validasi,
+                    alasan_revisi:     d.alasan_revisi,
+                    pic_dokumentasi:   d.pic_dokumentasi,
+                    link_pdf:          d.link_pdf,
+                    dokumentasi_items: res.data.items || [],
                 };
             }
 
@@ -1418,9 +1491,11 @@ export default function DaftarDokumenPage() {
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="font-bold text-slate-800 text-sm">{doc.nomor_ulok}</span>
-                                                            <Badge className={`${getStatusBadgeClass(doc.status)} text-[10px] font-semibold border px-2 py-0`}>
-                                                                {getStatusLabel(doc.status)}
-                                                            </Badge>
+                                                            {selectedKategori !== 'DOKUMENTASI_BANGUNAN' && (
+                                                                <Badge className={`${getStatusBadgeClass(doc.status)} text-[10px] font-semibold border px-2 py-0`}>
+                                                                    {getStatusLabel(doc.status)}
+                                                                </Badge>
+                                                            )}
                                                         </div>
                                                         <p className="text-sm text-slate-600 truncate mt-0.5">
                                                             {selectedKategori === 'RAB' 
@@ -1450,7 +1525,7 @@ export default function DaftarDokumenPage() {
                                                         <p className="text-sm font-bold text-slate-800">
                                                             {selectedKategori === 'PERTAMBAHAN_SPK'
                                                                 ? `+${doc.pertambahan_hari || '-'} Hari`
-                                                                : selectedKategori === 'PENGAWASAN'
+                                                                : (selectedKategori === 'PENGAWASAN' || selectedKategori === 'DOKUMENTASI_BANGUNAN')
                                                                 ? null
                                                                 : formatRupiah(doc.total_nilai)
                                                             }
@@ -1545,9 +1620,11 @@ export default function DaftarDokumenPage() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
-                                                    {getStatusLabel(selectedDetail.status)}
-                                                </Badge>
+                                                {selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && (
+                                                    <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
+                                                        {getStatusLabel(selectedDetail.status)}
+                                                    </Badge>
+                                                )}
                                                 {isHO && selectedDetail.tipe === 'RAB' && (
                                                     <Button
                                                         size="sm"
@@ -1681,12 +1758,58 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                 </>
                                             )}
+                                            {/* Dokumentasi Bangunan-specific fields */}
+                                            {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' && (
+                                                <>
+                                                    {selectedDetail.kode_toko && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="Kode Toko" value={selectedDetail.kode_toko} />
+                                                    )}
+                                                    {selectedDetail.tanggal_go && (
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal GO" value={formatDateFull(selectedDetail.tanggal_go)} />
+                                                    )}
+                                                    {selectedDetail.tanggal_serah_terima && (
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Serah Terima" value={formatDateFull(selectedDetail.tanggal_serah_terima)} />
+                                                    )}
+                                                    {selectedDetail.tanggal_ambil_foto && (
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Ambil Foto" value={formatDateFull(selectedDetail.tanggal_ambil_foto)} />
+                                                    )}
+                                                    {selectedDetail.spk_awal && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="SPK Awal" value={selectedDetail.spk_awal} />
+                                                    )}
+                                                    {selectedDetail.spk_akhir && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="SPK Akhir" value={selectedDetail.spk_akhir} />
+                                                    )}
+                                                    {selectedDetail.kontraktor_sipil && (
+                                                        <InfoRow icon={<Building2 className="w-4 h-4" />} label="Kontraktor Sipil" value={selectedDetail.kontraktor_sipil} />
+                                                    )}
+                                                    {selectedDetail.kontraktor_me && (
+                                                        <InfoRow icon={<Building2 className="w-4 h-4" />} label="Kontraktor ME" value={selectedDetail.kontraktor_me} />
+                                                    )}
+                                                    {selectedDetail.pic_dokumentasi && (
+                                                        <InfoRow icon={<User className="w-4 h-4" />} label="PIC Dokumentasi" value={selectedDetail.pic_dokumentasi} />
+                                                    )}
+                                                    {selectedDetail.email_pengirim && (
+                                                        <InfoRow icon={<User className="w-4 h-4" />} label="Email Pengirim" value={selectedDetail.email_pengirim} />
+                                                    )}
+                                                    {selectedDetail.alasan_revisi && (
+                                                        <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                                                                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                                                <div>
+                                                                    <p className="text-[11px] text-red-400 font-medium uppercase tracking-wide">Alasan Revisi</p>
+                                                                    <p className="text-sm text-red-700 font-semibold">{selectedDetail.alasan_revisi}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN & PROJECT_PLANNING */}
-                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && (
+                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN, PROJECT_PLANNING & DOKUMENTASI_BANGUNAN */}
+                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                                         <div className="w-1.5 h-5 bg-red-500 rounded-full" />
@@ -1975,6 +2098,46 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 )}
 
+                                {/* Items Table (DOKUMENTASI_BANGUNAN) */}
+                                {selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' && selectedDetail.dokumentasi_items && selectedDetail.dokumentasi_items.length > 0 && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+                                        <div className="px-6 py-4 border-b border-slate-100">
+                                            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                <div className="w-1.5 h-5 bg-amber-500 rounded-full" />
+                                                Daftar Foto Dokumentasi ({selectedDetail.dokumentasi_items.length} item)
+                                            </h4>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-slate-50 text-slate-500">
+                                                    <tr>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">No</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Tanggal Diunggah</th>
+                                                        <th className="text-center px-4 py-3 font-semibold text-xs whitespace-nowrap">Aksi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {selectedDetail.dokumentasi_items.map((item: any, idx: number) => (
+                                                        <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                                                            <td className="px-4 py-2.5 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
+                                                            <td className="px-4 py-2.5 text-center text-slate-600 whitespace-nowrap">{formatDateFull(item.created_at)}</td>
+                                                            <td className="px-4 py-2.5 text-center whitespace-nowrap">
+                                                                {item.link_foto ? (
+                                                                    <a href={item.link_foto} target="_blank" rel="noopener noreferrer">
+                                                                        <Button variant="outline" size="sm" className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50">
+                                                                            <Eye className="w-3 h-3 mr-1" /> Lihat Foto
+                                                                        </Button>
+                                                                    </a>
+                                                                ) : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* PDF Download Actions */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
@@ -2027,8 +2190,8 @@ export default function DaftarDokumenPage() {
                                             </a>
                                         )}
 
-                                        {/* SPK, OPNAME_FINAL, PENGAWASAN & BERKAS_SERAH_TERIMA PDF link */}
-                                        {(selectedDetail.tipe === 'SPK' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'PENGAWASAN' || selectedDetail.tipe === 'BERKAS_SERAH_TERIMA') && selectedDetail.link_pdf && (
+                                        {/* SPK, OPNAME_FINAL, PENGAWASAN, BERKAS_SERAH_TERIMA & DOKUMENTASI_BANGUNAN PDF link */}
+                                        {(selectedDetail.tipe === 'SPK' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'PENGAWASAN' || selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' || selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN') && selectedDetail.link_pdf && (
                                             <a href={selectedDetail.link_pdf} target="_blank" rel="noopener noreferrer">
                                                 <Button variant="outline">
                                                     <FileDown className="w-4 h-4 mr-2" /> Lihat PDF Online

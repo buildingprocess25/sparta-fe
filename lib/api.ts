@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // lib/api.ts
 // Seluruh fungsi komunikasi ke backend API.
 //
@@ -2685,3 +2685,4 @@ export const processPpApproval2 = async (id: number, payload: {
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval final PP.");
     return result;
 };
+

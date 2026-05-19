@@ -104,9 +104,9 @@ export default function FTDokumenPage() {
                     // Tentukan kontraktor sipil vs ME berdasarkan proyek / lingkup_pekerjaan
                     const lingkup = (rab.proyek || (rab.toko as any)?.lingkup_pekerjaan || '').toUpperCase();
                     if (lingkup.includes('ME') || lingkup.includes('MEKANIKAL') || lingkup.includes('ELEKTRIKAL')) {
-                        grouped[ulok].kontraktorMe = rab.nama_pt || '';
+                        grouped[ulok].kontraktorMe = rab.nama_pt || grouped[ulok].kontraktorMe;
                     } else {
-                        grouped[ulok].kontraktorSipil = rab.nama_pt || '';
+                        grouped[ulok].kontraktorSipil = rab.nama_pt || grouped[ulok].kontraktorSipil;
                     }
                 }
 
@@ -254,6 +254,18 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
     ulokOptions: UlokOption[];
     isLoadingUlok: boolean;
 }) {
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredUlokOptions = useMemo(() => {
+        if (!searchQuery) return ulokOptions;
+        const q = searchQuery.toLowerCase();
+        return ulokOptions.filter(u => 
+            (u.nomorUlok || '').toLowerCase().includes(q) || 
+            (u.namaToko || '').toLowerCase().includes(q) ||
+            (u.kodeToko || '').toLowerCase().includes(q)
+        );
+    }, [ulokOptions, searchQuery]);
+
     const handleUlokSelect = (val: string) => {
         const selected = ulokOptions.find(u => u.nomorUlok === val);
         if (selected) {
@@ -294,8 +306,21 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                     <SelectTrigger className="bg-white h-auto min-h-10 whitespace-normal wrap-break-word text-left">
                                         <SelectValue placeholder="-- Pilih Nomor ULOK --" />
                                     </SelectTrigger>
-                                    <SelectContent className="max-w-[90vw] sm:max-w-100">
-                                        {ulokOptions.map(ulok => (
+                                    <SelectContent className="max-w-[90vw] sm:max-w-100 max-h-80">
+                                        <div className="p-2 sticky top-0 bg-white z-10 border-b border-slate-100">
+                                            <div className="relative">
+                                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Cari ULOK / Toko..."
+                                                    className="w-full pl-8 pr-3 py-1.5 border rounded-md text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400"
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    onKeyDown={(e) => e.stopPropagation()}
+                                                />
+                                            </div>
+                                        </div>
+                                        {filteredUlokOptions.map(ulok => (
                                             <SelectItem key={ulok.nomorUlok} value={ulok.nomorUlok} className="whitespace-normal wrap-break-word text-left py-2">
                                                 {ulok.nomorUlok} — {ulok.namaToko || ulok.kodeToko}
                                             </SelectItem>
@@ -305,23 +330,23 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                             )}
                         </div>
                         <div className="space-y-2">
-                            <Label>Kontraktor Sipil <span className="text-red-500">*</span></Label>
+                            <Label>Kontraktor Sipil</Label>
                             <Input readOnly value={formData.kontraktorSipil} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200" placeholder="Terisi otomatis" tabIndex={-1} />
                         </div>
                         <div className="space-y-2">
-                            <Label>Kontraktor ME <span className="text-red-500">*</span></Label>
+                            <Label>Kontraktor ME</Label>
                             <Input readOnly value={formData.kontraktorMe} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200" placeholder="Terisi otomatis" tabIndex={-1} />
                         </div>
                         <div className="space-y-2">
-                            <Label>SPK Awal <span className="text-red-500">*</span></Label>
+                            <Label>SPK Awal</Label>
                             <DatePicker value={formData.spkAwal} onChange={() => {}} disabled />
                         </div>
                         <div className="space-y-2">
-                            <Label>SPK Akhir <span className="text-red-500">*</span></Label>
+                            <Label>SPK Akhir</Label>
                             <DatePicker value={formData.spkAkhir} onChange={() => {}} disabled />
                         </div>
                         <div className="space-y-2">
-                            <Label>Kode Toko <span className="text-red-500">*</span></Label>
+                            <Label>Kode Toko</Label>
                             <Input readOnly value={formData.kodeToko} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200 font-bold" placeholder="Terisi otomatis" tabIndex={-1} />
                         </div>
                         <div className="space-y-2 lg:col-span-3">
