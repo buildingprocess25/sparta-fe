@@ -184,14 +184,10 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
-        "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-il", "menu-users", "menu-projek-planning",
-    ],
-
-    "BUILDING & MAINTENANCE SUPER HUMAN": [
-        "menu-ubah-rab-item"
     ],
 };
 
