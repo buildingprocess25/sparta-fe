@@ -7,7 +7,7 @@ import {
     FileText, Stamp, FileSignature, Users, CheckSquare,
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
     AlertTriangle, Activity, PieChart, ClipboardCheck,
-    FileStack, ClipboardList,
+    FileStack, ClipboardList, FileEdit,
 } from "lucide-react";
 
 // -----------------------------------------------------------------------------
@@ -30,6 +30,13 @@ export const ALL_MENUS = [
         desc: "Buat penawaran final.",
         href: "/rab",
         icon: FileText,
+    },
+    {
+        id: "menu-ubah-rab-item",
+        title: "Ubah RAB Item",
+        desc: "Ubah item RAB dan replace via CSV.",
+        href: "/ubah-rab-item",
+        icon: FileEdit,
     },
     {
         id: "menu-spk",
@@ -179,6 +186,10 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     "PROJECT PLANNING & DEVELOPMENT MANAGER": [
         "menu-projek-planning"
+    ],
+
+    "BUILDING & MAINTENANCE SUPER HUMAN": [
+        "menu-ubah-rab-item"
     ],
 };
 
