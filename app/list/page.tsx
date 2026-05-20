@@ -2121,6 +2121,8 @@ export default function DaftarDokumenPage() {
                                                 { label: 'RAB Sipil Awal', url: selectedDetail.link_gambar_rab_sipil_pp, field: 'rab_sipil_awal' },
                                                 { label: 'RAB ME Awal', url: selectedDetail.link_gambar_rab_me_pp, field: 'rab_me_awal' },
                                                 { label: 'Gambar Kompetitor', url: selectedDetail.link_gambar_kompetitor_pp, field: 'gambar_kompetitor' },
+                                            ];
+                                            const fotoDocs: ProjectPlanningAttachment[] = [
                                                 ...(selectedDetail.foto_items_pp ?? []).map(foto => ({
                                                     label: `Foto Lokasi ${foto.item_index}`,
                                                     url: foto.link_foto,
@@ -2139,13 +2141,20 @@ export default function DaftarDokumenPage() {
                                                 { label: 'Gambar Kerja Final Sipil', url: selectedDetail.link_gambar_kerja_final_sipil_pp || selectedDetail.link_gambar_kerja_final_pp, field: 'gambar_kerja_final_sipil' },
                                                 { label: 'Gambar Kerja Final ME', url: selectedDetail.link_gambar_kerja_final_me_pp, field: 'gambar_kerja_final_me' },
                                             ];
-                                            const hasAnyDocs = [...koordinatorDocs, ...ppDocs, ...finalDocs].some(doc => hasLink(doc.url));
+                                            const hasAnyDocs = [...koordinatorDocs, ...fotoDocs, ...ppDocs, ...finalDocs].some(doc => hasLink(doc.url));
 
                                             return hasAnyDocs ? (
                                                 <div className="space-y-5">
                                                     <ProjectPlanningAttachmentGroup
                                                         title="Diunggah Koordinator"
                                                         items={koordinatorDocs}
+                                                        onView={handleViewProjectPlanningAttachment}
+                                                        onDownload={handleDownloadProjectPlanningAttachment}
+                                                        isDownloading={downloadingId === selectedDetail.id}
+                                                    />
+                                                    <ProjectPlanningAttachmentGroup
+                                                        title="Dokumentasi Foto Denah"
+                                                        items={fotoDocs}
                                                         onView={handleViewProjectPlanningAttachment}
                                                         onDownload={handleDownloadProjectPlanningAttachment}
                                                         isDownloading={downloadingId === selectedDetail.id}
