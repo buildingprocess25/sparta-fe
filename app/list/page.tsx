@@ -32,7 +32,7 @@ import {
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
-import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole } from '@/lib/constants';
+import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole, isViewOnlyUser } from '@/lib/constants';
 
 // =============================================================================
 // TYPES
@@ -1280,6 +1280,7 @@ export default function DaftarDokumenPage() {
 
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const isHO = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
+    const isGlobalViewOnly = isViewOnlyUser(userInfo.role, isSuperHuman);
     const isHeadGroup = useMemo(() => {
         if (!userInfo.cabang) return false;
         const upper = userInfo.cabang.toUpperCase();
@@ -1790,7 +1791,7 @@ export default function DaftarDokumenPage() {
                                                         {getStatusLabel(selectedDetail.status)}
                                                     </Badge>
                                                 )}
-                                                {isHO && selectedDetail.tipe === 'RAB' && (
+                                                {isHO && !isGlobalViewOnly && selectedDetail.tipe === 'RAB' && (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"

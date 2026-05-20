@@ -1016,6 +1016,7 @@ function GanttBoard() {
                                             
                                             <td className="p-4 border-r">
                                                 <select 
+                                                    disabled={isReadOnly}
                                                     className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-xs"
                                                     value={task.dependencies[0] || ''}
                                                     onChange={(e) => handleDependencyChange(task.id, e.target.value)}
@@ -1032,6 +1033,7 @@ function GanttBoard() {
                                                         <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
                                                             <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
                                                             <input 
+                                                                readOnly={isReadOnly}
                                                                 type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
                                                                 value={r.start} onChange={(e) => handleRangeChange(task.id, idx, 'start', e.target.value)}
                                                                 placeholder="Start" min="1" max={projectData?.duration || 99}
@@ -1041,12 +1043,14 @@ function GanttBoard() {
                                                         <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
                                                             <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
                                                             <input 
+                                                                readOnly={isReadOnly}
                                                                 type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
                                                                 value={r.end} onChange={(e) => handleRangeChange(task.id, idx, 'end', e.target.value)}
                                                                 placeholder="End" min="1" max={projectData?.duration || 99}
                                                             />
                                                         </div>
                                                         
+                                                        {!isReadOnly && (
                                                         <button 
                                                             type="button" 
                                                             onClick={() => removeRange(task.id, idx)} 
@@ -1055,9 +1059,11 @@ function GanttBoard() {
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
+                                                        )}
                                                     </div>
                                                 ))}
                                                 
+                                                {!isReadOnly && (
                                                 <button 
                                                     type="button" 
                                                     onClick={() => addRange(task.id)} 
@@ -1065,6 +1071,7 @@ function GanttBoard() {
                                                 >
                                                     <Plus className="w-3 h-3 mr-1" /> Tambah Periode Terputus
                                                 </button>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -1126,7 +1133,7 @@ function GanttBoard() {
                                             isPengawasan = true;
                                         }
                                     }
-                                    const isClickable = appMode === 'pic' && isPengawasan;
+                                    const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly;
                                     return (
                                         <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                              onClick={() => {
@@ -1223,7 +1230,7 @@ function GanttBoard() {
                 </div>
             </Card>
 
-            {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && (
+            {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
                 <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
                         <>
                             {/* Tombol Hapus Draft */}

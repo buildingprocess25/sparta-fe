@@ -184,31 +184,19 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "BUILDING & MAINTENANCE REGIONAL MANAGER": [
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
-        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
-        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-il", "menu-users", "menu-projek-planning",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
     ],
 
     "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER": [
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
-        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
-        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-il", "menu-users", "menu-projek-planning",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
     ],
 
     "BUILDING & MAINTENANCE GENERAL MANAGER": [
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
-        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
-        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-il", "menu-users", "menu-projek-planning",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
     ],
 
     "STORE & BRANCH CONTROLLING SPECIALIST": [
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
-        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
-        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-il", "menu-users", "menu-projek-planning",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
     ],
 
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
