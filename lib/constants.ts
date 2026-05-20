@@ -190,6 +190,27 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-il", "menu-users", "menu-projek-planning",
     ],
 
+    "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER": [
+        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
+        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-il", "menu-users", "menu-projek-planning",
+    ],
+
+    "BUILDING & MAINTENANCE GENERAL MANAGER": [
+        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
+        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-il", "menu-users", "menu-projek-planning",
+    ],
+
+    "STORE & BRANCH CONTROLLING SPECIALIST": [
+        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
+        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-il", "menu-users", "menu-projek-planning",
+    ],
+
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
@@ -203,7 +224,17 @@ export const canAccessProjectPlanningByCabang = (cabang?: string | null): boolea
     String(cabang ?? "").trim().toUpperCase() === "HEAD OFFICE";
 
 export const REGIONAL_MANAGER_ROLE = "BUILDING & MAINTENANCE REGIONAL MANAGER";
+export const ENERGY_SYSTEM_MANAGER_ROLE = "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER";
+export const GENERAL_MANAGER_ROLE = "BUILDING & MAINTENANCE GENERAL MANAGER";
+export const STORE_BRANCH_CONTROLLING_ROLE = "STORE & BRANCH CONTROLLING SPECIALIST";
 export const SUPER_HUMAN_ROLE = "BUILDING & MAINTENANCE SUPER HUMAN";
+
+export const GLOBAL_VIEW_ONLY_ROLES = [
+    REGIONAL_MANAGER_ROLE,
+    ENERGY_SYSTEM_MANAGER_ROLE,
+    GENERAL_MANAGER_ROLE,
+    STORE_BRANCH_CONTROLLING_ROLE,
+];
 
 export const normalizeRoles = (role: string | string[] | undefined | null): string[] => {
     const roles = Array.isArray(role) ? role : String(role ?? "").split(",");
@@ -211,7 +242,7 @@ export const normalizeRoles = (role: string | string[] | undefined | null): stri
 };
 
 export const hasRegionalManagerRole = (role: string | string[] | undefined | null): boolean =>
-    normalizeRoles(role).some(r => r === REGIONAL_MANAGER_ROLE);
+    normalizeRoles(role).some(r => GLOBAL_VIEW_ONLY_ROLES.includes(r));
 
 export const hasSuperHumanRole = (role: string | string[] | undefined | null): boolean =>
     normalizeRoles(role).some(r => r === SUPER_HUMAN_ROLE);

@@ -18,7 +18,7 @@ import {
     fetchRABList, fetchRABDetail, fetchSPKList
 } from '@/lib/api';
 import type { GanttListItem } from '@/lib/api';
-import { API_URL, BRANCH_GROUPS, canViewAllBranches, REGIONAL_MANAGER_ROLE, isViewOnlyUser } from '@/lib/constants';
+import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser } from '@/lib/constants';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
@@ -120,7 +120,7 @@ function GanttBoard() {
         setUserRole(role);
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         let currentAppMode: 'kontraktor' | 'pic' = 'kontraktor';
-        const picRoles = ['BUILDING & MAINTENANCE SUPER HUMAN', REGIONAL_MANAGER_ROLE, 'BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT', 'DIREKTUR'];
+        const picRoles = ['BUILDING & MAINTENANCE SUPER HUMAN', ...GLOBAL_VIEW_ONLY_ROLES, 'BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT', 'DIREKTUR'];
         const canSeeAllBranches = canViewAllBranches(roles, user.isSuperHuman ?? false);
         
         if (roles.includes('KONTRAKTOR')) {
