@@ -58,6 +58,11 @@ const shouldUseDriveProxy = (url?: string | null) => {
   );
 };
 
+const isDirectUserLink = (url?: string | null) => {
+  const first = firstFileUrl(url);
+  return !!first && !shouldUseDriveProxy(first);
+};
+
 function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   const isRejected = currentStatus === "REJECTED";
 
@@ -119,6 +124,7 @@ function FileProxyRow({
 }) {
   const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
   const [viewed, setViewed] = React.useState(false);
+  const showDownload = !isDirectUserLink(fileUrl);
 
   React.useEffect(() => {
     const userEmail = sessionStorage.getItem('loggedInUserEmail') || 'unknown';
@@ -194,14 +200,16 @@ function FileProxyRow({
           {loading === "view" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
           Lihat
         </button>
-        <button
-          onClick={() => handle("download")}
-          disabled={!!loading}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors disabled:opacity-50"
-        >
-          {loading === "download" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-          Unduh
-        </button>
+        {showDownload && (
+          <button
+            onClick={() => handle("download")}
+            disabled={!!loading}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors disabled:opacity-50"
+          >
+            {loading === "download" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            Unduh
+          </button>
+        )}
       </div>
     </div>
   );

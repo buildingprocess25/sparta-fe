@@ -426,8 +426,11 @@ type ProjectPlanningAttachment = {
 
 const hasLink = (url?: string | null) => !!url && url.trim() !== '';
 
+const firstAttachmentUrl = (url?: string | null) =>
+    String(url || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || '';
+
 const isUploadedDriveFileLink = (url: string) => {
-    const lower = url.toLowerCase();
+    const lower = firstAttachmentUrl(url).toLowerCase();
     return (
         lower.includes('drive.google.com/file/d/') ||
         lower.includes('drive.google.com/open?id=') ||
@@ -437,7 +440,7 @@ const isUploadedDriveFileLink = (url: string) => {
 };
 
 const isExternalOnlyLink = (url: string) => {
-    const lower = url.toLowerCase();
+    const lower = firstAttachmentUrl(url).toLowerCase();
     return (
         lower.includes('google.com/maps') ||
         lower.includes('maps.app.goo.gl') ||
@@ -2465,7 +2468,7 @@ function ProjectPlanningAttachmentGroup({
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 pb-2 border-b border-slate-200">{title}</p>
             <div className="divide-y divide-slate-100">
                 {availableItems.map(item => {
-                    const url = item.url!.trim();
+                    const url = firstAttachmentUrl(item.url);
                     const canDownload = !!item.field && isDownloadableAttachment(url);
                     const canProxyView = !!item.field && !isExternalOnlyLink(url);
                     return (
