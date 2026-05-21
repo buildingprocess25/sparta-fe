@@ -62,6 +62,20 @@ const ITEMS_PER_PAGE = 10;
 
 const getDocumentCategoryKey = (doc: PenyimpananDokumenItem) => doc.kategori_dokumen || doc.nama_dokumen;
 const isArchiveToko = (toko?: RABDetailToko | null) => Boolean(toko && toko.id < 0);
+const toArchiveToko = (
+  store: { kode_toko: string | null; nama_toko: string | null; cabang: string | null; jumlah_dokumen: number },
+  index: number
+): RABDetailToko => ({
+  id: -1 * (index + 1),
+  nomor_ulok: store.kode_toko || store.nama_toko || `ARSIP-${index + 1}`,
+  kode_toko: store.kode_toko || "",
+  nama_toko: store.nama_toko || store.kode_toko || "Arsip Dokumen",
+  cabang: store.cabang || "-",
+  proyek: `Arsip Migrasi (${store.jumlah_dokumen})`,
+  lingkup_pekerjaan: "",
+  alamat: "",
+  nama_kontraktor: "",
+});
 
 /** Resolve cabang list user boleh lihat (termasuk sub-branch) */
 function getVisibleBranches(cabang: string, canSeeAllBranches = false): string[] | null {
@@ -141,31 +155,25 @@ export default function PenyimpananDokumenPage() {
   const loadTokoList = async (cabang: string, canSeeAllBranches = false) => {
     setIsLoading(true);
     try {
-      const [res, archiveRes] = await Promise.all([
-        fetchTokoList(),
-        fetchPenyimpananDokumenArchiveStores().catch(() => ({ status: "error", data: [] })),
-      ]);
+      const res = await fetchTokoList();
       const visible = getVisibleBranches(cabang, canSeeAllBranches);
       const filtered = visible
         ? res.data.filter(t => visible.includes((t.cabang || '').toUpperCase()))
         : res.data;
+      setTokoList(filtered);
+      setIsLoading(false);
 
-      const archiveStores: RABDetailToko[] = (archiveRes.data || [])
-        .filter(store => store.kode_toko || store.nama_toko)
-        .filter(store => !visible || visible.includes((store.cabang || '').toUpperCase()))
-        .map((store, index) => ({
-          id: -1 * (index + 1),
-          nomor_ulok: store.kode_toko || store.nama_toko || `ARSIP-${index + 1}`,
-          kode_toko: store.kode_toko || "",
-          nama_toko: store.nama_toko || store.kode_toko || "Arsip Dokumen",
-          cabang: store.cabang || "-",
-          proyek: `Arsip Migrasi (${store.jumlah_dokumen})`,
-          lingkup_pekerjaan: "",
-          alamat: "",
-          nama_kontraktor: "",
-        }));
-
-      setTokoList([...archiveStores, ...filtered]);
+      try {
+        const archiveRes = await fetchPenyimpananDokumenArchiveStores();
+        const archiveStores = (archiveRes.data || [])
+          .filter(store => store.kode_toko || store.nama_toko)
+          .filter(store => !visible || visible.includes((store.cabang || '').toUpperCase()))
+          .map(toArchiveToko);
+        setTokoList([...archiveStores, ...filtered]);
+      } catch (archiveErr) {
+        console.error(archiveErr);
+        showToast("Data toko tampil, tapi arsip migrasi belum bisa dimuat", "info");
+      }
     } catch (err: any) {
       console.error(err);
       showToast("Gagal memuat data toko", "error");
