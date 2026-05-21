@@ -365,7 +365,10 @@ export default function PenyimpananDokumenPage() {
       const matchCabang = filterCabang === 'all' || t.cabang === filterCabang;
       return matchSearch && matchCabang;
     });
-  }, [tokoList, searchToko, filterCabang]);
+  }, [archiveTokoList, tokoList, searchToko, filterCabang]);
+
+  const totalArchiveToko = archiveTokoList.length;
+  const totalCombinedToko = tokoList.length + totalArchiveToko;
 
   const totalPages = Math.ceil(filteredToko.length / ITEMS_PER_PAGE);
   const paginatedToko = useMemo(() => {
@@ -405,7 +408,10 @@ export default function PenyimpananDokumenPage() {
         <Card className="bg-white shadow-sm border-slate-100">
           <CardContent className="pt-6">
             <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Toko</div>
-            <div className="text-3xl font-bold text-slate-900 mt-1">{tokoList.length}</div>
+            <div className="text-3xl font-bold text-slate-900 mt-1">{totalCombinedToko}</div>
+            {totalArchiveToko > 0 && (
+              <div className="mt-1 text-xs font-semibold text-amber-600">Termasuk {totalArchiveToko} arsip migrasi</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-white shadow-sm border-slate-100">
@@ -460,6 +466,7 @@ export default function PenyimpananDokumenPage() {
               <tr>
                 <th className="px-6 py-4">No</th>
                 <th className="px-6 py-4">ULOK</th>
+                <th className="px-6 py-4">Kode Toko</th>
                 <th className="px-6 py-4">Nama Toko</th>
                 <th className="px-6 py-4">Cabang</th>
                 <th className="px-6 py-4">Proyek</th>
@@ -471,6 +478,7 @@ export default function PenyimpananDokumenPage() {
                 <tr key={toko.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4 text-slate-500">{(currentPage - 1) * ITEMS_PER_PAGE + i + 1}</td>
                   <td className="px-6 py-4 font-bold text-slate-900 tracking-tight">{toko.nomor_ulok}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-700">{toko.kode_toko || '-'}</td>
                   <td className="px-6 py-4 font-medium text-slate-700">{toko.nama_toko}</td>
                   <td className="px-6 py-4 text-slate-600">{toko.cabang}</td>
                   <td className="px-6 py-4">
@@ -489,7 +497,7 @@ export default function PenyimpananDokumenPage() {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">Tidak ada toko ditemukan</td>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic">Tidak ada toko ditemukan</td>
                 </tr>
               )}
             </tbody>
