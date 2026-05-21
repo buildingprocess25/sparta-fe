@@ -58,6 +58,7 @@ const DOCUMENT_CATEGORIES = [
   { key: "aanwijzing", label: "Aanwijzing", group: "Dokumen" },
   { key: "kerjaTambahKurang", label: "Kerja Tambah Kurang", group: "Dokumen" },
 ];
+const DOCUMENT_CATEGORY_LABELS = Object.fromEntries(DOCUMENT_CATEGORIES.map(category => [category.key, category.label]));
 const REQUIRED_DOCUMENT_CATEGORY_KEYS = DOCUMENT_CATEGORIES
   .map(category => category.key)
   .filter(key => key !== "pendukung");
@@ -130,19 +131,37 @@ function getStatusMeta(toko: PenyimpananDokumenTokoWithStatus) {
   };
 }
 
-const exportHeaders = ["No", "ULOK", "Kode Toko", "Nama Toko", "Cabang", "Proyek", "Status", "Jumlah Dokumen"];
+const exportHeaders = ["No", "ULOK", "Kode Toko", "Nama Toko", "Cabang", "Proyek", "Status", "Jumlah Dokumen", "Sudah Diisi", "Belum Diisi"];
+
+function getRequiredCategoryAudit(toko: PenyimpananDokumenTokoWithStatus) {
+  const counts = toko.kategori_counts ?? {};
+  const filled = REQUIRED_DOCUMENT_CATEGORY_KEYS
+    .filter(key => Number(counts[key] ?? 0) > 0)
+    .map(key => DOCUMENT_CATEGORY_LABELS[key] ?? key);
+  const missing = REQUIRED_DOCUMENT_CATEGORY_KEYS
+    .filter(key => Number(counts[key] ?? 0) <= 0)
+    .map(key => DOCUMENT_CATEGORY_LABELS[key] ?? key);
+
+  return { filled, missing };
+}
 
 function buildExportRows(rows: PenyimpananDokumenTokoWithStatus[]) {
-  return rows.map((toko, index) => [
-    index + 1,
-    toko.nomor_ulok || "-",
-    toko.kode_toko || "-",
-    toko.nama_toko || "-",
-    getBranchLocationName(toko.cabang),
-    toko.proyek || "-",
-    getStatusMeta(toko).label,
-    Number(toko.jumlah_dokumen ?? 0),
-  ]);
+  return rows.map((toko, index) => {
+    const isComplete = isDokumenLengkap(toko);
+    const audit = isComplete ? { filled: [], missing: [] } : getRequiredCategoryAudit(toko);
+    return [
+      index + 1,
+      toko.nomor_ulok || "-",
+      toko.kode_toko || "-",
+      toko.nama_toko || "-",
+      getBranchLocationName(toko.cabang),
+      toko.proyek || "-",
+      getStatusMeta(toko).label,
+      Number(toko.jumlah_dokumen ?? 0),
+      isComplete ? "" : audit.filled.join("; "),
+      isComplete ? "" : audit.missing.join("; "),
+    ];
+  });
 }
 
 function downloadBlob(content: BlobPart, filename: string, type: string) {
@@ -170,6 +189,22 @@ function escapeHtml(value: unknown) {
     .replace(/"/g, "&quot;");
 }
 
+async function loadImageAsDataUrl(src: string): Promise<string | null> {
+  try {
+    const response = await fetch(src);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
@@ -184,6 +219,7 @@ export default function PenyimpananDokumenPage() {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [archiveLoadFailed, setArchiveLoadFailed] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -254,6 +290,7 @@ export default function PenyimpananDokumenPage() {
       setIsLoading(false);
 
       try {
+        setArchiveLoadFailed(false);
         const archiveRes = await fetchPenyimpananDokumenArchiveStores("");
         const archiveStores = (archiveRes.data || [])
           .filter(store => store.kode_toko || store.nama_toko)
@@ -263,7 +300,8 @@ export default function PenyimpananDokumenPage() {
         setArchiveTokoList(archiveStores);
       } catch (archiveErr) {
         console.error(archiveErr);
-        showToast("Data toko tampil, tapi sebagian dokumen belum bisa dimuat", "info");
+        setArchiveLoadFailed(true);
+        showToast("Data migrasi belum termuat. Cek backend atau struktur DB penyimpanan dokumen.", "error");
       }
     } catch (err: any) {
       console.error(err);
@@ -453,25 +491,63 @@ export default function PenyimpananDokumenPage() {
     ]);
     const autoTable = (autoTableModule as any).default;
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-    doc.setFontSize(14);
-    doc.text("Penyimpanan Dokumen Toko", 40, 40);
-    doc.setFontSize(9);
-    doc.text(`Export: ${new Date().toLocaleString("id-ID")} | Data: ${rows.length}`, 40, 58);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const logo = await loadImageAsDataUrl("/assets/Alfamart-Emblem.png");
+
+    doc.setFillColor(220, 38, 38);
+    doc.roundedRect(32, 24, pageWidth - 64, 58, 4, 4, "F");
+    if (logo) {
+      doc.addImage(logo, "PNG", 46, 37, 70, 28);
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(1);
+      doc.line(130, 34, 130, 72);
+    }
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(17);
+    doc.setFont("helvetica", "bold");
+    doc.text("PENYIMPANAN DOKUMEN TOKO", logo ? 144 : 46, 49);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Daftar kelengkapan dokumen toko | Export ${new Date().toLocaleString("id-ID")} | ${rows.length} data`, logo ? 144 : 46, 66);
+
+    doc.saveGraphicsState();
+    doc.setTextColor(245, 245, 245);
+    doc.setFontSize(58);
+    doc.setFont("helvetica", "bold");
+    doc.text("SPARTA BUILDING", pageWidth / 2, pageHeight / 2, {
+      align: "center",
+      angle: -24,
+    });
+    doc.restoreGraphicsState();
+
+    doc.setTextColor(15, 23, 42);
     autoTable(doc, {
       head: [exportHeaders],
       body: rows,
-      startY: 76,
-      styles: { fontSize: 7, cellPadding: 4 },
+      startY: 100,
+      margin: { left: 32, right: 32 },
+      styles: { fontSize: 6, cellPadding: 3, overflow: "linebreak", valign: "top" },
       headStyles: { fillColor: [220, 38, 38] },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
       columnStyles: {
-        0: { cellWidth: 28 },
-        1: { cellWidth: 82 },
-        2: { cellWidth: 64 },
-        3: { cellWidth: 150 },
-        4: { cellWidth: 86 },
-        5: { cellWidth: 110 },
-        6: { cellWidth: 78 },
-        7: { cellWidth: 64 },
+        0: { cellWidth: 24 },
+        1: { cellWidth: 64 },
+        2: { cellWidth: 48 },
+        3: { cellWidth: 90 },
+        4: { cellWidth: 64 },
+        5: { cellWidth: 82 },
+        6: { cellWidth: 62 },
+        7: { cellWidth: 44 },
+        8: { cellWidth: 142 },
+        9: { cellWidth: 142 },
+      },
+      didDrawPage: () => {
+        const pageNumber = doc.getNumberOfPages();
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Halaman ${pageNumber}`, pageWidth - 72, pageHeight - 24);
+        doc.text("Dokumen Pendukung bersifat opsional dan tidak dihitung sebagai kekurangan.", 32, pageHeight - 24);
       },
     });
     doc.save(`${filenameBase}.pdf`);
@@ -504,7 +580,7 @@ export default function PenyimpananDokumenPage() {
   }, [archiveTokoList, tokoList, searchToko, filterCabang, filterStatus]);
 
   const totalArchiveToko = archiveTokoList.length;
-  const totalCombinedToko = tokoList.length + totalArchiveToko;
+  const totalCombinedToko = archiveLoadFailed && totalArchiveToko === 0 ? 0 : tokoList.length + totalArchiveToko;
   const progressPercent = Math.round((totalCombinedToko / TARGET_TOTAL) * 100);
   const totalLengkap = useMemo(() => filteredToko.filter(isDokumenLengkap).length, [filteredToko]);
   const totalBelumLengkap = filteredToko.length - totalLengkap;
@@ -609,6 +685,11 @@ export default function PenyimpananDokumenPage() {
       {/* Controls */}
       <Card className="shadow-sm border-slate-200 rounded-2xl">
         <CardContent className="p-4">
+          {archiveLoadFailed && (
+            <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              Data migrasi penyimpanan dokumen belum berhasil dimuat, sehingga angka toko belum final.
+            </div>
+          )}
           <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
             <div className="flex flex-col md:flex-row flex-1 gap-3 w-full">
               <div className="relative flex-1 min-w-[240px]">
