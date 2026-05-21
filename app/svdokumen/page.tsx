@@ -60,13 +60,18 @@ const DOCUMENT_CATEGORIES = [
 ];
 
 const ITEMS_PER_PAGE = 10;
+const TARGET_REGULER = 15322;
+const TARGET_FRANCHISE = 5798;
+const TARGET_TOTAL = TARGET_REGULER + TARGET_FRANCHISE;
+const HIDDEN_BRANCHES = new Set(["-", "HEAD OFFICE", "TESTING"]);
 
 const getDocumentCategoryKey = (doc: PenyimpananDokumenItem) => doc.kategori_dokumen || doc.nama_dokumen;
 const isArchiveToko = (toko?: RABDetailToko | null) => Boolean(toko && toko.id < 0);
+type PenyimpananDokumenToko = RABDetailToko & { jumlah_dokumen?: number };
 const toArchiveToko = (
   store: { nomor_ulok?: string | null; kode_toko: string | null; nama_toko: string | null; cabang: string | null; proyek?: string | null; jumlah_dokumen: number },
   index: number
-): RABDetailToko => ({
+): PenyimpananDokumenToko => ({
   id: -1 * (index + 1),
   nomor_ulok: store.nomor_ulok || store.kode_toko || store.nama_toko || `DATA-${index + 1}`,
   kode_toko: store.kode_toko || "",
@@ -76,6 +81,7 @@ const toArchiveToko = (
   lingkup_pekerjaan: "",
   alamat: "",
   nama_kontraktor: "",
+  jumlah_dokumen: store.jumlah_dokumen,
 });
 
 /** Resolve cabang list user boleh lihat (termasuk sub-branch) */
@@ -98,6 +104,14 @@ function getBranchLocationName(cabang?: string | null): string {
   return primary ?? upper;
 }
 
+function isHiddenBranch(cabang?: string | null): boolean {
+  return HIDDEN_BRANCHES.has(getBranchLocationName(cabang));
+}
+
+function isDokumenLengkap(toko: PenyimpananDokumenToko): boolean {
+  return Number(toko.jumlah_dokumen ?? 0) > 0;
+}
+
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
@@ -116,14 +130,15 @@ export default function PenyimpananDokumenPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Data
-  const [tokoList, setTokoList] = useState<RABDetailToko[]>([]);
-  const [archiveTokoList, setArchiveTokoList] = useState<RABDetailToko[]>([]);
+  const [tokoList, setTokoList] = useState<PenyimpananDokumenToko[]>([]);
+  const [archiveTokoList, setArchiveTokoList] = useState<PenyimpananDokumenToko[]>([]);
   const [documents, setDocuments] = useState<PenyimpananDokumenItem[]>([]);
   const [selectedToko, setSelectedToko] = useState<RABDetailToko | null>(null);
 
   // Filters
   const [searchToko, setSearchToko] = useState('');
   const [filterCabang, setFilterCabang] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'lengkap' | 'belum'>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Edit/Update Modal State
@@ -175,15 +190,16 @@ export default function PenyimpananDokumenPage() {
       const res = await fetchTokoList();
       const visible = getVisibleBranches(cabang, canSeeAllBranches);
       const filtered = visible
-        ? res.data.filter(t => visible.includes((t.cabang || '').toUpperCase()))
+        ? res.data.filter(t => visible.includes((t.cabang || '').toUpperCase()) && !isHiddenBranch(t.cabang))
         : res.data;
-      setTokoList(filtered);
+      setTokoList(filtered.filter(t => !isHiddenBranch(t.cabang)));
       setIsLoading(false);
 
       try {
         const archiveRes = await fetchPenyimpananDokumenArchiveStores("");
         const archiveStores = (archiveRes.data || [])
           .filter(store => store.kode_toko || store.nama_toko)
+          .filter(store => !isHiddenBranch(store.cabang))
           .filter(store => !visible || visible.includes((store.cabang || '').toUpperCase()))
           .map(toArchiveToko);
         setArchiveTokoList(archiveStores);
@@ -346,7 +362,10 @@ export default function PenyimpananDokumenPage() {
   // ==========================================
 
   const cabangOptions = useMemo(() => {
-    return Array.from(new Set([...archiveTokoList, ...tokoList].map(t => getBranchLocationName(t.cabang)))).sort();
+    return Array.from(new Set([...archiveTokoList, ...tokoList]
+      .map(t => getBranchLocationName(t.cabang))
+      .filter(cabang => !HIDDEN_BRANCHES.has(cabang))
+    )).sort();
   }, [archiveTokoList, tokoList]);
 
   const filteredToko = useMemo(() => {
@@ -357,12 +376,16 @@ export default function PenyimpananDokumenPage() {
         || (t.nomor_ulok || '').toLowerCase().includes(q)
         || (t.kode_toko || '').toLowerCase().includes(q);
       const matchCabang = filterCabang === 'all' || getBranchLocationName(t.cabang) === filterCabang;
-      return matchSearch && matchCabang;
+      const matchStatus = filterStatus === 'all'
+        || (filterStatus === 'lengkap' && isDokumenLengkap(t))
+        || (filterStatus === 'belum' && !isDokumenLengkap(t));
+      return !isHiddenBranch(t.cabang) && matchSearch && matchCabang && matchStatus;
     });
-  }, [archiveTokoList, tokoList, searchToko, filterCabang]);
+  }, [archiveTokoList, tokoList, searchToko, filterCabang, filterStatus]);
 
   const totalArchiveToko = archiveTokoList.length;
   const totalCombinedToko = tokoList.length + totalArchiveToko;
+  const progressPercent = Math.round((totalCombinedToko / TARGET_TOTAL) * 100);
 
   const totalPages = Math.ceil(filteredToko.length / ITEMS_PER_PAGE);
   const paginatedToko = useMemo(() => {
@@ -397,6 +420,39 @@ export default function PenyimpananDokumenPage() {
 
   const renderList = () => (
     <div className="space-y-6">
+      {/* Target Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-white shadow-sm border-slate-100">
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Target Reguler</div>
+            <div className="text-3xl font-bold text-slate-900 mt-2">{TARGET_REGULER.toLocaleString('id-ID')}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white shadow-sm border-slate-100">
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Target Franchise</div>
+            <div className="text-3xl font-bold text-slate-900 mt-2">{TARGET_FRANCHISE.toLocaleString('id-ID')}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-red-50 shadow-sm border-red-100">
+          <CardContent className="pt-6">
+            <div className="text-sm font-bold text-red-600 uppercase tracking-wider">Target Total</div>
+            <div className="text-3xl font-extrabold text-red-700 mt-2">{TARGET_TOTAL.toLocaleString('id-ID')}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white shadow-sm border-slate-100">
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-slate-500 uppercase tracking-wider">Progress Input Data</div>
+            <div className="text-xl font-extrabold text-slate-900 mt-2">
+              {totalCombinedToko.toLocaleString('id-ID')} / {TARGET_TOTAL.toLocaleString('id-ID')} Toko ({progressPercent}%)
+            </div>
+            <div className="h-3 bg-slate-200 rounded-full mt-3 overflow-hidden">
+              <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="bg-white shadow-sm border-slate-100">
@@ -432,6 +488,16 @@ export default function PenyimpananDokumenPage() {
                 onChange={e => { setSearchToko(e.target.value); setCurrentPage(1); }}
               />
             </div>
+            <Select value={filterStatus} onValueChange={(v: 'all' | 'lengkap' | 'belum') => { setFilterStatus(v); setCurrentPage(1); }}>
+              <SelectTrigger className="w-48 h-10 rounded-xl">
+                <SelectValue placeholder="Semua Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="belum">Belum Lengkap</SelectItem>
+                <SelectItem value="lengkap">Sudah Lengkap</SelectItem>
+              </SelectContent>
+            </Select>
             {cabangOptions.length > 1 && (
               <Select value={filterCabang} onValueChange={v => { setFilterCabang(v); setCurrentPage(1); }}>
                 <SelectTrigger className="w-50 h-10 rounded-xl">
