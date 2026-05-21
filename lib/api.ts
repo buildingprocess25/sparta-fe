@@ -2169,6 +2169,23 @@ export const fetchPenyimpananDokumenArchiveStores = async (search: string): Prom
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/archive-stores${suffix}`);
 };
 
+export const createPenyimpananDokumenArchiveStore = async (payload: {
+    kode_toko: string;
+    nama_toko: string;
+    cabang: string;
+    folder_link?: string;
+}): Promise<{ status: string; message: string; data: PenyimpananDokumenArchiveStore }> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/archive-stores`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (res.status === 422) throw new Error(result.message || "Validasi request gagal.");
+    if (!res.ok) throw new Error(result.message || "Gagal menyimpan data toko.");
+    return result;
+};
+
 const postPenyimpananDokumenMigration = async (
     endpoint: "migration-preview" | "migration-commit",
     file: File,
@@ -2204,11 +2221,21 @@ export const fetchPenyimpananDokumenDetail = async (
 
 /** Upload dokumen penyimpanan â€” bulk (POST /api/doc/penyimpanan-dokumen) */
 export const uploadPenyimpananDokumen = async (
-    payload: { id_toko: number; nama_dokumen: string; folder_name?: string },
+    payload: {
+        id_toko?: number;
+        kode_toko?: string;
+        nama_toko?: string;
+        cabang?: string;
+        nama_dokumen: string;
+        folder_name?: string;
+    },
     files: File[]
 ): Promise<any> => {
     const form = new FormData();
-    form.append("id_toko", payload.id_toko.toString());
+    if (payload.id_toko) form.append("id_toko", payload.id_toko.toString());
+    if (payload.kode_toko) form.append("kode_toko", payload.kode_toko);
+    if (payload.nama_toko) form.append("nama_toko", payload.nama_toko);
+    if (payload.cabang) form.append("cabang", payload.cabang);
     form.append("nama_dokumen", payload.nama_dokumen);
     if (payload.folder_name) form.append("folder_name", payload.folder_name);
     files.forEach((file, i) => form.append(`dokumen_${i + 1}`, file));

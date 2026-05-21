@@ -31,6 +31,7 @@ import {
   fetchTokoList,
   fetchPenyimpananDokumenList,
   fetchPenyimpananDokumenArchiveStores,
+  createPenyimpananDokumenArchiveStore,
   uploadPenyimpananDokumen,
   updatePenyimpananDokumen,
   deletePenyimpananDokumen,
@@ -123,6 +124,11 @@ export default function PenyimpananDokumenPage() {
 
   // Upload state (per-category inline)
   const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
+
+  // Manual toko/catalog input
+  const [isCreateStoreOpen, setIsCreateStoreOpen] = useState(false);
+  const [isCreatingStore, setIsCreatingStore] = useState(false);
+  const [newStoreForm, setNewStoreForm] = useState({ kode_toko: '', nama_toko: '', cabang: '' });
 
   // Delete Modal State
   const [deleteModal, setDeleteModal] = useState<PenyimpananDokumenItem | null>(null);
@@ -224,18 +230,18 @@ export default function PenyimpananDokumenPage() {
       return;
     }
     if (!files || files.length === 0 || !selectedToko) return;
-    if (isArchiveToko(selectedToko)) {
-      showToast("Data ini hanya bisa dilihat, belum bisa upload manual", "error");
-      return;
-    }
     setUploadingCategory(categoryKey);
     setIsSyncing(true);
     try {
+      const folderIdentity = selectedToko.kode_toko || selectedToko.nomor_ulok || String(selectedToko.id);
       await uploadPenyimpananDokumen(
         {
-          id_toko: selectedToko.id,
+          ...(isArchiveToko(selectedToko) ? {} : { id_toko: selectedToko.id }),
+          kode_toko: selectedToko.kode_toko || selectedToko.nomor_ulok,
+          nama_toko: selectedToko.nama_toko,
+          cabang: selectedToko.cabang,
           nama_dokumen: categoryKey,
-          folder_name: `${selectedToko.nama_toko}_${selectedToko.cabang}_${selectedToko.id}`.replace(/[^a-zA-Z0-9_]/g, '_'),
+          folder_name: `${selectedToko.nama_toko}_${selectedToko.cabang}_${folderIdentity}`.replace(/[^a-zA-Z0-9_]/g, '_'),
         },
         Array.from(files)
       );
@@ -246,6 +252,37 @@ export default function PenyimpananDokumenPage() {
     } finally {
       setIsSyncing(false);
       setUploadingCategory(null);
+    }
+  };
+
+  const handleCreateStore = async () => {
+    if (isReadOnly) {
+      showToast("Anda tidak memiliki akses untuk menambah data", "error");
+      return;
+    }
+
+    const payload = {
+      kode_toko: newStoreForm.kode_toko.trim(),
+      nama_toko: newStoreForm.nama_toko.trim(),
+      cabang: newStoreForm.cabang.trim().toUpperCase(),
+    };
+
+    if (!payload.kode_toko || !payload.nama_toko || !payload.cabang) {
+      showToast("Kode toko, nama toko, dan cabang wajib diisi", "error");
+      return;
+    }
+
+    setIsCreatingStore(true);
+    try {
+      await createPenyimpananDokumenArchiveStore(payload);
+      showToast("Data toko berhasil disimpan", "success");
+      setIsCreateStoreOpen(false);
+      setNewStoreForm({ kode_toko: '', nama_toko: '', cabang: '' });
+      await loadTokoList(userInfo.cabang, canViewAllBranches(user?.roles ?? [], user?.isSuperHuman ?? false));
+    } catch (err: any) {
+      showToast(err.message || "Gagal menyimpan data toko", "error");
+    } finally {
+      setIsCreatingStore(false);
     }
   };
 
@@ -397,6 +434,11 @@ export default function PenyimpananDokumenPage() {
               </Select>
             )}
           </div>
+          {!isReadOnly && (
+            <Button className="rounded-xl bg-red-600 hover:bg-red-700 text-white gap-2" onClick={() => setIsCreateStoreOpen(true)}>
+              <PlusCircle className="w-4 h-4" /> Tambah Data
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -469,7 +511,7 @@ export default function PenyimpananDokumenPage() {
 
   const renderDetail = () => {
     if (!selectedToko) return null;
-    const canManageDocs = !isReadOnly && !isArchiveToko(selectedToko);
+    const canManageDocs = !isReadOnly;
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -698,6 +740,51 @@ export default function PenyimpananDokumenPage() {
           </Card>
         </div>
       )}
+
+      <Dialog open={isCreateStoreOpen} onOpenChange={setIsCreateStoreOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Tambah Data Toko</DialogTitle>
+            <DialogDescription>Data ini akan masuk ke daftar penyimpanan dokumen.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Kode Toko</Label>
+              <Input
+                value={newStoreForm.kode_toko}
+                onChange={e => setNewStoreForm(prev => ({ ...prev, kode_toko: e.target.value }))}
+                placeholder="Contoh: JB34"
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Nama Toko</Label>
+              <Input
+                value={newStoreForm.nama_toko}
+                onChange={e => setNewStoreForm(prev => ({ ...prev, nama_toko: e.target.value }))}
+                placeholder="Contoh: KRAN KEMAYORAN"
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cabang</Label>
+              <Input
+                value={newStoreForm.cabang}
+                onChange={e => setNewStoreForm(prev => ({ ...prev, cabang: e.target.value }))}
+                placeholder="Contoh: CILEUNGSI"
+                className="rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateStoreOpen(false)} disabled={isCreatingStore} className="rounded-xl">Batal</Button>
+            <Button onClick={handleCreateStore} disabled={isCreatingStore} className="bg-red-600 hover:bg-red-700 text-white rounded-xl">
+              {isCreatingStore ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* TOAST */}
       {toast && (
