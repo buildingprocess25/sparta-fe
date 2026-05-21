@@ -284,13 +284,13 @@ export default function DashboardPage() {
             
             const hasST = (p.berkas_serah_terima || []).length > 0;
             const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-            const hasOpname = opnameArr.length > 0;
-            const opnameData = opnameArr[0];
+            const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
+            const hasOpnamePdf = !!opnameData;
             const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
 
             let cat = '';
-            if (hasOpname && isOpnameDisetujui) { cat = 'Done'; miniStats['Done']++; }
-            else if (hasOpname && !isOpnameDisetujui) { cat = 'Kerja Tambah Kurang'; miniStats['Kerja Tambah Kurang']++; }
+            if (hasOpnamePdf && isOpnameDisetujui) { cat = 'Done'; miniStats['Done']++; }
+            else if (hasOpnamePdf && !isOpnameDisetujui) { cat = 'Kerja Tambah Kurang'; miniStats['Kerja Tambah Kurang']++; }
             else if (hasST) { cat = 'Kerja Tambah Kurang'; miniStats['Kerja Tambah Kurang']++; }
             else if (hasSPK) { cat = 'Ongoing'; miniStats['Ongoing']++; }
             else if (hasApprovalSPK) { cat = 'Approval SPK'; miniStats['Approval SPK']++; }
@@ -360,7 +360,7 @@ export default function DashboardPage() {
             }
             else if (cat === 'Kerja Tambah Kurang') {
                 const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-                const opnameData = opnameArr[0];
+                const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
                 if (opnameData) {
                     const opnameCreatedAt = new Date(opnameData.created_at || Date.now());
                     const opnameDiffDays = Math.floor((Date.now() - opnameCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -1071,13 +1071,13 @@ export default function DashboardPage() {
                                 
                                 const hasST = (p.berkas_serah_terima || []).length > 0;
                                 const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-                                const hasOpname = opnameArr.length > 0;
-                                const opnameData = opnameArr[0];
+                                const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
+                                const hasOpnamePdf = !!opnameData;
                                 const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
 
                                 let cat = '';
-                                if (hasOpname && isOpnameDisetujui) cat = 'Done';
-                                else if (hasOpname && !isOpnameDisetujui) cat = 'Kerja Tambah Kurang';
+                                if (hasOpnamePdf && isOpnameDisetujui) cat = 'Done';
+                                else if (hasOpnamePdf && !isOpnameDisetujui) cat = 'Kerja Tambah Kurang';
                                 else if (hasST) cat = 'Kerja Tambah Kurang';
                                 else if (hasSPK) cat = 'Ongoing';
                                 else if (hasApprovalSPK) cat = 'Approval SPK';
@@ -1149,7 +1149,7 @@ export default function DashboardPage() {
                                     }
                                     else if (cat === 'Kerja Tambah Kurang') {
                                         const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-                                        const opnameData = opnameArr[0];
+                                        const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
                                         if (opnameData) {
                                             const opnameCreatedAt = new Date(opnameData.created_at || Date.now());
                                             const opnameDiffDays = Math.floor((Date.now() - opnameCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
