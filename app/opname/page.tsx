@@ -119,6 +119,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const isSuperHuman = userInfo.isSuperHuman ?? false;
     const isReadOnly = isViewOnlyUser(userInfo.role, isSuperHuman);
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
+    const canLockOpnameFinal = userInfo.role
+        .split(',')
+        .map(role => role.trim().toUpperCase())
+        .includes('BRANCH BUILDING SUPPORT');
 
     // Data
     const [rabList, setRabList] = useState<RABListItem[]>([]);
@@ -344,6 +348,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: "Role ini hanya memiliki akses view.", type: "warning" });
             return;
         }
+        if (!canLockOpnameFinal) {
+            showAlert({ message: "Opname Final hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
+            return;
+        }
         if (!selectedRab || !allApproved) return;
 
         setIsSubmitting(true);
@@ -420,6 +428,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Handle Kunci Opname Final — shows confirmation via GlobalAlert
     const handleKunciOpnameFinal = () => {
+        if (!canLockOpnameFinal) {
+            showAlert({ message: "Opname Final hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
+            return;
+        }
         if (!selectedRab || !allApproved) return;
         showAlert({
             title: 'Kunci Opname Final',
@@ -808,7 +820,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 </div>
 
                                 {/* Opname Final Button */}
-                                {!isReadOnly && !isOpnameFinalLocked && (
+                                {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
                                     <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${allApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div>
                                             <h4 className={`font-bold text-sm ${allApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
