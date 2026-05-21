@@ -306,6 +306,7 @@ export default function SPKPage() {
             try {
                 await sendEmailNotification({
                     cabang: selectedRabObj["Cabang"],
+                    id_toko: selectedRabObj["id_toko"],
                     flag: "send-notification-spk"
                 });
             } catch (emailErr) {

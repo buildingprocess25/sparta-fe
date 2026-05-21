@@ -2305,6 +2305,7 @@ export const deletePenyimpananDokumen = async (id: number): Promise<any> => {
  */
 export const sendEmailNotification = async (payload: {
     cabang: string;
+    id_toko?: number | string;
     flag: string;
 }) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/send-email-notification`, {

@@ -54,6 +54,7 @@ type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedListItem {
     id: number;
+    id_toko?: number;
     tipe: ApprovalType;
     nomor_ulok: string;
     nama_toko: string;
@@ -341,6 +342,7 @@ const normalizeSPKList = (items: SPKListItem[]): NormalizedListItem[] =>
         const raw = s as any; // Bypass TS strict jika tipe di api.ts belum diperbarui
         return {
             id: raw.id,
+            id_toko: raw.toko?.id ?? raw.id_toko,
             tipe: 'SPK' as ApprovalType,
             nomor_ulok:    raw.nomor_ulok,
             nama_toko:     raw.toko?.nama_toko ?? raw.nama_toko ?? '-',
@@ -1013,6 +1015,7 @@ export default function ApprovalPage() {
                 try {
                     await sendEmailNotification({
                         cabang: item.cabang,
+                        id_toko: item.id_toko,
                         flag: "notification-spk-has-approve"
                     });
                 } catch (emailErr) {
@@ -1086,6 +1089,17 @@ export default function ApprovalPage() {
                     tindakan:         'REJECT',
                     alasan_penolakan: rejectNote,
                 });
+
+                // Email notification is best-effort so approval state is not rolled back by mail delivery issues.
+                try {
+                    await sendEmailNotification({
+                        cabang: item.cabang,
+                        id_toko: item.id_toko,
+                        flag: "notification-spk-has-reject"
+                    });
+                } catch (emailErr) {
+                    console.error("Gagal mengirim email notifikasi:", emailErr);
+                }
             } else if (item.tipe === 'PERTAMBAHAN_SPK') {
                 await processPertambahanSPKApproval(item.id as number, {
                     approver_email:   userInfo.email,
@@ -1266,6 +1280,7 @@ export default function ApprovalPage() {
     // Helper: buat NormalizedListItem dari detail untuk dikirim ke openRejectModal
     const detailAsListItem: NormalizedListItem | null = selectedDetail ? {
         id: selectedDetail.id, tipe: selectedDetail.tipe,
+        id_toko: selectedDetail.id_toko,
         nomor_ulok: selectedDetail.nomor_ulok, nama_toko: selectedDetail.nama_toko,
         cabang: selectedDetail.cabang, status: selectedDetail.status,
         total_nilai: selectedDetail.total_nilai, email_pembuat: selectedDetail.email_pembuat,
