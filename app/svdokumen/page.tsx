@@ -507,15 +507,15 @@ export default function PenyimpananDokumenPage() {
       doc.line(132, 36, 132, 80);
     }
     if (spartaLogo) {
-      doc.addImage(spartaLogo, "PNG", 150, 39, 26, 34);
+      doc.addImage(spartaLogo, "PNG", 150, 41, 26, 34);
     }
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("SPARTA", spartaLogo ? 184 : 150, 50);
+    doc.text("SPARTA", spartaLogo ? 184 : 150, 54);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text("Building", spartaLogo ? 185 : 150, 64);
+    doc.text("Building", spartaLogo ? 185 : 150, 68);
 
     doc.setFontSize(15);
     doc.setFont("helvetica", "bold");
