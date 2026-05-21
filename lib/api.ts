@@ -2094,13 +2094,13 @@ export const fetchDashboardAll = async (search?: string) => {
 
 export type PenyimpananDokumenItem = {
     id:              number;
-    id_toko:         number | null;
+    id_toko?:        number | null;
+    kode_toko?:      string | null;
     nama_dokumen:    string;
     drive_file_id:   string | null;
     drive_folder_id: string | null;
     link_dokumen:    string | null;
     link_folder:     string | null;
-    kode_toko?:      string | null;
     nama_toko?:      string | null;
     cabang?:         string | null;
     kategori_dokumen?: string | null;
@@ -2111,7 +2111,6 @@ export type PenyimpananDokumenItem = {
 };
 
 export type PenyimpananDokumenListFilters = {
-    id_toko?:       number;
     nama_dokumen?:  string;
     kode_toko?:     string;
     nama_toko?:     string;
@@ -2147,17 +2146,17 @@ export type PenyimpananDokumenArchiveStore = {
 
 /** List dokumen penyimpanan (GET /api/doc/penyimpanan-dokumen) */
 export const fetchPenyimpananDokumenList = async (
-    filters?: PenyimpananDokumenListFilters
+    filters?: PenyimpananDokumenListFilters,
+    options?: RequestInit
 ): Promise<{ status: string; data: PenyimpananDokumenItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
-    if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
     if (filters?.nama_dokumen) params.append("nama_dokumen", filters.nama_dokumen);
     if (filters?.kode_toko) params.append("kode_toko", filters.kode_toko);
     if (filters?.nama_toko) params.append("nama_toko", filters.nama_toko);
     if (filters?.cabang) params.append("cabang", filters.cabang);
     const url = `${base}/api/doc/penyimpanan-dokumen${params.toString() ? `?${params}` : ""}`;
-    return safeFetchJSON(url);
+    return safeFetchJSON(url, options);
 };
 
 export const fetchPenyimpananDokumenArchiveStores = async (search: string): Promise<{ status: string; data: PenyimpananDokumenArchiveStore[] }> => {
