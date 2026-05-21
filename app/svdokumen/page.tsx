@@ -30,6 +30,7 @@ import {
 import {
   fetchTokoList,
   fetchPenyimpananDokumenList,
+  fetchPenyimpananDokumenArchiveStores,
   uploadPenyimpananDokumen,
   updatePenyimpananDokumen,
   deletePenyimpananDokumen,
@@ -60,6 +61,7 @@ const DOCUMENT_CATEGORIES = [
 const ITEMS_PER_PAGE = 10;
 
 const getDocumentCategoryKey = (doc: PenyimpananDokumenItem) => doc.kategori_dokumen || doc.nama_dokumen;
+const isArchiveToko = (toko?: RABDetailToko | null) => Boolean(toko && toko.id < 0);
 
 /** Resolve cabang list user boleh lihat (termasuk sub-branch) */
 function getVisibleBranches(cabang: string, canSeeAllBranches = false): string[] | null {
@@ -139,12 +141,31 @@ export default function PenyimpananDokumenPage() {
   const loadTokoList = async (cabang: string, canSeeAllBranches = false) => {
     setIsLoading(true);
     try {
-      const res = await fetchTokoList();
+      const [res, archiveRes] = await Promise.all([
+        fetchTokoList(),
+        fetchPenyimpananDokumenArchiveStores().catch(() => ({ status: "error", data: [] })),
+      ]);
       const visible = getVisibleBranches(cabang, canSeeAllBranches);
       const filtered = visible
         ? res.data.filter(t => visible.includes((t.cabang || '').toUpperCase()))
         : res.data;
-      setTokoList(filtered);
+
+      const archiveStores: RABDetailToko[] = (archiveRes.data || [])
+        .filter(store => store.kode_toko || store.nama_toko)
+        .filter(store => !visible || visible.includes((store.cabang || '').toUpperCase()))
+        .map((store, index) => ({
+          id: -1 * (index + 1),
+          nomor_ulok: store.kode_toko || store.nama_toko || `ARSIP-${index + 1}`,
+          kode_toko: store.kode_toko || "",
+          nama_toko: store.nama_toko || store.kode_toko || "Arsip Dokumen",
+          cabang: store.cabang || "-",
+          proyek: `Arsip Migrasi (${store.jumlah_dokumen})`,
+          lingkup_pekerjaan: "",
+          alamat: "",
+          nama_kontraktor: "",
+        }));
+
+      setTokoList([...archiveStores, ...filtered]);
     } catch (err: any) {
       console.error(err);
       showToast("Gagal memuat data toko", "error");
@@ -157,7 +178,7 @@ export default function PenyimpananDokumenPage() {
     setIsLoadingDocs(true);
     try {
       const res = await fetchPenyimpananDokumenList({
-        id_toko: toko.id,
+        ...(isArchiveToko(toko) ? {} : { id_toko: toko.id }),
         kode_toko: toko.kode_toko || toko.nomor_ulok,
         nama_toko: toko.nama_toko,
         cabang: toko.cabang,
@@ -194,6 +215,10 @@ export default function PenyimpananDokumenPage() {
       return;
     }
     if (!files || files.length === 0 || !selectedToko) return;
+    if (isArchiveToko(selectedToko)) {
+      showToast("Data arsip migrasi hanya bisa dilihat, belum bisa upload manual", "error");
+      return;
+    }
     setUploadingCategory(categoryKey);
     setIsSyncing(true);
     try {
@@ -429,6 +454,7 @@ export default function PenyimpananDokumenPage() {
 
   const renderDetail = () => {
     if (!selectedToko) return null;
+    const canManageDocs = !isReadOnly && !isArchiveToko(selectedToko);
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -443,6 +469,7 @@ export default function PenyimpananDokumenPage() {
               <Badge className="bg-red-100 text-red-700 border-red-200">{selectedToko.nomor_ulok}</Badge>
               <Badge variant="secondary">{selectedToko.cabang}</Badge>
               {selectedToko.proyek && <Badge variant="secondary">{selectedToko.proyek}</Badge>}
+              {isArchiveToko(selectedToko) && <Badge className="bg-amber-50 text-amber-700 border-amber-200">Data Arsip</Badge>}
             </div>
           </div>
           <div className="flex gap-2 items-center shrink-0">
@@ -510,7 +537,7 @@ export default function PenyimpananDokumenPage() {
                               <Badge className="bg-red-100 text-red-600 border-red-200 text-[10px] h-5 px-1.5">{catDocs.length}</Badge>
                             )}
                           </div>
-                          {!isReadOnly && (
+                          {canManageDocs && (
                             <label className={`cursor-pointer transition-colors ${isCatUploading ? 'text-slate-300' : 'hover:text-red-600'}`}>
                               {isCatUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
                               <input
@@ -538,7 +565,7 @@ export default function PenyimpananDokumenPage() {
                               </a>
                               <div className="flex items-center gap-1 shrink-0">
                                 <span className="text-[10px] text-slate-400">{new Date(doc.created_at).toLocaleDateString('id-ID')}</span>
-                                {!isReadOnly && (
+                                {canManageDocs && (
                                   <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
                                     <button
                                       type="button"

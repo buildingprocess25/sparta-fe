@@ -2135,6 +2135,14 @@ export type PenyimpananDokumenMigrationResult = {
     }>;
 };
 
+export type PenyimpananDokumenArchiveStore = {
+    kode_toko: string | null;
+    nama_toko: string | null;
+    cabang: string | null;
+    jumlah_dokumen: number;
+    last_created_at: string | null;
+};
+
 // --- Fungsi ---
 
 /** List dokumen penyimpanan (GET /api/doc/penyimpanan-dokumen) */
@@ -2150,6 +2158,10 @@ export const fetchPenyimpananDokumenList = async (
     if (filters?.cabang) params.append("cabang", filters.cabang);
     const url = `${base}/api/doc/penyimpanan-dokumen${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
+};
+
+export const fetchPenyimpananDokumenArchiveStores = async (): Promise<{ status: string; data: PenyimpananDokumenArchiveStore[] }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/archive-stores`);
 };
 
 const postPenyimpananDokumenMigration = async (
