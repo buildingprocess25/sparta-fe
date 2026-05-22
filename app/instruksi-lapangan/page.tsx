@@ -43,7 +43,8 @@ export default function InstruksiLapanganPage() {
 
     const { user } = useSession();
     const isSuperHuman = user?.isSuperHuman ?? false;
-    const isReadOnly = isViewOnlyUser(user?.roles, isSuperHuman);
+    const canCreateInstruksiLapangan = isSuperHuman || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
+    const isReadOnly = isViewOnlyUser(user?.roles, isSuperHuman) || !canCreateInstruksiLapangan;
 
     useEffect(() => {
         if (!user) return;
@@ -203,7 +204,7 @@ export default function InstruksiLapanganPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isReadOnly) {
-            showAlert("Akses Ditolak", "Role ini hanya memiliki akses view.", "warning");
+            showAlert("Akses Ditolak", "Instruksi Lapangan hanya dapat dibuat oleh Branch Building Support.", "warning");
             return;
         }
         if (!selectedToko) return showAlert("Peringatan", "Silakan pilih Toko terlebih dahulu.", "error");
@@ -309,7 +310,9 @@ export default function InstruksiLapanganPage() {
                                                 />
                                             </label>
                                         ) : (
-                                            <div className="p-2 bg-slate-100 text-slate-500 text-sm border rounded-lg">Belum diunggah</div>
+                                            <div className="p-2 bg-slate-100 text-slate-500 text-sm border rounded-lg">
+                                                {canCreateInstruksiLapangan ? 'Belum diunggah' : 'Khusus Branch Building Support'}
+                                            </div>
                                         )
                                     )}
                                 </div>

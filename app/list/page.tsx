@@ -117,7 +117,6 @@ interface NormalizedDetail {
     approval_koordinator?: { pemberi: string | null; waktu: string | null };
     approval_manager?: { pemberi: string | null; waktu: string | null };
     approval_direktur?: { pemberi: string | null; waktu: string | null };
-    approval_kontraktor?: { pemberi: string | null; waktu: string | null };
     items?: Array<{
         id: number;
         kategori: string;
@@ -1089,7 +1088,6 @@ export default function DaftarDokumenPage() {
                     link_lampiran_pendukung: d.link_lampiran,
                     approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager },
-                    approval_kontraktor:  { pemberi: d.pemberi_persetujuan_kontraktor,  waktu: d.waktu_persetujuan_kontraktor },
                     alasan_penolakan:    d.alasan_penolakan,
                     items: (d.items ?? []).map((it: any) => ({
                         id: it.id,
@@ -2201,10 +2199,8 @@ export default function DaftarDokumenPage() {
                                         <div className="space-y-3">
                                             <ApprovalRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} />
                                             <ApprovalRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} />
-                                            {selectedDetail.tipe === 'RAB' ? (
+                                            {selectedDetail.tipe === 'RAB' && (
                                                 <ApprovalRow label="Direktur" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} />
-                                            ) : (
-                                                <ApprovalRow label="Kontraktor" pemberi={selectedDetail.approval_kontraktor?.pemberi} waktu={selectedDetail.approval_kontraktor?.waktu} />
                                             )}
                                             {selectedDetail.alasan_penolakan && (
                                                 <div className="flex items-start gap-3 text-sm mt-2 bg-red-50 rounded-lg p-3 border border-red-100">

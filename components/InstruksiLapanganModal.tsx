@@ -39,6 +39,14 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
 
     useEffect(() => {
         const userCabang = sessionStorage.getItem('loggedInUserCabang')?.toUpperCase();
+        const userRole = sessionStorage.getItem('userRole') || '';
+        const roles = userRole.split(',').map(role => role.trim().toUpperCase());
+        const canCreateInstruksiLapangan = roles.includes('BUILDING & MAINTENANCE SUPER HUMAN') || roles.includes('BRANCH BUILDING SUPPORT');
+        if (!canCreateInstruksiLapangan) {
+            showAlert("Akses Ditolak", "Instruksi Lapangan hanya dapat dibuat oleh Branch Building Support.", "warning");
+            return;
+        }
+
         if (!userCabang) {
             router.push('/auth');
             return;

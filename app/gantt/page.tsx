@@ -1296,6 +1296,8 @@ function GanttBoard() {
 function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, id_toko, onSuccess }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
+    const { user } = useSession();
+    const canCreateInstruksiLapangan = (user?.isSuperHuman ?? false) || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null }>>({});
@@ -1734,13 +1736,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowInstruksiModal(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-bold border border-indigo-200 transition-colors"
-                        >
-                            <FileText className="w-3.5 h-3.5" />
-                            Instruksi Lapangan
-                        </button>
+                        {canCreateInstruksiLapangan && (
+                            <button
+                                onClick={() => setShowInstruksiModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-bold border border-indigo-200 transition-colors"
+                            >
+                                <FileText className="w-3.5 h-3.5" />
+                                Instruksi Lapangan
+                            </button>
+                        )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6"/></button>
                     </div>
                 </div>

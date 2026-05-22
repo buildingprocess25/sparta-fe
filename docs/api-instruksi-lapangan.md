@@ -6,7 +6,7 @@ Logika formulir pengajuannya terdapat di `app/instruksi-lapangan/page.tsx` dan i
 
 ## 1. Alur Pembuatan (Form Submission)
 
-Pembuat Instruksi Lapangan (biasanya Koordinator / PIC Proyek) melakukan input melalui antarmuka _builder_ dinamis:
+Pembuat Instruksi Lapangan adalah Branch Building Support melalui antarmuka _builder_ dinamis:
 
 1. **Pilih Proyek (Toko):**
    - Aplikasi memuat daftar toko `fetchTokoList()` yang sesuai dengan _Cabang_ pengguna.
@@ -47,10 +47,8 @@ Setelah diajukan, Instruksi Lapangan akan masuk ke sistem Hub Persetujuan Sentra
 
 - `POST /api/instruksi-lapangan/{id}/approval`
 - **Hierarki Persetujuan (Role Access):**
-  1. `KONTRAKTOR` (sebagai pihak eksternal yang menyetujui perintah penambahan kerja)
-  2. `KOORDINATOR`
-  3. `MANAGER`
-  4. `DIREKTUR` (untuk instruksi yang melewati plafon tertentu, jika dikonfigurasi).
+  1. `KOORDINATOR`
+  2. `MANAGER`
 
 ## 4. Cetak PDF
 
