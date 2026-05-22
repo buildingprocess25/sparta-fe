@@ -6,11 +6,12 @@ Logika formulir pengajuannya terdapat di `app/instruksi-lapangan/page.tsx` dan i
 
 ## 1. Alur Pembuatan (Form Submission)
 
-Pembuat Instruksi Lapangan (biasanya Koordinator / PIC Proyek) melakukan input melalui antarmuka _builder_ dinamis:
+Pembuat Instruksi Lapangan adalah Branch Building Support melalui antarmuka _builder_ dinamis:
 
 1. **Pilih Proyek (Toko):**
    - Aplikasi memuat daftar toko `fetchTokoList()` yang sesuai dengan _Cabang_ pengguna.
-   - Ketika toko dipilih, sistem akan memeriksa apakah ada data IL sebelumnya yang berstatus `DITOLAK`. Jika ada, data (item & lampiran) dari IL yang ditolak tersebut otomatis dimuat (_auto-populate_) untuk dilakukan **Revisi**.
+   - Instruksi Lapangan dapat dibuat lebih dari satu kali untuk toko/ULOK yang sama. Ketika toko dipilih, sistem memeriksa apakah ada IL berstatus `DITOLAK` dan menampilkan pilihan **Buat IL Baru** atau **Revisi IL #ID**.
+   - Mode **Buat IL Baru** membuat dokumen baru tanpa menimpa IL sebelumnya. Mode **Revisi IL #ID** memuat data IL yang ditolak tersebut dan mengirim `id_instruksi_lapangan_revisi` saat submit.
 2. **Kalkulasi Harga Acuan (Master Price):**
    - Berdasarkan `lingkup_pekerjaan` toko (Sipil atau ME), aplikasi memanggil `fetchPricesData(cabang, lingkup)` untuk mendapatkan _Master Standard Price_ per item pekerjaan.
    - Saat pengguna memilih "Jenis Pekerjaan", Harga Material dan Harga Upah otomatis terisi (_binded_).
@@ -34,6 +35,10 @@ Karena Instruksi Lapangan mengizinkan **opsi lampiran (File)** pendukung, sistem
 - `tanggal_mulai` (format `YYYY-MM-DD`)
 - `tanggal_selesai` (format `YYYY-MM-DD`)
 
+**Field revisi opsional:**
+
+- `id_instruksi_lapangan_revisi`: dikirim hanya saat pengguna memilih mode revisi IL yang berstatus `DITOLAK`. Jika tidak dikirim, backend membuat IL baru untuk toko yang sama.
+
 ## 3. Alur Persetujuan (Approval Hub)
 
 Setelah diajukan, Instruksi Lapangan akan masuk ke sistem Hub Persetujuan Sentral (yang dapat dilihat di dashboard Approval).
@@ -47,10 +52,8 @@ Setelah diajukan, Instruksi Lapangan akan masuk ke sistem Hub Persetujuan Sentra
 
 - `POST /api/instruksi-lapangan/{id}/approval`
 - **Hierarki Persetujuan (Role Access):**
-  1. `KONTRAKTOR` (sebagai pihak eksternal yang menyetujui perintah penambahan kerja)
-  2. `KOORDINATOR`
-  3. `MANAGER`
-  4. `DIREKTUR` (untuk instruksi yang melewati plafon tertentu, jika dikonfigurasi).
+  1. `KOORDINATOR`
+  2. `MANAGER`
 
 ## 4. Cetak PDF
 

@@ -90,7 +90,6 @@ interface NormalizedDetail {
     approval_koordinator?: { pemberi: string | null; waktu: string | null };
     approval_manager?: { pemberi: string | null; waktu: string | null };
     approval_direktur?: { pemberi: string | null; waktu: string | null };
-    approval_kontraktor?: { pemberi: string | null; waktu: string | null };
     // SPK specific
     nama_kontraktor?: string;
     durasi?: number;
@@ -176,7 +175,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     SPK: ['BRANCH MANAGER', 'MANAGER'],
     PERTAMBAHAN_SPK: ['BRANCH MANAGER', 'MANAGER'],
     OPNAME_FINAL: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
-    INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'KONTRAKTOR', 'COORDINATOR', 'MANAGER'],
+    INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'COORDINATOR', 'MANAGER'],
     PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
 };
 
@@ -307,8 +306,6 @@ const STATUS_LABEL: Record<string, string> = {
     'DITOLAK OLEH MANAJER':             'REJECTED (MGR.)',
     'DITOLAK OLEH DIREKTUR':            'REJECTED (DIR.)',
     // Instruksi Lapangan
-    'MENUNGGU PERSETUJUAN KONTRAKTOR':  'PENDING (KONTR.)',
-    'DITOLAK OLEH KONTRAKTOR':          'REJECTED (KONTR.)',
     // Project Planning
     WAITING_BM_APPROVAL:                'Pending B&M Mgr',
     WAITING_PP_APPROVAL_1:              'Pending PP (1)',
@@ -512,7 +509,6 @@ export default function ApprovalPage() {
             allAccessibleTypes.add('SPK');
             allAccessibleTypes.add('PERTAMBAHAN_SPK');
             allAccessibleTypes.add('OPNAME_FINAL');
-            allAccessibleTypes.add('INSTRUKSI_LAPANGAN');
         } else {
             roles.forEach(r => {
                 (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {
@@ -534,15 +530,13 @@ export default function ApprovalPage() {
             return;
         }
 
-        // Prioritas Jabatan: DIREKTUR > MANAGER > KOORDINATOR, KONTRAKTOR for IL
+        // Prioritas Jabatan: DIREKTUR > MANAGER > KOORDINATOR
         // Super Human mendapat jabatan MANAGER untuk bisa approve semua level
         let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR' | null = null;
         if (isSuperHuman) {
             currentJabatan = 'MANAGER';
         } else if (roles.includes('DIREKTUR')) {
             currentJabatan = 'DIREKTUR';
-        } else if (roles.includes('KONTRAKTOR')) {
-            currentJabatan = 'KONTRAKTOR';
         } else if (roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER') || roles.includes('MANAGER')) {
             currentJabatan = 'MANAGER';
         } else if (roles.includes('BRANCH BUILDING COORDINATOR') || roles.includes('COORDINATOR')) {
@@ -736,7 +730,6 @@ export default function ApprovalPage() {
                 if (jabatan === 'KOORDINATOR') return upper.includes('KOORDINATOR');
                 if (jabatan === 'MANAGER')     return upper.includes('MANAGER') || upper.includes('MANAJER');
                 if (jabatan === 'DIREKTUR')    return upper.includes('DIREKTUR');
-                if (jabatan === 'KONTRAKTOR')  return upper.includes('KONTRAKTOR');
                 return true;
             });
 
@@ -923,7 +916,6 @@ export default function ApprovalPage() {
                     link_lampiran_pendukung: d.link_lampiran,
                     approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager },
-                    approval_kontraktor:  { pemberi: d.pemberi_persetujuan_kontraktor,  waktu: d.waktu_persetujuan_kontraktor },
                     items: (d.items ?? []).map((it: any) => ({
                         id: it.id,
                         kategori:        it.kategori_pekerjaan,
@@ -1191,7 +1183,6 @@ export default function ApprovalPage() {
      * Backend mengembalikan status dalam bahasa Indonesia:
      *   - "Menunggu Persetujuan Koordinator"
      *   - "Menunggu Persetujuan Manager"
-     *   - "Menunggu Persetujuan Direktur"
      *   - "Disetujui" / "Approved"
      *   - "Ditolak"  / "Rejected"
      */
@@ -1221,7 +1212,6 @@ export default function ApprovalPage() {
         if (jabatan === 'KOORDINATOR') return upper.includes('MENUNGGU') && upper.includes('KOORDINATOR');
         if (jabatan === 'MANAGER')     return upper.includes('MENUNGGU') && (upper.includes('MANAGER') || upper.includes('MANAJER'));
         if (jabatan === 'DIREKTUR')    return upper.includes('MENUNGGU') && upper.includes('DIREKTUR');
-        if (jabatan === 'KONTRAKTOR')  return upper.includes('MENUNGGU') && upper.includes('KONTRAKTOR');
         return upper.includes('MENUNGGU') || upper.startsWith('PENDING');
     };
 

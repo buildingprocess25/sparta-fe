@@ -719,7 +719,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                         </div>
                         {selectedRab && (
                             <div className="flex gap-2">
-                                {!isReadOnly && (
+                                {!isReadOnly && canLockOpnameFinal && (
                                     <button
                                         onClick={() => setShowInstruksiModal(true)}
                                         className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-bold border border-indigo-200 transition-colors"

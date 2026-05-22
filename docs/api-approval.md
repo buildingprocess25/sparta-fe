@@ -19,14 +19,14 @@ Aplikasi akan memfilter dokumen mana saja yang boleh dilihat oleh user berdasark
 
 ### Prioritas Jabatan:
 Apabila seorang user memiliki peran ganda (Multi-Role), hierarki jabatannya akan diutamakan dengan urutan:
-`DIREKTUR` > `MANAGER` > `KOORDINATOR` / `KONTRAKTOR`
+`DIREKTUR` > `MANAGER` > `KOORDINATOR`
 
 ### Matriks Akses Dokumen:
 - **RAB**: `KOORDINATOR`, `MANAGER`, `DIREKTUR`
 - **SPK**: `MANAGER` (Branch Manager)
 - **PERTAMBAHAN SPK**: `MANAGER` (Branch Manager)
 - **OPNAME FINAL**: `KOORDINATOR`, `MANAGER`, `DIREKTUR`
-- **INSTRUKSI LAPANGAN**: `KOORDINATOR`, `MANAGER`, `KONTRAKTOR`
+- **INSTRUKSI LAPANGAN**: `KOORDINATOR`, `MANAGER`
 
 ## 3. Alur Fetching & Normalisasi Data (Frontend)
 

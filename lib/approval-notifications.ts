@@ -47,7 +47,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     SPK: ["BRANCH MANAGER", "MANAGER"],
     PERTAMBAHAN_SPK: ["BRANCH MANAGER", "MANAGER"],
     OPNAME_FINAL: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR", "COORDINATOR", "MANAGER"],
-    INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "KONTRAKTOR", "COORDINATOR", "MANAGER"],
+    INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
     PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
 };
 
@@ -83,7 +83,6 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         allAccessibleTypes.add("SPK");
         allAccessibleTypes.add("PERTAMBAHAN_SPK");
         allAccessibleTypes.add("OPNAME_FINAL");
-        allAccessibleTypes.add("INSTRUKSI_LAPANGAN");
     } else {
         roles.forEach(role => {
             (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {

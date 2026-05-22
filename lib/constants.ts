@@ -150,7 +150,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-il", "menu-projek-planning",
+        "menu-projek-planning",
     ],
 
     "BRANCH MANAGER": [
