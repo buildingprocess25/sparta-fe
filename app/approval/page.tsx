@@ -253,6 +253,7 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
+    'MENUNGGU GANTT CHART': 'bg-slate-100 text-slate-700 border-slate-200',
     PENDING:             'bg-yellow-100 text-yellow-700 border-yellow-200',
     PENDING_KOORDINATOR: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     PENDING_MANAGER:     'bg-orange-100 text-orange-700 border-orange-200',
@@ -285,6 +286,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+    'MENUNGGU GANTT CHART': 'MENUNGGU GANTT',
     PENDING:             'PENDING',
     PENDING_KOORDINATOR: 'PENDING (KOORD.)',
     PENDING_MANAGER:     'PENDING (MGR.)',

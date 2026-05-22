@@ -501,7 +501,7 @@ export default function RABPage() {
         if (submitRes.data?.id) params.append('id_rab', String(submitRes.data.id));
         params.append('locked', 'true');
         
-        showAlert("Berhasil", "Pengajuan RAB berhasil disimpan dan PDF sedang diproses.", "success");
+        showAlert("Berhasil", "RAB berhasil disimpan. Lanjut buat Gantt Chart agar RAB masuk proses approval.", "success");
         setTimeout(() => { router.push(`/gantt?${params.toString()}`); }, 1500);
     } catch (err: any) {
         setIsLoading(false);

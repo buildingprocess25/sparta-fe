@@ -1159,6 +1159,7 @@ export default function DaftarDokumenPage() {
     // UPDATE RAB STATUS (HO ONLY)
     // =========================================================================
     const RAB_STATUS_OPTIONS = [
+        { value: 'Menunggu Gantt Chart', label: 'Menunggu Gantt Chart' },
         { value: 'Ditolak oleh Koordinator', label: 'Ditolak oleh Koordinator' },
         { value: 'Ditolak oleh Manajer', label: 'Ditolak oleh Manajer' },
         { value: 'Ditolak oleh Direktur', label: 'Ditolak oleh Direktur' },

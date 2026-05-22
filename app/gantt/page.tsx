@@ -693,10 +693,10 @@ function GanttBoard() {
             }
 
             if (status === 'Terkunci') {
-                showAlert({ message: "Berhasil! Jadwal telah dikunci.", type: "success" });
+                showAlert({ message: "Berhasil! Jadwal telah dikunci dan RAB masuk proses approval.", type: "success" });
                 router.push('/dashboard');
             } else {
-                showAlert({ message: "Draft berhasil disimpan.", type: "success" });
+                showAlert({ message: "Draft Gantt berhasil disimpan. RAB masuk proses approval.", type: "success" });
                 const newGanttId = selectedGanttId || submitRes?.data?.id;
                 if (newGanttId) loadGanttDetail(newGanttId);
             }

@@ -283,8 +283,8 @@ export default function DashboardPage() {
         let jhkProjectCount = 0;
         let delayProjectCount = 0;
 
-        let miniStats = { 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0, 'Done': 0 };
-        let miniPerhatian = { 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
+        let miniStats = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0, 'Done': 0 };
+        let miniPerhatian = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
 
         const contractorScores: Record<string, { totalNilai: number, count: number, stores: any[] }> = {};
         const beanspotStores: { nama_toko: string, nomor_ulok: string, cabang: string, nominal: number }[] = [];
@@ -295,7 +295,9 @@ export default function DashboardPage() {
             // Mapping Category (Funnel)
             const hasRAB = (p.rab || []).length > 0;
             const rabData = p.rab?.[0];
-            const isRabDisetujui = rabData && (rabData.status || '').toUpperCase() === 'DISETUJUI';
+            const rabStatus = (rabData?.status || '').toUpperCase();
+            const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
+            const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
             
             const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
             const hasSPK = spkArray.some((s: any) => {
@@ -317,6 +319,7 @@ export default function DashboardPage() {
             else if (hasSPK) { cat = 'Ongoing'; miniStats['Ongoing']++; }
             else if (hasApprovalSPK) { cat = 'Approval SPK'; miniStats['Approval SPK']++; }
             else if (isRabDisetujui) { cat = 'Proses PJU'; miniStats['Proses PJU']++; }
+            else if (hasRAB && isRabMenungguGantt) { cat = 'Proses Gantt'; miniStats['Proses Gantt']++; }
             else { cat = 'Approval RAB'; miniStats['Approval RAB']++; }
 
             // SLA / Attention Logic
@@ -367,6 +370,14 @@ export default function DashboardPage() {
                     if (rabDiffDays > 2 && !isDisetujui) {
                         isPerhatian = true;
                     }
+                }
+            }
+            else if (cat === 'Proses Gantt') {
+                const rabData = p.rab?.[0];
+                const rabCreatedAt = new Date(rabData?.created_at || p.toko?.created_at || Date.now());
+                const rabDiffDays = Math.floor((Date.now() - rabCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+                if (rabDiffDays > 2) {
+                    isPerhatian = true;
                 }
             }
             else if (cat === 'Proses PJU') {
@@ -1102,7 +1113,9 @@ export default function DashboardPage() {
                                 
                                 const hasRAB = (p.rab || []).length > 0;
                                 const rabData = p.rab?.[0];
-                                const isRabDisetujui = rabData && (rabData.status || '').toUpperCase() === 'DISETUJUI';
+                                const rabStatus = (rabData?.status || '').toUpperCase();
+                                const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
+                                const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
                                 
                                 const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
                                 const hasSPK = spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
@@ -1121,6 +1134,7 @@ export default function DashboardPage() {
                                 else if (hasSPK) cat = 'Ongoing';
                                 else if (hasApprovalSPK) cat = 'Approval SPK';
                                 else if (isRabDisetujui) cat = 'Proses PJU';
+                                else if (hasRAB && isRabMenungguGantt) cat = 'Proses Gantt';
                                 else cat = 'Approval RAB';
 
                                 if (cat !== detailModal.subContext) return false;
@@ -1173,6 +1187,14 @@ export default function DashboardPage() {
                                             if (rabDiffDays > 2 && !isDisetujui) {
                                                 isPerhatian = true;
                                             }
+                                        }
+                                    }
+                                    else if (cat === 'Proses Gantt') {
+                                        const rabData = p.rab?.[0];
+                                        const rabCreatedAt = new Date(rabData?.created_at || p.toko?.created_at || Date.now());
+                                        const rabDiffDays = Math.floor((Date.now() - rabCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+                                        if (rabDiffDays > 2) {
+                                            isPerhatian = true;
                                         }
                                     }
                                     else if (cat === 'Proses PJU') {

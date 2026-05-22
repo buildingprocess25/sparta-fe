@@ -119,6 +119,7 @@ const isPendingProcessStatus = (status: string, tipe: ApprovalType) => {
     const upper = (status ?? "").toUpperCase();
     if (!upper) return false;
     if (upper === "DRAFT") return false;
+    if (upper === "MENUNGGU GANTT CHART") return false;
     if (upper.includes("TOLAK") || upper.includes("DITOLAK") || upper === "REJECTED" || upper === "SPK_REJECTED") return false;
     if (upper.includes("DISETUJUI") || upper === "APPROVED" || upper === "SPK_APPROVED" || upper === "COMPLETED") return false;
 
