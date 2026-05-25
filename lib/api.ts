@@ -1939,6 +1939,46 @@ export const downloadSerahTerimaPdf = async (id: number): Promise<boolean> => {
     return true;
 };
 
+export const viewGeneratedPdfOnline = async (
+    id: number,
+    tipe: "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN"
+): Promise<boolean> => {
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) throw new Error("Browser memblokir tab baru. Izinkan popup untuk membuka PDF online.");
+
+    const base = API_URL.replace(/\/$/, "");
+
+    if (tipe === "DOKUMENTASI_BANGUNAN") {
+        const res = await fetch(`${base}/api/dok/bangunan/${id}/pdf`, { method: "POST" });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Dokumentasi Bangunan.");
+        const linkPdf = result?.data?.link_pdf;
+        if (!linkPdf) throw new Error("Link PDF Dokumentasi Bangunan tidak tersedia.");
+        popup.location.href = linkPdf;
+        return true;
+    }
+
+    const endpointByType = {
+        OPNAME_FINAL: `/api/final_opname/${id}/pdf`,
+        INSTRUKSI_LAPANGAN: `/api/instruksi-lapangan/${id}/pdf`,
+        PROJECT_PLANNING: `/api/projek-planning/${id}/pdf`,
+        BERKAS_SERAH_TERIMA: `/api/berkas_serah_terima/${id}/pdf`,
+    } as const;
+
+    const endpoint = endpointByType[tipe];
+    const res = await fetch(`${base}${endpoint}`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal membuka PDF (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    popup.location.href = blobUrl;
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+    return true;
+};
+
 // =============================================================================
 // 9. DOKUMENTASI BANGUNAN
 // =============================================================================
@@ -2000,6 +2040,54 @@ export const fetchDokumentasiBangunanDetail = async (id: number): Promise<{ stat
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dok/bangunan/${id}`);
 };
 
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality: number) =>
+    new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Gagal memproses gambar."));
+        }, type, quality);
+    });
+
+const compressImageUrlToBlob = async (
+    url: string,
+    options: { maxWidth?: number; quality?: number } = {}
+): Promise<Blob> => {
+    const maxWidth = options.maxWidth ?? 1280;
+    const quality = options.quality ?? 0.68;
+
+    const response = await fetch(url);
+    const originalBlob = await response.blob();
+
+    if (!originalBlob.type.startsWith("image/")) {
+        return originalBlob;
+    }
+
+    const objectUrl = URL.createObjectURL(originalBlob);
+    try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error("Gagal membaca gambar."));
+            img.src = objectUrl;
+        });
+
+        const ratio = image.width > maxWidth ? maxWidth / image.width : 1;
+        const width = Math.max(1, Math.round(image.width * ratio));
+        const height = Math.max(1, Math.round(image.height * ratio));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return originalBlob;
+        ctx.drawImage(image, 0, 0, width, height);
+
+        return canvasToBlob(canvas, "image/jpeg", quality);
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
+};
+
 export const submitDokumentasiBangunan = async (
     fields: Record<string, string>,
     photos: Record<number, { url: string; note: string | null; timestamp: string }>
@@ -2012,16 +2100,21 @@ export const submitDokumentasiBangunan = async (
 
     // Convert photos dataUrl to Blob/File
     for (const [idStr, data] of Object.entries(photos)) {
-        if (data.url.startsWith('data:')) {
-            const res = await fetch(data.url);
-            const blob = await res.blob();
+        if (data.url.startsWith('data:') || data.url.startsWith('/')) {
+            const blob = await compressImageUrlToBlob(data.url);
             // Documentation requires foto_items_1, foto_items_2, etc.
             form.append(`foto_items_${idStr}`, blob, `photo_${idStr}.jpg`);
         }
     }
 
-    const res = await fetch(url, { method: "POST", body: form });
-    const result = await res.json();
+    let res: Response;
+    try {
+        res = await fetch(url, { method: "POST", body: form });
+    } catch {
+        throw new Error("Gagal mengirim dokumentasi. Periksa koneksi internet atau coba ulang dengan jaringan yang lebih stabil.");
+    }
+
+    const result = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(result.message || "Gagal menyimpan Dokumentasi Bangunan.");
     return result;
 };

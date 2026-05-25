@@ -28,7 +28,7 @@ import {
     updateRABStatus, fetchBerkasSerahTerimaList, interveneSPKStatus,
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
-    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf,
+    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, viewGeneratedPdfOnline,
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
@@ -1112,6 +1112,30 @@ export default function DaftarDokumenPage() {
             showToast(err.message || 'Gagal mengunduh PDF.', 'error');
         } finally {
             setDownloadingId(null);
+        }
+    }, [showToast]);
+
+    const handleViewPDFOnline = useCallback(async (detail: NormalizedDetail) => {
+        try {
+            if ((detail.tipe === 'RAB' || detail.tipe === 'SPK' || detail.tipe === 'PENGAWASAN') && detail.link_pdf) {
+                window.open(detail.link_pdf, '_blank', 'noopener,noreferrer');
+                return;
+            }
+
+            if (
+                detail.tipe === 'OPNAME_FINAL' ||
+                detail.tipe === 'INSTRUKSI_LAPANGAN' ||
+                detail.tipe === 'PROJECT_PLANNING' ||
+                detail.tipe === 'BERKAS_SERAH_TERIMA' ||
+                detail.tipe === 'DOKUMENTASI_BANGUNAN'
+            ) {
+                await viewGeneratedPdfOnline(detail.id, detail.tipe);
+                return;
+            }
+
+            showToast('PDF online belum tersedia untuk dokumen ini.', 'error');
+        } catch (err: any) {
+            showToast(err.message || 'Gagal membuka PDF online.', 'error');
         }
     }, [showToast]);
 
@@ -2386,13 +2410,20 @@ export default function DaftarDokumenPage() {
                                             </a>
                                         )}
 
-                                        {/* SPK, OPNAME_FINAL, PENGAWASAN, BERKAS_SERAH_TERIMA & DOKUMENTASI_BANGUNAN PDF link */}
-                                        {(selectedDetail.tipe === 'SPK' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'PENGAWASAN' || selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' || selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN') && selectedDetail.link_pdf && (
-                                            <a href={selectedDetail.link_pdf} target="_blank" rel="noopener noreferrer">
-                                                <Button variant="outline">
-                                                    <FileDown className="w-4 h-4 mr-2" /> Lihat PDF Online
-                                                </Button>
-                                            </a>
+                                        {(
+                                            ((selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK' || selectedDetail.tipe === 'PENGAWASAN') && selectedDetail.link_pdf) ||
+                                            selectedDetail.tipe === 'OPNAME_FINAL' ||
+                                            selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ||
+                                            selectedDetail.tipe === 'PROJECT_PLANNING' ||
+                                            selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ||
+                                            selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN'
+                                        ) && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => handleViewPDFOnline(selectedDetail)}
+                                            >
+                                                <FileDown className="w-4 h-4 mr-2" /> Lihat PDF Online
+                                            </Button>
                                         )}
 
                                         {/* Pertambahan SPK Attachment */}
