@@ -36,7 +36,7 @@ export default function UserManualPage() {
     { id: 'sat', label: 'Panduan Internal SAT', icon: UserCheck },
   ];
 
-  const pembaruanPdfHref = '/user-manual/Pembaruan%20Sparta%20V2.pdf';
+  const pembaruanPdfHref = '/user-manual/pembaruan-sparta-v2.pdf';
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -113,26 +113,23 @@ export default function UserManualPage() {
 
           {/* CONTENT: PEMBARUAN V2 */}
           {activeMenu === 'pembaruan-v2' && (
-            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500 border-none shadow-lg overflow-hidden">
-              <CardHeader className="border-b border-red-100 bg-linear-to-r from-red-600 to-red-700 text-white pb-6">
-                <CardTitle className="text-2xl font-bold flex items-center gap-3">
-                  <Sparkles className="w-7 h-7 text-white" />
-                  Pembaruan SPARTA V2
-                </CardTitle>
-                <CardDescription className="text-red-50">
-                  Ringkasan pembaruan fitur dan alur kerja terbaru
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 md:p-8 space-y-6 bg-white">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Dokumen PDF</p>
-                    <h3 className="text-xl font-bold text-slate-900 mt-1">Pembaruan Sparta V2.pdf</h3>
-                    <p className="text-slate-600 mt-2">
-                      Buka dokumen pembaruan untuk melihat detail perubahan versi terbaru SPARTA.
-                    </p>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500 border border-slate-200 shadow-lg overflow-hidden">
+              <CardHeader className="border-b border-slate-100 bg-white pb-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl font-bold text-slate-900">
+                        Pembaruan SPARTA V2
+                      </CardTitle>
+                      <CardDescription className="mt-2 max-w-2xl text-base text-slate-600">
+                        Ringkasan pembaruan fitur dan alur kerja terbaru SPARTA.
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3 lg:justify-end">
                     <a href={pembaruanPdfHref} target="_blank" rel="noopener noreferrer">
                       <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100">
                         <ExternalLink className="w-4 h-4" />
@@ -147,12 +144,35 @@ export default function UserManualPage() {
                     </a>
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent className="p-5 md:p-6 space-y-5 bg-white">
+                <div className="rounded-xl border border-slate-200 bg-linear-to-r from-slate-50 to-white p-5">
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-wide">Dokumen PDF</p>
+                  <h3 className="text-xl font-bold text-slate-900 mt-1">Pembaruan Sparta V2.pdf</h3>
+                  <p className="text-slate-600 mt-2">
+                    Preview akan tampil di bawah. Jika browser tidak mendukung preview PDF, gunakan tombol Lihat PDF.
+                  </p>
+                </div>
 
-                <iframe
-                  title="Pembaruan SPARTA V2"
-                  src={pembaruanPdfHref}
-                  className="h-[70vh] w-full rounded-xl border border-slate-200 bg-slate-100"
-                />
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-inner">
+                  <object
+                    data={`${pembaruanPdfHref}#toolbar=1&navpanes=0`}
+                    type="application/pdf"
+                    className="h-[72vh] min-h-[520px] w-full"
+                  >
+                    <embed
+                      src={`${pembaruanPdfHref}#toolbar=1&navpanes=0`}
+                      type="application/pdf"
+                      className="h-[72vh] min-h-[520px] w-full"
+                    />
+                    <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 p-8 text-center">
+                      <FileCheck2 className="h-12 w-12 text-slate-400" />
+                      <p className="max-w-md text-sm text-slate-600">
+                        Preview PDF tidak tersedia di browser ini. Silakan buka dokumen melalui tombol Lihat PDF.
+                      </p>
+                    </div>
+                  </object>
+                </div>
               </CardContent>
             </Card>
           )}
