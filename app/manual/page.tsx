@@ -20,7 +20,10 @@ import {
   LineChart,
   ClipboardCheck,
   Building2,
-  MapPin
+  MapPin,
+  Download,
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 
 export default function UserManualPage() {
@@ -28,9 +31,12 @@ export default function UserManualPage() {
 
   const menus = [
     { id: 'pengenalan', label: 'Pengenalan SPARTA', icon: BookOpen },
+    { id: 'pembaruan-v2', label: 'Pembaruan SPARTA V2', icon: Sparkles },
     { id: 'kontraktor', label: 'Panduan Kontraktor', icon: HardHat },
     { id: 'sat', label: 'Panduan Internal SAT', icon: UserCheck },
   ];
+
+  const pembaruanPdfHref = '/user-manual/Pembaruan%20Sparta%20V2.pdf';
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -101,6 +107,52 @@ export default function UserManualPage() {
                     ))}
                   </ul>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* CONTENT: PEMBARUAN V2 */}
+          {activeMenu === 'pembaruan-v2' && (
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500 border-none shadow-lg overflow-hidden">
+              <CardHeader className="border-b border-red-100 bg-linear-to-r from-red-600 to-red-700 text-white pb-6">
+                <CardTitle className="text-2xl font-bold flex items-center gap-3">
+                  <Sparkles className="w-7 h-7 text-white" />
+                  Pembaruan SPARTA V2
+                </CardTitle>
+                <CardDescription className="text-red-50">
+                  Ringkasan pembaruan fitur dan alur kerja terbaru
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 md:p-8 space-y-6 bg-white">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Dokumen PDF</p>
+                    <h3 className="text-xl font-bold text-slate-900 mt-1">Pembaruan Sparta V2.pdf</h3>
+                    <p className="text-slate-600 mt-2">
+                      Buka dokumen pembaruan untuk melihat detail perubahan versi terbaru SPARTA.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <a href={pembaruanPdfHref} target="_blank" rel="noopener noreferrer">
+                      <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100">
+                        <ExternalLink className="w-4 h-4" />
+                        Lihat PDF
+                      </button>
+                    </a>
+                    <a href={pembaruanPdfHref} download>
+                      <button className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
+                        <Download className="w-4 h-4" />
+                        Unduh PDF
+                      </button>
+                    </a>
+                  </div>
+                </div>
+
+                <iframe
+                  title="Pembaruan SPARTA V2"
+                  src={pembaruanPdfHref}
+                  className="h-[70vh] w-full rounded-xl border border-slate-200 bg-slate-100"
+                />
               </CardContent>
             </Card>
           )}
