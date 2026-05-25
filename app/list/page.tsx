@@ -28,7 +28,7 @@ import {
     updateRABStatus, fetchBerkasSerahTerimaList, interveneSPKStatus,
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
-    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail,
+    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf,
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
@@ -1104,6 +1104,8 @@ export default function DaftarDokumenPage() {
                 await downloadInstruksiLapanganPdf(id);
             } else if (tipe === 'PROJECT_PLANNING') {
                 await downloadProjekPlanningPdf(id);
+            } else if (tipe === 'BERKAS_SERAH_TERIMA') {
+                await downloadSerahTerimaPdf(id);
             }
             showToast('PDF berhasil diunduh.', 'success');
         } catch (err: any) {
@@ -2344,7 +2346,8 @@ export default function DaftarDokumenPage() {
                                             (selectedDetail.tipe === 'SPK' && selectedDetail.link_pdf) ||
                                             (selectedDetail.tipe === 'OPNAME_FINAL' && selectedDetail.link_pdf) ||
                                             (selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' && selectedDetail.link_pdf_gabungan) ||
-                                            (selectedDetail.tipe === 'PROJECT_PLANNING')
+                                            (selectedDetail.tipe === 'PROJECT_PLANNING') ||
+                                            (selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' && selectedDetail.link_pdf)
                                         ) && (
                                             <Button
                                                 className="bg-red-600 hover:bg-red-700 text-white"
