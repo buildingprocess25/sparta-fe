@@ -213,7 +213,7 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
             if (type === "RAB") {
                 let filters: RABListFilters | undefined;
                 if (jabatan === "DIREKTUR") {
-                    filters = { nama_pt: user.namaPt };
+                    filters = { status: "Menunggu Persetujuan Direktur Kontraktor" };
                     const userCabang = normalizeBranch(user.cabang);
                     if (userCabang && userCabang !== "HEAD OFFICE") filters.cabang = user.cabang;
                 }

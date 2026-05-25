@@ -605,8 +605,8 @@ export default function ApprovalPage() {
                 let filters: RABListFilters | undefined = undefined;
                 if (jabatan === 'DIREKTUR') {
                     const userCabang = normalizeBranch(userInfo.cabang);
-                    filters = { 
-                        nama_pt: userInfo.nama_pt 
+                    filters = {
+                        status: 'Menunggu Persetujuan Direktur Kontraktor',
                     };
                     if (userCabang && userCabang !== 'HEAD OFFICE') {
                         filters.cabang = userInfo.cabang;
