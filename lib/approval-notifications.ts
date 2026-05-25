@@ -190,6 +190,10 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
 
     if (item.tipe === "RAB" && jabatan === "DIREKTUR") {
+        if (userCabang && !isHOUser && item.cabang) {
+            if (normalizeBranch(item.cabang) !== userCabang) return false;
+        }
+
         return upper.includes("DIREKTUR");
     }
 

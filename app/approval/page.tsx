@@ -718,6 +718,10 @@ export default function ApprovalPage() {
                 }
 
                 if (type === 'RAB' && jabatan === 'DIREKTUR') {
+                    if (upperUserCabang && !isHOUser && item.cabang && item.cabang !== '-') {
+                        if (normalizeBranch(item.cabang) !== upperUserCabang) return false;
+                    }
+
                     return (upper.includes('MENUNGGU') || upper.startsWith('PENDING'))
                         && upper.includes('DIREKTUR');
                 }
