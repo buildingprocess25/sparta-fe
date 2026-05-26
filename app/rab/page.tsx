@@ -27,6 +27,76 @@ import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fe
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
 
+const normalizeBranchName = (value?: string | null) =>
+  String(value ?? '').trim().toUpperCase().replace(/^CAB(?:ANG)?\.?\s+/, '').replace(/^CABANG\s+/, '').trim();
+
+const normalizeJobName = (value?: string | null) =>
+  String(value ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+
+type PriceMasterItem = {
+  "Jenis Pekerjaan"?: string;
+  "Satuan"?: string;
+  "Harga Material"?: number | string;
+  "Harga Upah"?: number | string;
+};
+
+type PriceMaster = Record<string, PriceMasterItem[]>;
+
+type RabTableRow = {
+  category: string;
+  jenisPekerjaan: string;
+  satuan: string;
+  volume: number;
+  hargaMaterial: number;
+  hargaUpah: number;
+  isKondisional: boolean;
+  [key: string]: unknown;
+};
+
+type TokoDetailPartial = {
+  alamat?: string | null;
+  cabang?: string | null;
+};
+
+const priceValueToNumber = (value: unknown, fallback: number) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || /^(kondisional|sbo)$/i.test(trimmed)) return fallback;
+    const parsed = Number(trimmed.replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: PriceMaster): T[] => {
+  const lookup = new Map<string, PriceMasterItem & { category: string }>();
+  Object.entries(masterPrices || {}).forEach(([category, items]) => {
+    items.forEach((item) => {
+      const key = normalizeJobName(item?.["Jenis Pekerjaan"]);
+      if (key && !lookup.has(key)) lookup.set(key, { ...item, category });
+    });
+  });
+
+  return rows.map((row) => {
+    if (!row.jenisPekerjaan) return row;
+    const itemData = lookup.get(normalizeJobName(row.jenisPekerjaan));
+    if (!itemData) return row;
+
+    const isMatCond = itemData["Harga Material"] === "Kondisional";
+    const isUpahCond = itemData["Harga Upah"] === "Kondisional";
+    return {
+      ...row,
+      category: itemData.category || row.category,
+      satuan: itemData["Satuan"] || row.satuan,
+      hargaMaterial: isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial),
+      hargaUpah: (isMatCond || isUpahCond) ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], row.hargaUpah),
+      isKondisional: isMatCond || isUpahCond,
+      volume: itemData["Satuan"] === 'Ls' ? 1 : row.volume,
+    };
+  });
+};
+
 export default function RABPage() {
   const router = useRouter();
   
@@ -110,9 +180,11 @@ export default function RABPage() {
   // --- 2. FETCH HARGA OTOMATIS ---
   useEffect(() => {
     if (formData.cabang && formData.lingkupPekerjaan) {
-        fetchPricesData(formData.cabang, formData.lingkupPekerjaan)
+        const activeCabang = normalizeBranchName(formData.cabang);
+        fetchPricesData(activeCabang, formData.lingkupPekerjaan)
             .then(data => {
                 setPrices(data);
+                setTableRows(prev => repriceRowsWithMaster(prev, data));
                 // Dihapus reset table dari sini karena menyebabkan data auto-load terhapus
             })
             .catch(err => showAlert("Error", err.message, "error"));
@@ -159,12 +231,14 @@ export default function RABPage() {
           const tokoRef = fetchedDetailData?.toko || data;
           const rabRef = fetchedDetailData?.rab || data;
           
+          let fetchedTokoDetail: TokoDetailPartial | null = null;
           let fetchedTokoAlamat = "";
           if (rabRef.id_toko || tokoRef.id) {
               try {
                   const idToFetch = rabRef.id_toko || tokoRef.id;
                   const tokoRes = await fetchTokoDetail(idToFetch);
-                  fetchedTokoAlamat = tokoRes.data?.alamat || "";
+                  fetchedTokoDetail = tokoRes.data || null;
+                  fetchedTokoAlamat = fetchedTokoDetail?.alamat || "";
               } catch (e) {
                   console.log("Bypass fetch toko detail error");
               }
@@ -175,8 +249,12 @@ export default function RABPage() {
           if (resolvedScope?.toUpperCase() === 'SIPIL') resolvedScope = 'Sipil';
           else if (resolvedScope?.toUpperCase() === 'ME') resolvedScope = 'ME';
 
-          // 2. Fetch harga master sesuai lingkup pekerjaan yang benar
-          const fetchedPrices = await fetchPricesData(formData.cabang, resolvedScope);
+          const resolvedCabang = normalizeBranchName(
+              fetchedTokoDetail?.cabang || tokoRef.cabang || data.cabang || data["Cabang"] || formData.cabang
+          );
+
+          // 2. Fetch harga master sesuai cabang dan lingkup pekerjaan dokumen
+          const fetchedPrices = await fetchPricesData(resolvedCabang, resolvedScope);
           setPrices(fetchedPrices);
 
           // Normalisasi Dropdown
@@ -199,11 +277,12 @@ export default function RABPage() {
 
           setFormData(prev => ({
               ...prev,
-              lokasiCabang,
+              lokasiCabang: BRANCH_TO_ULOK[resolvedCabang] || lokasiCabang,
               lokasiTanggal,
               lokasiManual,
               isRenovasi: isRenovasi,
               lingkupPekerjaan: resolvedScope,
+              cabang: resolvedCabang || prev.cabang,
               proyek: finalProyek,
               namaToko: tokoRef.nama_toko || data["nama_toko"] || data["Nama_Toko"] || prev.namaToko,
               alamat: fetchedTokoAlamat || tokoRef.alamat || data["Alamat"] || prev.alamat,
