@@ -458,21 +458,11 @@ export default function UbahRabItemPage() {
           }
         : undefined;
 
-      if (replaceMode) {
-        await replaceRabItems(
-          selectedRabId,
-          itemsPayload.map(({ id, ...rest }) => rest),
-          totalsPayload
-        );
-      } else {
-        const missingId = itemsPayload.some(item => !item.id);
-        if (missingId) {
-          showAlert("Peringatan", "Ada item baru tanpa ID. Gunakan mode replace untuk menyimpan secara menyeluruh.", "warning");
-          setLoading(false);
-          return;
-        }
-        await updateRabItemsBulk(selectedRabId, itemsPayload as any, totalsPayload);
-      }
+      await replaceRabItems(
+        selectedRabId,
+        itemsPayload.map(({ id, ...rest }) => rest),
+        totalsPayload
+      );
 
       showAlert("Berhasil", "Item RAB berhasil disimpan.", "success");
 
