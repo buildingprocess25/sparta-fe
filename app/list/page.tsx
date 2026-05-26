@@ -76,6 +76,10 @@ interface NormalizedDoc {
     id_pengawasan_gantt?: number;
     tanggal_pengawasan?: string;
     grouped_items?: any[];
+    hari_denda?: number;
+    nilai_denda?: string;
+    tanggal_akhir_spk_denda?: string;
+    tanggal_serah_terima_denda?: string;
 }
 
 interface PengawasanDocGroup {
@@ -156,6 +160,10 @@ interface NormalizedDetail {
     // Opname Final specific
     grand_total_opname?: string;
     grand_total_rab?: string;
+    hari_denda?: number;
+    nilai_denda?: string;
+    tanggal_akhir_spk_denda?: string;
+    tanggal_serah_terima_denda?: string;
     // Pengawasan specific
     id_gantt?: number;
     id_pengawasan_gantt?: number;
@@ -554,9 +562,11 @@ const normalizeOpnameFinalDocs = (items: any[]): NormalizedDoc[] =>
         proyek:        o.proyek        ?? o.toko?.proyek     ?? '-',
         status:        o.status_opname_final,
         email_pembuat: o.email_pembuat,
-        total_nilai:   parseCurrency(o.grand_total_opname),
+        total_nilai:   Math.max(0, parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda)),
         created_at:    o.created_at,
         link_pdf:      o.link_pdf_opname ?? null,
+        hari_denda:    Number(o.hari_denda ?? 0),
+        nilai_denda:   o.nilai_denda,
     }));
 
 const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): NormalizedDoc[] => {
@@ -932,11 +942,15 @@ export default function DaftarDokumenPage() {
                     proyek:              d.toko?.proyek || doc.proyek,
                     status:              d.opname_final.status_opname_final,
                     email_pembuat:       d.opname_final.email_pembuat,
-                    total_nilai:         parseCurrency(d.opname_final.grand_total_opname),
+                    total_nilai:         Math.max(0, parseCurrency(d.opname_final.grand_total_opname) - parseCurrency(d.opname_final.nilai_denda)),
                     created_at:          d.opname_final.created_at,
                     link_pdf:            d.opname_final.link_pdf_opname,
                     grand_total_opname:  d.opname_final.grand_total_opname,
                     grand_total_rab:     d.opname_final.grand_total_rab,
+                    hari_denda:          Number(d.opname_final.hari_denda ?? 0),
+                    nilai_denda:         d.opname_final.nilai_denda,
+                    tanggal_akhir_spk_denda: d.opname_final.tanggal_akhir_spk_denda,
+                    tanggal_serah_terima_denda: d.opname_final.tanggal_serah_terima_denda,
                     approval_koordinator: { pemberi: d.opname_final.pemberi_persetujuan_koordinator, waktu: d.opname_final.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.opname_final.pemberi_persetujuan_manager,     waktu: d.opname_final.waktu_persetujuan_manager },
                     approval_direktur:    { pemberi: d.opname_final.pemberi_persetujuan_direktur,    waktu: d.opname_final.waktu_persetujuan_direktur },
@@ -2240,6 +2254,22 @@ export default function DaftarDokumenPage() {
                                                         <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total_non_sbo))}</span>
                                                     </div>
                                                 )}
+                                            </div>
+                                        )}
+                                        {selectedDetail.tipe === 'OPNAME_FINAL' && (
+                                            <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                                                <div>
+                                                    <span className="text-slate-400">Subtotal Opname: </span>
+                                                    <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total_opname))}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400">Denda: </span>
+                                                    <span className="font-semibold text-red-600">{formatRupiah(parseCurrency(selectedDetail.nilai_denda))}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400">Hari Denda: </span>
+                                                    <span className="font-semibold text-slate-700">{selectedDetail.hari_denda ?? 0} hari</span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

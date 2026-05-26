@@ -65,6 +65,104 @@ const projectMatchesCompany = (project: unknown, companyName: string) => {
     return companyCandidates.some(candidate => normalizeDashboardText(candidate) === normalizedCompany);
 };
 
+const parseDashboardDate = (value: unknown): Date | null => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+        const [, day, month, year] = slashMatch;
+        return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+};
+
+const addDashboardDays = (date: Date, days: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const isDashboardWeekend = (date: Date) => {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+};
+
+const nextDashboardBusinessDayAfter = (date: Date) => {
+    let current = addDashboardDays(date, 1);
+    while (isDashboardWeekend(current)) current = addDashboardDays(current, 1);
+    return current;
+};
+
+const countDashboardWeekdaysAfter = (freeDate: Date, compareDate: Date) => {
+    if (compareDate <= freeDate) return 0;
+    let current = addDashboardDays(freeDate, 1);
+    let count = 0;
+    while (current <= compareDate) {
+        if (!isDashboardWeekend(current)) count += 1;
+        current = addDashboardDays(current, 1);
+    }
+    return count;
+};
+
+const isApprovedDashboardSpk = (spk: any) => {
+    const status = String(spk?.status || '').toUpperCase();
+    return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status);
+};
+
+const getApprovedDashboardSpks = (project: any) => {
+    const spkArr = Array.isArray(project?.spk) ? project.spk : (project?.spk ? [project.spk] : []);
+    const approved = spkArr.filter(isApprovedDashboardSpk);
+    return approved.length > 0 ? approved : (spkArr[0] ? [spkArr[0]] : []);
+};
+
+const getSpkEffectiveEndDate = (spk: any) => {
+    const pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    const approvedPertambahanDates = pertambahanArr
+        .filter((pt: any) => String(pt?.status_persetujuan || '').toUpperCase() === 'APPROVED')
+        .map((pt: any) => parseDashboardDate(pt?.tanggal_spk_akhir_setelah_perpanjangan))
+        .filter(Boolean) as Date[];
+    const latestPertambahanDate = approvedPertambahanDates.sort((a, b) => b.getTime() - a.getTime())[0];
+    return latestPertambahanDate || parseDashboardDate(spk?.waktu_selesai);
+};
+
+const getLatestProjectSpkEndDate = (project: any) => {
+    const candidateDates: Array<Date | null> = getApprovedDashboardSpks(project)
+        .map(getSpkEffectiveEndDate);
+    return candidateDates
+        .filter((date: Date | null): date is Date => Boolean(date))
+        .sort((a: Date, b: Date) => b.getTime() - a.getTime())[0];
+};
+
+const calculateProjectLateDays = (project: any, compareFallback = new Date()) => {
+    const opnameFinalArr = Array.isArray(project?.opname_final)
+        ? project.opname_final
+        : (project?.opname_final ? [project.opname_final] : []);
+    const latestOpnameFinal = opnameFinalArr[0];
+    const backendDendaHari = Number(latestOpnameFinal?.hari_denda ?? NaN);
+    const backendHasPenaltyDates = Boolean(latestOpnameFinal?.tanggal_akhir_spk_denda || latestOpnameFinal?.tanggal_serah_terima_denda);
+    if (backendHasPenaltyDates && Number.isFinite(backendDendaHari)) return Math.max(0, backendDendaHari);
+
+    const latestEndDate = getLatestProjectSpkEndDate(project);
+    if (!latestEndDate) return 0;
+
+    const stArr = Array.isArray(project?.berkas_serah_terima)
+        ? project.berkas_serah_terima
+        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const stDate = parseDashboardDate(stArr[0]?.created_at) || parseDashboardDate(compareFallback.toISOString());
+    if (!stDate) return 0;
+
+    return countDashboardWeekdaysAfter(nextDashboardBusinessDayAfter(latestEndDate), stDate);
+};
+
+const calculateProjectPenalty = (lateDays: number) => {
+    if (lateDays <= 0) return 0;
+    const hariPertama = Math.min(lateDays, 5);
+    const hariBerikutnya = Math.max(0, Math.min(lateDays - 5, 10));
+    return Math.min((hariPertama * 1000000) + (hariBerikutnya * 500000), 10000000);
+};
+
 export default function DashboardPage() {
     const router = useRouter();
 
@@ -445,29 +543,10 @@ export default function DashboardPage() {
                     .filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED')
                     .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
                 
-                const deadlineDate = new Date(validSpkJHK.created_at || Date.now());
                 const totalAllowedDays = durasi + totalPertambahan;
-                const deadlineMs = deadlineDate.getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
-                
-                const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
-                const stData = stArr[0];
-                
-                let keterlambatan = 0;
-                const compareDateMs = stData ? new Date(stData.created_at).getTime() : Date.now();
-                
-                if (compareDateMs > deadlineMs) {
-                    keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
-                    
-                    let projectDenda = 0;
-                    if (keterlambatan > 0) {
-                        delayProjectCount++;
-                        const hariPertama = Math.min(keterlambatan, 5);
-                        const hariBerikutnya = Math.max(0, Math.min(keterlambatan - 5, 10));
-                        projectDenda = (hariPertama * 1000000) + (hariBerikutnya * 500000);
-                        projectDenda = Math.min(projectDenda, 10000000);
-                    }
-                    totalDenda += projectDenda;
-                }
+                const keterlambatan = calculateProjectLateDays(p);
+                if (keterlambatan > 0) delayProjectCount++;
+                totalDenda += calculateProjectPenalty(keterlambatan);
                 
                 projectJHK = totalAllowedDays + keterlambatan;
                 totalDelay += keterlambatan;
@@ -1099,17 +1178,7 @@ export default function DashboardPage() {
                                         if (!validSpk) return false;
                                         if (detailModal.context === 'JHK') return true;
 
-                                        const durasi = Number(validSpk.durasi || 0);
-                                        const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
-                                        const totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                                        const totalAllowedDays = durasi + totalPertambahan;
-                                        const deadlineMs = new Date(validSpk.created_at || Date.now()).getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
-                                        const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
-                                        let keterlambatan = 0;
-                                        const compareDateMs = stArr[0] ? new Date(stArr[0].created_at).getTime() : Date.now();
-                                        if (compareDateMs > deadlineMs) keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
-                                        
-                                        return keterlambatan > 0;
+                                        return calculateProjectLateDays(p) > 0;
                                     }
                                     return true;
                                 }
@@ -1355,10 +1424,7 @@ export default function DashboardPage() {
                                                             const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
                                                             totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
                                                             const totalAllowedDays = durasi + totalPertambahan;
-                                                            const deadlineMs = new Date(validSpk.created_at || Date.now()).getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
-                                                            const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
-                                                            const compareDateMs = stArr[0] ? new Date(stArr[0].created_at).getTime() : Date.now();
-                                                            if (compareDateMs > deadlineMs) keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
+                                                            keterlambatan = calculateProjectLateDays(p);
                                                             jhkTotal = totalAllowedDays + keterlambatan;
                                                         }
 
@@ -1547,43 +1613,11 @@ export default function DashboardPage() {
                                                                         ? formatRupiah((Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase())).reduce((acc: number, s: any) => acc + parseCurrency(s.grand_total || s.total_harga), 0))
                                                                         : detailModal.context === 'DELAY'
                                                                                 ? (() => {
-                                                                                    const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                                                                    const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
-                                                                                    if (!validSpk) return '0 Hari';
-                                                                                    const durasi = Number(validSpk.durasi || 0);
-                                                                                    const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
-                                                                                    const totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                                                                                    const totalAllowedDays = durasi + totalPertambahan;
-                                                                                    const deadlineMs = new Date(validSpk.created_at || Date.now()).getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
-                                                                                    const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
-                                                                                    let keterlambatan = 0;
-                                                                                    const compareDateMs = stArr[0] ? new Date(stArr[0].created_at).getTime() : Date.now();
-                                                                                    if (compareDateMs > deadlineMs) keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
-                                                                                    return `${keterlambatan} Hari`;
+                                                                                    return `${calculateProjectLateDays(p)} Hari`;
                                                                                 })()
                                                                             : detailModal.context === 'DENDA'
                                                                                 ? (() => {
-                                                                                    const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                                                                    const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
-                                                                                    if (!validSpk) return 'Rp 0';
-                                                                                    const durasi = Number(validSpk.durasi || 0);
-                                                                                    const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
-                                                                                    const totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                                                                                    const totalAllowedDays = durasi + totalPertambahan;
-                                                                                    const deadlineMs = new Date(validSpk.created_at || Date.now()).getTime() + (totalAllowedDays * 24 * 60 * 60 * 1000);
-                                                                                    const stArr = Array.isArray(p.berkas_serah_terima) ? p.berkas_serah_terima : (p.berkas_serah_terima ? [p.berkas_serah_terima] : []);
-                                                                                    let keterlambatan = 0;
-                                                                                    const compareDateMs = stArr[0] ? new Date(stArr[0].created_at).getTime() : Date.now();
-                                                                                    if (compareDateMs > deadlineMs) keterlambatan = Math.floor((compareDateMs - deadlineMs) / (1000 * 60 * 60 * 24));
-                                                                                    
-                                                                                    let denda = 0;
-                                                                                    if (keterlambatan > 0) {
-                                                                                        const hariPertama = Math.min(keterlambatan, 5);
-                                                                                        const hariBerikutnya = Math.max(0, Math.min(keterlambatan - 5, 10));
-                                                                                        denda = (hariPertama * 1000000) + (hariBerikutnya * 500000);
-                                                                                        denda = Math.min(denda, 10000000);
-                                                                                    }
-                                                                                    return formatRupiah(denda);
+                                                                                    return formatRupiah(calculateProjectPenalty(calculateProjectLateDays(p)));
                                                                                 })()
                                                                             : p.toko?.proyek
                                                                 }

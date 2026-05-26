@@ -68,6 +68,8 @@ interface NormalizedListItem {
     pertambahan_hari?: string;
     nomor_spk?: string;
     alasan_perpanjangan?: string;
+    hari_denda?: number;
+    nilai_denda?: string;
 }
 
 interface NormalizedDetail {
@@ -122,6 +124,10 @@ interface NormalizedDetail {
     alasan_perpanjangan?: string;
     nomor_spk?: string;
     link_pdf?: string | null;
+    hari_denda?: number;
+    nilai_denda?: string;
+    tanggal_akhir_spk_denda?: string;
+    tanggal_serah_terima_denda?: string;
 }
 
 // =============================================
@@ -386,9 +392,11 @@ const normalizeOpnameFinalList = (items: any[]): NormalizedListItem[] =>
         nama_toko:     o.nama_toko  || o.toko?.nama_toko  || '-',
         cabang:        o.cabang     || o.toko?.cabang     || '-',
         status:        o.status_opname_final,
-        total_nilai:   parseCurrency(o.grand_total_opname),
+        total_nilai:   Math.max(0, parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda)),
         email_pembuat: o.email_pembuat,
         created_at:    o.created_at,
+        hari_denda:    Number(o.hari_denda ?? 0),
+        nilai_denda:   o.nilai_denda,
         _raw: o,
     }));
 
@@ -882,11 +890,15 @@ export default function ApprovalPage() {
                     cabang:            toko.cabang || item.cabang || '',
                     lingkup_pekerjaan: toko.lingkup_pekerjaan,
                     status:            header.status_opname_final,
-                    total_nilai:       parseCurrency(header.grand_total_opname),
+                    total_nilai:       Math.max(0, parseCurrency(header.grand_total_opname) - parseCurrency(header.nilai_denda)),
                     email_pembuat:     header.email_pembuat,
                     created_at:        header.created_at,
                     alasan_penolakan:  header.alasan_penolakan,
                     link_pdf_gabungan: header.link_pdf_opname,
+                    hari_denda:        Number(header.hari_denda ?? 0),
+                    nilai_denda:       header.nilai_denda,
+                    tanggal_akhir_spk_denda: header.tanggal_akhir_spk_denda,
+                    tanggal_serah_terima_denda: header.tanggal_serah_terima_denda,
                     approval_koordinator: { pemberi: header.pemberi_persetujuan_koordinator, waktu: header.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: header.pemberi_persetujuan_manager,     waktu: header.waktu_persetujuan_manager },
                     approval_direktur:    { pemberi: header.pemberi_persetujuan_direktur,    waktu: header.waktu_persetujuan_direktur },
@@ -1726,6 +1738,11 @@ export default function ApprovalPage() {
                                                     <>
                                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Nilai</p>
                                                         <p className="text-3xl font-extrabold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
+                                                        {selectedDetail.tipe === 'OPNAME_FINAL' && (
+                                                            <p className="text-xs font-semibold text-red-500 mt-1">
+                                                                Denda {formatRupiah(parseCurrency(selectedDetail.nilai_denda))} ({selectedDetail.hari_denda ?? 0} hari)
+                                                            </p>
+                                                        )}
                                                     </>
                                                 ) : (
                                                     null
