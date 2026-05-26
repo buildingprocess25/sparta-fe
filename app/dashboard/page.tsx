@@ -200,13 +200,33 @@ const getProjectPenaltyAmount = (project: any, lateDays?: number) => {
     return calculateProjectPenalty(lateDays ?? calculateProjectLateDays(project));
 };
 
+const getProjectPenaltyInfo = (project: any, lateDays?: number) => {
+    const latestOpnameFinal = getLatestProjectOpnameFinal(project);
+    if (latestOpnameFinal) {
+        return {
+            amount: Math.max(0, parseCurrency(latestOpnameFinal.nilai_denda)),
+            days: Number(latestOpnameFinal.hari_denda ?? 0),
+            source: 'Resmi' as const,
+            targetKategori: 'OPNAME_FINAL',
+        };
+    }
+
+    const calculatedLateDays = lateDays ?? calculateProjectLateDays(project);
+    return {
+        amount: calculateProjectPenalty(calculatedLateDays),
+        days: calculatedLateDays,
+        source: 'Estimasi' as const,
+        targetKategori: 'SPK',
+    };
+};
+
 const getUniquePenaltyProjects = (projects: any[]) => {
     const byStore = new Map<string, { project: any; penalty: number; createdAt: number }>();
 
     projects.forEach((project) => {
         const key = getProjectStorePenaltyKey(project);
         const latestOpnameFinal = getLatestProjectOpnameFinal(project);
-        const penalty = getProjectPenaltyAmount(project);
+        const penalty = getProjectPenaltyInfo(project).amount;
         const createdAt = new Date(latestOpnameFinal?.created_at || project?.toko?.created_at || 0).getTime() || 0;
         const existing = byStore.get(key);
 
@@ -419,6 +439,16 @@ export default function DashboardPage() {
         });
     }, [projects, searchQuery, selectedCabang]);
 
+    const handleOpenPenaltyProject = useCallback((project: any) => {
+        const penaltyInfo = getProjectPenaltyInfo(project);
+        const nomorUlok = String(project?.toko?.nomor_ulok || '').trim();
+        const query = new URLSearchParams({
+            kategori: penaltyInfo.targetKategori,
+            q: nomorUlok || String(project?.toko?.nama_toko || ''),
+        });
+        router.push(`/list?${query.toString()}`);
+    }, [router]);
+
     // Summary Stats
     const stats = useMemo(() => {
         let totalPenawaran = 0;
@@ -603,7 +633,7 @@ export default function DashboardPage() {
                 if (keterlambatan > 0) delayProjectCount++;
                 const penaltyKey = getProjectStorePenaltyKey(p);
                 const existingPenalty = penaltyByStoreKey.get(penaltyKey) ?? 0;
-                penaltyByStoreKey.set(penaltyKey, Math.max(existingPenalty, getProjectPenaltyAmount(p, keterlambatan)));
+                penaltyByStoreKey.set(penaltyKey, Math.max(existingPenalty, getProjectPenaltyInfo(p, keterlambatan).amount));
                 
                 projectJHK = totalAllowedDays + keterlambatan;
                 totalDelay += keterlambatan;
@@ -1662,8 +1692,17 @@ export default function DashboardPage() {
                                                         );
                                                     }
 
+                                                    const penaltyInfo = detailModal.context === 'DENDA' ? getProjectPenaltyInfo(p) : null;
+
                                                     return (
-                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <tr
+                                                        key={i}
+                                                        className={`hover:bg-slate-50/50 transition-colors group ${detailModal.context === 'DENDA' ? 'cursor-pointer' : ''}`}
+                                                        onClick={() => {
+                                                            if (detailModal.context === 'DENDA') handleOpenPenaltyProject(p);
+                                                        }}
+                                                        title={detailModal.context === 'DENDA' ? 'Buka sumber data denda' : undefined}
+                                                    >
                                                         <td className="px-4 py-3 border-r border-slate-300">
                                                             <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
                                                             <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
@@ -1681,12 +1720,21 @@ export default function DashboardPage() {
                                                                                 })()
                                                                             : detailModal.context === 'DENDA'
                                                                                 ? (() => {
-                                                                                    return formatRupiah(getProjectPenaltyAmount(p));
+                                                                                    return formatRupiah(penaltyInfo?.amount ?? 0);
                                                                                 })()
                                                                             : p.toko?.proyek
                                                                 }
                                                             </div>
-                                                            <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
+                                                            {detailModal.context === 'DENDA' && penaltyInfo ? (
+                                                                <div className="mt-1 flex justify-end gap-1.5 text-[9px]">
+                                                                    <span className={`rounded px-1.5 py-0.5 font-bold ${penaltyInfo.source === 'Resmi' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                                        {penaltyInfo.source}
+                                                                    </span>
+                                                                    <span className="text-slate-400 italic">{penaltyInfo.days} hari</span>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                     );

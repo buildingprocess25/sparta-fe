@@ -699,6 +699,7 @@ export default function DaftarDokumenPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [cabangFilter, setCabangFilter] = useState('');
+    const [hasAppliedQueryParams, setHasAppliedQueryParams] = useState(false);
     // --- UI ---
     const [isLoading, setIsLoading] = useState(false);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -756,7 +757,7 @@ export default function DaftarDokumenPage() {
     // =========================================================================
     // LOAD LIST
     // =========================================================================
-    const loadList = useCallback(async (kategori: DokumenKategori) => {
+    const loadList = useCallback(async (kategori: DokumenKategori, initialSearch = '') => {
         const sessionRoleRaw = sessionStorage.getItem('userRole') || '';
         const sessionRoles = sessionRoleRaw.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
         const sessionIsSuperHuman = hasSuperHumanRole(sessionRoles);
@@ -767,7 +768,7 @@ export default function DaftarDokumenPage() {
             return;
         }
         setIsLoading(true);
-        setSearchQuery('');
+        setSearchQuery(initialSearch);
         setStatusFilter('');
         setCabangFilter('');
         try {
@@ -838,6 +839,7 @@ export default function DaftarDokumenPage() {
             });
 
             setListData(docs);
+            setSearchQuery(initialSearch);
         } catch (err: any) {
             showToast(err.message || 'Gagal memuat data.', 'error');
             setListData([]);
@@ -845,6 +847,23 @@ export default function DaftarDokumenPage() {
             setIsLoading(false);
         }
     }, [userInfo.cabang, userInfo.nama_pt, userInfo.email, isContractor, isDirektur, showToast]);
+
+    useEffect(() => {
+        if (hasAppliedQueryParams || typeof window === 'undefined') return;
+
+        const params = new URLSearchParams(window.location.search);
+        const kategori = params.get('kategori') as DokumenKategori | null;
+        const query = params.get('q') || '';
+
+        setHasAppliedQueryParams(true);
+        if (!kategori || !(kategori in KATEGORI_CONFIG)) return;
+
+        setSelectedKategori(kategori);
+        setSelectedDetail(null);
+        setSelectedPengawasanGroupKey(null);
+        setActiveView('list');
+        loadList(kategori, query);
+    }, [hasAppliedQueryParams, loadList]);
 
     // =========================================================================
     // LOAD DETAIL
