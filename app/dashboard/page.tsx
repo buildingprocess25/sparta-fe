@@ -120,7 +120,7 @@ const getApprovedDashboardSpks = (project: any) => {
 const getSpkEffectiveEndDate = (spk: any) => {
     const pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
     const approvedPertambahanDates = pertambahanArr
-        .filter((pt: any) => String(pt?.status_persetujuan || '').toUpperCase() === 'APPROVED')
+        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
         .map((pt: any) => parseDashboardDate(pt?.tanggal_spk_akhir_setelah_perpanjangan))
         .filter(Boolean) as Date[];
     const latestPertambahanDate = approvedPertambahanDates.sort((a, b) => b.getTime() - a.getTime())[0];
@@ -161,6 +161,32 @@ const calculateProjectPenalty = (lateDays: number) => {
     const hariPertama = Math.min(lateDays, 5);
     const hariBerikutnya = Math.max(0, Math.min(lateDays - 5, 10));
     return Math.min((hariPertama * 1000000) + (hariBerikutnya * 500000), 10000000);
+};
+
+const getProjectStorePenaltyKey = (project: any) => {
+    const nomorUlok = String(project?.toko?.nomor_ulok || '').trim().toUpperCase();
+    const cabang = String(project?.toko?.cabang || '').trim().toUpperCase();
+    if (nomorUlok) return `${cabang || 'NO_CABANG'}|${nomorUlok}`;
+    return `TOKO_ID|${project?.toko?.id || 'UNKNOWN'}`;
+};
+
+const getProjectOpnameFinals = (project: any) => {
+    return Array.isArray(project?.opname_final)
+        ? project.opname_final
+        : (project?.opname_final ? [project.opname_final] : []);
+};
+
+const getLatestProjectOpnameFinal = (project: any) => {
+    return getProjectOpnameFinals(project)[0] ?? null;
+};
+
+const getProjectPenaltyAmount = (project: any, lateDays?: number) => {
+    const latestOpnameFinal = getLatestProjectOpnameFinal(project);
+    if (latestOpnameFinal) {
+        return Math.max(0, parseCurrency(latestOpnameFinal.nilai_denda));
+    }
+
+    return calculateProjectPenalty(lateDays ?? calculateProjectLateDays(project));
 };
 
 export default function DashboardPage() {
@@ -370,7 +396,7 @@ export default function DashboardPage() {
         let totalSPK = 0;
         let totalJHK = 0;
         let totalDelay = 0;
-        let totalDenda = 0;
+        const penaltyByStoreKey = new Map<string, number>();
         
         let sumRatioTerbuka = 0; let countTerbuka = 0;
         let sumRatioBangunan = 0; let countBangunan = 0;
@@ -439,7 +465,7 @@ export default function DashboardPage() {
                     const durasiSPK = Number(approvedSpk.durasi || 0);
                     const pertambahanArr = Array.isArray(approvedSpk.pertambahan_spk) ? approvedSpk.pertambahan_spk : [];
                     const totalPertambahan = pertambahanArr
-                        .filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED')
+                        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase()))
                         .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
                     const totalAllowedDays = durasiSPK + totalPertambahan;
                     const elapsedDays = Math.floor((Date.now() - waktuMulai.getTime()) / (1000 * 60 * 60 * 24));
@@ -540,13 +566,15 @@ export default function DashboardPage() {
                 const durasi = Number(validSpkJHK.durasi || 0);
                 const pertambahanArr = Array.isArray(validSpkJHK.pertambahan_spk) ? validSpkJHK.pertambahan_spk : [];
                 const totalPertambahan = pertambahanArr
-                    .filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED')
+                    .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase()))
                     .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
                 
                 const totalAllowedDays = durasi + totalPertambahan;
                 const keterlambatan = calculateProjectLateDays(p);
                 if (keterlambatan > 0) delayProjectCount++;
-                totalDenda += calculateProjectPenalty(keterlambatan);
+                const penaltyKey = getProjectStorePenaltyKey(p);
+                const existingPenalty = penaltyByStoreKey.get(penaltyKey) ?? 0;
+                penaltyByStoreKey.set(penaltyKey, Math.max(existingPenalty, getProjectPenaltyAmount(p, keterlambatan)));
                 
                 projectJHK = totalAllowedDays + keterlambatan;
                 totalDelay += keterlambatan;
@@ -662,6 +690,7 @@ export default function DashboardPage() {
             }
         });
         const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
+        const totalDenda = Array.from(penaltyByStoreKey.values()).reduce((sum, value) => sum + value, 0);
 
         const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
             type: 'KONTRAKTOR',
@@ -1178,7 +1207,9 @@ export default function DashboardPage() {
                                         if (!validSpk) return false;
                                         if (detailModal.context === 'JHK') return true;
 
-                                        return calculateProjectLateDays(p) > 0;
+                                        return detailModal.context === 'DENDA'
+                                            ? getProjectPenaltyAmount(p) > 0
+                                            : calculateProjectLateDays(p) > 0;
                                     }
                                     return true;
                                 }
@@ -1227,7 +1258,7 @@ export default function DashboardPage() {
                                             const durasiSPK = Number(approvedSpk.durasi || 0);
                                             const pertambahanArr = Array.isArray(approvedSpk.pertambahan_spk) ? approvedSpk.pertambahan_spk : [];
                                             const totalPertambahan = pertambahanArr
-                                                .filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED')
+                                                .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase()))
                                                 .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
                                             const totalAllowedDays = durasiSPK + totalPertambahan;
                                             const elapsedDays = Math.floor((Date.now() - waktuMulai.getTime()) / (1000 * 60 * 60 * 24));
@@ -1299,6 +1330,16 @@ export default function DashboardPage() {
 
                                 return true;
                             });
+                            }
+
+                            if (detailModal.context === 'DENDA') {
+                                const seenPenaltyKeys = new Set<string>();
+                                modalData = modalData.filter((project: any) => {
+                                    const key = getProjectStorePenaltyKey(project);
+                                    if (seenPenaltyKeys.has(key)) return false;
+                                    seenPenaltyKeys.add(key);
+                                    return true;
+                                });
                             }
 
                             const totalPages = Math.ceil(modalData.length / itemsPerPage);
@@ -1422,7 +1463,7 @@ export default function DashboardPage() {
                                                         if (validSpk) {
                                                             durasi = Number(validSpk.durasi || 0);
                                                             const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
-                                                            totalPertambahan = pertambahanArr.filter((pt: any) => (pt.status_persetujuan || '').toUpperCase() === 'APPROVED').reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
+                                                            totalPertambahan = pertambahanArr.filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase())).reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
                                                             const totalAllowedDays = durasi + totalPertambahan;
                                                             keterlambatan = calculateProjectLateDays(p);
                                                             jhkTotal = totalAllowedDays + keterlambatan;
@@ -1617,7 +1658,7 @@ export default function DashboardPage() {
                                                                                 })()
                                                                             : detailModal.context === 'DENDA'
                                                                                 ? (() => {
-                                                                                    return formatRupiah(calculateProjectPenalty(calculateProjectLateDays(p)));
+                                                                                    return formatRupiah(getProjectPenaltyAmount(p));
                                                                                 })()
                                                                             : p.toko?.proyek
                                                                 }
