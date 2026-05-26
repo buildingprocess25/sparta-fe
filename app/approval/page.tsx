@@ -193,6 +193,12 @@ const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | '
     'KONTRAKTOR':                            'KONTRAKTOR',
 };
 
+const hasDirectorRole = (roles: string[]) =>
+    roles.some(role => role === 'DIREKTUR' || role === 'DIREKTUR KONTRAKTOR' || role.includes('DIREKTUR'));
+
+const isHeadOfficeDirector = (cabang?: string | null, roles: string[] = []) =>
+    normalizeBranch(cabang) === 'HEAD OFFICE' && hasDirectorRole(roles);
+
 const APPROVAL_CONFIG: Record<ApprovalType, {
     label: string;
     icon: React.ReactNode;
@@ -499,6 +505,7 @@ export default function ApprovalPage() {
         const roles = role.split(',').map(r => r.trim().toUpperCase());
         
         const isHO = cabang?.toUpperCase() === 'HEAD OFFICE';
+        const isDirectorHO = isHeadOfficeDirector(cabang, roles);
         const isSuperHuman = user.isSuperHuman ?? false;
         const isRegionalManager = user.isRegionalManager ?? false;
         const isProjectPlanningApprovalRole = roles.some(r =>
@@ -519,10 +526,8 @@ export default function ApprovalPage() {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isProjectPlanningApprovalRole && isHO) {
             allAccessibleTypes.add('PROJECT_PLANNING');
-        } else if (isHO) {
+        } else if (isDirectorHO) {
             allAccessibleTypes.add('RAB');
-            allAccessibleTypes.add('SPK');
-            allAccessibleTypes.add('PERTAMBAHAN_SPK');
             allAccessibleTypes.add('OPNAME_FINAL');
         } else {
             roles.forEach(r => {
@@ -639,14 +644,15 @@ export default function ApprovalPage() {
             normalized = normalized.filter(item => {
                 const upper = (item.status ?? '').toUpperCase();
                 const upperUserCabang = normalizeBranch(userInfo.cabang);
-                const isHOUser = upperUserCabang === 'HEAD OFFICE';
-                const isSuperHumanUser = user?.isSuperHuman ?? false;
-                const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHumanUser);
-                const isRegionalManagerUser = user?.isRegionalManager ?? false;
                 const userRoles = userInfo.role
                     .split(',')
                     .map(r => r.trim().toUpperCase())
                     .filter(Boolean);
+                const isHOUser = upperUserCabang === 'HEAD OFFICE';
+                const isDirectorHOUser = isHeadOfficeDirector(userInfo.cabang, userRoles);
+                const isSuperHumanUser = user?.isSuperHuman ?? false;
+                const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHumanUser);
+                const isRegionalManagerUser = user?.isRegionalManager ?? false;
 
                 if (type === 'PROJECT_PLANNING') {
                     if (canSeeAllBranches) return true;
@@ -695,6 +701,10 @@ export default function ApprovalPage() {
                     return true;
                 }
 
+                if (isHOUser && !isDirectorHOUser) {
+                    return false;
+                }
+
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
                 // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
                 if (jabatan !== 'DIREKTUR' && type !== 'PERTAMBAHAN_SPK' && upperUserCabang && item.cabang && item.cabang !== '-') {
@@ -726,7 +736,7 @@ export default function ApprovalPage() {
                 }
 
                 if (type === 'RAB' && jabatan === 'DIREKTUR') {
-                    if (upperUserCabang && !isHOUser && item.cabang && item.cabang !== '-') {
+                    if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
                         let userGroup: string[] | null = null;
                         for (const grp of Object.values(BRANCH_GROUPS)) {
                             if (grp.includes(upperUserCabang)) {

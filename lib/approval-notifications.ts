@@ -53,6 +53,12 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
 
 const normalizeBranch = (branch?: string | null) => (branch ?? "").trim().toUpperCase();
 
+const hasDirectorRole = (roles: string[]) =>
+    roles.some(role => role === "DIREKTUR" || role === "DIREKTUR KONTRAKTOR" || role.includes("DIREKTUR"));
+
+const isHeadOfficeDirector = (user: UserSession) =>
+    normalizeBranch(user.cabang) === "HEAD OFFICE" && hasDirectorRole(user.roles);
+
 const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
     const roles = user.roles;
     if (user.isSuperHuman) return "MANAGER";
@@ -66,6 +72,7 @@ const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
 export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] => {
     const roles = user.roles;
     const isHO = normalizeBranch(user.cabang) === "HEAD OFFICE";
+    const isDirectorHO = isHeadOfficeDirector(user);
     const isProjectPlanningApprovalRole = roles.some(role =>
         role.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") ||
         role.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") ||
@@ -78,10 +85,8 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => allAccessibleTypes.add(type));
     } else if (isProjectPlanningApprovalRole && isHO) {
         allAccessibleTypes.add("PROJECT_PLANNING");
-    } else if (isHO) {
+    } else if (isDirectorHO) {
         allAccessibleTypes.add("RAB");
-        allAccessibleTypes.add("SPK");
-        allAccessibleTypes.add("PERTAMBAHAN_SPK");
         allAccessibleTypes.add("OPNAME_FINAL");
     } else {
         roles.forEach(role => {
@@ -179,7 +184,10 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     const upper = item.status.toUpperCase();
     const userCabang = normalizeBranch(user.cabang);
     const isHOUser = userCabang === "HEAD OFFICE";
+    const isDirectorHOUser = isHeadOfficeDirector(user);
     const canSeeAll = canViewAllBranches(user.roles, user.isSuperHuman);
+
+    if (isHOUser && !isDirectorHOUser) return false;
 
     if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR" && item.tipe !== "PERTAMBAHAN_SPK") {
         if (!isSameBranchScope(item.cabang, userCabang)) return false;
@@ -190,7 +198,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
 
     if (item.tipe === "RAB" && jabatan === "DIREKTUR") {
-        if (userCabang && !isHOUser && item.cabang) {
+        if (userCabang && !isDirectorHOUser && item.cabang) {
             if (!isSameBranchScope(item.cabang, userCabang)) return false;
         }
 
