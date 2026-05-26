@@ -59,6 +59,27 @@ const hasDirectorRole = (roles: string[]) =>
 const isHeadOfficeDirector = (user: UserSession) =>
     normalizeBranch(user.cabang) === "HEAD OFFICE" && hasDirectorRole(user.roles);
 
+const isContractorCompanyScopedRole = (roles: string[]) =>
+    roles.some(role => role.includes("KONTRAKTOR"));
+
+const normalizeCompanyName = (value?: string | null) =>
+    String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
+
+const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
+    const normalizedUserCompany = normalizeCompanyName(userCompany);
+    if (!normalizedUserCompany || !value || typeof value !== "object") return false;
+
+    const source = value as Record<string, any>;
+    const candidates = [
+        source.nama_pt,
+        source.nama_kontraktor,
+        source.toko?.nama_pt,
+        source.toko?.nama_kontraktor,
+    ];
+
+    return candidates.some(candidate => normalizeCompanyName(candidate) === normalizedUserCompany);
+};
+
 const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
     const roles = user.roles;
     if (user.isSuperHuman) return "MANAGER";
@@ -176,6 +197,7 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
 const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan: ApprovalJabatan) => {
     if (!isPendingProcessStatus(item.status, item.tipe)) return false;
     if (isViewOnlyUser(user.roles, user.isSuperHuman)) return false;
+    if (item.tipe === "RAB" && isContractorCompanyScopedRole(user.roles) && !matchesUserCompany(item.raw, user.namaPt)) return false;
 
     if (item.tipe === "PROJECT_PLANNING") {
         return canCountProjectPlanningForUser(item, user);
@@ -221,7 +243,9 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
     for (const type of accessibleTypes) {
         try {
             if (type === "RAB") {
-                let filters: RABListFilters | undefined;
+                const filters: RABListFilters | undefined = isContractorCompanyScopedRole(user.roles) && user.namaPt
+                    ? { nama_pt: user.namaPt }
+                    : undefined;
                 const res = await fetchRABList(filters, { suppressGlobalError: true });
                 counts.RAB = countItems((res.data ?? []).map(item => ({
                     tipe: "RAB",

@@ -199,6 +199,27 @@ const hasDirectorRole = (roles: string[]) =>
 const isHeadOfficeDirector = (cabang?: string | null, roles: string[] = []) =>
     normalizeBranch(cabang) === 'HEAD OFFICE' && hasDirectorRole(roles);
 
+const isContractorCompanyScopedRole = (roles: string[]) =>
+    roles.some(role => role.includes('KONTRAKTOR'));
+
+const normalizeCompanyName = (value?: string | null) =>
+    String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+
+const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
+    const normalizedUserCompany = normalizeCompanyName(userCompany);
+    if (!normalizedUserCompany || !value || typeof value !== 'object') return false;
+
+    const source = value as Record<string, any>;
+    const candidates = [
+        source.nama_pt,
+        source.nama_kontraktor,
+        source.toko?.nama_pt,
+        source.toko?.nama_kontraktor,
+    ];
+
+    return candidates.some(candidate => normalizeCompanyName(candidate) === normalizedUserCompany);
+};
+
 const APPROVAL_CONFIG: Record<ApprovalType, {
     label: string;
     icon: React.ReactNode;
@@ -615,7 +636,13 @@ export default function ApprovalPage() {
         try {
             let normalized: NormalizedListItem[] = [];
             if (type === 'RAB') {
-                let filters: RABListFilters | undefined = undefined;
+                const userRoles = userInfo.role
+                    .split(',')
+                    .map(r => r.trim().toUpperCase())
+                    .filter(Boolean);
+                const filters: RABListFilters | undefined = isContractorCompanyScopedRole(userRoles) && userInfo.nama_pt
+                    ? { nama_pt: userInfo.nama_pt }
+                    : undefined;
                 const res = await fetchRABList(filters);
                 normalized = normalizeRABList(res.data ?? []);
             } else if (type === 'SPK') {
@@ -653,6 +680,10 @@ export default function ApprovalPage() {
                 const isSuperHumanUser = user?.isSuperHuman ?? false;
                 const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHumanUser);
                 const isRegionalManagerUser = user?.isRegionalManager ?? false;
+
+                if (type === 'RAB' && isContractorCompanyScopedRole(userRoles) && !matchesUserCompany(item._raw, userInfo.nama_pt)) {
+                    return false;
+                }
 
                 if (type === 'PROJECT_PLANNING') {
                     if (canSeeAllBranches) return true;
