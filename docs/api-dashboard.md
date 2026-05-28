@@ -27,7 +27,7 @@ Proyek diklasifikasikan ke dalam Funnel berdasarkan status dokumen (dari akhir k
 ### 3.2 Indikator Kinerja Waktu & Keterlambatan
 - **JHK (Jumlah Hari Kerja)**: `Durasi SPK` + `Total Pertambahan Hari` + `Keterlambatan`.
 - **Keterlambatan (Delay)**: Selisih hari antara tanggal *Deadline* dan tanggal pembuatan `Berkas Serah Terima`.
-- **Denda**: Denda keterlambatan dihitung berjenjang (Rp 1jt/hari untuk 5 hari pertama, Rp 500rb/hari berikutnya) dengan batas maksimal Rp 10.000.000 per proyek.
+- **Denda**: Menggunakan nilai resmi dari `opname_final.nilai_denda` yang dihitung backend saat opname/final opname diproses. Proyek yang belum memiliki denda resmi tidak dimasukkan ke total denda dashboard.
 
 ### 3.3 Penilaian Kualitas (Scoring)
 Ini adalah fitur baru untuk mengukur performa kontraktor dan kualitas hasil lapangan:

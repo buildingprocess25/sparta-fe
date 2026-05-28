@@ -197,7 +197,7 @@ const getProjectPenaltyAmount = (project: any, lateDays?: number) => {
         return Math.max(0, parseCurrency(latestOpnameFinal.nilai_denda));
     }
 
-    return calculateProjectPenalty(lateDays ?? calculateProjectLateDays(project));
+    return 0;
 };
 
 const getProjectPenaltyInfo = (project: any, lateDays?: number) => {
@@ -211,12 +211,11 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number) => {
         };
     }
 
-    const calculatedLateDays = lateDays ?? calculateProjectLateDays(project);
     return {
-        amount: calculateProjectPenalty(calculatedLateDays),
-        days: calculatedLateDays,
-        source: 'Estimasi' as const,
-        targetKategori: 'SPK',
+        amount: 0,
+        days: lateDays ?? calculateProjectLateDays(project),
+        source: 'Resmi' as const,
+        targetKategori: 'OPNAME_FINAL',
     };
 };
 
@@ -1101,7 +1100,7 @@ export default function DashboardPage() {
                                     icon={<AlertCircle />} 
                                     bgColor="#fee2e2"
                                     textColor="#b91c1c"
-                                    subLabel="Keterlambatan Proyek"
+                                    subLabel="Denda resmi opname final"
                                     isLoading={isDataLoading}
                                     onClick={() => setDetailModal({ open: true, title: 'Rincian Denda', context: 'DENDA', subContext: '' })}
                                 />
