@@ -41,6 +41,8 @@ Response mengikuti format umum:
 ```json
 {
   "status": "success",
-  "data": []
+  "data": [],
+  "page": 1
+  
 }
 ```
