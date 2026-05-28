@@ -39,6 +39,21 @@ const reportApiError = (error: Error, context?: ApiErrorContext) => {
     }
 };
 
+const buildApiErrorMessage = (data: any, fallback: string): string => {
+    const baseMessage = data?.message || fallback;
+    const issues = Array.isArray(data?.issues) ? data.issues : [];
+    if (issues.length === 0) return baseMessage;
+
+    const issueMessages = issues.slice(0, 3).map((issue: any) => {
+        const path = Array.isArray(issue?.path) && issue.path.length > 0
+            ? issue.path.join(".")
+            : "payload";
+        return `${path}: ${issue?.message || "nilai tidak valid"}`;
+    });
+
+    return `${baseMessage}: ${issueMessages.join("; ")}`;
+};
+
 // =============================================================================
 // 1. GLOBAL  FETCH HELPER
 // =============================================================================
@@ -59,7 +74,7 @@ export const safeFetchJSON = async (url: string, options?: ApiRequestOptions) =>
         if (contentType?.includes("application/json")) {
             const data = await res.json();
             if (!res.ok) {
-                const err = new Error(data.message || `Error Server (${res.status})`);
+                const err = new Error(buildApiErrorMessage(data, `Error Server (${res.status})`));
                 if (!suppressGlobalError) {
                     reportApiError(err, { url, status: res.status, responseBody: data, contentType });
                 }
@@ -1432,7 +1447,7 @@ export const submitOpnameBulk = async (
         body: isFormData ? payload : JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal menyimpan opname bulk.");
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan opname bulk."));
     return result;
 };
 
