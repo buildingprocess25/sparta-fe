@@ -6,9 +6,9 @@ import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-    Save, Loader2, Search, FilePlus, AlertCircle, CheckCircle, XCircle, AlertTriangle,
-    CalendarPlus, CalendarClock, Clock, FileText, Link2, Info,
-    ChevronDown, Calendar, Hash, ArrowRight, UploadCloud, X, Image as ImageIcon, FileDown
+    Save, Loader2, Search, AlertCircle, CheckCircle, XCircle, AlertTriangle,
+    CalendarPlus, CalendarClock, Clock, FileText, Info,
+    ChevronDown, Calendar, Hash, ArrowRight, UploadCloud, X, FileDown
 } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
@@ -16,7 +16,9 @@ import {
     fetchSPKList,
     fetchPertambahanSPKList,
     submitPertambahanSPK,
+    sendEmailNotification,
     type SPKListItem,
+    type PertambahanSPKPayload,
     type PertambahanSPKListItem,
     updatePertambahanSPK,
     downloadPertambahanSPKLampiran,
@@ -216,8 +218,9 @@ export default function TambahSPKPage() {
                 ? allSpks
                 : allSpks.filter((spk: SPKListItem) => (spk.toko?.cabang || '').toUpperCase() === upperCabang);
             setApprovedSpks(visibleSpks);
-        } catch (error: any) {
-            setStatusMsg({ text: "Gagal memuat data SPK: " + error.message, type: 'error' });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Gagal memuat data SPK.";
+            setStatusMsg({ text: "Gagal memuat data SPK: " + message, type: 'error' });
         } finally {
             setIsLoading(false);
         }
@@ -323,7 +326,7 @@ export default function TambahSPKPage() {
         const latestPerpanjangan = existingPerpanjangan[0];
         const isRevisi = latestPerpanjangan && latestPerpanjangan.status_persetujuan === 'Ditolak BM';
 
-        const payload: any = {
+        const payload: PertambahanSPKPayload = {
             id_spk: selectedSpk.id,
             pertambahan_hari: pertambahanHari,
             tanggal_spk_akhir: tanggalSpkAkhir,
@@ -340,10 +343,21 @@ export default function TambahSPKPage() {
         } else {
             await submitPertambahanSPK(payload);
         }
+
+        try {
+            await sendEmailNotification({
+                cabang: selectedSpk.toko?.cabang || userInfo.cabang,
+                id_toko: selectedSpk.id_toko || selectedSpk.toko?.id || undefined,
+                flag: "send-notification-pertambahan-spk"
+            });
+        } catch (emailErr) {
+            console.error("Gagal mengirim email notifikasi pertambahan SPK:", emailErr);
+        }
         
         setShowSuccessModal(true);
-    } catch (err: any) {
-        showAlert({ message: err.message || "Gagal menyimpan pengajuan.", type: "error" });
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Gagal menyimpan pengajuan.";
+        showAlert({ message, type: "error" });
     } finally {
         setIsSubmitting(false);
     }
@@ -661,8 +675,9 @@ export default function TambahSPKPage() {
                                                     try {
                                                         const id = existingPerpanjangan[0].id;
                                                         await downloadPertambahanSPKLampiran(id);
-                                                    } catch (err: any) {
-                                                        showAlert({ message: err.message || 'Gagal mengunduh lampiran', type: "error" });
+                                                    } catch (err: unknown) {
+                                                        const message = err instanceof Error ? err.message : 'Gagal mengunduh lampiran';
+                                                        showAlert({ message, type: "error" });
                                                     }
                                                 }}
                                             >

@@ -1,5 +1,7 @@
 # Dokumentasi API & Logika - Fitur Project Planning (FPD)
 
+Terakhir diperbarui: 2026-05-28
+
 Dokumentasi ini menjelaskan logika, arsitektur, dan integrasi API untuk fitur **Project Planning** (Form Pengajuan Data / FPD) pada aplikasi SPARTA. Modul ini menggantikan proses Google Form sebelumnya untuk pengajuan design toko, dengan alur approval multi-tahap dari Coordinator hingga PP Specialist.
 
 Logika utama antarmuka pengguna tersebar di tiga halaman: `app/projek-planning/page.tsx` (daftar), `app/projek-planning/form/page.tsx` (input), dan `app/projek-planning/[id]/page.tsx` (detail & approval). Seluruh komunikasi API dikelola di `lib/api.ts`.
@@ -65,6 +67,11 @@ Mengambil detail FPD lengkap beserta riwayat log (_audit trail_) dari seluruh ta
 **Endpoint:** `GET /api/projek-planning/:id/logs`
 Mengambil daftar log aktivitas (submit, approve, reject, upload) untuk satu record FPD.
 
+### 4.5a Ringkasan Task
+**Fungsi:** `fetchProjekPlanningTaskCounts(params)`
+**Endpoint:** `GET /api/projek-planning/task-counts`
+Mengambil ringkasan jumlah task FPD untuk dashboard/halaman Project Planning.
+
 ### 4.6 Approval BM Manager
 **Fungsi:** `processBmApproval(id, payload)`
 **Endpoint:** `POST /api/projek-planning/:id/bm-approval`
@@ -94,6 +101,16 @@ Jika APPROVE → `WAITING_PP_APPROVAL_2`. Jika REJECT → `DRAFT`.
 **Fungsi:** `processPpApproval2(id, payload)`
 **Endpoint:** `POST /api/projek-planning/:id/pp-approval-2`
 Jika APPROVE → `COMPLETED`, FPD selesai. Jika REJECT → `DRAFT`.
+
+### 4.12 Download PDF
+**Fungsi:** `downloadProjekPlanningPdf(id)`
+**Endpoint:** `GET /api/projek-planning/:id/pdf`
+Mengunduh PDF FPD.
+
+### 4.13 Proxy File
+**Fungsi:** `proxyProjekPlanningFile(id, field, mode, itemIndex?)`
+**Endpoint:** `GET /api/projek-planning/:id/proxy-file`
+Dipakai untuk view/download file lampiran FPD. Query yang dikirim: `field`, `mode`, dan opsional `itemIndex`.
 
 ## 5. Struktur Payload Global Approval
 

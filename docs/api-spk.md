@@ -1,5 +1,7 @@
 # Dokumentasi API - Fitur Surat Perintah Kerja (SPK)
 
+Terakhir diperbarui: 2026-05-28
+
 Dokumentasi ini mencakup logika, tipe data, dan integrasi API untuk modul **Surat Perintah Kerja (SPK)**. Di dalam SPARTA, modul ini terbagi menjadi dua bagian besar:
 1. **SPK Utama (Reguler)**: Penerbitan surat penunjukan/perintah kerja untuk Kontraktor pada awal proyek.
 2. **Pertambahan SPK**: Modul _Addendum_ (Kerja Tambah Kurang) yang digunakan ketika terjadi penyesuaian waktu (perpanjangan hari) dan penyesuaian biaya proyek setelah SPK berjalan.
@@ -21,6 +23,7 @@ Seluruh komunikasi API dikelola di `lib/api.ts`.
   **Fungsi:** `submitSPK(payload)`
   **Endpoint:** `POST /api/spk/submit`
   Menyimpan SPK. *(Catatan: Backend dirancang untuk otomatis me-replace / menimpa data (revisi) jika SPK sebelumnya berstatus `REJECTED`)*.
+  Setelah submit berhasil, halaman `/spk` memanggil `sendEmailNotification` ke `POST /api/send-email-notification` dengan flag `send-notification-spk` untuk memberi notifikasi approval ke Branch Manager.
 
 - **Ambil Daftar SPK (List)**
   **Fungsi:** `fetchSPKList(filters?)`
@@ -65,11 +68,13 @@ Digunakan apabila terdapat _Change Order_ yang menyebabkan waktu pekerjaan berta
   Mendukung **dua mode upload**:
   - Jika terdapat form `file_lampiran_pendukung` (bertipe _File_), pengiriman dikonversi menggunakan format `multipart/form-data`.
   - Jika tidak ada lampiran, pengiriman berjalan normal sebagai `application/json`.
+  Setelah submit berhasil, halaman `/tambahspk` memanggil `sendEmailNotification` ke `POST /api/send-email-notification` dengan flag `send-notification-pertambahan-spk`.
 
 - **Update / Revisi Pertambahan SPK**
   **Fungsi:** `updatePertambahanSPK(id, payload)`
   **Endpoint:** `PUT /api/pertambahan-spk/{id}`
   Jika user mengunggah file baru saat revisi, fungsi otomatis mengubah mode request menjadi `multipart/form-data`.
+  Revisi yang berhasil juga mengirim notifikasi ulang ke Branch Manager dengan flag `send-notification-pertambahan-spk`.
 
 - **Ambil Daftar (List) & Detail**
   - **List:** `fetchPertambahanSPKList(filters)` -> `GET /api/pertambahan-spk`
@@ -87,6 +92,11 @@ Digunakan apabila terdapat _Change Order_ yang menyebabkan waktu pekerjaan berta
   **Fungsi:** `downloadPertambahanSPKLampiran(id)`
   **Endpoint:** `GET /api/pertambahan-spk/{id}/lampiran-pendukung`
   Akan membaca _Content-Type_ (PDF/JPG/PNG) dari backend dan mengunduh _blob file_ yang tersimpan.
+
+- **Unduh PDF Pertambahan SPK**
+  **Fungsi:** `downloadPertambahanSPKPdf(id)`
+  **Endpoint:** `GET /api/pertambahan-spk/{id}/pdf`
+  Mengunduh PDF form perpanjangan SPK.
 
 ## 3. Alur Kerja (Workflow) Utama
 1. **Pembuatan RAB:** RAB harus berstatus Final & Disetujui sebelum SPK diterbitkan.

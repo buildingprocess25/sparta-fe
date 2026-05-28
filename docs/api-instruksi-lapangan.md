@@ -1,5 +1,7 @@
 # Dokumentasi API & Logika - Fitur Instruksi Lapangan
 
+Terakhir diperbarui: 2026-05-28
+
 Dokumentasi ini menjelaskan integrasi dan logika untuk modul **Instruksi Lapangan (IL)** pada aplikasi SPARTA. Modul ini digunakan untuk mengajukan penambahan atau perubahan pekerjaan (Change Order / CCO) di luar Rencana Anggaran Biaya (RAB) awal.
 
 Logika formulir pengajuannya terdapat di `app/instruksi-lapangan/page.tsx` dan integrasi ke backend-nya berada di `lib/api.ts`.
@@ -47,6 +49,7 @@ Setelah diajukan, Instruksi Lapangan akan masuk ke sistem Hub Persetujuan Sentra
 
 - `GET /api/instruksi-lapangan/list?status=&nomor_ulok=` : Memuat daftar pengajuan yang perlu diproses.
 - `GET /api/instruksi-lapangan/{id}` : Memuat informasi detail IL, array _items_ pekerjaan, dan log persetujuan.
+- `GET /api/instruksi-lapangan/{id}/lampiran` : Mengunduh lampiran original yang diunggah saat submit.
 
 **Endpoint Approval:**
 
