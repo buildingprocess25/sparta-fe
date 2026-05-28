@@ -68,6 +68,9 @@ const TARGET_REGULER = 15322;
 const TARGET_FRANCHISE = 5798;
 const TARGET_TOTAL = TARGET_REGULER + TARGET_FRANCHISE;
 const HIDDEN_BRANCHES = new Set(["-", "HEAD OFFICE", "TESTING"]);
+const BRANCH_DISPLAY_OVERRIDES: Record<string, string> = {
+  KOTABUMI: "LAMPUNG",
+};
 
 const getDocumentCategoryKey = (doc: PenyimpananDokumenItem) => doc.kategori_dokumen || doc.nama_dokumen;
 const isArchiveToko = (toko?: RABDetailToko | null) => Boolean(toko && toko.id < 0);
@@ -105,10 +108,14 @@ function getVisibleBranches(cabang: string, canSeeAllBranches = false): string[]
 function getBranchLocationName(cabang?: string | null): string {
   const upper = String(cabang ?? "").trim().toUpperCase();
   if (!upper) return "-";
+  if (BRANCH_DISPLAY_OVERRIDES[upper]) return BRANCH_DISPLAY_OVERRIDES[upper];
+
   const code = BRANCH_TO_ULOK[upper];
   if (!code) return upper;
 
-  const primary = Object.entries(BRANCH_TO_ULOK).find(([, value]) => value === code)?.[0];
+  const primary = Object.entries(BRANCH_TO_ULOK)
+    .map(([key, value]) => [BRANCH_DISPLAY_OVERRIDES[key] ?? key, value] as const)
+    .find(([, value]) => value === code)?.[0];
   return primary ?? upper;
 }
 
@@ -389,7 +396,7 @@ export default function PenyimpananDokumenPage() {
           nama_toko: selectedToko.nama_toko,
           cabang: selectedToko.cabang,
           nama_dokumen: categoryKey,
-          folder_name: `${selectedToko.nama_toko}_${selectedToko.cabang}_${folderIdentity}`.replace(/[^a-zA-Z0-9_]/g, '_'),
+          folder_name: `${selectedToko.nama_toko}_${getBranchLocationName(selectedToko.cabang)}_${folderIdentity}`.replace(/[^a-zA-Z0-9_]/g, '_'),
         },
         Array.from(files)
       );
@@ -419,7 +426,7 @@ export default function PenyimpananDokumenPage() {
     } = {
       kode_toko: newStoreForm.kode_toko.trim(),
       nama_toko: newStoreForm.nama_toko.trim(),
-      cabang: newStoreForm.cabang.trim().toUpperCase(),
+      cabang: newStoreForm.cabang.trim() ? getBranchLocationName(newStoreForm.cabang) : "",
       proyek: newStoreForm.proyek.trim(),
     };
 
@@ -906,7 +913,7 @@ export default function PenyimpananDokumenPage() {
             <h2 className="text-xl font-bold text-slate-900">{selectedToko.nama_toko}</h2>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <Badge className="bg-red-100 text-red-700 border-red-200">{selectedToko.nomor_ulok || 'ULOK kosong'}</Badge>
-              <Badge variant="secondary">{selectedToko.cabang}</Badge>
+              <Badge variant="secondary">{getBranchLocationName(selectedToko.cabang)}</Badge>
               {selectedToko.proyek && <Badge variant="secondary">{selectedToko.proyek}</Badge>}
             </div>
           </div>
