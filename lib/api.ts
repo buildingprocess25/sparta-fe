@@ -141,7 +141,7 @@ export type CreateDcProjectPayload = {
 };
 
 export const fetchDcProjects = async (
-    filters?: { status?: string; current_stage?: string; branch_name?: string; search?: string },
+    filters?: { status?: string; current_stage?: string; branch_name?: string; search?: string; actor_email?: string; actor_role?: string },
     options?: ApiRequestOptions
 ): Promise<{ status: string; data: DcProject[] }> => {
     const base = API_URL.replace(/\/$/, "");
@@ -150,6 +150,8 @@ export const fetchDcProjects = async (
     if (filters?.current_stage) params.append("current_stage", filters.current_stage);
     if (filters?.branch_name) params.append("branch_name", filters.branch_name);
     if (filters?.search) params.append("search", filters.search);
+    if (filters?.actor_email) params.append("actor_email", filters.actor_email);
+    if (filters?.actor_role) params.append("actor_role", filters.actor_role);
     return safeFetchJSON(`${base}/api/dc-development/projects${params.toString() ? `?${params}` : ""}`, options);
 };
 
@@ -185,6 +187,154 @@ export const fetchDcApprovals = async (
     if (filters?.required_role) params.append("required_role", filters.required_role);
     if (filters?.project_id) params.append("project_id", String(filters.project_id));
     return safeFetchJSON(`${base}/api/dc-development/approvals${params.toString() ? `?${params}` : ""}`, options);
+};
+
+export type DcDocument = {
+    id: number;
+    project_id: number | null;
+    tender_id: number | null;
+    participant_id: number | null;
+    entity_type: string;
+    entity_id: number | null;
+    document_type: string;
+    stage: string | null;
+    status: string;
+    created_by_email: string | null;
+    created_at: string;
+    updated_at: string;
+    deleted_at: string | null;
+    current_version_id: number | null;
+    version_no: number | null;
+    drive_file_id: string | null;
+    drive_folder_id: string | null;
+    link_dokumen: string | null;
+    link_folder: string | null;
+    file_name: string | null;
+    mime_type: string | null;
+    size_bytes: string | null;
+    notes: string | null;
+    uploaded_by_email: string | null;
+    uploaded_by_role: string | null;
+    version_created_at: string | null;
+    project_code: string | null;
+    project_name: string | null;
+};
+
+export type DcDocumentActor = {
+    actor_email: string;
+    actor_role: string;
+};
+
+export const fetchDcDocuments = async (
+    filters: DcDocumentActor & {
+        project_id?: number;
+        tender_id?: number;
+        participant_id?: number;
+        document_type?: string;
+        entity_type?: string;
+        stage?: string;
+    },
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcDocument[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    params.append("actor_email", filters.actor_email);
+    params.append("actor_role", filters.actor_role);
+    if (filters.project_id) params.append("project_id", String(filters.project_id));
+    if (filters.tender_id) params.append("tender_id", String(filters.tender_id));
+    if (filters.participant_id) params.append("participant_id", String(filters.participant_id));
+    if (filters.document_type) params.append("document_type", filters.document_type);
+    if (filters.entity_type) params.append("entity_type", filters.entity_type);
+    if (filters.stage) params.append("stage", filters.stage);
+    return safeFetchJSON(`${base}/api/dc-development/documents?${params}`, options);
+};
+
+export const uploadDcDocuments = async (
+    payload: DcDocumentActor & {
+        project_id: number;
+        tender_id?: number;
+        participant_id?: number;
+        entity_type?: string;
+        entity_id?: number;
+        document_type: string;
+        stage?: string;
+        notes?: string;
+    },
+    files: File[]
+): Promise<{ status: string; message: string; data: { folder: { id: string | null; link: string | null } | null; items: DcDocument[] } }> => {
+    const form = new FormData();
+    form.append("project_id", String(payload.project_id));
+    if (payload.tender_id) form.append("tender_id", String(payload.tender_id));
+    if (payload.participant_id) form.append("participant_id", String(payload.participant_id));
+    form.append("entity_type", payload.entity_type || "DC_PROJECT");
+    if (payload.entity_id) form.append("entity_id", String(payload.entity_id));
+    form.append("document_type", payload.document_type);
+    if (payload.stage) form.append("stage", payload.stage);
+    if (payload.notes) form.append("notes", payload.notes);
+    form.append("actor_email", payload.actor_email);
+    form.append("actor_role", payload.actor_role);
+    files.forEach((file, index) => form.append(`dokumen_${index + 1}`, file));
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents`, {
+        method: "POST",
+        body: form,
+    });
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Anda tidak memiliki akses ke dokumen DC ini.");
+    if (res.status === 400) throw new Error(result.message || "Dokumen wajib diupload.");
+    if (res.status === 404) throw new Error(result.message || "Project DC tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal mengupload dokumen DC.");
+    return result;
+};
+
+export const updateDcDocument = async (
+    id: number,
+    payload: DcDocumentActor & { document_type?: string; stage?: string; notes?: string },
+    file?: File | null
+): Promise<{ status: string; message: string; data: DcDocument }> => {
+    const form = new FormData();
+    form.append("actor_email", payload.actor_email);
+    form.append("actor_role", payload.actor_role);
+    if (payload.document_type) form.append("document_type", payload.document_type);
+    if (payload.stage) form.append("stage", payload.stage);
+    if (payload.notes) form.append("notes", payload.notes);
+    if (file) form.append("dokumen", file);
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}`, {
+        method: "PUT",
+        body: form,
+    });
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Anda tidak memiliki akses mengubah dokumen DC.");
+    if (res.status === 404) throw new Error(result.message || "Dokumen DC tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal memperbarui dokumen DC.");
+    return result;
+};
+
+export const deleteDcDocument = async (
+    id: number,
+    actor: DcDocumentActor
+): Promise<{ status: string; message: string; data: DcDocument }> => {
+    const params = new URLSearchParams({
+        actor_email: actor.actor_email,
+        actor_role: actor.actor_role,
+    });
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}?${params}`, {
+        method: "DELETE",
+    });
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Anda tidak memiliki akses menghapus dokumen DC.");
+    if (res.status === 404) throw new Error(result.message || "Dokumen DC tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal menghapus dokumen DC.");
+    return result;
+};
+
+export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode: "view" | "download" = "view") => {
+    const params = new URLSearchParams({
+        actor_email: actor.actor_email,
+        actor_role: actor.actor_role,
+    });
+    return `${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}/${mode}?${params}`;
 };
 
 // =============================================================================

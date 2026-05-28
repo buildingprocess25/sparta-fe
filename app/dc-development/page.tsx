@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   FileArchive,
+  FolderArchive,
   FileText,
   Hammer,
   HardHat,
@@ -53,6 +54,7 @@ const dcMenus = [
   { title: "Pengawasan", href: "/dc-development/supervision", icon: BadgeCheck },
   { title: "Termin", href: "/dc-development/terms", icon: ReceiptText },
   { title: "BAST", href: "/dc-development/bast", icon: FileArchive },
+  { title: "Dokumen DC", href: "/dc-development/documents", icon: FolderArchive },
   { title: "Master Vendor", href: "/dc-development/vendors", icon: Users },
 ];
 
