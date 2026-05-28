@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   FileArchive,
   FolderArchive,
+  FileStack,
   FileText,
   Hammer,
   HardHat,
@@ -26,7 +27,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/context/SessionContext";
-import { hasDcDevelopmentRole } from "@/lib/constants";
+import {
+  BUILDING_DEVELOPMENT_GM_ROLE,
+  DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
+  DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
+  DC_CONTRACTOR_ROLE,
+  DC_PLANNER_CONSULTANT_ROLE,
+  DC_SOIL_CONSULTANT_ROLE,
+  DC_SUPERVISOR_MK_ROLE,
+  LOCATION_DEVELOPMENT_GM_ROLE,
+  PROPERTY_DEVELOPMENT_DIRECTOR_ROLE,
+  ROLE_CONFIG,
+  SUPER_HUMAN_ROLE,
+  hasDcDevelopmentRole,
+  normalizeRoles,
+} from "@/lib/constants";
 import { fetchDcProjects, type DcProject } from "@/lib/api";
 
 const stageLabels: Record<string, string> = {
@@ -44,19 +59,87 @@ const stageLabels: Record<string, string> = {
   COMPLETED: "Completed",
 };
 
-const dcMenus = [
-  { title: "Proyek DC", href: "/dc-development/projects", icon: Building2 },
-  { title: "Tender Soil", href: "/dc-development/tenders?type=SOIL_INVESTIGATION", icon: FileText },
-  { title: "Tender Perencana", href: "/dc-development/tenders?type=PLANNER", icon: ClipboardCheck },
-  { title: "Tender MK", href: "/dc-development/tenders?type=SUPERVISOR_MK", icon: ShieldCheck },
-  { title: "Tender Kontraktor", href: "/dc-development/tenders?type=CONTRACTOR", icon: HardHat },
-  { title: "Monitoring", href: "/dc-development/monitoring", icon: Hammer },
-  { title: "Pengawasan", href: "/dc-development/supervision", icon: BadgeCheck },
-  { title: "Termin", href: "/dc-development/terms", icon: ReceiptText },
-  { title: "BAST", href: "/dc-development/bast", icon: FileArchive },
-  { title: "Dokumen DC", href: "/dc-development/documents", icon: FolderArchive },
-  { title: "Master Vendor", href: "/dc-development/vendors", icon: Users },
+type DcMenuId =
+  | "dc-projects"
+  | "dc-tender-soil"
+  | "dc-tender-planner"
+  | "dc-tender-mk"
+  | "dc-tender-contractor"
+  | "dc-monitoring"
+  | "dc-supervision"
+  | "dc-terms"
+  | "dc-bast"
+  | "dc-documents"
+  | "dc-vendors";
+
+type DcMenuItem = {
+  id: DcMenuId | "shared-approval" | "shared-documents";
+  title: string;
+  desc: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const dcMenus: DcMenuItem[] = [
+  { id: "dc-projects", title: "Proyek DC", desc: "Dashboard dan master project DC.", href: "/dc-development/projects", icon: Building2 },
+  { id: "dc-tender-soil", title: "Tender Soil", desc: "Workflow soil investigation.", href: "/dc-development/tenders?type=SOIL_INVESTIGATION", icon: FileText },
+  { id: "dc-tender-planner", title: "Tender Perencana", desc: "Workflow konsultan perencana.", href: "/dc-development/tenders?type=PLANNER", icon: ClipboardCheck },
+  { id: "dc-tender-mk", title: "Tender MK", desc: "Workflow konsultan pengawas.", href: "/dc-development/tenders?type=SUPERVISOR_MK", icon: ShieldCheck },
+  { id: "dc-tender-contractor", title: "Tender Kontraktor", desc: "Workflow kontraktor DC.", href: "/dc-development/tenders?type=CONTRACTOR", icon: HardHat },
+  { id: "dc-monitoring", title: "Monitoring", desc: "Monitoring pekerjaan DC.", href: "/dc-development/monitoring", icon: Hammer },
+  { id: "dc-supervision", title: "Pengawasan", desc: "Pengawasan lapangan DC.", href: "/dc-development/supervision", icon: BadgeCheck },
+  { id: "dc-terms", title: "Termin", desc: "Pengajuan dan review termin.", href: "/dc-development/terms", icon: ReceiptText },
+  { id: "dc-bast", title: "BAST", desc: "Serah terima project DC.", href: "/dc-development/bast", icon: FileArchive },
+  { id: "dc-documents", title: "Dokumen DC", desc: "Penyimpanan dokumen DC.", href: "/dc-development/documents", icon: FolderArchive },
+  { id: "dc-vendors", title: "Master Vendor", desc: "Master vendor DC.", href: "/dc-development/vendors", icon: Users },
 ];
+
+const internalDcRoles = [
+  DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
+  DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
+  BUILDING_DEVELOPMENT_GM_ROLE,
+  LOCATION_DEVELOPMENT_GM_ROLE,
+  PROPERTY_DEVELOPMENT_DIRECTOR_ROLE,
+  SUPER_HUMAN_ROLE,
+];
+
+const dcMenuAccessByRole: Record<string, DcMenuId[]> = {
+  [DC_SOIL_CONSULTANT_ROLE]: ["dc-projects", "dc-tender-soil", "dc-documents"],
+  [DC_PLANNER_CONSULTANT_ROLE]: ["dc-projects", "dc-tender-planner", "dc-documents"],
+  [DC_SUPERVISOR_MK_ROLE]: ["dc-projects", "dc-tender-mk", "dc-supervision", "dc-documents"],
+  [DC_CONTRACTOR_ROLE]: ["dc-projects", "dc-tender-contractor", "dc-monitoring", "dc-terms", "dc-bast", "dc-documents"],
+};
+
+internalDcRoles.forEach((role) => {
+  dcMenuAccessByRole[role] = dcMenus.map((menu) => menu.id).filter((id): id is DcMenuId => id.startsWith("dc-"));
+});
+
+const sharedMenus: DcMenuItem[] = [
+  { id: "shared-approval", title: "Approval Dokumen", desc: "Approval sesuai role dan keterkaitan.", href: "/approval", icon: ClipboardCheck },
+  { id: "shared-documents", title: "Daftar Dokumen", desc: "Dokumen sesuai role dan keterkaitan.", href: "/list", icon: FileStack },
+];
+
+const getAccessibleDcMenus = (roles: string[] | undefined) => {
+  const normalizedRoles = normalizeRoles(roles);
+  const menuIds = new Set<DcMenuId>();
+  normalizedRoles.forEach((role) => {
+    dcMenuAccessByRole[role]?.forEach((menuId) => menuIds.add(menuId));
+  });
+  return dcMenus.filter((menu) => menuIds.has(menu.id as DcMenuId));
+};
+
+const getAccessibleSharedMenus = (roles: string[] | undefined) => {
+  const normalizedRoles = normalizeRoles(roles);
+  const allowedIds = new Set<string>();
+  normalizedRoles.forEach((role) => {
+    ROLE_CONFIG[role]?.forEach((menuId) => allowedIds.add(menuId));
+  });
+
+  return sharedMenus.filter((menu) =>
+    (menu.id === "shared-approval" && allowedIds.has("menu-approval"))
+    || (menu.id === "shared-documents" && allowedIds.has("menu-daftardokumen"))
+  );
+};
 
 export default function DcDevelopmentPage() {
   const router = useRouter();
@@ -68,6 +151,12 @@ export default function DcDevelopmentPage() {
   const [error, setError] = useState("");
 
   const canOpenDc = hasDcDevelopmentRole(user?.roles);
+  const accessibleDcMenus = useMemo(() => getAccessibleDcMenus(user?.roles), [user?.roles]);
+  const accessibleSharedMenus = useMemo(() => getAccessibleSharedMenus(user?.roles), [user?.roles]);
+  const sidebarMenus = useMemo(
+    () => [...accessibleDcMenus, ...accessibleSharedMenus],
+    [accessibleDcMenus, accessibleSharedMenus]
+  );
 
   useEffect(() => {
     if (isLoading) return;
@@ -154,7 +243,7 @@ export default function DcDevelopmentPage() {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-2.5 py-2.5 flex flex-col gap-0.5">
-            {dcMenus.map((item) => {
+            {sidebarMenus.map((item) => {
               const Icon = item.icon;
               return (
                 <Link key={item.title} href={item.href} onClick={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}>
@@ -165,7 +254,7 @@ export default function DcDevelopmentPage() {
                     <div className="flex-1 min-w-0 flex items-center justify-between pr-2">
                       <div className="flex-1 min-w-0 pr-1">
                         <p className="text-[12px] font-semibold text-slate-700 group-hover:text-red-700 leading-snug transition-colors wrap-break-word">{item.title}</p>
-                        <p className="text-[10px] text-slate-400 leading-snug wrap-break-word mt-0.5">{item.title === "Proyek DC" ? "Dashboard dan master project DC." : "Workflow DC Development."}</p>
+                        <p className="text-[10px] text-slate-400 leading-snug wrap-break-word mt-0.5">{item.desc}</p>
                       </div>
                     </div>
                     <ChevronRight className="w-3 h-3 text-slate-300 group-hover:text-red-400 shrink-0 transition-colors" />
@@ -173,6 +262,12 @@ export default function DcDevelopmentPage() {
                 </Link>
               );
             })}
+            {sidebarMenus.length === 0 && (
+              <div className="px-3 py-8 text-center">
+                <BadgeCheck className="mx-auto mb-2 h-7 w-7 text-slate-300" />
+                <p className="text-xs text-slate-400">Tidak ada menu tersedia</p>
+              </div>
+            )}
           </nav>
 
           <div className="px-4 py-2.5 border-t border-slate-100 shrink-0 space-y-2">
@@ -195,16 +290,19 @@ export default function DcDevelopmentPage() {
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-100">{user.role}</span>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">{user.cabang}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" className="h-9 rounded-xl bg-white" onClick={() => router.push("/approval")}>
-                  <ClipboardCheck className="mr-2 h-4 w-4" />
-                  Approval Dokumen
-                </Button>
-                <Button variant="outline" className="h-9 rounded-xl bg-white" onClick={() => router.push("/list")}>
-                  <FileArchive className="mr-2 h-4 w-4" />
-                  Daftar Dokumen
-                </Button>
-              </div>
+              {accessibleSharedMenus.length > 0 && (
+                <div className="flex items-center gap-2">
+                  {accessibleSharedMenus.map((menu) => {
+                    const Icon = menu.icon;
+                    return (
+                      <Button key={menu.id} variant="outline" className="h-9 rounded-xl bg-white" onClick={() => router.push(menu.href)}>
+                        <Icon className="mr-2 h-4 w-4" />
+                        {menu.title}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">

@@ -319,7 +319,7 @@ export default function DashboardPage() {
             allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
         }
 
-        const menuList = ALL_MENUS.filter(m => allowedIds.includes(m.id));
+        const menuList = ALL_MENUS.filter(m => allowedIds.includes(m.id) && m.id !== "menu-dc-development");
         setAllowedMenus(menuList);
         setUserInfo({ name: namaLengkap.toUpperCase(), roles: roles, cabang: userCabang.toUpperCase(), namaPt });
         setIsCompanyScopedUser(companyScopedRole);

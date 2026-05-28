@@ -205,6 +205,10 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-dc-development", "menu-approval", "menu-daftardokumen"
     ],
 
+    "KONTRAKTOR DC": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
     "DC BUILDING & DEVELOPMENT SPECIALIST": [
         "menu-dc-development", "menu-approval", "menu-daftardokumen"
     ],
