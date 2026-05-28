@@ -1262,8 +1262,12 @@ function GanttBoard() {
                 selectedGanttId={selectedGanttId}
                 spkInfo={spkInfo}
                 id_toko={projectData?.id_toko}
-                onSuccess={() => {
+                onSuccess={(options?: { openOpname?: boolean }) => {
                     setShowMemoModal(false);
+                    if (options?.openOpname === false) {
+                        if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                        return;
+                    }
                     setShowOpnameModal(true);
                 }}
             />
@@ -1574,7 +1578,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             let catsLate = new Map<string, number>();
 
-            const entriesToSubmit = Object.entries(memoInputs).filter(([_, val]) => val.status);
+            const entriesToSubmit = Object.entries(memoInputs).filter(([, val]) => val.status);
+            const shouldOpenOpname = entriesToSubmit.some(([, val]) =>
+                String(val.status || '').toLowerCase() === 'selesai'
+            );
 
             const offset = activeHeaderClick?.dayIndex || 0;
             const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
@@ -1695,9 +1702,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
 
             showAlert({ 
-                message: 'Memo pengawasan berhasil disimpan! Lanjutkan ke form Opname.', 
+                message: shouldOpenOpname
+                    ? 'Memo pengawasan berhasil disimpan! Lanjutkan ke form Opname.'
+                    : 'Memo pengawasan berhasil disimpan.',
                 type: 'success',
-                onConfirm: () => onSuccess()
+                onConfirm: () => onSuccess({ openOpname: shouldOpenOpname })
             });
         } catch (err: any) {
             const debugMessage = (() => {

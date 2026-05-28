@@ -87,6 +87,107 @@ export const safeFetchJSON = async (url: string, options?: ApiRequestOptions) =>
 };
 
 // =============================================================================
+// DC DEVELOPMENT
+// =============================================================================
+
+export type DcProject = {
+    id: number;
+    project_code: string;
+    project_name: string;
+    location_name: string | null;
+    branch_name: string | null;
+    address: string | null;
+    area_size: string | null;
+    status: string;
+    current_stage: string;
+    created_by_email: string | null;
+    created_by_role: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export type DcVendor = {
+    id: number;
+    company_name: string;
+    npwp: string | null;
+    address: string | null;
+    contact_name: string | null;
+    contact_email: string | null;
+    contact_phone: string | null;
+    status: string;
+    service_types?: string[];
+};
+
+export type CreateDcVendorPayload = {
+    company_name: string;
+    npwp?: string;
+    address?: string;
+    contact_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    service_types?: string[];
+    created_by_email?: string;
+};
+
+export type CreateDcProjectPayload = {
+    project_code: string;
+    project_name: string;
+    location_name?: string;
+    branch_name?: string;
+    address?: string;
+    area_size?: number;
+    created_by_email?: string;
+    created_by_role?: string;
+};
+
+export const fetchDcProjects = async (
+    filters?: { status?: string; current_stage?: string; branch_name?: string; search?: string },
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcProject[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.current_stage) params.append("current_stage", filters.current_stage);
+    if (filters?.branch_name) params.append("branch_name", filters.branch_name);
+    if (filters?.search) params.append("search", filters.search);
+    return safeFetchJSON(`${base}/api/dc-development/projects${params.toString() ? `?${params}` : ""}`, options);
+};
+
+export const createDcProject = async (payload: CreateDcProjectPayload): Promise<{ status: string; data: DcProject }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const fetchDcVendors = async (
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcVendor[] }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/vendors`, options);
+};
+
+export const createDcVendor = async (payload: CreateDcVendorPayload): Promise<{ status: string; data: DcVendor }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/vendors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const fetchDcApprovals = async (
+    filters?: { status?: string; required_role?: string; project_id?: number },
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: unknown[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.required_role) params.append("required_role", filters.required_role);
+    if (filters?.project_id) params.append("project_id", String(filters.project_id));
+    return safeFetchJSON(`${base}/api/dc-development/approvals${params.toString() ? `?${params}` : ""}`, options);
+};
+
+// =============================================================================
 // 2. RAB  Rencana Anggaran Biaya
 // =============================================================================
 

@@ -7,7 +7,7 @@ import {
     FileText, Stamp, FileSignature, Users, CheckSquare,
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
     AlertTriangle, Activity, PieChart, ClipboardCheck,
-    FileStack, ClipboardList, FileEdit, Upload,
+    FileStack, ClipboardList, FileEdit, Upload, Building2,
 } from "lucide-react";
 
 // -----------------------------------------------------------------------------
@@ -24,6 +24,13 @@ export const API_URL =
 // -----------------------------------------------------------------------------
 
 export const ALL_MENUS = [
+    {
+        id: "menu-dc-development",
+        title: "DC Development",
+        desc: "Tender, monitoring, termin, dan BAST DC.",
+        href: "/dc-development",
+        icon: Building2,
+    },
     {
         id: "menu-rab",
         title: "Penawaran Final Kontraktor",
@@ -186,6 +193,38 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen"
     ],
 
+    "KONSULTAN SOIL INVESTIGATION": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "KONSULTAN PERENCANA": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "KONSULTAN PENGAWAS DC": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "DC BUILDING & DEVELOPMENT SPECIALIST": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "DC BUILDING & DEVELOPMENT MANAGER": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "BUILDING & DEVELOPMENT GENERAL MANAGER": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "LOCATION & DEVELOPMENT GENERAL MANAGER": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
+    "PROPERTY DEVELOPMENT DIRECTOR": [
+        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+    ],
+
     "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
         "menu-approval", "menu-projek-planning", "menu-daftardokumen"
     ],
@@ -212,6 +251,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
+        "menu-dc-development",
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
@@ -228,6 +268,34 @@ export const GENERAL_MANAGER_ROLE = "BUILDING & MAINTENANCE GENERAL MANAGER";
 export const STORE_BRANCH_CONTROLLING_ROLE = "STORE & BRANCH CONTROLLING SPECIALIST";
 export const SUPER_HUMAN_ROLE = "BUILDING & MAINTENANCE SUPER HUMAN";
 export const DIRECTOR_CONTRACTOR_ROLE = "DIREKTUR KONTRAKTOR";
+
+export const DC_SOIL_CONSULTANT_ROLE = "KONSULTAN SOIL INVESTIGATION";
+export const DC_PLANNER_CONSULTANT_ROLE = "KONSULTAN PERENCANA";
+export const DC_SUPERVISOR_MK_ROLE = "KONSULTAN PENGAWAS DC";
+export const DC_CONTRACTOR_ROLE = "KONTRAKTOR DC";
+export const DC_BUILDING_DEVELOPMENT_MANAGER_ROLE = "DC BUILDING & DEVELOPMENT MANAGER";
+export const DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE = "DC BUILDING & DEVELOPMENT SPECIALIST";
+export const BUILDING_DEVELOPMENT_GM_ROLE = "BUILDING & DEVELOPMENT GENERAL MANAGER";
+export const LOCATION_DEVELOPMENT_GM_ROLE = "LOCATION & DEVELOPMENT GENERAL MANAGER";
+export const PROPERTY_DEVELOPMENT_DIRECTOR_ROLE = "PROPERTY DEVELOPMENT DIRECTOR";
+
+export const DC_DEVELOPMENT_ROLES = [
+    DC_SOIL_CONSULTANT_ROLE,
+    DC_PLANNER_CONSULTANT_ROLE,
+    DC_SUPERVISOR_MK_ROLE,
+    DC_CONTRACTOR_ROLE,
+    DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
+    DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
+    BUILDING_DEVELOPMENT_GM_ROLE,
+    LOCATION_DEVELOPMENT_GM_ROLE,
+    PROPERTY_DEVELOPMENT_DIRECTOR_ROLE,
+    SUPER_HUMAN_ROLE,
+] as const;
+
+export const SHARED_WORKSPACE_MENU_IDS = [
+    "menu-approval",
+    "menu-daftardokumen",
+] as const;
 
 export const GLOBAL_VIEW_ONLY_ROLES = [
     REGIONAL_MANAGER_ROLE,
@@ -249,6 +317,16 @@ export const hasRegionalManagerRole = (role: string | string[] | undefined | nul
 
 export const hasSuperHumanRole = (role: string | string[] | undefined | null): boolean =>
     normalizeRoles(role).some(r => r === SUPER_HUMAN_ROLE);
+
+export const hasDcDevelopmentRole = (role: string | string[] | undefined | null): boolean =>
+    normalizeRoles(role).some(r => DC_DEVELOPMENT_ROLES.includes(r as typeof DC_DEVELOPMENT_ROLES[number]));
+
+export const hasStoreWorkspaceRole = (role: string | string[] | undefined | null): boolean =>
+    normalizeRoles(role).some(r => {
+        if (r === SUPER_HUMAN_ROLE) return true;
+        if (DC_DEVELOPMENT_ROLES.includes(r as typeof DC_DEVELOPMENT_ROLES[number])) return false;
+        return Boolean(ROLE_CONFIG[r]);
+    });
 
 export const canViewAllBranches = (
     role: string | string[] | undefined | null,

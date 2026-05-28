@@ -77,6 +77,14 @@ export default function LoginPage() {
 
   const normalizeJabatanRole = (jabatan: string) => {
     const upper = String(jabatan || "").toUpperCase().trim();
+    if (upper.includes("DC BUILDING") && upper.includes("DEVELOPMENT") && upper.includes("MANAGER")) return "DC BUILDING & DEVELOPMENT MANAGER";
+    if (upper.includes("DC BUILDING") && upper.includes("DEVELOPMENT") && upper.includes("SPECIALIST")) return "DC BUILDING & DEVELOPMENT SPECIALIST";
+    if (upper.includes("BUILDING") && upper.includes("DEVELOPMENT") && upper.includes("GENERAL MANAGER")) return "BUILDING & DEVELOPMENT GENERAL MANAGER";
+    if (upper.includes("LOCATION") && upper.includes("DEVELOPMENT") && upper.includes("GENERAL MANAGER")) return "LOCATION & DEVELOPMENT GENERAL MANAGER";
+    if (upper.includes("PROPERTY") && upper.includes("DEVELOPMENT") && upper.includes("DIRECTOR")) return "PROPERTY DEVELOPMENT DIRECTOR";
+    if (upper.includes("SOIL") && upper.includes("INVESTIGATION")) return "KONSULTAN SOIL INVESTIGATION";
+    if (upper.includes("KONSULTAN") && upper.includes("PERENCANA")) return "KONSULTAN PERENCANA";
+    if ((upper.includes("KONSULTAN") && upper.includes("PENGAWAS") && upper.includes("DC")) || upper === "MK DC") return "KONSULTAN PENGAWAS DC";
     if (upper.includes("PROJECT PLANNING") && upper.includes("MANAGER")) return "PROJECT PLANNING & DEVELOPMENT MANAGER";
     if (upper.includes("PP MANAGER")) return "PROJECT PLANNING & DEVELOPMENT MANAGER";
     if (upper.includes("PROJECT PLANNING") || upper.includes("PP SPECIALIST")) return "PROJECT PLANNING & DEVELOPMENT SPECIALIST";
@@ -90,6 +98,7 @@ export default function LoginPage() {
     if (upper.includes("COORDINATOR") || upper === "BBC") return "BRANCH BUILDING COORDINATOR";
     if (upper.includes("SUPPORT") || upper === "BBS") return "BRANCH BUILDING SUPPORT";
     if (upper.includes("KONTRAKTOR") && upper.includes("DIREKTUR")) return DIRECTOR_CONTRACTOR_ROLE;
+    if (upper.includes("KONTRAKTOR") && upper.includes("DC")) return "KONTRAKTOR DC";
     if (upper.includes("KONTRAKTOR")) return "KONTRAKTOR";
     if (upper.includes("DIREKTUR")) return DIRECTOR_CONTRACTOR_ROLE;
     return upper;
@@ -154,7 +163,7 @@ export default function LoginPage() {
 
     setIsLoading(false);
     setTimeout(() => {
-      router.push("/dashboard");
+      router.push("/workspace");
     }, 900);
   };
 
@@ -452,7 +461,7 @@ export default function LoginPage() {
                   setRoleSelectOpen(false);
                   setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
                   setTimeout(() => {
-                    router.push("/dashboard"); 
+                    router.push("/workspace"); 
                   }, 500);
                 }}
               >
