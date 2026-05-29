@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Edit2 } from 'lucide-react'; 
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock } from 'lucide-react'; 
 import { 
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
@@ -1309,7 +1309,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [nextHandoverDate, setNextHandoverDate] = useState('');
     const [blockedOpnameRabItemIds, setBlockedOpnameRabItemIds] = useState<Set<number>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
-    const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
     
     useEffect(() => {
         if (!selectedGanttId || !spkInfo || !activeHeaderClick) {
@@ -1873,7 +1872,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                         <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
                                                                         <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
                                                                     </div>
-                                                                ) : (memoInputs[key] as any)?.isSaved && !editingItems.has(key) ? (
+                                                                ) : (memoInputs[key] as any)?.isSaved ? (
                                                                     <div className="flex flex-col gap-2 animate-in fade-in">
                                                                         <div className="flex items-start justify-between p-3.5 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-200 shadow-sm w-full">
                                                                             <div className="flex items-start gap-3">
@@ -1893,16 +1892,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     )}
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="flex flex-col items-end gap-2.5">
-                                                                                <button type="button" onClick={() => setEditingItems(prev => new Set(prev).add(key))} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-blue-700 bg-white hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-300 hover:border-blue-300 transition-all shadow-sm">
-                                                                                    <Edit2 className="w-3.5 h-3.5" /> Ubah
-                                                                                </button>
-                                                                                {memoInputs[key]?.dokumentasiUrl && (
-                                                                                    <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors">
-                                                                                        <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
-                                                                                    </a>
-                                                                                )}
-                                                                            </div>
+                                                                            {memoInputs[key]?.dokumentasiUrl && (
+                                                                                <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
+                                                                                    <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
+                                                                                </a>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 ) : (
