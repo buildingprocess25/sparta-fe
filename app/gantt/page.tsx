@@ -2045,7 +2045,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
-                        <Button onClick={handleSubmit} disabled={isSubmitting || !isSubmitValid} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                        <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && isLastSupervisionDay && hasLateItems && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                             Simpan
                         </Button>
