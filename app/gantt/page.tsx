@@ -1356,9 +1356,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                         const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
                         if (p.status.toLowerCase() !== 'selesai') {
+                            // Ambil keterlambatan dari chartData (kategori)
+                            const matchedTask = chartData?.processedTasks?.find((t: any) => t.name.toUpperCase() === p.kategori_pekerjaan.toUpperCase());
+                            let categoryLateDays = 0;
+                            if (matchedTask && matchedTask.ranges) {
+                                matchedTask.ranges.forEach((r: any) => {
+                                    if (r.keterlambatan) {
+                                        categoryLateDays += parseInt(r.keterlambatan) || 0;
+                                    }
+                                });
+                            }
+
                             initial[key] = {
                                 status: p.status.charAt(0).toUpperCase() + p.status.slice(1), 
-                                lateDays: p.keterlambatan ? parseInt(p.keterlambatan) : 0,
+                                lateDays: categoryLateDays,
                                 catatan: p.catatan || '',
                                 file: null, 
                                 dokumentasiUrl: p.dokumentasi || null,
@@ -1455,15 +1466,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                  const key = `${task.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                  const latestStatus = latestStatusMapState.get(key);
                  
-                 // Jika gantung, teruskan
-                 if (latestStatus === 'Progress' || latestStatus === 'Terlambat') return true;
+                 // Hanya tampilkan jika task jadwalnya aktif hari ini (isScheduledToday)
+                 if (!isScheduledToday) return false;
                  
-                 // Jika Selesai, tampilkan saat jadwalnya memang aktif hari ini, atau jika barusan di-submit hari ini
+                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                  const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && lh.jenis_pekerjaan.toUpperCase() === item.jenis_pekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
-                 if (latestStatus === 'Selesai' && wasFinishedToday) return true;
+                 if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
                  
-                 // Kalau belum pernah ada histori yg nggantung, ikut jadwal Gantt:
-                 return isScheduledToday;
+                 return true;
             });
             
             return {
