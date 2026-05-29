@@ -412,6 +412,378 @@ export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode:
     return `${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}/${mode}?${params}`;
 };
 
+// DC Tender Types
+export type DcTender = {
+    id: number;
+    project_id: number;
+    tender_type: string;
+    status: string;
+    title: string;
+    owner_estimate_amount: string | null;
+    oe_tolerance_percent: string;
+    winner_participant_id: number | null;
+    created_by_email: string | null;
+    created_at: string;
+    updated_at: string;
+    project_code?: string;
+    project_name?: string;
+};
+
+export type DcTenderParticipant = {
+    id: number;
+    tender_id: number;
+    vendor_company_id: number;
+    status: string;
+    invited_by_email: string | null;
+    invited_at: string;
+    last_note: string | null;
+    company_name?: string;
+    submissions?: DcTenderSubmission[];
+};
+
+export type DcTenderSubmission = {
+    id: number;
+    participant_id: number;
+    submission_type: string;
+    status: string;
+    submitted_offer_amount: string | null;
+    offer_vs_oe_percent: string | null;
+    oe_review_required: boolean;
+    oe_review_status: string | null;
+    notes: string | null;
+    submitted_by_email: string | null;
+    submitted_at: string;
+};
+
+export type CreateDcTenderPayload = {
+    tender_type: string;
+    title: string;
+    owner_estimate_amount?: number;
+    oe_tolerance_percent?: number;
+    created_by_email?: string;
+};
+
+export const fetchDcTenders = async (
+    filters?: { project_id?: number; tender_type?: string; status?: string },
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcTender[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.project_id) params.append("project_id", String(filters.project_id));
+    if (filters?.tender_type) params.append("tender_type", filters.tender_type);
+    if (filters?.status) params.append("status", filters.status);
+    return safeFetchJSON(`${base}/api/dc-development/tenders${params.toString() ? `?${params}` : ""}`, options);
+};
+
+export const fetchDcTenderById = async (
+    id: number,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: { tender: DcTender; participants: DcTenderParticipant[] } }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/${id}`, options);
+};
+
+export const createDcTenderForProject = async (
+    projectId: number,
+    payload: CreateDcTenderPayload
+): Promise<{ status: string; message: string; data: DcTender }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/tenders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const inviteDcTenderParticipant = async (
+    tenderId: number,
+    payload: { vendor_company_id: number; invited_by_email?: string }
+): Promise<{ status: string; message: string; data: DcTenderParticipant }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/${tenderId}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const submitDcTenderSubmission = async (
+    tenderId: number,
+    payload: {
+        submission_type: string;
+        submitted_offer_amount?: number;
+        notes?: string;
+        submitted_by_email?: string;
+        participant_id?: number;
+    }
+): Promise<{ status: string; message: string; data: DcTenderSubmission }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/${tenderId}/submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const setDcTenderWinner = async (
+    tenderId: number,
+    payload: { participant_id: number; actor_email: string; actor_role: string }
+): Promise<{ status: string; message: string; data: DcTender }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/${tenderId}/winner`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const fetchDcProjectById = async (
+    id: number,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: { project: DcProject; stage_sequence: string[] } }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${id}`, options);
+};
+
+export const advanceDcProjectStage = async (
+    projectId: number,
+    payload: {
+        actor_email: string;
+        actor_role: string;
+        reason?: string;
+        target_stage?: string;
+        is_intervention?: boolean;
+    }
+): Promise<{ status: string; message: string; data: DcProject }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/advance-stage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export type DcProjectTimeline = {
+    id: number;
+    project_id: number;
+    task_name: string;
+    start_date: string;
+    end_date: string;
+    progress_percent: string;
+    status: string;
+    assigned_to_email: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export type DcIssue = {
+    id: number;
+    project_id: number;
+    issue_type: string;
+    title: string;
+    description: string;
+    status: string;
+    severity: string;
+    reported_by_email: string | null;
+    assigned_to_email: string | null;
+    resolved_at: string | null;
+    resolution_notes: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export const fetchDcProjectTimelines = async (
+    projectId: number,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcProjectTimeline[] }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/timeline`, options);
+};
+
+export const addDcProjectTimeline = async (
+    projectId: number,
+    payload: {
+        task_name: string;
+        start_date: string;
+        end_date: string;
+        assigned_to_email?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcProjectTimeline }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/timeline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const updateDcProjectTimeline = async (
+    projectId: number,
+    taskId: number,
+    payload: {
+        progress_percent?: number;
+        status?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcProjectTimeline }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/timeline/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const fetchDcProjectIssues = async (
+    projectId: number,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcIssue[] }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/issues`, options);
+};
+
+export const addDcProjectIssue = async (
+    projectId: number,
+    payload: {
+        issue_type: string;
+        title: string;
+        description: string;
+        severity: string;
+        assigned_to_email?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcIssue }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/issues`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const updateDcProjectIssue = async (
+    projectId: number,
+    issueId: number,
+    payload: {
+        status: string;
+        resolution_notes?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcIssue }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/issues/${issueId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export type DcBast = {
+    id: number;
+    project_id: number;
+    participant_id: number | null;
+    bast_type: string;
+    status: string;
+    checklist: any | null;
+    notes: string | null;
+    submitted_by_email: string | null;
+    approved_by_email: string | null;
+    submitted_at: string | null;
+    approved_at: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export type DcTermSchedule = {
+    id: number;
+    participant_id: number;
+    term_no: number;
+    percentage: string;
+    amount: string;
+    requirements: string | null;
+    status: string;
+    approved_by_email: string | null;
+    approved_at: string | null;
+    created_at: string;
+};
+
+export type DcTermClaim = {
+    id: number;
+    term_schedule_id: number;
+    claimed_amount: string;
+    status: string;
+    submitted_by_email: string | null;
+    review_notes: string | null;
+    submitted_at: string;
+    updated_at: string;
+};
+
+export const fetchDcProjectBast = async (
+    projectId: number,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcBast[] }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/bast`, options);
+};
+
+export const createDcProjectBast = async (
+    projectId: number,
+    payload: {
+        bast_type: string;
+        participant_id?: number;
+        notes?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcBast }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/bast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const updateDcProjectBast = async (
+    projectId: number,
+    bastId: number,
+    payload: {
+        status: string;
+        checklist?: any;
+        notes?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcBast }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${projectId}/bast/${bastId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const fetchDcParticipantTerms = async (
+    participantId: number,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: { schedules: DcTermSchedule[], claims: DcTermClaim[] } }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/participants/${participantId}/terms`, options);
+};
+
+export const addDcTermSchedule = async (
+    participantId: number,
+    payload: {
+        term_no: number;
+        percentage: number;
+        amount: number;
+        requirements?: string;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcTermSchedule }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/participants/${participantId}/terms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const submitDcTermClaim = async (
+    termId: number,
+    payload: {
+        claimed_amount: number;
+        actor_email?: string;
+    }
+): Promise<{ status: string; message: string; data: DcTermClaim }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/tenders/participants/terms/${termId}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+};
+
 // =============================================================================
 // 2. RAB  Rencana Anggaran Biaya
 // =============================================================================
