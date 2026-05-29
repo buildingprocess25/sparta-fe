@@ -64,9 +64,15 @@ const REQUIRED_DOCUMENT_CATEGORY_KEYS = DOCUMENT_CATEGORIES
   .filter(key => key !== "pendukung");
 
 const ITEMS_PER_PAGE = 10;
-const TARGET_REGULER = 15322;
-const TARGET_FRANCHISE = 5798;
-const TARGET_TOTAL = TARGET_REGULER + TARGET_FRANCHISE;
+const GLOBAL_TARGET_REGULER = 15322;
+const GLOBAL_TARGET_FRANCHISE = 5798;
+const GLOBAL_TARGET_TOTAL = GLOBAL_TARGET_REGULER + GLOBAL_TARGET_FRANCHISE;
+
+const TARGET_PER_CABANG: Record<string, { reguler: number; franchise: number }> = {
+  // Placeholder mapping target per cabang.
+  // "BEKASI": { reguler: 500, franchise: 200 },
+};
+
 const HIDDEN_BRANCHES = new Set(["-", "HEAD OFFICE", "TESTING"]);
 const BRANCH_DISPLAY_OVERRIDES: Record<string, string> = {
   KOTABUMI: "LAMPUNG",
@@ -309,7 +315,7 @@ export default function PenyimpananDokumenPage() {
     if (!user) return;
     const { email, cabang, role } = user;
     setUserInfo({ email, cabang, role });
-    loadTokoList(cabang, canViewAllBranches(user.roles, user.isSuperHuman ?? false));
+    loadTokoList(cabang, canViewAllBranches(user.roles, user.isSuperHuman ?? false) || cabang.toUpperCase() === 'HEAD OFFICE');
   }, [user]);
 
   const loadTokoList = async (cabang: string, canSeeAllBranches = false) => {
@@ -661,7 +667,34 @@ export default function PenyimpananDokumenPage() {
 
   const totalArchiveToko = archiveTokoList.length;
   const totalCombinedToko = archiveLoadFailed && totalArchiveToko === 0 ? 0 : tokoList.length + totalArchiveToko;
-  const progressPercent = Math.round((totalCombinedToko / TARGET_TOTAL) * 100);
+
+  // Target Cards menggunakan cabang AKUN LOGIN, bukan filter dropdown.
+  // Jika user adalah HO / SuperHuman / Regional Manager → tampilkan global.
+  const isGlobalUser = canViewAllBranches(user?.roles, user?.isSuperHuman ?? false)
+    || (userInfo.cabang || '').toUpperCase() === 'HEAD OFFICE';
+
+  const userCabangDisplay = getBranchLocationName(userInfo.cabang);
+  const hasBranchTarget = Boolean(TARGET_PER_CABANG[userCabangDisplay]);
+
+  const currentTargetReguler = isGlobalUser
+    ? GLOBAL_TARGET_REGULER
+    : (TARGET_PER_CABANG[userCabangDisplay]?.reguler ?? 0);
+
+  const currentTargetFranchise = isGlobalUser
+    ? GLOBAL_TARGET_FRANCHISE
+    : (TARGET_PER_CABANG[userCabangDisplay]?.franchise ?? 0);
+
+  const currentTargetTotal = currentTargetReguler + currentTargetFranchise;
+
+  // Progress: untuk global user → seluruh toko; untuk cabang → toko milik cabangnya
+  const displayedCombinedToko = isGlobalUser
+    ? totalCombinedToko
+    : filteredToko.filter(t => getBranchLocationName(t.cabang) === userCabangDisplay).length;
+
+  const progressPercent = currentTargetTotal > 0
+    ? Math.round((displayedCombinedToko / currentTargetTotal) * 100)
+    : 0;
+
   const totalLengkap = useMemo(() => filteredToko.filter(isDokumenLengkap).length, [filteredToko]);
   const totalBelumLengkap = filteredToko.length - totalLengkap;
 
@@ -698,35 +731,64 @@ export default function PenyimpananDokumenPage() {
 
   const renderList = () => (
     <div className="space-y-6">
-      {/* Target Cards */}
+      {/* Target Cards — angka target sesuai cabang akun login */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <Card className="bg-white shadow-sm border-slate-200 rounded-2xl">
           <CardContent className="p-3 sm:p-5">
-            <div className="text-[10px] sm:text-sm font-medium text-slate-500 uppercase tracking-wider leading-tight">Target Reguler</div>
-            <div className="text-xl sm:text-3xl font-bold text-slate-900 mt-1 sm:mt-2">{TARGET_REGULER.toLocaleString('id-ID')}</div>
+            <div className="text-[10px] sm:text-sm font-medium text-slate-500 uppercase tracking-wider leading-tight">
+              Target Reguler{!isGlobalUser ? ` · ${userCabangDisplay}` : ''}
+            </div>
+            {!isGlobalUser && !hasBranchTarget ? (
+              <div className="text-xs text-amber-600 mt-1 font-medium">Belum ada data target</div>
+            ) : (
+              <div className="text-xl sm:text-3xl font-bold text-slate-900 mt-1 sm:mt-2">{currentTargetReguler.toLocaleString('id-ID')}</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-white shadow-sm border-slate-200 rounded-2xl">
           <CardContent className="p-3 sm:p-5">
-            <div className="text-[10px] sm:text-sm font-medium text-slate-500 uppercase tracking-wider leading-tight">Target Franchise</div>
-            <div className="text-xl sm:text-3xl font-bold text-slate-900 mt-1 sm:mt-2">{TARGET_FRANCHISE.toLocaleString('id-ID')}</div>
+            <div className="text-[10px] sm:text-sm font-medium text-slate-500 uppercase tracking-wider leading-tight">
+              Target Franchise{!isGlobalUser ? ` · ${userCabangDisplay}` : ''}
+            </div>
+            {!isGlobalUser && !hasBranchTarget ? (
+              <div className="text-xs text-amber-600 mt-1 font-medium">Belum ada data target</div>
+            ) : (
+              <div className="text-xl sm:text-3xl font-bold text-slate-900 mt-1 sm:mt-2">{currentTargetFranchise.toLocaleString('id-ID')}</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-red-50 shadow-sm border-red-100 rounded-2xl">
           <CardContent className="p-3 sm:p-5">
-            <div className="text-[10px] sm:text-sm font-bold text-red-600 uppercase tracking-wider leading-tight">Target Total</div>
-            <div className="text-xl sm:text-3xl font-extrabold text-red-700 mt-1 sm:mt-2">{TARGET_TOTAL.toLocaleString('id-ID')}</div>
+            <div className="text-[10px] sm:text-sm font-bold text-red-600 uppercase tracking-wider leading-tight">
+              Target Total{!isGlobalUser ? ` · ${userCabangDisplay}` : ''}
+            </div>
+            {!isGlobalUser && !hasBranchTarget ? (
+              <div className="text-xs text-amber-600 mt-1 font-medium">Belum ada data target</div>
+            ) : (
+              <div className="text-xl sm:text-3xl font-extrabold text-red-700 mt-1 sm:mt-2">{currentTargetTotal.toLocaleString('id-ID')}</div>
+            )}
           </CardContent>
         </Card>
         <Card className="bg-white shadow-sm border-slate-200 rounded-2xl">
           <CardContent className="p-3 sm:p-5">
             <div className="text-[10px] sm:text-sm font-medium text-slate-500 uppercase tracking-wider leading-tight">Progress Input Data</div>
-            <div className="text-sm sm:text-xl font-extrabold text-slate-900 mt-1 sm:mt-2 leading-snug">
-              {totalCombinedToko.toLocaleString('id-ID')} / {TARGET_TOTAL.toLocaleString('id-ID')} Toko ({progressPercent}%)
-            </div>
-            <div className="h-2 sm:h-3 bg-slate-200 rounded-full mt-2 sm:mt-3 overflow-hidden">
-              <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
-            </div>
+            {currentTargetTotal > 0 ? (
+              <>
+                <div className="text-sm sm:text-xl font-extrabold text-slate-900 mt-1 sm:mt-2 leading-snug">
+                  {displayedCombinedToko.toLocaleString('id-ID')} / {currentTargetTotal.toLocaleString('id-ID')} Toko ({progressPercent}%)
+                </div>
+                <div className="h-2 sm:h-3 bg-slate-200 rounded-full mt-2 sm:mt-3 overflow-hidden">
+                  <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm sm:text-xl font-extrabold text-slate-900 mt-1 sm:mt-2 leading-snug">
+                  {displayedCombinedToko.toLocaleString('id-ID')} Toko
+                </div>
+                <div className="text-xs text-amber-600 mt-1 font-medium">Target belum dikonfigurasi untuk cabang ini</div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -752,6 +814,7 @@ export default function PenyimpananDokumenPage() {
           </CardContent>
         </Card>
       </div>
+
 
       {/* Controls */}
       <Card className="shadow-sm border-slate-200 rounded-2xl">

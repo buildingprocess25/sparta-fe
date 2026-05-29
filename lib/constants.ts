@@ -335,7 +335,7 @@ export const hasStoreWorkspaceRole = (role: string | string[] | undefined | null
 export const canViewAllBranches = (
     role: string | string[] | undefined | null,
     isSuperHuman = false
-): boolean => isSuperHuman || hasRegionalManagerRole(role);
+): boolean => isSuperHuman || hasRegionalManagerRole(role) || normalizeRoles(role).includes("HEAD OFFICE");
 
 export const isViewOnlyUser = (
     role: string | string[] | undefined | null,
