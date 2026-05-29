@@ -239,7 +239,7 @@ export default function SPKPage() {
                                 kode_toko: latestSpk.toko?.kode_toko || selected["Kode_Toko"] || selected["kode_toko"] || '',
                                 nama_kontraktor: latestSpk.nama_kontraktor || '',
                                 waktu_mulai: rejectedStartDate,
-                                durasi: latestSpk.durasi?.toString() || '',
+                                durasi: selected["Durasi_Pekerjaan"]?.toString() || latestSpk.durasi?.toString() || '',
                                 spk_bulan: latestSpk.spk_manual_1 || '',
                                 spk_tahun: latestSpk.spk_manual_2 || new Date().getFullYear().toString().slice(-2),
                                 par_no: pNo,
