@@ -768,8 +768,10 @@ function GanttBoard() {
                 });
             }
         });
-        const baseDuration = spkInfo ? spkInfo.duration : projectData.duration;
-        const totalDaysToRender = Math.max(baseDuration, maxTaskEndDay);
+        const baseDuration = (spkInfo ? spkInfo.duration : projectData.duration) || 0;
+        let totalDaysToRender = Math.max(baseDuration, maxTaskEndDay) || 0;
+        if (totalDaysToRender > 2000) totalDaysToRender = 2000; // SAFETY CAP to prevent browser crash
+        if (totalDaysToRender < 0) totalDaysToRender = 0;
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
         const svgHeight = processedTasks.length * ROW_HEIGHT;
         const supervisionDays: Record<number, boolean> = {};
