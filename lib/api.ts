@@ -2685,12 +2685,12 @@ export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number })
 /**
  * Trigger pemuatan/pembuatan PDF Berita Acara Serah Terima.
  */
-export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
+export const createPdfSerahTerima = async (id_toko: number, tanggal_aktual?: string): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima`;
     const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_toko }),
+        body: JSON.stringify({ id_toko, tanggal_aktual }),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima.");

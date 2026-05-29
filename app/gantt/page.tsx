@@ -2016,7 +2016,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Tanggal Serah Terima Berikutnya *</label>
                                 <input
                                     type="date"
-                                    min={new Date().toISOString().split('T')[0]}
                                     value={nextHandoverDate}
                                     onChange={(e) => {
                                         setNextHandoverDate(e.target.value);
@@ -2339,7 +2338,10 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
             if (isLastDay) {
                 try {
                     const { createPdfSerahTerima } = await import('@/lib/api');
-                    await createPdfSerahTerima(Number(id_toko));
+                    const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+                    dDate.setDate(dDate.getDate() + activeHeaderClick.dayIndex);
+                    const formattedDate = `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, '0')}-${String(dDate.getDate()).padStart(2, '0')}`;
+                    await createPdfSerahTerima(Number(id_toko), formattedDate);
                 } catch (pdfErr) {
                     console.error("Error trigger PDF serah terima:", pdfErr);
                 }
