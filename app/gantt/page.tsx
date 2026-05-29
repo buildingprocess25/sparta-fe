@@ -1568,6 +1568,27 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     const isSubmitValid = useMemo(() => {
         if (memoConfig.length === 0) return false;
+
+        // Cek apakah semua item sudah Selesai dari hari sebelumnya
+        let allAlreadySelesai = true;
+        for (const cat of memoConfig) {
+            if (!cat.items) continue;
+            for (const item of cat.items) {
+                const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
+                if (latestStatusMapState.get(key) !== 'Selesai') {
+                    allAlreadySelesai = false;
+                    break;
+                }
+            }
+            if (!allAlreadySelesai) break;
+        }
+
+        // Kasus khusus: semua sudah Selesai, tapi ada item terlambat yang perlu dijadwalkan ulang
+        // User hanya perlu mengisi tanggal serah terima berikutnya lalu Simpan
+        if (allAlreadySelesai && isLastSupervisionDay && hasLateItems) {
+            return !!nextHandoverDate;
+        }
+
         if (!isDirty) return false;
 
         for (const cat of memoConfig) {
