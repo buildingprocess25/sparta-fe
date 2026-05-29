@@ -1307,6 +1307,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [isDirty, setIsDirty] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
     const [nextHandoverDate, setNextHandoverDate] = useState('');
+    const [blockedOpnameRabItemIds, setBlockedOpnameRabItemIds] = useState<Set<number>>(new Set());
     
     useEffect(() => {
         if (!selectedGanttId || !spkInfo || !activeHeaderClick) {
@@ -1322,14 +1323,25 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const dd = String(dDate.getDate()).padStart(2, '0');
         const formattedDate = `${yyyy}-${mm}-${dd}`;
 
-        import('@/lib/api').then(({ fetchPengawasanList }) => {
+        import('@/lib/api').then(({ fetchPengawasanList, fetchOpnameList }) => {
             Promise.all([
                 fetchPengawasanList({ id_gantt: selectedGanttId, tanggal: formattedDate }),
-                fetchPengawasanList({ id_gantt: selectedGanttId })
+                fetchPengawasanList({ id_gantt: selectedGanttId }),
+                id_toko ? fetchOpnameList({ id_toko }) : Promise.resolve({ data: [] })
             ])
-            .then(([resLive, resAll]) => {
+            .then(([resLive, resAll, resOpname]) => {
                 const dataLive = resLive.data || [];
                 const dataAll = resAll.data || [];
+                const dataOpname = resOpname.data || [];
+
+                const blockedOpnameIds = new Set<number>();
+                dataOpname.forEach((op: any) => {
+                    const status = (op.status || '').toLowerCase();
+                    if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
+                        blockedOpnameIds.add(Number(op.id_rab_item));
+                    }
+                });
+                setBlockedOpnameRabItemIds(blockedOpnameIds);
 
                 setLiveHistory(dataLive);
                 
@@ -1431,6 +1443,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
             
             const filteredItems = catItems.filter((item: any) => {
+                 if (blockedOpnameRabItemIds.has(Number(item.id))) return false;
+
                  const key = `${task.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                  const latestStatus = latestStatusMapState.get(key);
                  
@@ -1450,7 +1464,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, liveHistory, blockedOpnameRabItemIds]);
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
