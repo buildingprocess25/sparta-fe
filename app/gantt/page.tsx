@@ -1306,6 +1306,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null }>>({});
     const [isDirty, setIsDirty] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
+    const [nextHandoverDate, setNextHandoverDate] = useState('');
     
     useEffect(() => {
         if (!selectedGanttId || !spkInfo || !activeHeaderClick) {
@@ -1384,6 +1385,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [latestIdMapState, setLatestIdMapState] = useState<Map<string, number>>(new Map());
 
     const hasSelesaiItems = Array.from(latestStatusMapState.values()).some((s: string) => s.toLowerCase() === 'selesai');
+    const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
 
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
@@ -1503,6 +1505,36 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }));
     };
 
+    const isLastSupervisionDay = useMemo(() => {
+        if (!pengawasanHistory || pengawasanHistory.length === 0 || !spkInfo || !activeHeaderClick) return false;
+        
+        const datesInNumeric = pengawasanHistory
+            .map((p: any) => p.tanggal_pengawasan)
+            .filter(Boolean)
+            .map((dStr: string) => {
+                const parts = dStr.split('/');
+                if(parts.length === 3) {
+                    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
+                }
+                return 0;
+            })
+            .filter((val: number) => val > 0)
+            .sort((a: number, b: number) => a - b);
+            
+        if (datesInNumeric.length === 0) return false;
+        const maxDate = datesInNumeric[datesInNumeric.length - 1];
+        
+        const offset = activeHeaderClick.dayIndex || 0;
+        const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+        dDate.setDate(dDate.getDate() + offset);
+        const yyyy = dDate.getFullYear();
+        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(dDate.getDate()).padStart(2, '0');
+        const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
+        
+        return maxDate === currentNumeric;
+    }, [pengawasanHistory, spkInfo, activeHeaderClick]);
+
     const isSubmitValid = useMemo(() => {
         if (memoConfig.length === 0) return false;
         if (!isDirty) return false;
@@ -1535,8 +1567,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
             }
         }
+
+        // Wajib mengisi tanggal serah terima berikutnya jika ini hari terakhir dan ada yg terlambat
+        if (isLastSupervisionDay && hasLateItems && !nextHandoverDate) {
+            return false;
+        }
+
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, isDirty]);
+    }, [memoConfig, memoInputs, latestStatusMapState, isDirty, isLastSupervisionDay, hasLateItems, nextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -1547,36 +1585,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const yyyy = d.getFullYear();
         return `${dd}/${mm}/${yyyy}`;
     };
-
-    const isLastSupervisionDay = useMemo(() => {
-        if (!pengawasanHistory || pengawasanHistory.length === 0 || !spkInfo || !activeHeaderClick) return false;
-        
-        const datesInNumeric = pengawasanHistory
-            .map((p: any) => p.tanggal_pengawasan)
-            .filter(Boolean)
-            .map((dStr: string) => {
-                const parts = dStr.split('/');
-                if(parts.length === 3) {
-                    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
-                }
-                return 0;
-            })
-            .filter((val: number) => val > 0)
-            .sort((a: number, b: number) => a - b);
-            
-        if (datesInNumeric.length === 0) return false;
-        const maxDate = datesInNumeric[datesInNumeric.length - 1];
-        
-        const offset = activeHeaderClick.dayIndex || 0;
-        const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
-        dDate.setDate(dDate.getDate() + offset);
-        const yyyy = dDate.getFullYear();
-        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(dDate.getDate()).padStart(2, '0');
-        const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
-        
-        return maxDate === currentNumeric;
-    }, [pengawasanHistory, spkInfo, activeHeaderClick]);
 
     const handleSubmit = async () => {
         if (!selectedGanttId) {
@@ -1714,6 +1722,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     await updateGanttDelay(selectedGanttId, { updates });
                 } catch(e: any) {
                     console.warn("Update delay bulk error:", e);
+                }
+            }
+
+            // 3. Tambahkan Tanggal Serah Terima Berikutnya jika ada item terlambat di hari terakhir
+            if (isLastSupervisionDay && hasLateItems && nextHandoverDate) {
+                const { submitGanttPengawasan } = await import('@/lib/api');
+                try {
+                    await submitGanttPengawasan(Number(selectedGanttId), [nextHandoverDate]);
+                } catch(e: any) {
+                    console.warn("Update next handover date error:", e);
                 }
             }
 
@@ -1905,6 +1923,33 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         ))
                     )}
                 </div>
+
+                {isLastSupervisionDay && hasLateItems && (
+                    <div className="px-6 pb-4">
+                        <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                            <h4 className="font-bold text-orange-800 text-sm mb-2 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" />
+                                Tindak Lanjut Item Terlambat
+                            </h4>
+                            <p className="text-xs text-orange-700 mb-3">
+                                Terdapat item pekerjaan yang masih <strong>Terlambat</strong> pada hari serah terima. Anda wajib menentukan jadwal serah terima berikutnya.
+                            </p>
+                            <div>
+                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Tanggal Serah Terima Berikutnya *</label>
+                                <input
+                                    type="date"
+                                    min={new Date().toISOString().split('T')[0]}
+                                    value={nextHandoverDate}
+                                    onChange={(e) => {
+                                        setNextHandoverDate(e.target.value);
+                                        setIsDirty(true);
+                                    }}
+                                    className="block w-full max-w-xs p-2 mt-1 border border-orange-300 rounded focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-800 outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
                     <div>
