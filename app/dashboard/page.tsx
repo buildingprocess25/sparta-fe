@@ -335,6 +335,13 @@ export default function DashboardPage() {
             allowedIds.push("menu-inputpic");
         }
 
+        if (
+            userCabang.toUpperCase() === 'BATAM' &&
+            roles.includes('BRANCH BUILDING COORDINATOR')
+        ) {
+            allowedIds.push("menu-spk");
+        }
+
         if (!canAccessProjectPlanningByCabang(userCabang) && !isRegionalManager && !isSuperHuman) {
             allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
         }
