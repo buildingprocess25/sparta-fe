@@ -1785,7 +1785,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
                 
                 if (val.status === 'Terlambat' && Number(val.lateDays) > 0) {
-                    catsLate.set(catName, (catsLate.get(catName) || 0) + Number(val.lateDays));
+                    catsLate.set(catName, Math.max(catsLate.get(catName) || 0, Number(val.lateDays)));
                 }
             });
 

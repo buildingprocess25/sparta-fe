@@ -337,7 +337,12 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                         <SelectValue placeholder="-- Pilih Nomor ULOK --" />
                                     </SelectTrigger>
                                     <SelectContent position="popper" side="bottom" className="max-w-[90vw] sm:max-w-100 max-h-75 w-(--radix-select-trigger-width)">
-                                        <div className="p-2 sticky top-0 bg-white z-10 border-b border-slate-100">
+                                        <div
+                                            className="p-2 sticky top-0 bg-white z-10 border-b border-slate-100"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            onTouchStart={(e) => e.stopPropagation()}
+                                        >
                                             <div className="relative">
                                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                 <input
@@ -346,6 +351,9 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                                     className="w-full pl-8 pr-3 py-1.5 border rounded-md text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400"
                                                     value={searchQuery}
                                                     onChange={(e) => setSearchQuery(e.target.value)}
+                                                    onPointerDown={(e) => e.stopPropagation()}
+                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                    onTouchStart={(e) => e.stopPropagation()}
                                                     onKeyDown={(e) => e.stopPropagation()}
                                                 />
                                             </div>
