@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-    Camera, ArrowRight, ArrowLeft, FileText, CheckCircle,
-    Loader2, Image as ImageIcon, Ban, ChevronDown, Search
+    ArrowRight, ArrowLeft, FileText, CheckCircle,
+    Loader2, Image as ImageIcon, ChevronDown, Search, Store, PencilLine
 } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import AppNavbar from '@/components/AppNavbar';
@@ -25,6 +25,7 @@ import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 // =============================================================================
 type PhotoData = { url: string; note: string | null; timestamp: string };
 type FormData = {
+    jenisToko: 'REGULAR' | 'FRANCHISE';
     cabang: string; nomorUlok: string; kontraktorSipil: string; kontraktorMe: string;
     spkAwal: string; spkAkhir: string; kodeToko: string; namaToko: string;
     tanggalGo: string; tanggalSt: string; tanggalAmbilFoto: string;
@@ -36,7 +37,24 @@ type UlokOption = {
     cabang: string;
 };
 
+type DokumentasiSourceRab = {
+    nomor_ulok?: string | null;
+    nama_toko?: string | null;
+    cabang?: string | null;
+    proyek?: string | null;
+    nama_pt?: string | null;
+    kode_toko?: string | null;
+    toko?: {
+        nomor_ulok?: string | null;
+        nama_toko?: string | null;
+        cabang?: string | null;
+        kode_toko?: string | null;
+        lingkup_pekerjaan?: string | null;
+    };
+};
+
 const emptyForm: FormData = {
+    jenisToko: 'REGULAR',
     cabang: '', nomorUlok: '', kontraktorSipil: '', kontraktorMe: '',
     spkAwal: '', spkAkhir: '', kodeToko: '', namaToko: '',
     tanggalGo: '', tanggalSt: '', tanggalAmbilFoto: '',
@@ -48,7 +66,6 @@ const emptyForm: FormData = {
 
 export default function FTDokumenPage() {
     const { showAlert } = useGlobalAlert();
-    const router = useRouter();
     const [currentStep, setCurrentStep] = useState<'form' | 'floorplan'>('form');
     const [formData, setFormData] = useState<FormData>(emptyForm);
     const [photos, setPhotos] = useState<Record<number, PhotoData>>({});
@@ -58,6 +75,7 @@ export default function FTDokumenPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [ulokOptions, setUlokOptions] = useState<UlokOption[]>([]);
     const [isLoadingUlok, setIsLoadingUlok] = useState(true);
+    const [submittedUloks, setSubmittedUloks] = useState<Set<string>>(new Set());
 
     const { user } = useSession();
     const isSuperHuman = user?.isSuperHuman ?? false;
@@ -81,13 +99,18 @@ export default function FTDokumenPage() {
                 const dokList = dokRes.data || [];
 
                 // Kumpulkan ULOK yang sudah pernah submit
-                const submittedUloks = new Set(dokList.map((d: any) => d.nomor_ulok));
+                const submittedUlokSet = new Set(
+                    dokList
+                        .map((d) => String(d.nomor_ulok || '').trim().toUpperCase())
+                        .filter(Boolean)
+                );
+                setSubmittedUloks(submittedUlokSet);
 
                 const grouped: Record<string, UlokOption> = {};
 
-                for (const rab of rabList) {
+                for (const rab of rabList as DokumentasiSourceRab[]) {
                     const ulok = rab.nomor_ulok || rab.toko?.nomor_ulok;
-                    if (!ulok || submittedUloks.has(ulok)) continue;
+                    if (!ulok || submittedUlokSet.has(String(ulok).trim().toUpperCase())) continue;
 
                     // Filter based on user branch
                     const rabCabang = rab.cabang || rab.toko?.cabang || '';
@@ -104,14 +127,14 @@ export default function FTDokumenPage() {
                             kontraktorMe: '',
                             spkAwal: '',
                             spkAkhir: '',
-                            kodeToko: (rab as any).toko?.kode_toko || (rab as any).kode_toko || '',
+                            kodeToko: rab.toko?.kode_toko || rab.kode_toko || '',
                             namaToko: rab.nama_toko || rab.toko?.nama_toko || '',
                             cabang: rabCabang,
                         };
                     }
 
                     // Tentukan kontraktor sipil vs ME berdasarkan proyek / lingkup_pekerjaan
-                    const lingkup = (rab.proyek || (rab.toko as any)?.lingkup_pekerjaan || '').toUpperCase();
+                    const lingkup = (rab.proyek || rab.toko?.lingkup_pekerjaan || '').toUpperCase();
                     if (lingkup.includes('ME') || lingkup.includes('MEKANIKAL') || lingkup.includes('ELEKTRIKAL')) {
                         grouped[ulok].kontraktorMe = rab.nama_pt || grouped[ulok].kontraktorMe;
                     } else {
@@ -149,6 +172,10 @@ export default function FTDokumenPage() {
         }
         if (!formData.nomorUlok) { showAlert({ message: 'Pilih Nomor ULOK terlebih dahulu.', type: 'warning' }); return; }
         if (!formData.namaToko) { showAlert({ message: 'Isi Nama Toko.', type: 'warning' }); return; }
+        if (formData.jenisToko === 'FRANCHISE' && submittedUloks.has(formData.nomorUlok.trim().toUpperCase())) {
+            showAlert({ message: 'Nomor ULOK ini sudah pernah dibuat dokumentasi.', type: 'warning' });
+            return;
+        }
         setCurrentStep('floorplan');
     };
 
@@ -193,6 +220,7 @@ export default function FTDokumenPage() {
             });
 
             const payloadFields: Record<string, string> = {
+                jenis_toko: formData.jenisToko,
                 cabang: formData.cabang,
                 nomor_ulok: formData.nomorUlok,
                 kontraktor_sipil: formData.kontraktorSipil,
@@ -214,13 +242,14 @@ export default function FTDokumenPage() {
             showAlert({ message: 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
             
             // Reset form
-            setFormData(emptyForm);
+            setFormData({ ...emptyForm, cabang: user?.cabang || '' });
             setPhotos({});
             setCurrentStep('form');
             setCurrentPage(1);
             setCurrentPhotoNumber(1);
-        } catch (error: any) {
-            showAlert({ message: error.message || 'Gagal menyimpan dokumentasi.', type: 'error' });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Gagal menyimpan dokumentasi.';
+            showAlert({ message, type: 'error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -240,6 +269,7 @@ export default function FTDokumenPage() {
                         ulokOptions={ulokOptions}
                         isLoadingUlok={isLoadingUlok}
                         isReadOnly={isReadOnly}
+                        defaultCabang={user?.cabang || ''}
                     />
                 ) : (
                     <FloorPlanView
@@ -274,7 +304,7 @@ export default function FTDokumenPage() {
 // =============================================================================
 // DATA FORM VIEW
 // =============================================================================
-function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, isLoadingUlok, isReadOnly }: {
+function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, isLoadingUlok, isReadOnly, defaultCabang }: {
     formData: FormData;
     onChange: (field: keyof FormData, value: string) => void;
     onSubmit: (e: React.FormEvent) => void;
@@ -282,10 +312,12 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
     ulokOptions: UlokOption[];
     isLoadingUlok: boolean;
     isReadOnly: boolean;
+    defaultCabang: string;
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [ulokDropdownOpen, setUlokDropdownOpen] = useState(false);
     const ulokDropdownRef = useRef<HTMLDivElement | null>(null);
+    const isFranchise = formData.jenisToko === 'FRANCHISE';
 
     const filteredUlokOptions = useMemo(() => {
         if (!searchQuery) return ulokOptions;
@@ -318,6 +350,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
         if (selected) {
             setFormData(prev => ({
                 ...prev,
+                jenisToko: 'REGULAR',
                 nomorUlok: selected.nomorUlok,
                 kontraktorSipil: selected.kontraktorSipil,
                 kontraktorMe: selected.kontraktorMe,
@@ -334,6 +367,27 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
         }
     };
 
+    const handleFranchiseToggle = (checked: boolean | 'indeterminate') => {
+        const enabled = checked === true;
+        setSearchQuery('');
+        setUlokDropdownOpen(false);
+        setFormData(prev => ({
+            ...prev,
+            jenisToko: enabled ? 'FRANCHISE' : 'REGULAR',
+            cabang: enabled ? prev.cabang : defaultCabang,
+            nomorUlok: '',
+            kontraktorSipil: '',
+            kontraktorMe: '',
+            spkAwal: '',
+            spkAkhir: '',
+            kodeToko: '',
+            namaToko: '',
+        }));
+    };
+
+    const autoInputClass = "bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200";
+    const manualInputClass = "bg-white border-slate-300 focus-visible:ring-red-100 focus-visible:border-red-400";
+
     return (
         <Card className="mb-8 shadow-sm border-slate-200">
             <CardHeader className="border-b bg-slate-50/50 pb-4">
@@ -343,10 +397,37 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
             </CardHeader>
             <CardContent className="pt-6">
                 <form onSubmit={onSubmit}>
+                    <div className={`mb-6 rounded-lg border px-4 py-3 transition-colors ${isFranchise ? 'border-red-200 bg-red-50/70' : 'border-slate-200 bg-white'}`}>
+                        <label className="flex cursor-pointer items-start gap-3">
+                            <Checkbox
+                                checked={isFranchise}
+                                onCheckedChange={handleFranchiseToggle}
+                                disabled={isReadOnly}
+                                className="mt-1 data-checked:bg-red-600 data-checked:border-red-600"
+                            />
+                            <span className="flex-1">
+                                <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                    {isFranchise ? <PencilLine className="h-4 w-4 text-red-600" /> : <Store className="h-4 w-4 text-slate-500" />}
+                                    Toko Franchise
+                                </span>
+                                <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                                    Centang jika toko tidak berasal dari RAB. Data identitas proyek akan diisi manual, dengan Nomor ULOK tetap wajib.
+                                </span>
+                            </span>
+                        </label>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="space-y-2">
                             <Label>Nomor ULOK <span className="text-red-500">*</span></Label>
-                            {isLoadingUlok ? (
+                            {isFranchise ? (
+                                <Input
+                                    value={formData.nomorUlok}
+                                    onChange={(e) => onChange('nomorUlok', e.target.value.toUpperCase())}
+                                    disabled={isReadOnly}
+                                    className={manualInputClass}
+                                    placeholder="Input Nomor ULOK"
+                                />
+                            ) : isLoadingUlok ? (
                                 <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-400">
                                     <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar ULOK...
                                 </div>
@@ -404,27 +485,59 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                         </div>
                         <div className="space-y-2">
                             <Label>Kontraktor Sipil</Label>
-                            <Input readOnly value={formData.kontraktorSipil} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200" placeholder="Terisi otomatis" tabIndex={-1} />
+                            <Input
+                                readOnly={!isFranchise}
+                                value={formData.kontraktorSipil}
+                                onChange={(e) => onChange('kontraktorSipil', e.target.value)}
+                                disabled={isReadOnly}
+                                className={isFranchise ? manualInputClass : autoInputClass}
+                                placeholder={isFranchise ? "Input kontraktor sipil" : "Terisi otomatis"}
+                                tabIndex={isFranchise ? 0 : -1}
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>Kontraktor ME</Label>
-                            <Input readOnly value={formData.kontraktorMe} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200" placeholder="Terisi otomatis" tabIndex={-1} />
+                            <Input
+                                readOnly={!isFranchise}
+                                value={formData.kontraktorMe}
+                                onChange={(e) => onChange('kontraktorMe', e.target.value)}
+                                disabled={isReadOnly}
+                                className={isFranchise ? manualInputClass : autoInputClass}
+                                placeholder={isFranchise ? "Input kontraktor ME" : "Terisi otomatis"}
+                                tabIndex={isFranchise ? 0 : -1}
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>SPK Awal</Label>
-                            <DatePicker value={formData.spkAwal} onChange={() => {}} disabled />
+                            <DatePicker value={formData.spkAwal} onChange={val => onChange('spkAwal', val)} disabled={isReadOnly || !isFranchise} />
                         </div>
                         <div className="space-y-2">
                             <Label>SPK Akhir</Label>
-                            <DatePicker value={formData.spkAkhir} onChange={() => {}} disabled />
+                            <DatePicker value={formData.spkAkhir} onChange={val => onChange('spkAkhir', val)} disabled={isReadOnly || !isFranchise} />
                         </div>
                         <div className="space-y-2">
                             <Label>Kode Toko</Label>
-                            <Input readOnly value={formData.kodeToko} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200 font-bold" placeholder="Terisi otomatis" tabIndex={-1} />
+                            <Input
+                                readOnly={!isFranchise}
+                                value={formData.kodeToko}
+                                onChange={(e) => onChange('kodeToko', e.target.value.toUpperCase())}
+                                disabled={isReadOnly}
+                                className={`${isFranchise ? manualInputClass : autoInputClass} font-bold`}
+                                placeholder={isFranchise ? "Input kode toko" : "Terisi otomatis"}
+                                tabIndex={isFranchise ? 0 : -1}
+                            />
                         </div>
                         <div className="space-y-2 lg:col-span-3">
                             <Label>Nama Toko <span className="text-red-500">*</span></Label>
-                            <Input readOnly value={formData.namaToko} className="bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200 font-bold" placeholder="Terisi otomatis" tabIndex={-1} />
+                            <Input
+                                readOnly={!isFranchise}
+                                value={formData.namaToko}
+                                onChange={(e) => onChange('namaToko', e.target.value)}
+                                disabled={isReadOnly}
+                                className={`${isFranchise ? manualInputClass : autoInputClass} font-bold`}
+                                placeholder={isFranchise ? "Input nama toko" : "Terisi otomatis"}
+                                tabIndex={isFranchise ? 0 : -1}
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal GO <span className="text-red-500">*</span></Label>

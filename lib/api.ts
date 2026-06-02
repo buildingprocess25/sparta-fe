@@ -2831,6 +2831,7 @@ export type DokumentasiBangunanItem = {
 
 export type DokumentasiBangunanData = {
     id: number;
+    jenis_toko: "REGULAR" | "FRANCHISE";
     nomor_ulok: string;
     nama_toko: string;
     kode_toko: string;
