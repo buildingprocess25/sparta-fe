@@ -1650,12 +1650,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (memoConfig.length === 0) return false;
         if (!isDirty) return false;
 
+        let editableItemCount = 0;
+
         for (const cat of memoConfig) {
             if (!cat.items) continue;
             for (const item of cat.items) {
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                 if (isAlreadySelesai) continue;
+
+                const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
+                if (isSavedOnCurrentDate) continue;
+
+                editableItemCount += 1;
 
                 const input = memoInputs[key];
                 
@@ -1679,13 +1686,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
         }
 
+        if (editableItemCount === 0) return false;
+
         // Wajib mengisi tanggal serah terima berikutnya jika ini hari terakhir dan ada yg terlambat
         if (isLastSupervisionDay && hasLateItems && !nextHandoverDate) {
             return false;
         }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, isDirty, isLastSupervisionDay, hasLateItems, nextHandoverDate]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isDirty, isLastSupervisionDay, hasLateItems, nextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -1713,7 +1722,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             let catsLate = new Map<string, number>();
 
-            const entriesToSubmit = Object.entries(memoInputs).filter(([, val]) => val.status);
+            const entriesToSubmit = Object.entries(memoInputs).filter(([key, val]) => {
+                if (!val.status) return false;
+                const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
+                return !isSavedOnCurrentDate;
+            });
             const shouldOpenOpname = entriesToSubmit.some(([, val]) =>
                 String(val.status || '').toLowerCase() === 'selesai'
             );
