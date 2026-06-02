@@ -24,12 +24,32 @@ const getCabangCode = (cabangName: string) => {
         "JAMBI": "1DZ1", "HEAD OFFICE": "Z001", "BANDUNG 1": "BZ01", "BANDUNG 2": "NZ01",
         "BEKASI": "CZ01", "CILACAP": "IZ01", "CILEUNGSI": "JZ01", "SEMARANG": "HZ01",
         "CIKOKOL": "KZ01", "LAMPUNG": "LZ01", "MALANG": "MZ01", "MANADO": "1YZ1",
-        "BATAM": "2DZ1", "MADIUN": "2MZ1",
+        "BATAM": "2DZ1", "BINTAN": "KZ01", "MADIUN": "2MZ1",
     };
     return map[cabangName.toUpperCase()] || cabangName.substring(0, 3).toUpperCase();
 };
 
 const formatRupiah = (number: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(number);
+
+const normalizeText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+
+const isNoPpnArea = (rab: any) => {
+    const identity = [
+        rab?.Cabang,
+        rab?.Nama_Toko,
+        rab?.Alamat,
+    ].map(normalizeText);
+
+    return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
+};
+
+const getSpkGrandTotal = (rab: any) => {
+    if (!rab) return 0;
+    if (isNoPpnArea(rab)) {
+        return parseCurrency(rab["Grand Total Non PPN"] ?? rab["Grand Total"] ?? rab["Grand Total Final"]) || 0;
+    }
+    return parseCurrency(rab["Grand Total Final"] ?? rab["Grand Total"]) || 0;
+};
 
 const getTodayDateString = () => {
     const today = new Date();
@@ -155,6 +175,8 @@ export default function SPKPage() {
                 "Kode_Toko": r.toko?.kode_toko || "-", 
                 "Proyek": r.proyek || "-",
                 "Alamat": r.toko?.alamat || "-",
+                "Grand Total": r.grand_total || 0,
+                "Grand Total Non PPN": r.grand_total_non_sbo || r.grand_total || 0,
                 "Grand Total Final": r.grand_total_final || r.grand_total || 0,
                 "Durasi_Pekerjaan": r.durasi_pekerjaan || "",
             }));
@@ -299,7 +321,7 @@ export default function SPKPage() {
             kode_toko: form.kode_toko,
             waktu_mulai: form.waktu_mulai,
             durasi: parseInt(form.durasi),
-            grand_total: parseCurrency(selectedRabObj["Grand Total Final"]) || 0,
+            grand_total: getSpkGrandTotal(selectedRabObj),
             par: fullPAR,
             spk_manual_1: form.spk_bulan,
             spk_manual_2: form.spk_tahun
@@ -437,7 +459,10 @@ export default function SPKPage() {
                                             <div><p className="text-[11px] font-bold text-slate-500 uppercase">Nama Toko</p><p className="font-semibold text-slate-800">{form.nama_toko || '-'}</p></div>
                                             <div><p className="text-[11px] font-bold text-slate-500 uppercase">Proyek</p><p className="font-semibold text-slate-800">{selectedRabObj.Proyek}</p></div>
                                             <div><p className="text-[11px] font-bold text-slate-500 uppercase">Lingkup</p><p className="font-semibold text-slate-800">{selectedRabObj.Lingkup_Pekerjaan}</p></div>
-                                            <div><p className="text-[11px] font-bold text-slate-500 uppercase">Grand Total Final</p><p className="font-bold text-red-600">{formatRupiah(parseCurrency(selectedRabObj["Grand Total Final"]))}</p></div>
+                                            <div>
+                                                <p className="text-[11px] font-bold text-slate-500 uppercase">{isNoPpnArea(selectedRabObj) ? "Grand Total SPK (Non PPN)" : "Grand Total Final"}</p>
+                                                <p className="font-bold text-red-600">{formatRupiah(getSpkGrandTotal(selectedRabObj))}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
