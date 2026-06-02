@@ -18,6 +18,17 @@ import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
+const normalizeNoPpnText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+const isNoPpnArea = (toko: any, cabangFallback = "") => {
+    const identity = [
+        toko?.cabang,
+        toko?.nama_toko,
+        toko?.alamat,
+        cabangFallback,
+    ].map(normalizeNoPpnText);
+
+    return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
+};
 
 export default function InstruksiLapanganPage() {
     const router = useRouter();
@@ -221,12 +232,12 @@ export default function InstruksiLapanganPage() {
             const u = Number(row.hargaUpah) || 0;
             total += v * (m + u);
         });
-        const isBatam = (cabang || "").toUpperCase() === "BATAM";
+        const isBatam = isNoPpnArea(selectedToko, cabang);
         const rounded = Math.floor(total / 10000) * 10000;
         const tax = isBatam ? 0 : rounded * 0.11;
         const grand = rounded + tax;
         return { totalEstimasi: total, pembulatan: rounded, ppn: tax, grandTotal: grand, isBatamBranch: isBatam };
-    }, [tableRows, cabang]);
+    }, [tableRows, cabang, selectedToko]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
