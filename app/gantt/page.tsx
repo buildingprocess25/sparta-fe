@@ -1368,6 +1368,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             return nextPengawasan === currentDateNumeric;
         };
 
+        const getPengawasanDateById = (idPengawasanGantt: any): any => {
+            if (!idPengawasanGantt) return null;
+            const matched = (pengawasanHistory || []).find((p: any) => Number(p.id) === Number(idPengawasanGantt));
+            return matched?.tanggal_pengawasan ?? null;
+        };
+
         import('@/lib/api').then(({ fetchPengawasanList, fetchOpnameList }) => {
             Promise.all([
                 fetchPengawasanList({ id_gantt: selectedGanttId, tanggal: formattedDate }),
@@ -1444,7 +1450,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         if (
                             !initial[key] &&
                             p.status.toLowerCase() !== 'selesai' &&
-                            isNextPengawasanAfter(p.tanggal_pengawasan)
+                            isNextPengawasanAfter(getPengawasanDateById(p.id_pengawasan_gantt))
                         ) {
                             initial[key] = {
                                 status: '',
@@ -1959,6 +1965,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                     <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
                                                                         <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
                                                                         <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
+                                                                    </div>
+                                                                ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
+                                                                    <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
+                                                                        <div className="flex items-center gap-2.5">
+                                                                            {currentStatus === 'Terlambat' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Clock className="w-5 h-5 text-blue-500" />}
+                                                                            <span className={`font-bold text-sm ${currentStatus === 'Terlambat' ? 'text-red-700' : 'text-blue-700'}`}>{currentStatus}</span>
+                                                                            {currentStatus === 'Terlambat' && lateDays > 0 && (
+                                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2.5 py-0.5 rounded-full shadow-sm">{lateDays} Hari</span>
+                                                                            )}
+                                                                        </div>
+                                                                        {memoInputs[key]?.dokumentasiUrl && (
+                                                                            <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
+                                                                                <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
+                                                                            </a>
+                                                                        )}
                                                                     </div>
                                                                 ) : (
                                                                     <div className="flex flex-col gap-2">
