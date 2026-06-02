@@ -191,7 +191,14 @@ const getLatestProjectOpnameFinal = (project: any) => {
     return getProjectOpnameFinals(project)[0] ?? null;
 };
 
-const getProjectPenaltyInfo = (project: any, lateDays?: number) => {
+type ProjectPenaltyInfo = {
+    amount: number;
+    days: number;
+    source: 'Resmi' | 'Estimasi';
+    targetKategori: 'OPNAME_FINAL';
+};
+
+const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyInfo => {
     const calculatedDays = lateDays ?? calculateProjectLateDays(project);
     const calculatedAmount = calculateProjectPenalty(calculatedDays);
 
@@ -220,17 +227,30 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number) => {
     };
 };
 
+const compareProjectPenaltyInfo = (current: ProjectPenaltyInfo | undefined, next: ProjectPenaltyInfo) => {
+    if (!current) return next;
+    if (current.source !== next.source) {
+        return next.source === 'Resmi' ? next : current;
+    }
+    return next.amount > current.amount ? next : current;
+};
+
 const getUniquePenaltyProjects = (projects: any[]) => {
-    const byStore = new Map<string, { project: any; penalty: number; createdAt: number }>();
+    const byStore = new Map<string, { project: any; penalty: ProjectPenaltyInfo; createdAt: number }>();
 
     projects.forEach((project) => {
         const key = getProjectStorePenaltyKey(project);
         const latestOpnameFinal = getLatestProjectOpnameFinal(project);
-        const penalty = getProjectPenaltyInfo(project).amount;
+        const penalty = getProjectPenaltyInfo(project);
         const createdAt = new Date(latestOpnameFinal?.created_at || project?.toko?.created_at || 0).getTime() || 0;
         const existing = byStore.get(key);
+        const selectedPenalty = compareProjectPenaltyInfo(existing?.penalty, penalty);
 
-        if (!existing || penalty > existing.penalty || (penalty === existing.penalty && createdAt > existing.createdAt)) {
+        if (
+            !existing ||
+            selectedPenalty !== existing.penalty ||
+            (penalty.amount === existing.penalty.amount && penalty.source === existing.penalty.source && createdAt > existing.createdAt)
+        ) {
             byStore.set(key, { project, penalty, createdAt });
         }
     });
@@ -455,7 +475,7 @@ export default function DashboardPage() {
         let totalSPK = 0;
         let totalJHK = 0;
         let totalDelay = 0;
-        const penaltyByStoreKey = new Map<string, number>();
+        const penaltyByStoreKey = new Map<string, ProjectPenaltyInfo>();
         
         let sumRatioTerbuka = 0; let countTerbuka = 0;
         let sumRatioBangunan = 0; let countBangunan = 0;
@@ -632,8 +652,8 @@ export default function DashboardPage() {
                 const keterlambatan = calculateProjectLateDays(p);
                 if (keterlambatan > 0) delayProjectCount++;
                 const penaltyKey = getProjectStorePenaltyKey(p);
-                const existingPenalty = penaltyByStoreKey.get(penaltyKey) ?? 0;
-                penaltyByStoreKey.set(penaltyKey, Math.max(existingPenalty, getProjectPenaltyInfo(p, keterlambatan).amount));
+                const penaltyInfo = getProjectPenaltyInfo(p, keterlambatan);
+                penaltyByStoreKey.set(penaltyKey, compareProjectPenaltyInfo(penaltyByStoreKey.get(penaltyKey), penaltyInfo));
                 
                 projectJHK = totalAllowedDays + keterlambatan;
                 totalDelay += keterlambatan;
@@ -786,7 +806,7 @@ export default function DashboardPage() {
             }
         });
         const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
-        const totalDenda = Array.from(penaltyByStoreKey.values()).reduce((sum, value) => sum + value, 0);
+        const totalDenda = Array.from(penaltyByStoreKey.values()).reduce((sum, value) => sum + value.amount, 0);
 
         const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
             type: 'KONTRAKTOR',
