@@ -19,8 +19,8 @@ import {
 import {
   fetchProjekPlanningDetail, processBmApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
-  downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList,
-  type ProjekPlanningItem, type ProjekPlanningLog,
+  downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
+  type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
 
@@ -43,6 +43,9 @@ type FacilityInput = {
   is_tersedia: boolean;
   keterangan?: string;
 };
+
+type RabReviewItemOption = RABDetailItem & { rabScope?: string | null };
+type RabRejectedRow = { itemId: string; note: string };
 
 const FACILITY_META: Record<string, { label: string; units: string[]; placeholder: string }> = {
   AIR_BERSIH: { label: "Sumber Air Bersih", units: ["titik", "sumber"], placeholder: "Jumlah titik" },
@@ -67,6 +70,13 @@ const parseFacilityMeasurement = (text: string | undefined, defaultUnit: string)
   if (!match) return { amount: value, unit: defaultUnit };
   if (!/^\d+([.,]\d+)?$/.test(match[1].trim())) return { amount: "", unit: match[2] };
   return { amount: match[1], unit: match[2] };
+};
+
+const formatRabItemOption = (item?: RabReviewItemOption) => {
+  if (!item) return "";
+  const scope = item.rabScope ? `${item.rabScope} - ` : "";
+  const volume = item.volume ? ` | Vol ${Number(item.volume).toLocaleString("id-ID")} ${item.satuan || ""}` : "";
+  return `#${item.id} - ${scope}${item.kategori_pekerjaan} / ${item.jenis_pekerjaan}${volume}`;
 };
 
 const FPD_STEPS = [
@@ -280,6 +290,83 @@ function ReviewSelect({
   );
 }
 
+function RabRejectEditor({
+  rabItems,
+  rows,
+  onRowsChange,
+  generalNote,
+  onGeneralNoteChange,
+}: {
+  rabItems: RabReviewItemOption[];
+  rows: RabRejectedRow[];
+  onRowsChange: (rows: RabRejectedRow[]) => void;
+  generalNote: string;
+  onGeneralNoteChange: (value: string) => void;
+}) {
+  const addRow = () => onRowsChange([...rows, { itemId: "", note: "" }]);
+  const updateRow = (idx: number, patch: Partial<RabRejectedRow>) => {
+    onRowsChange(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, ...patch } : row));
+  };
+  const removeRow = (idx: number) => onRowsChange(rows.filter((_, rowIdx) => rowIdx !== idx));
+
+  return (
+    <div className="rounded-lg border border-red-100 bg-white p-3 space-y-3">
+      <div>
+        <Label className="text-xs font-semibold text-red-700">Revisi RAB General</Label>
+        <Textarea
+          value={generalNote}
+          onChange={e => onGeneralNoteChange(e.target.value)}
+          placeholder="Isi jika revisi RAB bersifat umum, bukan spesifik item..."
+          rows={2}
+          className="mt-1"
+        />
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs font-semibold text-red-700">Item RAB yang perlu revisi</Label>
+          <Button type="button" variant="outline" size="sm" onClick={addRow} className="h-8 text-xs bg-white">
+            + Tambah Item
+          </Button>
+        </div>
+        {rows.length === 0 ? (
+          <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-md p-2">
+            Belum ada item spesifik. Tambahkan item jika revisi hanya untuk pekerjaan tertentu.
+          </p>
+        ) : rows.map((row, idx) => (
+          <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
+            <select
+              value={row.itemId}
+              onChange={e => updateRow(idx, { itemId: e.target.value })}
+              className="h-10 rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
+            >
+              <option value="">Pilih item RAB...</option>
+              {rabItems.map(item => (
+                <option key={`${item.rabScope || "RAB"}-${item.id}`} value={String(item.id)}>
+                  {formatRabItemOption(item)}
+                </option>
+              ))}
+            </select>
+            <Input
+              value={row.note}
+              onChange={e => updateRow(idx, { note: e.target.value })}
+              placeholder="Catatan item..."
+              className="bg-white"
+            />
+            <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-10 px-3 text-red-500 hover:text-red-700 hover:bg-red-50">
+              Hapus
+            </Button>
+          </div>
+        ))}
+        {rabItems.length === 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">
+            Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DetailProjekPlanning() {
   const router = useRouter();
   const params = useParams();
@@ -311,8 +398,9 @@ export default function DetailProjekPlanning() {
   const [approvalNote, setApprovalNote] = useState("");
   const [rabReviewAction, setRabReviewAction] = useState<"APPROVE" | "REJECT">("APPROVE");
   const [gambarReviewAction, setGambarReviewAction] = useState<"APPROVE" | "REJECT">("APPROVE");
-  const [rabRejectedItemIds, setRabRejectedItemIds] = useState("");
   const [rabRejectedItemNotes, setRabRejectedItemNotes] = useState("");
+  const [rabReviewItems, setRabReviewItems] = useState<RabReviewItemOption[]>([]);
+  const [rabRejectedRows, setRabRejectedRows] = useState<RabRejectedRow[]>([]);
 
   const markFieldViewed = React.useCallback((field: string) => {
     setOpenedLinks(prev => {
@@ -370,6 +458,23 @@ export default function DetailProjekPlanning() {
 
       setData(projek);
       setLogs(res.data.logs);
+      const rabIds = [
+        { id: (projek as any).id_rab_sipil, scope: "SIPIL" },
+        { id: (projek as any).id_rab_me, scope: "ME" },
+      ].filter(item => item.id);
+      if (rabIds.length > 0) {
+        try {
+          const details = await Promise.all(rabIds.map(async item => {
+            const detail = await fetchRABDetail(Number(item.id));
+            return (detail.data.items || []).map(rabItem => ({ ...rabItem, rabScope: item.scope }));
+          }));
+          setRabReviewItems(details.flat());
+        } catch {
+          setRabReviewItems([]);
+        }
+      } else {
+        setRabReviewItems([]);
+      }
       if (projek.status === "WAITING_RAB_UPLOAD") {
         try {
           const rabRes = await fetchRABList({ nomor_ulok: projek.nomor_ulok, status: "Disetujui" }, { suppressGlobalError: true });
@@ -442,10 +547,25 @@ export default function DetailProjekPlanning() {
   };
 
   const handleFinalReview = async (type: "pp2" | "pp_mgr") => {
-    const rejectedIds = rabRejectedItemIds
-      .split(/[,\s]+/)
-      .map(item => Number(item.trim()))
+    const rejectedIds = rabRejectedRows
+      .map(row => Number(row.itemId))
       .filter(item => Number.isFinite(item) && item > 0);
+    const rejectedItemNotes = rabRejectedRows
+      .filter(row => row.itemId)
+      .map(row => {
+        const item = rabReviewItems.find(option => String(option.id) === row.itemId);
+        const note = row.note.trim();
+        return `${formatRabItemOption(item) || `#${row.itemId}`}${note ? `: ${note}` : ""}`;
+      });
+    const combinedRabNotes = [
+      rabRejectedItemNotes.trim() ? `General: ${rabRejectedItemNotes.trim()}` : "",
+      ...rejectedItemNotes,
+    ].filter(Boolean).join("\n");
+
+    if (rabReviewAction === "REJECT" && !combinedRabNotes && rejectedIds.length === 0) {
+      showAlert("Peringatan", "Isi revisi general RAB atau tambahkan minimal satu item RAB yang perlu direvisi.");
+      return;
+    }
     const payload = {
       approver_email: userEmail,
       rab_tindakan: rabReviewAction,
@@ -453,12 +573,12 @@ export default function DetailProjekPlanning() {
       catatan: approvalNote,
       alasan_penolakan: rabReviewAction === "REJECT" || gambarReviewAction === "REJECT" ? rejectReason || approvalNote : undefined,
       rab_rejected_item_ids: rejectedIds,
-      rab_rejected_item_notes: rabRejectedItemNotes,
+      rab_rejected_item_notes: combinedRabNotes,
     };
     if (type === "pp2") await processPpApproval2(id, payload);
     else await processPpManagerApproval(id, payload);
-    setRabRejectedItemIds("");
     setRabRejectedItemNotes("");
+    setRabRejectedRows([]);
   };
 
   const handleReject = async () => {
@@ -1127,10 +1247,13 @@ export default function DetailProjekPlanning() {
                 <ReviewSelect label="Review Gambar Final" value={gambarReviewAction} onChange={setGambarReviewAction} />
               </div>
               {rabReviewAction === "REJECT" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <Input value={rabRejectedItemIds} onChange={e => setRabRejectedItemIds(e.target.value)} placeholder="ID item RAB salah, pisahkan koma" />
-                  <Input value={rabRejectedItemNotes} onChange={e => setRabRejectedItemNotes(e.target.value)} placeholder="Catatan item RAB" />
-                </div>
+                <RabRejectEditor
+                  rabItems={rabReviewItems}
+                  rows={rabRejectedRows}
+                  onRowsChange={setRabRejectedRows}
+                  generalNote={rabRejectedItemNotes}
+                  onGeneralNoteChange={setRabRejectedItemNotes}
+                />
               )}
               {(rabReviewAction === "REJECT" || gambarReviewAction === "REJECT") && (
                 <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." rows={2} />
@@ -1153,10 +1276,13 @@ export default function DetailProjekPlanning() {
                 <ReviewSelect label="Review Gambar Final" value={gambarReviewAction} onChange={setGambarReviewAction} />
               </div>
               {rabReviewAction === "REJECT" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <Input value={rabRejectedItemIds} onChange={e => setRabRejectedItemIds(e.target.value)} placeholder="ID item RAB salah, pisahkan koma" />
-                  <Input value={rabRejectedItemNotes} onChange={e => setRabRejectedItemNotes(e.target.value)} placeholder="Catatan item RAB" />
-                </div>
+                <RabRejectEditor
+                  rabItems={rabReviewItems}
+                  rows={rabRejectedRows}
+                  onRowsChange={setRabRejectedRows}
+                  generalNote={rabRejectedItemNotes}
+                  onGeneralNoteChange={setRabRejectedItemNotes}
+                />
               )}
               {(rabReviewAction === "REJECT" || gambarReviewAction === "REJECT") && (
                 <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." rows={2} />
