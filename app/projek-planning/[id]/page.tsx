@@ -262,6 +262,7 @@ export default function DetailProjekPlanning() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string>("");
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMsg, setAlertMsg] = useState({ title: "", desc: "" });
@@ -390,6 +391,12 @@ export default function DetailProjekPlanning() {
 
   const showAlert = (title: string, desc: string) => { setAlertMsg({ title, desc }); setAlertOpen(true); };
 
+  const openApproveDialog = (type: string) => {
+    setPendingAction(type);
+    setApprovalNote("");
+    setShowApproveDialog(true);
+  };
+
   const handleApprove = async (type: string) => {
     setActionLoading(true);
     try {
@@ -397,6 +404,7 @@ export default function DetailProjekPlanning() {
       else if (type === "pp1") await processPpApproval1(id, { approver_email: userEmail, tindakan: "APPROVE", butuh_desain_3d: need3d, catatan: approvalNote });
       else if (type === "pp_mgr") await handleFinalReview("pp_mgr");
       else if (type === "pp2") await handleFinalReview("pp2");
+      setShowApproveDialog(false);
       setApprovalNote("");
       showAlert("Berhasil", "Pengajuan berhasil disetujui.");
       await load();
@@ -809,12 +817,11 @@ export default function DetailProjekPlanning() {
                   </div>
                 </div>
               )}
-              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval B&M..." rows={2} />
               <div className="flex gap-3">
                 <Button onClick={() => { setPendingAction("bm"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <XCircle className="w-4 h-4 mr-1.5" /> Tolak
                 </Button>
-                <Button onClick={() => handleApprove("bm")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                <Button onClick={() => openApproveDialog("bm")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
                 </Button>
               </div>
@@ -838,12 +845,11 @@ export default function DetailProjekPlanning() {
                 <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded" />
                 <label htmlFor="need3d" className="text-sm">Butuh Desain 3D</label>
               </div>
-              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval PP tahap 1..." rows={2} />
               <div className="flex gap-3">
                 <Button onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <XCircle className="w-4 h-4 mr-1.5" /> Tolak
                 </Button>
-                <Button onClick={() => handleApprove("pp1")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
+                <Button onClick={() => openApproveDialog("pp1")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui (Lanjut ke RAB)
                 </Button>
               </div>
@@ -1079,6 +1085,24 @@ export default function DetailProjekPlanning() {
             <AlertDialogAction onClick={handleReject} disabled={!rejectReason.trim() || actionLoading}
               className="bg-red-600 hover:bg-red-700">
               {actionLoading ? "Memproses..." : "Tolak"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Approve Dialog */}
+      <AlertDialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Setujui Pengajuan</AlertDialogTitle>
+            <AlertDialogDescription>Catatan approval bersifat opsional. Kosongkan jika tidak ada catatan tambahan.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval (opsional)..." rows={3} />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleApprove(pendingAction)} disabled={actionLoading || !pendingAction}
+              className="bg-green-600 hover:bg-green-700">
+              {actionLoading ? "Memproses..." : "Setujui"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
