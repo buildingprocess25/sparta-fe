@@ -616,6 +616,16 @@ export default function DetailProjekPlanning() {
     ? latestRevisionSummary.replace(/\.$/, "").split(",").map(item => item.trim()).filter(Boolean)
     : [];
 
+  const getApprovalNote = (roleTarget: string) => {
+    const approveLog = [...logs].reverse().find(l => l.aksi === "APPROVE" && (l.role === roleTarget || (roleTarget === 'BM_MANAGER' && l.role === 'BM')));
+    if (!approveLog || !approveLog.keterangan) return null;
+    const match = approveLog.keterangan.match(/Catatan:\s*(.+)$/i);
+    return match ? match[1] : null;
+  };
+
+  const bmNote = getApprovalNote('BM_MANAGER');
+  const pp1Note = getApprovalNote('PP_SPECIALIST');
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
       <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
@@ -841,6 +851,12 @@ export default function DetailProjekPlanning() {
                   <span className="italic">"{data.pp1_alasan_penolakan}"</span>
                 </div>
               )}
+              {bmNote && (
+                <div className="text-sm text-blue-800 bg-blue-100/50 p-3 rounded-lg border border-blue-200 mb-2">
+                  <span className="font-semibold block mb-1"><ClipboardList className="w-4 h-4 inline mr-1" /> Catatan B&M Manager:</span>
+                  <span className="italic">"{bmNote}"</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded" />
                 <label htmlFor="need3d" className="text-sm">Butuh Desain 3D</label>
@@ -892,6 +908,18 @@ export default function DetailProjekPlanning() {
                   <p className="text-xs text-red-600 mt-2">
                     Data upload sebelumnya sudah dimuat. Ubah minimal satu link atau pilih file baru sebelum submit ulang.
                   </p>
+                </div>
+              )}
+              {bmNote && (
+                <div className="text-sm text-blue-800 bg-blue-100/50 p-3 rounded-lg border border-blue-200 mb-2">
+                  <span className="font-semibold block mb-1"><ClipboardList className="w-4 h-4 inline mr-1" /> Catatan B&M Manager:</span>
+                  <span className="italic">"{bmNote}"</span>
+                </div>
+              )}
+              {pp1Note && (
+                <div className="text-sm text-blue-800 bg-blue-100/50 p-3 rounded-lg border border-blue-200 mb-2">
+                  <span className="font-semibold block mb-1"><ClipboardList className="w-4 h-4 inline mr-1" /> Catatan PP Specialist (Tahap 1):</span>
+                  <span className="italic">"{pp1Note}"</span>
                 </div>
               )}
               {data.link_desain_3d && !openedLinks.has("desain_3d") && (
