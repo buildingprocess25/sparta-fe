@@ -315,6 +315,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     WAITING_PP_APPROVAL_1:              'bg-yellow-100 text-yellow-700 border-yellow-200',
     PP_DESIGN_3D_REQUIRED:              'bg-purple-100 text-purple-700 border-purple-200',
     WAITING_RAB_UPLOAD:                 'bg-orange-100 text-orange-700 border-orange-200',
+    WAITING_BM_APPROVAL_2:              'bg-yellow-100 text-yellow-700 border-yellow-200',
     WAITING_PP_APPROVAL_2:              'bg-yellow-100 text-yellow-700 border-yellow-200',
     WAITING_PP_MANAGER_APPROVAL:        'bg-yellow-100 text-yellow-700 border-yellow-200',
     COMPLETED:                          'bg-green-100 text-green-700 border-green-200',
@@ -350,7 +351,8 @@ const STATUS_LABEL: Record<string, string> = {
     WAITING_BM_APPROVAL:                'Pending B&M Mgr',
     WAITING_PP_APPROVAL_1:              'Pending PP (1)',
     PP_DESIGN_3D_REQUIRED:              'Design 3D',
-    WAITING_RAB_UPLOAD:                 'Upload RAB',
+    WAITING_RAB_UPLOAD:                 'Input Tahap 2',
+    WAITING_BM_APPROVAL_2:              'Pending B&M (2)',
     WAITING_PP_APPROVAL_2:              'Pending PP (2)',
     WAITING_PP_MANAGER_APPROVAL:        'Pending PP Mgr',
     COMPLETED:                          'Selesai',
@@ -706,7 +708,7 @@ export default function ApprovalPage() {
 
                     const statusMatchesRole =
                         (isBmManager && !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper)) ||
-                        (isPpSpecialist && !['DRAFT', 'WAITING_BM_APPROVAL', 'COMPLETED', 'REJECTED'].includes(upper)) ||
+                        (isPpSpecialist && !['DRAFT', 'WAITING_BM_APPROVAL', 'WAITING_BM_APPROVAL_2', 'COMPLETED', 'REJECTED'].includes(upper)) ||
                         (isPpManager && (
                             upper === 'WAITING_PP_MANAGER_APPROVAL' ||
                             (upper === 'WAITING_RAB_UPLOAD' && !!projek.pp_manager_approver_email)

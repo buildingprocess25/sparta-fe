@@ -187,13 +187,10 @@ interface NormalizedDetail {
     link_gambar_kerja_pp?: string | null;
     link_rab_pp?: string | null;
     link_fpd_approved_pp?: string | null;
-    link_gambar_rab_sipil_pp?: string | null;
-    link_gambar_rab_me_pp?: string | null;
     link_gambar_kompetitor_pp?: string | null;
     link_google_maps_pp?: string | null;
     link_rab_sipil_pp?: string | null;
     link_rab_me_pp?: string | null;
-    link_gambar_kerja_final_pp?: string | null;
     link_gambar_kerja_final_sipil_pp?: string | null;
     link_gambar_kerja_final_me_pp?: string | null;
     foto_items_pp?: { id?: number; item_index: number; link_foto: string }[];
@@ -1098,13 +1095,10 @@ export default function DaftarDokumenPage() {
                     link_gambar_kerja_pp:    d.link_gambar_kerja,
                     link_rab_pp:             d.link_rab,
                     link_fpd_approved_pp:    d.link_fpd_approved,
-                    link_gambar_rab_sipil_pp: d.link_gambar_rab_sipil,
-                    link_gambar_rab_me_pp:   d.link_gambar_rab_me,
                     link_gambar_kompetitor_pp: d.link_gambar_kompetitor,
                     link_google_maps_pp:     d.link_google_maps,
                     link_rab_sipil_pp:       d.link_rab_sipil,
                     link_rab_me_pp:          d.link_rab_me,
-                    link_gambar_kerja_final_pp: d.link_gambar_kerja_final,
                     link_gambar_kerja_final_sipil_pp: d.link_gambar_kerja_final_sipil,
                     link_gambar_kerja_final_me_pp: d.link_gambar_kerja_final_me,
                     foto_items_pp:           d.foto_items ?? [],
@@ -2426,8 +2420,6 @@ export default function DaftarDokumenPage() {
                                                 { label: 'Google Maps', url: selectedDetail.link_google_maps_pp, icon: <MapPin className="w-4 h-4" /> },
                                                 { label: 'Gambar Kerja Sipil / FPD', url: selectedDetail.link_fpd_pp, field: 'fpd' },
                                                 { label: 'Gambar Kerja ME', url: selectedDetail.link_gambar_kerja_pp, field: 'gambar_kerja_awal' },
-                                                { label: 'RAB Sipil Awal', url: selectedDetail.link_gambar_rab_sipil_pp, field: 'rab_sipil_awal' },
-                                                { label: 'RAB ME Awal', url: selectedDetail.link_gambar_rab_me_pp, field: 'rab_me_awal' },
                                                 { label: 'Gambar Kompetitor', url: selectedDetail.link_gambar_kompetitor_pp, field: 'gambar_kompetitor' },
                                             ];
                                             const fotoDocs: ProjectPlanningAttachment[] = [
@@ -2446,7 +2438,7 @@ export default function DaftarDokumenPage() {
                                                 { label: 'RAB Sipil Final', url: selectedDetail.link_rab_sipil_pp, field: 'rab_sipil_final' },
                                                 { label: 'RAB ME Final', url: selectedDetail.link_rab_me_pp, field: 'rab_me_final' },
                                                 { label: 'RAB Final', url: selectedDetail.link_rab_pp, field: 'rab' },
-                                                { label: 'Gambar Kerja Final Sipil', url: selectedDetail.link_gambar_kerja_final_sipil_pp || selectedDetail.link_gambar_kerja_final_pp, field: 'gambar_kerja_final_sipil' },
+                                                { label: 'Gambar Kerja Final Sipil', url: selectedDetail.link_gambar_kerja_final_sipil_pp, field: 'gambar_kerja_final_sipil' },
                                                 { label: 'Gambar Kerja Final ME', url: selectedDetail.link_gambar_kerja_final_me_pp, field: 'gambar_kerja_final_me' },
                                             ];
                                             const hasAnyDocs = [...koordinatorDocs, ...fotoDocs, ...ppDocs, ...finalDocs].some(doc => hasLink(doc.url));

@@ -19,7 +19,7 @@ import {
 import {
   fetchProjekPlanningDetail, processBmApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
-  downloadProjekPlanningPdf, proxyProjekPlanningFile,
+  downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList,
   type ProjekPlanningItem, type ProjekPlanningLog,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
@@ -29,7 +29,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   WAITING_BM_APPROVAL: { label: "Menunggu B&M", color: "bg-amber-100 text-amber-800" },
   WAITING_PP_APPROVAL_1: { label: "Menunggu PP (1)", color: "bg-blue-100 text-blue-800" },
   PP_DESIGN_3D_REQUIRED: { label: "Desain 3D", color: "bg-purple-100 text-purple-800" },
-  WAITING_RAB_UPLOAD: { label: "Upload RAB", color: "bg-orange-100 text-orange-800" },
+  WAITING_RAB_UPLOAD: { label: "Input Tahap 2", color: "bg-orange-100 text-orange-800" },
+  WAITING_BM_APPROVAL_2: { label: "Menunggu B&M (2)", color: "bg-amber-100 text-amber-800" },
   WAITING_PP_APPROVAL_2: { label: "Menunggu PP (2)", color: "bg-cyan-100 text-cyan-800" },
   WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr (Final)", color: "bg-indigo-100 text-indigo-800" },
   COMPLETED: { label: "Selesai", color: "bg-green-100 text-green-800" },
@@ -39,7 +40,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 const FPD_STEPS = [
   { id: "WAITING_BM_APPROVAL", label: "B&M Manager" },
   { id: "WAITING_PP_APPROVAL_1", label: "PP Tahap 1" },
-  { id: "WAITING_RAB_UPLOAD", label: "Upload RAB" },
+  { id: "WAITING_RAB_UPLOAD", label: "Input Tahap 2" },
+  { id: "WAITING_BM_APPROVAL_2", label: "B&M Tahap 2" },
   { id: "WAITING_PP_APPROVAL_2", label: "PP Tahap 2" },
   { id: "WAITING_PP_MANAGER_APPROVAL", label: "PP Manager" },
   { id: "COMPLETED", label: "Selesai" },
@@ -70,9 +72,10 @@ function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   if (currentStatus === "WAITING_BM_APPROVAL") activeIndex = 0;
   if (currentStatus === "WAITING_PP_APPROVAL_1") activeIndex = 1;
   if (currentStatus === "PP_DESIGN_3D_REQUIRED" || currentStatus === "WAITING_RAB_UPLOAD") activeIndex = 2;
-  if (currentStatus === "WAITING_PP_APPROVAL_2") activeIndex = 3;
-  if (currentStatus === "WAITING_PP_MANAGER_APPROVAL") activeIndex = 4;
-  if (currentStatus === "COMPLETED") activeIndex = 5;
+  if (currentStatus === "WAITING_BM_APPROVAL_2") activeIndex = 3;
+  if (currentStatus === "WAITING_PP_APPROVAL_2") activeIndex = 4;
+  if (currentStatus === "WAITING_PP_MANAGER_APPROVAL") activeIndex = 5;
+  if (currentStatus === "COMPLETED") activeIndex = 6;
 
   return (
     <div className="mb-10 mt-2 w-full relative">
@@ -215,6 +218,36 @@ function FileProxyRow({
   );
 }
 
+function ReviewSelect({
+  label, value, onChange,
+}: {
+  label: string;
+  value: "APPROVE" | "REJECT";
+  onChange: (value: "APPROVE" | "REJECT") => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-slate-600">{label}</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onChange("APPROVE")}
+          className={`h-9 rounded-md border text-sm font-semibold ${value === "APPROVE" ? "bg-green-600 text-white border-green-600" : "bg-white text-slate-600 border-slate-200"}`}
+        >
+          Approve
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("REJECT")}
+          className={`h-9 rounded-md border text-sm font-semibold ${value === "REJECT" ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200"}`}
+        >
+          Reject
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function DetailProjekPlanning() {
   const router = useRouter();
   const params = useParams();
@@ -235,15 +268,24 @@ export default function DetailProjekPlanning() {
   const [need3d, setNeed3d] = useState(false);
   const [link3d, setLink3d] = useState("");
   const [file3d, setFile3d] = useState<File | null>(null);
-  const [linkRabSipil, setLinkRabSipil] = useState("");
-  const [fileRabSipil, setFileRabSipil] = useState<File[]>([]);
-  const [linkRabMe, setLinkRabMe] = useState("");
-  const [fileRabMe, setFileRabMe] = useState<File[]>([]);
   const [linkGambarSipil, setLinkGambarSipil] = useState("");
   const [fileGambarSipil, setFileGambarSipil] = useState<File[]>([]);
   const [linkGambarMe, setLinkGambarMe] = useState("");
   const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
+  const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
+  const [fasilitasTahap2, setFasilitasTahap2] = useState([
+    { jenis_fasilitas: "AIR_BERSIH", is_tersedia: false, keterangan: "" },
+    { jenis_fasilitas: "DRAINASE", is_tersedia: false, keterangan: "" },
+    { jenis_fasilitas: "AC", is_tersedia: false, keterangan: "" },
+    { jenis_fasilitas: "LISTRIK", is_tersedia: false, keterangan: "" },
+    { jenis_fasilitas: "LAINNYA", nama_fasilitas_lainnya: "", is_tersedia: false, keterangan: "" },
+  ]);
+  const [approvalNote, setApprovalNote] = useState("");
+  const [rabReviewAction, setRabReviewAction] = useState<"APPROVE" | "REJECT">("APPROVE");
+  const [gambarReviewAction, setGambarReviewAction] = useState<"APPROVE" | "REJECT">("APPROVE");
+  const [rabRejectedItemIds, setRabRejectedItemIds] = useState("");
+  const [rabRejectedItemNotes, setRabRejectedItemNotes] = useState("");
 
   const markFieldViewed = React.useCallback((field: string) => {
     setOpenedLinks(prev => {
@@ -301,15 +343,32 @@ export default function DetailProjekPlanning() {
 
       setData(projek);
       setLogs(res.data.logs);
+      if (projek.status === "WAITING_RAB_UPLOAD") {
+        try {
+          const rabRes = await fetchRABList({ nomor_ulok: projek.nomor_ulok, status: "Disetujui" }, { suppressGlobalError: true });
+          setApprovedRabs(rabRes.data || []);
+        } catch {
+          setApprovedRabs([]);
+        }
+      } else {
+        setApprovedRabs([]);
+      }
+      if (projek.fasilitas && projek.fasilitas.length > 0) {
+        setFasilitasTahap2(prev => {
+          const next = [...prev];
+          projek.fasilitas?.forEach((item: any) => {
+            const idx = next.findIndex(f => f.jenis_fasilitas === item.jenis_fasilitas);
+            if (idx >= 0) next[idx] = { ...next[idx], ...item, keterangan: item.keterangan || "" };
+            else next.push({ ...item, keterangan: item.keterangan || "" });
+          });
+          return next;
+        });
+      }
 
       const isRabReupload = projek.status === "WAITING_RAB_UPLOAD" && (projek.pp2_alasan_penolakan || projek.pp_manager_alasan_penolakan);
       if (isRabReupload) {
-        setLinkRabSipil(projek.link_rab_sipil || "");
-        setLinkRabMe(projek.link_rab_me || "");
-        setLinkGambarSipil(projek.link_gambar_kerja_final_sipil || projek.link_gambar_kerja_final || "");
+        setLinkGambarSipil(projek.link_gambar_kerja_final_sipil || "");
         setLinkGambarMe(projek.link_gambar_kerja_final_me || "");
-        setFileRabSipil([]);
-        setFileRabMe([]);
         setFileGambarSipil([]);
         setFileGambarMe([]);
       }
@@ -334,14 +393,35 @@ export default function DetailProjekPlanning() {
   const handleApprove = async (type: string) => {
     setActionLoading(true);
     try {
-      if (type === "bm") await processBmApproval(id, { approver_email: userEmail, tindakan: "APPROVE" });
-      else if (type === "pp1") await processPpApproval1(id, { approver_email: userEmail, tindakan: "APPROVE", butuh_desain_3d: need3d });
-      else if (type === "pp_mgr") await processPpManagerApproval(id, { approver_email: userEmail, tindakan: "APPROVE" });
-      else if (type === "pp2") await processPpApproval2(id, { approver_email: userEmail, tindakan: "APPROVE" });
+      if (type === "bm") await processBmApproval(id, { approver_email: userEmail, tindakan: "APPROVE", catatan: approvalNote });
+      else if (type === "pp1") await processPpApproval1(id, { approver_email: userEmail, tindakan: "APPROVE", butuh_desain_3d: need3d, catatan: approvalNote });
+      else if (type === "pp_mgr") await handleFinalReview("pp_mgr");
+      else if (type === "pp2") await handleFinalReview("pp2");
+      setApprovalNote("");
       showAlert("Berhasil", "Pengajuan berhasil disetujui.");
       await load();
     } catch (e: any) { showAlert("Gagal", e.message); }
     setActionLoading(false);
+  };
+
+  const handleFinalReview = async (type: "pp2" | "pp_mgr") => {
+    const rejectedIds = rabRejectedItemIds
+      .split(/[,\s]+/)
+      .map(item => Number(item.trim()))
+      .filter(item => Number.isFinite(item) && item > 0);
+    const payload = {
+      approver_email: userEmail,
+      rab_tindakan: rabReviewAction,
+      gambar_tindakan: gambarReviewAction,
+      catatan: approvalNote,
+      alasan_penolakan: rabReviewAction === "REJECT" || gambarReviewAction === "REJECT" ? rejectReason || approvalNote : undefined,
+      rab_rejected_item_ids: rejectedIds,
+      rab_rejected_item_notes: rabRejectedItemNotes,
+    };
+    if (type === "pp2") await processPpApproval2(id, payload);
+    else await processPpManagerApproval(id, payload);
+    setRabRejectedItemIds("");
+    setRabRejectedItemNotes("");
   };
 
   const handleReject = async () => {
@@ -351,8 +431,13 @@ export default function DetailProjekPlanning() {
       const payload = { approver_email: userEmail, tindakan: "REJECT" as const, alasan_penolakan: rejectReason };
       if (pendingAction === "bm") await processBmApproval(id, payload);
       else if (pendingAction === "pp1") await processPpApproval1(id, { ...payload, butuh_desain_3d: false });
-      else if (pendingAction === "pp_mgr") await processPpManagerApproval(id, payload);
-      else if (pendingAction === "pp2") await processPpApproval2(id, payload);
+      else if (pendingAction === "pp_mgr" || pendingAction === "pp2") {
+        setRabReviewAction("REJECT");
+        setGambarReviewAction("REJECT");
+        await (pendingAction === "pp2"
+          ? processPpApproval2(id, { approver_email: userEmail, rab_tindakan: "REJECT", gambar_tindakan: "REJECT", alasan_penolakan: rejectReason })
+          : processPpManagerApproval(id, { approver_email: userEmail, rab_tindakan: "REJECT", gambar_tindakan: "REJECT", alasan_penolakan: rejectReason }));
+      }
       setShowRejectDialog(false); setRejectReason("");
 
       const rejectMsg = (pendingAction === "pp_mgr" || pendingAction === "pp2")
@@ -376,7 +461,17 @@ export default function DetailProjekPlanning() {
   };
 
   const handleUploadRab = async () => {
-    if (!linkRabSipil.trim() && fileRabSipil.length === 0 && !linkRabMe.trim() && fileRabMe.length === 0 && !linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
+    const selectedRabSipil = approvedRabs.find(r => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("SIPIL"));
+    const selectedRabMe = approvedRabs.find(r => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("ME"));
+    if (approvedRabs.length === 0) {
+      showAlert("RAB Belum Tersedia", "RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.");
+      return;
+    }
+    if (!selectedRabSipil && !selectedRabMe) {
+      showAlert("RAB Belum Sesuai", "RAB approved tersedia, tetapi belum ada RAB dengan lingkup Sipil atau ME untuk ULOK ini.");
+      return;
+    }
+    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
     
     // Wajib buka desain 3D jika ada
     if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
@@ -386,21 +481,21 @@ export default function DetailProjekPlanning() {
     
     // Validasi re-upload saat ditolak
     if (data?.pp2_alasan_penolakan || data?.pp_manager_alasan_penolakan) {
-      const noChange = fileRabSipil.length === 0 && fileRabMe.length === 0 && fileGambarSipil.length === 0 && fileGambarMe.length === 0
-        && linkRabSipil.trim() === ((data as any).link_rab_sipil || "").trim()
-        && linkRabMe.trim() === ((data as any).link_rab_me || "").trim()
-        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || (data as any).link_gambar_kerja_final || "")).trim()
+      const noChange = fileGambarSipil.length === 0 && fileGambarMe.length === 0
+        && (selectedRabSipil?.id ?? null) === ((data as any).id_rab_sipil ?? null)
+        && (selectedRabMe?.id ?? null) === ((data as any).id_rab_me ?? null)
+        && linkGambarSipil.trim() === (((data as any).link_gambar_kerja_final_sipil || "")).trim()
         && linkGambarMe.trim() === ((data as any).link_gambar_kerja_final_me || "").trim();
       if (noChange) {
-        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada peng-uploadan RAB/Gambar Kerja Final (pilih file baru atau ubah link).");
+        showAlert("Peringatan", "Minimal harus melakukan satu perubahan pada gambar final atau fasilitas.");
         return;
       }
     }
 
     const changedRabFields = [
-      (fileRabSipil.length > 0 || linkRabSipil.trim() !== ((data as any).link_rab_sipil || "").trim()) ? "rab_sipil_final" : null,
-      (fileRabMe.length > 0 || linkRabMe.trim() !== ((data as any).link_rab_me || "").trim()) ? "rab_me_final" : null,
-      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || (data as any).link_gambar_kerja_final || "")).trim()) ? "gambar_kerja_final_sipil" : null,
+      ((selectedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null)) ? "rab_sipil_final" : null,
+      ((selectedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)) ? "rab_me_final" : null,
+      (fileGambarSipil.length > 0 || linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim()) ? "gambar_kerja_final_sipil" : null,
       (fileGambarMe.length > 0 || linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()) ? "gambar_kerja_final_me" : null,
     ].filter(Boolean) as string[];
 
@@ -410,20 +505,17 @@ export default function DetailProjekPlanning() {
         id,
         {
           uploader_email: userEmail,
-          link_rab_sipil: linkRabSipil,
-          link_rab_me: linkRabMe,
+          id_rab_sipil: selectedRabSipil?.id,
+          id_rab_me: selectedRabMe?.id,
+          fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
           link_gambar_kerja_final_sipil: linkGambarSipil,
           link_gambar_kerja_final_me: linkGambarMe,
         } as any,
-        fileRabSipil,
-        fileRabMe,
         fileGambarSipil,
         fileGambarMe
       );
       clearViewedFields(changedRabFields);
-      showAlert("Berhasil", "RAB Sipil, RAB ME, Gambar Kerja Final Sipil & ME berhasil diupload.");
-      setLinkRabSipil(""); setFileRabSipil([]);
-      setLinkRabMe(""); setFileRabMe([]);
+      showAlert("Berhasil", "Input tahap kedua berhasil dikirim ke B&M Manager.");
       setLinkGambarSipil(""); setFileGambarSipil([]);
       setLinkGambarMe(""); setFileGambarMe([]);
       await load();
@@ -474,9 +566,8 @@ export default function DetailProjekPlanning() {
   const canActAsSubmitter = isCoor || isBogorBm;
 
   const coordinatorFields = [
-    data.link_gambar_rab_sipil ? "rab_sipil_awal" : null,
-    data.link_gambar_rab_me ? "rab_me_awal" : null,
     data.link_fpd ? "fpd" : null,
+    (data as any).link_siteplan ? "siteplan" : null,
     data.link_gambar_kerja ? "gambar_kerja_awal" : null,
     data.link_gambar_kompetitor ? "gambar_kompetitor" : null,
   ].filter(Boolean) as string[];
@@ -487,7 +578,7 @@ export default function DetailProjekPlanning() {
   const rabFinalFields = [
     data.link_rab_sipil ? "rab_sipil_final" : null,
     data.link_rab_me ? "rab_me_final" : null,
-    (data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final) ? "gambar_kerja_final_sipil" : null,
+    data.link_gambar_kerja_final_sipil ? "gambar_kerja_final_sipil" : null,
     data.link_gambar_kerja_final_me ? "gambar_kerja_final_me" : null,
   ].filter(Boolean) as string[];
   const requiredFields = isPPMgr && data.status === "WAITING_PP_MANAGER_APPROVAL"
@@ -495,15 +586,11 @@ export default function DetailProjekPlanning() {
     : [...coordinatorFields, ...ppSpecialistFields, ...rabFinalFields];
   const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
   const isRabReupload = !!(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan);
-  const hasRabUploadInput = !!(linkRabSipil.trim() || fileRabSipil.length > 0 || linkRabMe.trim() || fileRabMe.length > 0 || linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
+  const hasRabUploadInput = approvedRabs.length > 0 && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
   const hasRabUploadChange = !!(
-    fileRabSipil.length > 0 ||
-    fileRabMe.length > 0 ||
     fileGambarSipil.length > 0 ||
     fileGambarMe.length > 0 ||
-    linkRabSipil.trim() !== ((data as any).link_rab_sipil || "").trim() ||
-    linkRabMe.trim() !== ((data as any).link_rab_me || "").trim() ||
-    linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || (data as any).link_gambar_kerja_final || "")).trim() ||
+    linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim() ||
     linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()
   );
   const latestRevisionSummary = [...logs]
@@ -569,8 +656,16 @@ export default function DetailProjekPlanning() {
               })()}
             />
             {(data as any).beanspot_tipe && <InfoRow label="Tipe Bean Spot" value={(data as any).beanspot_tipe === "Basic" ? "RTD ONLY" : (data as any).beanspot_tipe} />}
-            <InfoRow label="Head to Head" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_head_to_head ? '✓ Ya' : 'Tidak')} />
+            <InfoRow label="Head to Head" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_head_to_head ? `✓ Ya${(data as any).jarak_head_to_head ? ` (${(data as any).jarak_head_to_head} m)` : ''}` : 'Tidak')} />
             <InfoRow label="Seating Area" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_seating_area ? '✓ Ya' : 'Tidak')} />
+            <InfoRow label="Luas Bangunan" value={(data as any).luas_bangunan ? `${(data as any).luas_bangunan} m²` : null} />
+            <InfoRow label="Luas Area Terbuka" value={(data as any).luas_area_terbuka ? `${(data as any).luas_area_terbuka} m²` : null} />
+            <InfoRow label="Luas Area Terbangun" value={(data as any).luas_area_terbangun ? `${(data as any).luas_area_terbangun} m²` : null} />
+            <InfoRow label="Luas Gudang" value={(data as any).luas_gudang ? `${(data as any).luas_gudang} m²` : null} />
+            <InfoRow label="Luas Area Parkir" value={(data as any).luas_area_parkir ? `${(data as any).luas_area_parkir} m²` : null} />
+            <InfoRow label="Luas Area Sales" value={(data as any).luas_area_sales ? `${(data as any).luas_area_sales} m²` : null} />
+            <InfoRow label="P x L Bangunan" value={(data as any).pxl_bangunan || null} />
+            <InfoRow label="P x L Area Parkir" value={(data as any).pxl_area_parkir || null} />
             <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
           </CardContent>
         </Card>
@@ -624,9 +719,8 @@ export default function DetailProjekPlanning() {
             <div className="space-y-1">
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Dokumen Pengajuan ({(data.cabang || "").toUpperCase() === "BOGOR" ? "B&M Manager" : "Koordinator"})</h3>
               <FileProxyRow label="Gambar Kerja Sipil (FPD)" hasFile={!!data.link_fpd} projektId={id} field="fpd" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_fpd} />
+              <FileProxyRow label="Siteplan" hasFile={!!(data as any).link_siteplan} projektId={id} field="siteplan" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={(data as any).link_siteplan} />
               <FileProxyRow label="Gambar Kerja ME" hasFile={!!data.link_gambar_kerja} projektId={id} field="gambar_kerja_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja} />
-              <FileProxyRow label="RAB Sipil Awal" hasFile={!!data.link_gambar_rab_sipil} projektId={id} field="rab_sipil_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_rab_sipil} />
-              <FileProxyRow label="RAB ME Awal" hasFile={!!data.link_gambar_rab_me} projektId={id} field="rab_me_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_rab_me} />
               <FileProxyRow label="Gambar Kompetitor" hasFile={!!data.link_gambar_kompetitor} projektId={id} field="gambar_kompetitor" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kompetitor} />
             </div>
 
@@ -640,12 +734,12 @@ export default function DetailProjekPlanning() {
             )}
 
             {/* Kategori 3: Dokumen RAB & Gambar Final (Coordinator) */}
-            {(data.link_rab_sipil || data.link_rab_me || data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final_me || data.link_gambar_kerja_final) && (
+            {(data.link_rab_sipil || data.link_rab_me || data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final_me) && (
               <div className="space-y-1">
                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Dokumen RAB & Final (Koordinator)</h3>
                 <FileProxyRow label="RAB Sipil Final" hasFile={!!data.link_rab_sipil} projektId={id} field="rab_sipil_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_sipil} />
                 <FileProxyRow label="RAB ME Final" hasFile={!!data.link_rab_me} projektId={id} field="rab_me_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_me} />
-                <FileProxyRow label="Gambar Kerja Final Sipil" hasFile={!!(data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final)} projektId={id} field="gambar_kerja_final_sipil" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final} />
+                <FileProxyRow label="Gambar Kerja Final Sipil" hasFile={!!data.link_gambar_kerja_final_sipil} projektId={id} field="gambar_kerja_final_sipil" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_sipil} />
                 <FileProxyRow label="Gambar Kerja Final ME" hasFile={!!data.link_gambar_kerja_final_me} projektId={id} field="gambar_kerja_final_me" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_me} />
               </div>
             )}
@@ -677,9 +771,9 @@ export default function DetailProjekPlanning() {
         )}
 
         {/* BM Approval */}
-        {data.status === "WAITING_BM_APPROVAL" && (isBM || isBBMM) && (
+        {(data.status === "WAITING_BM_APPROVAL" || data.status === "WAITING_BM_APPROVAL_2") && (isBM || isBBMM) && (
           <Card className="border-amber-200 bg-amber-50/50">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager{data.status === "WAITING_BM_APPROVAL_2" ? " Tahap 2" : ""}</CardTitle></CardHeader>
             <CardContent className="p-4 flex gap-3 flex-col">
               {data.bm_alasan_penolakan && (
                 <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">
@@ -715,6 +809,7 @@ export default function DetailProjekPlanning() {
                   </div>
                 </div>
               )}
+              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval B&M..." rows={2} />
               <div className="flex gap-3">
                 <Button onClick={() => { setPendingAction("bm"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <XCircle className="w-4 h-4 mr-1.5" /> Tolak
@@ -743,6 +838,7 @@ export default function DetailProjekPlanning() {
                 <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded" />
                 <label htmlFor="need3d" className="text-sm">Butuh Desain 3D</label>
               </div>
+              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval PP tahap 1..." rows={2} />
               <div className="flex gap-3">
                 <Button onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <XCircle className="w-4 h-4 mr-1.5" /> Tolak
@@ -799,27 +895,46 @@ export default function DetailProjekPlanning() {
                 </div>
               )}
 
-              {/* RAB Sipil */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">📐 RAB Sipil</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <Input placeholder="Link RAB Sipil (GDrive)..." value={linkRabSipil} onChange={e => { setLinkRabSipil(e.target.value); setFileRabSipil([]); }} className="bg-white" disabled={fileRabSipil.length > 0} />
-                  <div>
-                    <Input type="file" accept=".pdf,.xls,.xlsx" multiple onChange={handleMultiFileChange(setLinkRabSipil, setFileRabSipil)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
-                    {fileRabSipil.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabSipil.map(file => file.name).join(", ")}</p>}
+              <div className={`text-sm p-3 rounded-lg border ${approvedRabs.length > 0 ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                <span className="font-semibold block mb-1">RAB Sparta Approved</span>
+                {approvedRabs.length > 0 ? (
+                  <div className="space-y-1">
+                    {approvedRabs.map((rab: any) => (
+                      <div key={rab.id} className="flex items-center justify-between gap-2">
+                        <span>#{rab.id} - {rab.toko?.lingkup_pekerjaan || rab.lingkup_pekerjaan || "RAB"} - {rab.nama_pt || "Kontraktor"}</span>
+                        <span className="text-xs font-bold">{rab.grand_total_final ? `Rp ${Number(rab.grand_total_final).toLocaleString("id-ID")}` : "Approved"}</span>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <span>RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.</span>
+                )}
               </div>
 
-              {/* RAB ME */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-orange-800 flex items-center gap-1">⚡ RAB ME (Mekanikal & Elektrikal)</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <Input placeholder="Link RAB ME (GDrive)..." value={linkRabMe} onChange={e => { setLinkRabMe(e.target.value); setFileRabMe([]); }} className="bg-white" disabled={fileRabMe.length > 0} />
-                  <div>
-                    <Input type="file" accept=".pdf,.xls,.xlsx" multiple onChange={handleMultiFileChange(setLinkRabMe, setFileRabMe)} className="bg-white file:bg-orange-50 file:text-orange-700 file:border-0 file:rounded file:px-2 file:mr-2 cursor-pointer" />
-                    {fileRabMe.length > 0 && <p className="text-[10px] text-orange-600 mt-1">File siap: {fileRabMe.map(file => file.name).join(", ")}</p>}
-                  </div>
+                <Label className="text-xs font-semibold text-orange-800">Fasilitas Yang Disediakan</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {fasilitasTahap2.map((fac, idx) => (
+                    <div key={`${fac.jenis_fasilitas}-${idx}`} className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2 bg-white border border-orange-100 rounded-lg p-3">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={!!fac.is_tersedia}
+                          onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))}
+                        />
+                        {fac.jenis_fasilitas === "LAINNYA" ? "Lainnya" : fac.jenis_fasilitas.replace(/_/g, " ")}
+                      </label>
+                      <Input
+                        placeholder={fac.jenis_fasilitas === "LAINNYA" ? "Nama fasilitas lainnya / keterangan..." : "Keterangan fasilitas..."}
+                        value={(fac as any).nama_fasilitas_lainnya || fac.keterangan || ""}
+                        onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
+                          ...item,
+                          ...(item.jenis_fasilitas === "LAINNYA" ? { nama_fasilitas_lainnya: e.target.value, is_tersedia: !!e.target.value.trim() } : { keterangan: e.target.value })
+                        } : item))}
+                        className="bg-white"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -867,12 +982,23 @@ export default function DetailProjekPlanning() {
         {data.status === "WAITING_PP_APPROVAL_2" && isPP && (
           <Card className="border-cyan-200 bg-cyan-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-cyan-800">Approval PP Specialist</CardTitle></CardHeader>
-            <CardContent className="p-4 flex gap-3">
-              <Button onClick={() => { setPendingAction("pp2"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
-                <XCircle className="w-4 h-4 mr-1.5" /> Tolak
-              </Button>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <ReviewSelect label="Review RAB" value={rabReviewAction} onChange={setRabReviewAction} />
+                <ReviewSelect label="Review Gambar Final" value={gambarReviewAction} onChange={setGambarReviewAction} />
+              </div>
+              {rabReviewAction === "REJECT" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input value={rabRejectedItemIds} onChange={e => setRabRejectedItemIds(e.target.value)} placeholder="ID item RAB salah, pisahkan koma" />
+                  <Input value={rabRejectedItemNotes} onChange={e => setRabRejectedItemNotes(e.target.value)} placeholder="Catatan item RAB" />
+                </div>
+              )}
+              {(rabReviewAction === "REJECT" || gambarReviewAction === "REJECT") && (
+                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." rows={2} />
+              )}
+              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval/review..." rows={2} />
               <Button onClick={() => handleApprove("pp2")} className="flex-1 bg-cyan-600 hover:bg-cyan-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
-                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
+                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Simpan Review
               </Button>
             </CardContent>
           </Card>
@@ -882,12 +1008,23 @@ export default function DetailProjekPlanning() {
         {data.status === "WAITING_PP_MANAGER_APPROVAL" && isPPMgr && (
           <Card className="border-indigo-200 bg-indigo-50/50">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-indigo-800">Approval PP Manager (Final)</CardTitle></CardHeader>
-            <CardContent className="p-4 flex gap-3">
-              <Button onClick={() => { setPendingAction("pp_mgr"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
-                <XCircle className="w-4 h-4 mr-1.5" /> Tolak
-              </Button>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <ReviewSelect label="Review RAB" value={rabReviewAction} onChange={setRabReviewAction} />
+                <ReviewSelect label="Review Gambar Final" value={gambarReviewAction} onChange={setGambarReviewAction} />
+              </div>
+              {rabReviewAction === "REJECT" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input value={rabRejectedItemIds} onChange={e => setRabRejectedItemIds(e.target.value)} placeholder="ID item RAB salah, pisahkan koma" />
+                  <Input value={rabRejectedItemNotes} onChange={e => setRabRejectedItemNotes(e.target.value)} placeholder="Catatan item RAB" />
+                </div>
+              )}
+              {(rabReviewAction === "REJECT" || gambarReviewAction === "REJECT") && (
+                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." rows={2} />
+              )}
+              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval/review..." rows={2} />
               <Button onClick={() => handleApprove("pp_mgr")} className="flex-1 bg-indigo-600 hover:bg-indigo-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
-                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Final Approve
+                <CheckCircle2 className="w-4 h-4 mr-1.5" /> Simpan Review Final
               </Button>
             </CardContent>
           </Card>
@@ -898,9 +1035,12 @@ export default function DetailProjekPlanning() {
           <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><History className="w-4 h-4 text-slate-600" /> Riwayat Approval</CardTitle></CardHeader>
           <CardContent className="space-y-0">
             <InfoRow label="B&M Manager" value={data.bm_approver_email ? `${data.bm_approver_email} — ${fmt(data.bm_waktu_persetujuan)}` : null} />
+            <InfoRow label="B&M Manager (2)" value={(data as any).bm2_approver_email ? `${(data as any).bm2_approver_email} — ${fmt((data as any).bm2_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Specialist (1)" value={data.pp1_approver_email ? `${data.pp1_approver_email} — ${fmt(data.pp1_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Manager" value={data.pp_manager_approver_email ? `${data.pp_manager_approver_email} — ${fmt(data.pp_manager_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Specialist (2)" value={data.pp2_approver_email ? `${data.pp2_approver_email} — ${fmt(data.pp2_waktu_persetujuan)}` : null} />
+            <InfoRow label="Review PP Specialist" value={(data as any).pp2_rab_status ? `RAB: ${(data as any).pp2_rab_status}, Gambar: ${(data as any).pp2_gambar_status || "-"}` : null} />
+            <InfoRow label="Review PP Manager" value={(data as any).pp_manager_rab_status ? `RAB: ${(data as any).pp_manager_rab_status}, Gambar: ${(data as any).pp_manager_gambar_status || "-"}` : null} />
           </CardContent>
         </Card>
 

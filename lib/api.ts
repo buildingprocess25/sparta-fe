@@ -3331,13 +3331,11 @@ export type ProjekPlanningItem = {
     link_gambar_kerja: string | null;
     link_desain_3d: string | null;
     link_fpd_approved: string | null;
-    link_gambar_rab_sipil: string | null;
-    link_gambar_rab_me: string | null;
     link_gambar_kompetitor: string | null;
     link_google_maps: string | null;
+    link_siteplan?: string | null;
     link_rab_sipil: string | null;
     link_rab_me: string | null;
-    link_gambar_kerja_final: string | null;
     link_gambar_kerja_final_sipil?: string | null;
     link_gambar_kerja_final_me?: string | null;
     link_pdf: string | null;
@@ -3346,12 +3344,16 @@ export type ProjekPlanningItem = {
     status: string;
     butuh_desain_3d: boolean;
     is_head_to_head: boolean;
+    jarak_head_to_head?: string | number | null;
     is_seating_area: boolean;
     is_dark_store: boolean;
     beanspot_tipe: string | null;
     bm_approver_email: string | null;
     bm_waktu_persetujuan: string | null;
     bm_alasan_penolakan: string | null;
+    bm2_approver_email?: string | null;
+    bm2_waktu_persetujuan?: string | null;
+    bm2_alasan_penolakan?: string | null;
     pp1_approver_email: string | null;
     pp1_waktu_persetujuan: string | null;
     pp1_alasan_penolakan: string | null;
@@ -3361,6 +3363,24 @@ export type ProjekPlanningItem = {
     pp2_approver_email: string | null;
     pp2_waktu_persetujuan: string | null;
     pp2_alasan_penolakan: string | null;
+    id_rab_sipil?: number | null;
+    id_rab_me?: number | null;
+    luas_bangunan?: string | null;
+    luas_area_terbuka?: string | null;
+    luas_area_terbangun?: string | null;
+    luas_gudang?: string | null;
+    luas_area_parkir?: string | null;
+    luas_area_sales?: string | null;
+    pxl_bangunan?: string | null;
+    pxl_area_parkir?: string | null;
+    pp2_rab_status?: string | null;
+    pp2_gambar_status?: string | null;
+    pp2_rab_rejected_item_ids?: number[] | null;
+    pp2_rab_rejected_item_notes?: string | null;
+    pp_manager_rab_status?: string | null;
+    pp_manager_gambar_status?: string | null;
+    pp_manager_rab_rejected_item_ids?: number[] | null;
+    pp_manager_rab_rejected_item_notes?: string | null;
     fasilitas?: {
         id?: number;
         jenis_fasilitas: string;
@@ -3416,9 +3436,8 @@ export const submitProjekPlanning = async (
     payload: Record<string, unknown>, 
     fileFpd?: File | File[], 
     fileGambarKerjaMe?: File | File[],
-    fileRabSipil?: File | File[], 
-    fileRabMe?: File | File[],
     fileGambarKompetitor?: File | File[],
+    fileSiteplan?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/submit`;
@@ -3433,16 +3452,15 @@ export const submitProjekPlanning = async (
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
 
-    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileRabSipil) ? fileRabSipil.length > 0 : !!fileRabSipil) || (Array.isArray(fileRabMe) ? fileRabMe.length > 0 : !!fileRabMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || hasPhotos) {
+    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || (Array.isArray(fileSiteplan) ? fileSiteplan.length > 0 : !!fileSiteplan) || hasPhotos) {
         const formData = new FormData();
         Object.entries(payload).forEach(([key, value]) => {
             if (value !== undefined && value !== null) formData.append(key, String(value));
         });
         appendFiles(formData, "file_fpd", fileFpd);
         appendFiles(formData, "file_gambar_kerja_me", fileGambarKerjaMe);
-        appendFiles(formData, "file_rab_sipil", fileRabSipil);
-        appendFiles(formData, "file_rab_me", fileRabMe);
         appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
+        appendFiles(formData, "file_siteplan", fileSiteplan);
         
         if (fotoFiles) {
             Object.entries(fotoFiles).forEach(([index, file]) => {
@@ -3477,9 +3495,8 @@ export const resubmitProjekPlanning = async (
     payload: Record<string, unknown>, 
     fileFpd?: File | File[], 
     fileGambarKerjaMe?: File | File[],
-    fileRabSipil?: File | File[], 
-    fileRabMe?: File | File[],
     fileGambarKompetitor?: File | File[],
+    fileSiteplan?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/resubmit`;
@@ -3494,16 +3511,15 @@ export const resubmitProjekPlanning = async (
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
 
-    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileRabSipil) ? fileRabSipil.length > 0 : !!fileRabSipil) || (Array.isArray(fileRabMe) ? fileRabMe.length > 0 : !!fileRabMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || hasPhotos) {
+    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || (Array.isArray(fileSiteplan) ? fileSiteplan.length > 0 : !!fileSiteplan) || hasPhotos) {
         const formData = new FormData();
         Object.entries(payload).forEach(([key, value]) => {
             if (value !== undefined && value !== null) formData.append(key, String(value));
         });
         appendFiles(formData, "file_fpd", fileFpd);
         appendFiles(formData, "file_gambar_kerja_me", fileGambarKerjaMe);
-        appendFiles(formData, "file_rab_sipil", fileRabSipil);
-        appendFiles(formData, "file_rab_me", fileRabMe);
         appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
+        appendFiles(formData, "file_siteplan", fileSiteplan);
         
         if (fotoFiles) {
             Object.entries(fotoFiles).forEach(([index, file]) => {
@@ -3666,6 +3682,7 @@ export const proxyProjekPlanningFile = async (
 export const processBmApproval = async (id: number, payload: {
     approver_email: string;
     tindakan: "APPROVE" | "REJECT";
+    catatan?: string;
     alasan_penolakan?: string;
 }) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/bm-approval`, {
@@ -3683,6 +3700,7 @@ export const processPpApproval1 = async (id: number, payload: {
     approver_email: string;
     tindakan: "APPROVE" | "REJECT";
     butuh_desain_3d?: boolean;
+    catatan?: string;
     alasan_penolakan?: string;
 }) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-approval-1`, {
@@ -3734,8 +3752,16 @@ export const uploadRabGambarKerja = async (id: number, payload: {
     link_gambar_kerja?: string;
     link_gambar_kerja_final_sipil?: string;
     link_gambar_kerja_final_me?: string;
+    id_rab_sipil?: number;
+    id_rab_me?: number;
+    fasilitas?: {
+        jenis_fasilitas: string;
+        nama_fasilitas_lainnya?: string;
+        is_tersedia: boolean;
+        keterangan?: string;
+    }[];
     keterangan?: string;
-}, fileRabSipil?: File | File[], fileRabMe?: File | File[], fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
+}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
     let body: BodyInit;
     const headers: Record<string, string> = {};
 
@@ -3743,19 +3769,20 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
-    const hasFiles = [fileRabSipil, fileRabMe, fileGambarSipil, fileGambarMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
+    const hasFiles = [fileGambarSipil, fileGambarMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
 
     if (hasFiles) {
         const formData = new FormData();
         formData.append("uploader_email", payload.uploader_email);
         if (payload.link_rab_sipil) formData.append("link_rab_sipil", payload.link_rab_sipil);
         if (payload.link_rab_me) formData.append("link_rab_me", payload.link_rab_me);
+        if (payload.id_rab_sipil) formData.append("id_rab_sipil", String(payload.id_rab_sipil));
+        if (payload.id_rab_me) formData.append("id_rab_me", String(payload.id_rab_me));
         if (payload.link_gambar_kerja) formData.append("link_gambar_kerja", payload.link_gambar_kerja);
         if (payload.link_gambar_kerja_final_sipil) formData.append("link_gambar_kerja_final_sipil", payload.link_gambar_kerja_final_sipil);
         if (payload.link_gambar_kerja_final_me) formData.append("link_gambar_kerja_final_me", payload.link_gambar_kerja_final_me);
+        if (payload.fasilitas) formData.append("fasilitas", JSON.stringify(payload.fasilitas));
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
-        appendFiles(formData, "file_rab_sipil", fileRabSipil);
-        appendFiles(formData, "file_rab_me", fileRabMe);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
         body = formData;
@@ -3777,8 +3804,12 @@ export const uploadRabGambarKerja = async (id: number, payload: {
 /** Proses approval PP Manager. */
 export const processPpManagerApproval = async (id: number, payload: {
     approver_email: string;
-    tindakan: "APPROVE" | "REJECT";
+    rab_tindakan: "APPROVE" | "REJECT";
+    gambar_tindakan: "APPROVE" | "REJECT";
+    catatan?: string;
     alasan_penolakan?: string;
+    rab_rejected_item_ids?: number[];
+    rab_rejected_item_notes?: string;
 }) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-manager-approval`, {
         method: "POST",
@@ -3793,8 +3824,12 @@ export const processPpManagerApproval = async (id: number, payload: {
 /** Proses approval PP Specialist (Stage 2 / Final). */
 export const processPpApproval2 = async (id: number, payload: {
     approver_email: string;
-    tindakan: "APPROVE" | "REJECT";
+    rab_tindakan: "APPROVE" | "REJECT";
+    gambar_tindakan: "APPROVE" | "REJECT";
+    catatan?: string;
     alasan_penolakan?: string;
+    rab_rejected_item_ids?: number[];
+    rab_rejected_item_notes?: string;
 }) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-approval-2`, {
         method: "POST",

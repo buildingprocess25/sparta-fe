@@ -66,6 +66,7 @@ function FormProjekPlanningInner() {
   const [fileRabSipil, setFileRabSipil] = useState<ProjectFileState>([]);
   const [fileRabMe, setFileRabMe] = useState<ProjectFileState>([]);
   const [fileGambarKompetitor, setFileGambarKompetitor] = useState<ProjectFileState>([]);
+  const [fileSiteplan, setFileSiteplan] = useState<ProjectFileState>([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMsg, setAlertMsg] = useState({ title: "", desc: "", type: "" });
   const [tokoList, setTokoList] = useState<TokoOption[]>([]);
@@ -163,8 +164,13 @@ function FormProjekPlanningInner() {
     id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "",
     nama_pengaju: "", nama_lokasi: "", jenis_pengajuan: "", jenis_pengajuan_lainnya: "",
     estimasi_biaya: "", keterangan: "", link_fpd: "",
+    link_siteplan: "",
+    luas_bangunan: "", luas_area_terbuka: "", luas_area_terbangun: "",
+    luas_gudang: "", luas_area_parkir: "", luas_area_sales: "",
+    pxl_bangunan: "", pxl_area_parkir: "",
     link_gambar_kerja: "",
-    link_gambar_rab_sipil: "", link_gambar_rab_me: "", link_gambar_kompetitor: "",
+    link_gambar_kompetitor: "",
+    jarak_head_to_head: "",
     link_google_maps: "",
     is_ruko: false, jumlah_lantai: "",
   });
@@ -346,27 +352,14 @@ function FormProjekPlanningInner() {
     if (!manualCabang || !manualTanggal || !manualUrutan) { setAlertMsg({ title: "Error", desc: "Harap lengkapi semua field Nomor ULOK (Kode Cabang, Tanggal, dan Urutan)", type: "error" }); setAlertOpen(true); return; }
     if (!isManualUlok && !f.jenis_proyek) { setAlertMsg({ title: "Error", desc: "Pilih proyek", type: "error" }); setAlertOpen(true); return; }
     if (jenisSelected.length === 0) { setAlertMsg({ title: "Error", desc: "Pilih minimal satu jenis pengajuan", type: "error" }); setAlertOpen(true); return; }
-    const fasilitasTanpaKeterangan = fasilitas.find(fac => {
-      const selected = fac.jenis_fasilitas === "LAINNYA"
-        ? !!fac.nama_fasilitas_lainnya?.trim()
-        : fac.is_tersedia;
-      return selected && !fac.keterangan?.trim();
-    });
-    if (fasilitasTanpaKeterangan) {
-      setAlertMsg({ title: "Error", desc: "Keterangan/alasan wajib diisi untuk setiap fasilitas yang dipilih.", type: "error" });
-      setAlertOpen(true);
-      return;
-    }
-
     if (resubmitId && originalF) {
       // Cek apakah ada perubahan
       const hasChanges =
         getRevisionSnapshot() !== originalRevisionSnapshot ||
         fileFpd.length > 0 ||
         fileGambarKerjaMe.length > 0 ||
-        fileRabSipil.length > 0 ||
-        fileRabMe.length > 0 ||
         fileGambarKompetitor.length > 0 ||
+        fileSiteplan.length > 0 ||
         Object.keys(fotoFiles).length > 0;
       if (!hasChanges) {
         setAlertMsg({ title: "Peringatan", desc: "Silakan ubah minimal satu data / isi form sebelum melakukan resubmit.", type: "error" });
@@ -410,10 +403,10 @@ function FormProjekPlanningInner() {
         is_head_to_head: isDarkStoreDesign ? false : isHeadToHead,
         is_seating_area: isDarkStoreDesign ? false : isSeatingArea,
         is_dark_store: isDarkStoreDesign ? false : isDarkStore,
+        jarak_head_to_head: isDarkStoreDesign || !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
         beanspot_tipe: jenisSelected.includes("BEAN SPOT") ? beanspotTipe : "",
         ketentuan: JSON.stringify(ketentuan.filter(k => k.trim() !== "")),
         catatan_design: JSON.stringify(catatanDesign.filter(c => c.trim() !== "")),
-        fasilitas: JSON.stringify(fasilitas.filter(fac => fac.is_tersedia || fac.jenis_fasilitas === "LAINNYA" && fac.nama_fasilitas_lainnya?.trim()))
       };
 
       // Bersihkan fotoFiles dari item yang null
@@ -424,9 +417,9 @@ function FormProjekPlanningInner() {
 
       let res;
       if (resubmitId) {
-        res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileRabSipil, fileRabMe, fileGambarKompetitor, validFotoFiles);
+        res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, validFotoFiles);
       } else {
-        res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileRabSipil, fileRabMe, fileGambarKompetitor, validFotoFiles);
+        res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, validFotoFiles);
       }
       const skipBmApproval = ["BOGOR", "BATAM"].includes(finalCabang.toUpperCase());
       setAlertMsg({
@@ -739,6 +732,19 @@ function FormProjekPlanningInner() {
                   </div>
                   {isHeadToHead && !isDarkStoreDesign && (
                     <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <Label className="text-xs font-semibold text-slate-600">Jarak Head to Head *</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={(f as any).jarak_head_to_head}
+                          onChange={e => set("jarak_head_to_head", e.target.value.replace(/[^0-9]/g, ""))}
+                          className="bg-white"
+                        />
+                        <span className="text-sm font-bold text-slate-600">m</span>
+                      </div>
                       <Label className="text-xs font-semibold text-slate-600">Gambar Kompetitor *</Label>
                       <Input placeholder="Link Google Drive..." value={(f as any).link_gambar_kompetitor} onChange={e => { set("link_gambar_kompetitor", e.target.value); setFileGambarKompetitor([]); }} className="bg-white" disabled={fileGambarKompetitor.length > 0} />
                       <Input type="file" accept="image/*,.pdf" multiple className="file:bg-slate-100 file:text-slate-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-slate-200 cursor-pointer"
@@ -765,7 +771,9 @@ function FormProjekPlanningInner() {
               </div>
               )}
 
-              {/* === SECTION: Fasilitas === */}
+              {/* === SECTION: Fasilitas dipindahkan ke inputan kedua === */}
+              {false && (
+              <>
               <SectionTitle icon={<Droplets className="w-4 h-4" />} title="Fasilitas Yang Disediakan" />
               {fasilitas.map((fac, idx) => {
                 if (fac.jenis_fasilitas === "LAINNYA") return null;
@@ -859,6 +867,8 @@ function FormProjekPlanningInner() {
               >
                 + Tambah Fasilitas Lainnya
               </Button>
+              </>
+              )}
 
               {/* === SECTION: Ketentuan === */}
               <SectionTitle icon={<FileText className="w-4 h-4" />} title="Ketentuan dari Pengelola / Landlord / Pihak Ketiga" />
@@ -906,8 +916,42 @@ function FormProjekPlanningInner() {
                 + Tambah Catatan
               </Button>
 
+              {/* === SECTION: Luasan === */}
+              <SectionTitle icon={<Building2 className="w-4 h-4" />} title="Data Luasan & Dimensi" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  ["luas_bangunan", "Luas Bangunan (m²)"],
+                  ["luas_area_terbuka", "Luas Area Terbuka (m²)"],
+                  ["luas_area_terbangun", "Luas Area Terbangun (m²)"],
+                  ["luas_gudang", "Luas Gudang (m²)"],
+                  ["luas_area_parkir", "Luas Area Parkir (m²)"],
+                  ["luas_area_sales", "Luas Area Sales (m²)"],
+                ].map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs font-semibold text-slate-600">{label}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={(f as any)[key]}
+                      onChange={e => set(key, e.target.value)}
+                      placeholder="0.00"
+                      className="mt-1"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">P x L Bangunan</Label>
+                  <Input value={(f as any).pxl_bangunan} onChange={e => set("pxl_bangunan", e.target.value)} placeholder="Contoh: 12 x 20" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">P x L Area Parkir</Label>
+                  <Input value={(f as any).pxl_area_parkir} onChange={e => set("pxl_area_parkir", e.target.value)} placeholder="Contoh: 8 x 15" className="mt-1" />
+                </div>
+              </div>
+
               {/* === SECTION: Upload Files === */}
-              <SectionTitle icon={<FileText className="w-4 h-4" />} title="Upload Gambar Kerja & RAB (Link / File Lokal)" />
+              <SectionTitle icon={<FileText className="w-4 h-4" />} title="Upload Gambar Kerja & Siteplan (Link / File Lokal)" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-slate-600">Gambar Kerja Sipil</Label>
@@ -924,18 +968,11 @@ function FormProjekPlanningInner() {
                   {fileGambarKerjaMe.length > 0 ? <p className="text-[10px] text-yellow-600 mt-1">File siap diupload: {fileGambarKerjaMe.map(file => file.name).join(", ")}</p> : <p className="text-[10px] text-slate-400 mt-1">Maksimal 2 file, atau paste link Google Drive</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-600">RAB Sipil</Label>
-                  <Input placeholder="Link Google Drive..." value={(f as any).link_gambar_rab_sipil} onChange={e => { set("link_gambar_rab_sipil", e.target.value); setFileRabSipil([]); }} className="bg-white" disabled={fileRabSipil.length > 0} />
-                  <Input type="file" accept=".pdf,.xls,.xlsx" multiple className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
-                    onChange={handleMultiFileChange(setFileRabSipil, () => set("link_gambar_rab_sipil", ""))} />
-                  {fileRabSipil.length > 0 ? <p className="text-[10px] text-blue-600 mt-1">File siap diupload: {fileRabSipil.map(file => file.name).join(", ")}</p> : <p className="text-[10px] text-slate-400 mt-1">Maksimal 2 file, atau paste link Google Drive</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-600">RAB ME</Label>
-                  <Input placeholder="Link Google Drive..." value={(f as any).link_gambar_rab_me} onChange={e => { set("link_gambar_rab_me", e.target.value); setFileRabMe([]); }} className="bg-white" disabled={fileRabMe.length > 0} />
-                  <Input type="file" accept=".pdf,.xls,.xlsx" multiple className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
-                    onChange={handleMultiFileChange(setFileRabMe, () => set("link_gambar_rab_me", ""))} />
-                  {fileRabMe.length > 0 ? <p className="text-[10px] text-blue-600 mt-1">File siap diupload: {fileRabMe.map(file => file.name).join(", ")}</p> : <p className="text-[10px] text-slate-400 mt-1">Maksimal 2 file, atau paste link Google Drive</p>}
+                  <Label className="text-xs font-semibold text-slate-600">Siteplan</Label>
+                  <Input placeholder="Link Google Drive..." value={(f as any).link_siteplan} onChange={e => { set("link_siteplan", e.target.value); setFileSiteplan([]); }} className="bg-white" disabled={fileSiteplan.length > 0} />
+                  <Input type="file" accept="image/*,.pdf,.dwg" multiple className="mt-1 file:bg-blue-50 file:text-blue-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-blue-100 cursor-pointer"
+                    onChange={handleMultiFileChange(setFileSiteplan, () => set("link_siteplan", ""))} />
+                  {fileSiteplan.length > 0 ? <p className="text-[10px] text-blue-600 mt-1">File siap diupload: {fileSiteplan.map(file => file.name).join(", ")}</p> : <p className="text-[10px] text-slate-400 mt-1">Maksimal 2 file, atau paste link Google Drive</p>}
                 </div>
 
               </div>
