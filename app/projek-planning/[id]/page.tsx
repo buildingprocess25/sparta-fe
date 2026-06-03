@@ -37,6 +37,35 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   REJECTED: { label: "Ditolak", color: "bg-red-100 text-red-800" },
 };
 
+type FacilityInput = {
+  jenis_fasilitas: string;
+  nama_fasilitas_lainnya?: string;
+  is_tersedia: boolean;
+  keterangan?: string;
+};
+
+const FACILITY_META: Record<string, { label: string; units: string[]; placeholder: string }> = {
+  AIR_BERSIH: { label: "Sumber Air Bersih", units: ["titik", "sumber"], placeholder: "Jumlah titik" },
+  DRAINASE: { label: "Drain Pembuangan Air Kotor", units: ["titik", "jalur"], placeholder: "Jumlah titik" },
+  AC: { label: "AC", units: ["unit", "PK"], placeholder: "Jumlah AC" },
+  LISTRIK: { label: "Listrik", units: ["VA", "kVA", "Watt", "Volt"], placeholder: "Daya listrik" },
+};
+
+const DEFAULT_FASILITAS_TAHAP2: FacilityInput[] = [
+  { jenis_fasilitas: "AIR_BERSIH", is_tersedia: false, keterangan: "" },
+  { jenis_fasilitas: "DRAINASE", is_tersedia: false, keterangan: "" },
+  { jenis_fasilitas: "AC", is_tersedia: false, keterangan: "" },
+  { jenis_fasilitas: "LISTRIK", is_tersedia: false, keterangan: "" },
+  { jenis_fasilitas: "LAINNYA", nama_fasilitas_lainnya: "", is_tersedia: false, keterangan: "" },
+];
+
+const parseFacilityMeasurement = (text: string | undefined, defaultUnit: string) => {
+  const value = String(text ?? "").trim();
+  if (!value) return { amount: "", unit: defaultUnit };
+  const match = value.match(/^(.+?)\s+([A-Za-z]+)$/);
+  return match ? { amount: match[1], unit: match[2] } : { amount: value, unit: defaultUnit };
+};
+
 const FPD_STEPS = [
   { id: "WAITING_BM_APPROVAL", label: "B&M Manager" },
   { id: "WAITING_PP_APPROVAL_1", label: "PP Tahap 1" },
@@ -275,13 +304,7 @@ export default function DetailProjekPlanning() {
   const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
-  const [fasilitasTahap2, setFasilitasTahap2] = useState([
-    { jenis_fasilitas: "AIR_BERSIH", is_tersedia: false, keterangan: "" },
-    { jenis_fasilitas: "DRAINASE", is_tersedia: false, keterangan: "" },
-    { jenis_fasilitas: "AC", is_tersedia: false, keterangan: "" },
-    { jenis_fasilitas: "LISTRIK", is_tersedia: false, keterangan: "" },
-    { jenis_fasilitas: "LAINNYA", nama_fasilitas_lainnya: "", is_tersedia: false, keterangan: "" },
-  ]);
+  const [fasilitasTahap2, setFasilitasTahap2] = useState<FacilityInput[]>(DEFAULT_FASILITAS_TAHAP2);
   const [approvalNote, setApprovalNote] = useState("");
   const [rabReviewAction, setRabReviewAction] = useState<"APPROVE" | "REJECT">("APPROVE");
   const [gambarReviewAction, setGambarReviewAction] = useState<"APPROVE" | "REJECT">("APPROVE");
@@ -355,10 +378,13 @@ export default function DetailProjekPlanning() {
         setApprovedRabs([]);
       }
       if (projek.fasilitas && projek.fasilitas.length > 0) {
-        setFasilitasTahap2(prev => {
-          const next = [...prev];
+        setFasilitasTahap2(() => {
+          const next = DEFAULT_FASILITAS_TAHAP2.map(item => ({ ...item }));
           projek.fasilitas?.forEach((item: any) => {
-            const idx = next.findIndex(f => f.jenis_fasilitas === item.jenis_fasilitas);
+            const isLainnya = item.jenis_fasilitas === "LAINNYA";
+            const idx = isLainnya
+              ? next.findIndex(f => f.jenis_fasilitas === "LAINNYA" && !f.nama_fasilitas_lainnya)
+              : next.findIndex(f => f.jenis_fasilitas === item.jenis_fasilitas);
             if (idx >= 0) next[idx] = { ...next[idx], ...item, keterangan: item.keterangan || "" };
             else next.push({ ...item, keterangan: item.keterangan || "" });
           });
@@ -947,29 +973,102 @@ export default function DetailProjekPlanning() {
 
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-orange-800">Fasilitas Yang Disediakan</Label>
-                <div className="grid grid-cols-1 gap-2">
-                  {fasilitasTahap2.map((fac, idx) => (
-                    <div key={`${fac.jenis_fasilitas}-${idx}`} className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2 bg-white border border-orange-100 rounded-lg p-3">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={!!fac.is_tersedia}
-                          onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))}
-                        />
-                        {fac.jenis_fasilitas === "LAINNYA" ? "Lainnya" : fac.jenis_fasilitas.replace(/_/g, " ")}
-                      </label>
-                      <Input
-                        placeholder={fac.jenis_fasilitas === "LAINNYA" ? "Nama fasilitas lainnya / keterangan..." : "Keterangan fasilitas..."}
-                        value={(fac as any).nama_fasilitas_lainnya || fac.keterangan || ""}
-                        onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
-                          ...item,
-                          ...(item.jenis_fasilitas === "LAINNYA" ? { nama_fasilitas_lainnya: e.target.value, is_tersedia: !!e.target.value.trim() } : { keterangan: e.target.value })
-                        } : item))}
-                        className="bg-white"
-                      />
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 gap-3">
+                  {fasilitasTahap2.map((fac, idx) => {
+                    const meta = FACILITY_META[fac.jenis_fasilitas];
+                    if (fac.jenis_fasilitas === "LAINNYA") {
+                      return (
+                        <div key={`lainnya-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-sm font-semibold text-slate-700">Fasilitas Lainnya</Label>
+                            {fasilitasTahap2.filter(item => item.jenis_fasilitas === "LAINNYA").length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFasilitasTahap2(prev => prev.filter((_, itemIdx) => itemIdx !== idx))}
+                                className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                Hapus
+                              </Button>
+                            )}
+                          </div>
+                          <Input
+                            value={fac.nama_fasilitas_lainnya || ""}
+                            onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
+                              ...item,
+                              nama_fasilitas_lainnya: e.target.value,
+                              is_tersedia: !!e.target.value.trim(),
+                            } : item))}
+                            placeholder="Nama fasilitas lainnya..."
+                            className="bg-white"
+                          />
+                          {!!fac.nama_fasilitas_lainnya && (
+                            <Input
+                              value={fac.keterangan || ""}
+                              onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))}
+                              placeholder="Keterangan fasilitas lainnya..."
+                              className="bg-white"
+                            />
+                          )}
+                        </div>
+                      );
+                    }
+
+                    const unitOptions = meta?.units ?? ["unit"];
+                    const measurement = parseFacilityMeasurement(fac.keterangan, unitOptions[0]);
+                    const icon = fac.jenis_fasilitas === "AIR_BERSIH"
+                      ? <Droplets className="w-3.5 h-3.5" />
+                      : fac.jenis_fasilitas === "DRAINASE"
+                        ? <Wind className="w-3.5 h-3.5" />
+                        : <Zap className={`w-3.5 h-3.5 ${fac.jenis_fasilitas === "LISTRIK" ? "text-yellow-500" : ""}`} />;
+
+                    return (
+                      <div key={`${fac.jenis_fasilitas}-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={!!fac.is_tersedia}
+                            onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))}
+                          />
+                          <span className="flex items-center gap-1.5">{icon} {meta?.label || fac.jenis_fasilitas}</span>
+                        </label>
+                        {fac.is_tersedia && (
+                          <div className="grid grid-cols-[1fr_104px] gap-2">
+                            <Input
+                              value={measurement.amount}
+                              onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
+                                ...item,
+                                keterangan: `${e.target.value} ${measurement.unit}`.trim(),
+                              } : item))}
+                              placeholder={meta?.placeholder || "Jumlah"}
+                              className="bg-white"
+                            />
+                            <select
+                              value={measurement.unit}
+                              onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
+                                ...item,
+                                keterangan: `${measurement.amount} ${e.target.value}`.trim(),
+                              } : item))}
+                              className="h-10 rounded-md border border-input bg-white px-3 text-sm text-slate-700"
+                            >
+                              {unitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFasilitasTahap2(prev => [...prev, { jenis_fasilitas: "LAINNYA", nama_fasilitas_lainnya: "", is_tersedia: false, keterangan: "" }])}
+                  className="mt-1 text-xs bg-white"
+                >
+                  + Tambah Fasilitas Lainnya
+                </Button>
               </div>
 
               {/* Gambar Kerja Final Sipil */}
