@@ -62,8 +62,11 @@ const DEFAULT_FASILITAS_TAHAP2: FacilityInput[] = [
 const parseFacilityMeasurement = (text: string | undefined, defaultUnit: string) => {
   const value = String(text ?? "").trim();
   if (!value) return { amount: "", unit: defaultUnit };
+  if (value === defaultUnit) return { amount: "", unit: defaultUnit };
   const match = value.match(/^(.+?)\s+([A-Za-z]+)$/);
-  return match ? { amount: match[1], unit: match[2] } : { amount: value, unit: defaultUnit };
+  if (!match) return { amount: value, unit: defaultUnit };
+  if (!/^\d+([.,]\d+)?$/.test(match[1].trim())) return { amount: "", unit: match[2] };
+  return { amount: match[1], unit: match[2] };
 };
 
 const FPD_STEPS = [
@@ -1036,10 +1039,13 @@ export default function DetailProjekPlanning() {
                         {fac.is_tersedia && (
                           <div className="grid grid-cols-[1fr_104px] gap-2">
                             <Input
+                              type="number"
+                              min="0"
+                              step="any"
                               value={measurement.amount}
                               onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
                                 ...item,
-                                keterangan: `${e.target.value} ${measurement.unit}`.trim(),
+                                keterangan: e.target.value ? `${e.target.value} ${measurement.unit}` : "",
                               } : item))}
                               placeholder={meta?.placeholder || "Jumlah"}
                               className="bg-white"
@@ -1048,7 +1054,7 @@ export default function DetailProjekPlanning() {
                               value={measurement.unit}
                               onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
                                 ...item,
-                                keterangan: `${measurement.amount} ${e.target.value}`.trim(),
+                                keterangan: measurement.amount ? `${measurement.amount} ${e.target.value}` : "",
                               } : item))}
                               className="h-10 rounded-md border border-input bg-white px-3 text-sm text-slate-700"
                             >
