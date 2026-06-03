@@ -80,6 +80,17 @@ const formatRabItemOption = (item?: RabReviewItemOption) => {
   return `#${item.id} - ${scope}${item.kategori_pekerjaan} / ${item.jenis_pekerjaan}${volume}`;
 };
 
+const formatRabItemSelectOption = (item: RabReviewItemOption) => {
+  const scope = item.rabScope ? `${item.rabScope} - ` : "";
+  return `#${item.id} - ${scope}${item.jenis_pekerjaan}`;
+};
+
+const formatCurrency = (value: unknown) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "-";
+  return `Rp ${number.toLocaleString("id-ID")}`;
+};
+
 const FPD_STEPS = [
   { id: "WAITING_BM_APPROVAL", label: "B&M Manager" },
   { id: "WAITING_PP_APPROVAL_1", label: "PP Tahap 1" },
@@ -380,6 +391,10 @@ function RabRejectEditor({
             </div>
         ) : rows.map((row, idx) => (
             <div key={idx} className="rounded-md border border-slate-200 bg-white p-3 space-y-3">
+              {(() => {
+                const selectedItem = rabItems.find(item => String(item.id) === row.itemId);
+                return (
+                  <>
               <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                 <span className="text-xs font-bold text-slate-600">Item Revisi #{idx + 1}</span>
                 <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -400,7 +415,7 @@ function RabRejectEditor({
                     const disabled = selectedIds.has(itemId) && row.itemId !== itemId;
                     return (
                       <option key={`${item.rabScope || "RAB"}-${item.id}`} value={itemId} disabled={disabled}>
-                        {formatRabItemOption(item)}
+                        {formatRabItemSelectOption(item)}
                       </option>
                     );
                   })}
@@ -416,11 +431,40 @@ function RabRejectEditor({
                 />
                 </div>
               </div>
-              {row.itemId && (
-                <p className="rounded-md bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600 border border-slate-100">
-                  Dipilih: {formatRabItemOption(rabItems.find(item => String(item.id) === row.itemId))}
-                </p>
+              {selectedItem && (
+                <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 break-words">{selectedItem.jenis_pekerjaan}</p>
+                      <p className="text-[11px] text-slate-500 break-words">{selectedItem.kategori_pekerjaan}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      #{selectedItem.id}{selectedItem.rabScope ? ` - ${selectedItem.rabScope}` : ""}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                      <p className="text-[10px] text-slate-400">Volume</p>
+                      <p className="text-xs font-semibold text-slate-700">{Number(selectedItem.volume || 0).toLocaleString("id-ID")} {selectedItem.satuan || ""}</p>
+                    </div>
+                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                      <p className="text-[10px] text-slate-400">Material</p>
+                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_material)}</p>
+                    </div>
+                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                      <p className="text-[10px] text-slate-400">Upah</p>
+                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.harga_upah)}</p>
+                    </div>
+                    <div className="rounded bg-white border border-slate-100 px-2 py-1.5">
+                      <p className="text-[10px] text-slate-400">Total</p>
+                      <p className="text-xs font-semibold text-slate-700">{formatCurrency(selectedItem.total_harga)}</p>
+                    </div>
+                  </div>
+                </div>
               )}
+                  </>
+                );
+              })()}
           </div>
         ))}
         {rabItems.length === 0 && (
