@@ -32,6 +32,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   REJECTED: { label: "Ditolak", color: "bg-red-50 text-red-700 border-red-300", icon: <XCircle className="w-3 h-3" /> },
 };
 
+const normalizeBranchName = (value?: string | null) => {
+  const trimmed = String(value ?? "").trim();
+  const upper = trimmed.toUpperCase();
+  if (upper === "HO" || upper === "HEAD OFFICE") return "HEAD OFFICE";
+  return trimmed;
+};
+
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] || { label: status, color: "bg-slate-100 text-slate-600 border-slate-200", icon: null };
   return (
@@ -57,7 +64,8 @@ export default function ProjekPlanningPage() {
       const filters: Record<string, string> = {};
       if (statusFilter) filters.status = statusFilter;
       
-      const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
+      const normalizedUserCabang = normalizeBranchName(userCabang);
+      const isHO = normalizedUserCabang.toUpperCase() === "HEAD OFFICE";
       const canSeeAllBranches = canViewAllBranches(userRole);
       const { isCoor, isBM, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
 
@@ -68,10 +76,12 @@ export default function ProjekPlanningPage() {
         filters.email_pembuat = userEmail;
       } else if (search.trim()) {
         // Manual search override
-        filters.cabang = search.trim();
+        filters.cabang = normalizeBranchName(search);
+      } else if (isBM && !canSeeAllBranches && normalizedUserCabang) {
+        filters.cabang = normalizedUserCabang;
       } else if (!isHO && !canSeeAllBranches && !isCoor && userCabang) {
         // BM, PP, Manager: filter by their own cabang
-        filters.cabang = userCabang;
+        filters.cabang = normalizedUserCabang;
       }
 
       const res = await fetchProjekPlanningList(filters);
@@ -80,12 +90,11 @@ export default function ProjekPlanningPage() {
       
       data = data.filter((d: any) => {
         if (canSeeAllBranches) return true;
-        if (!isCoor && d.status !== "COMPLETED") return false;
         if (isHO && !isCoor && !isBM && !isPP && !isPPMgr) return true; // Admin/Direktur
         
         let visible = false;
         if (isCoor && d.email_pembuat === userEmail) visible = true;
-        if (isBM && (d.status !== "DRAFT" || d.bm_alasan_penolakan)) visible = true;
+        if (isBM && (["WAITING_BM_APPROVAL", "WAITING_BM_APPROVAL_2", "COMPLETED"].includes(d.status) || d.bm_alasan_penolakan || d.bm2_alasan_penolakan)) visible = true;
         if (isPP && (!["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status) || d.pp1_alasan_penolakan || d.pp2_alasan_penolakan)) visible = true;
         if (isPPMgr && (["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status) || d.pp_manager_alasan_penolakan)) visible = true;
         
