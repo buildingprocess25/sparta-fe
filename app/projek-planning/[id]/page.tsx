@@ -303,58 +303,123 @@ function RabRejectEditor({
   generalNote: string;
   onGeneralNoteChange: (value: string) => void;
 }) {
-  const addRow = () => onRowsChange([...rows, { itemId: "", note: "" }]);
+  const selectedIds = new Set(rows.map(row => row.itemId).filter(Boolean));
+  const hasEmptyRow = rows.some(row => !row.itemId);
+  const canAddItem = rabItems.length > 0 && !hasEmptyRow && selectedIds.size < rabItems.length;
+  const addRow = () => {
+    if (!canAddItem) return;
+    onRowsChange([...rows, { itemId: "", note: "" }]);
+  };
   const updateRow = (idx: number, patch: Partial<RabRejectedRow>) => {
     onRowsChange(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, ...patch } : row));
   };
   const removeRow = (idx: number) => onRowsChange(rows.filter((_, rowIdx) => rowIdx !== idx));
 
   return (
-    <div className="rounded-lg border border-red-100 bg-white p-3 space-y-3">
-      <div>
-        <Label className="text-xs font-semibold text-red-700">Revisi RAB General</Label>
+    <div className="rounded-lg border border-red-200 bg-white overflow-hidden shadow-sm">
+      <div className="border-b border-red-100 bg-red-50/80 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2 min-w-0">
+          <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+            <p className="text-sm font-bold text-red-800">Detail Revisi RAB</p>
+            <p className="text-xs text-red-700 mt-0.5">
+              Isi catatan general untuk revisi umum, atau tambahkan item RAB jika koreksi hanya pada pekerjaan tertentu.
+            </p>
+          </div>
+          </div>
+          <span className="shrink-0 rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700">
+            {selectedIds.size}/{rabItems.length} item
+          </span>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Catatan General</Label>
+              <p className="text-[11px] text-slate-500">Untuk revisi umum yang tidak mengarah ke satu item tertentu.</p>
+            </div>
+            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-200">Opsional</span>
+          </div>
         <Textarea
           value={generalNote}
           onChange={e => onGeneralNoteChange(e.target.value)}
-          placeholder="Isi jika revisi RAB bersifat umum, bukan spesifik item..."
+            placeholder="Tulis catatan revisi umum di sini..."
           rows={2}
-          className="mt-1"
+            className="bg-white"
         />
       </div>
-      <div className="space-y-2">
+
+        <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-xs font-semibold text-red-700">Item RAB yang perlu revisi</Label>
-          <Button type="button" variant="outline" size="sm" onClick={addRow} className="h-8 text-xs bg-white">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Item Spesifik</Label>
+              <p className="text-[11px] text-slate-500">
+                Pilih item dari RAB asli. Item yang sudah dipilih tidak bisa dipilih lagi.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              disabled={!canAddItem}
+              className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
+            >
             + Tambah Item
           </Button>
         </div>
         {rows.length === 0 ? (
-          <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-md p-2">
-            Belum ada item spesifik. Tambahkan item jika revisi hanya untuk pekerjaan tertentu.
-          </p>
+            <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
+              <p className="text-xs font-semibold text-slate-600">Belum ada item spesifik</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Kalau revisinya hanya umum, cukup isi catatan general di atas.</p>
+            </div>
         ) : rows.map((row, idx) => (
-          <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
-            <select
-              value={row.itemId}
-              onChange={e => updateRow(idx, { itemId: e.target.value })}
-              className="h-10 rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
-            >
-              <option value="">Pilih item RAB...</option>
-              {rabItems.map(item => (
-                <option key={`${item.rabScope || "RAB"}-${item.id}`} value={String(item.id)}>
-                  {formatRabItemOption(item)}
-                </option>
-              ))}
-            </select>
-            <Input
-              value={row.note}
-              onChange={e => updateRow(idx, { note: e.target.value })}
-              placeholder="Catatan item..."
-              className="bg-white"
-            />
-            <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-10 px-3 text-red-500 hover:text-red-700 hover:bg-red-50">
-              Hapus
-            </Button>
+            <div key={idx} className="rounded-md border border-slate-200 bg-white p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <span className="text-xs font-bold text-slate-600">Item Revisi #{idx + 1}</span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(idx)} className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
+                  Hapus
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-500">Item RAB</Label>
+                <select
+                  value={row.itemId}
+                  onChange={e => updateRow(idx, { itemId: e.target.value })}
+                    className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-700 min-w-0"
+                >
+                  <option value="">Pilih item RAB...</option>
+                  {rabItems.map(item => {
+                    const itemId = String(item.id);
+                    const disabled = selectedIds.has(itemId) && row.itemId !== itemId;
+                    return (
+                      <option key={`${item.rabScope || "RAB"}-${item.id}`} value={itemId} disabled={disabled}>
+                        {formatRabItemOption(item)}
+                      </option>
+                    );
+                  })}
+                </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-500">Catatan Item</Label>
+                <Input
+                  value={row.note}
+                  onChange={e => updateRow(idx, { note: e.target.value })}
+                  placeholder="Catatan untuk item ini..."
+                  className="bg-white"
+                />
+                </div>
+              </div>
+              {row.itemId && (
+                <p className="rounded-md bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600 border border-slate-100">
+                  Dipilih: {formatRabItemOption(rabItems.find(item => String(item.id) === row.itemId))}
+                </p>
+              )}
           </div>
         ))}
         {rabItems.length === 0 && (
@@ -362,6 +427,7 @@ function RabRejectEditor({
             Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
           </p>
         )}
+      </div>
       </div>
     </div>
   );
@@ -1243,7 +1309,10 @@ export default function DetailProjekPlanning() {
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-cyan-800">Approval PP Specialist</CardTitle></CardHeader>
             <CardContent className="p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <ReviewSelect label="Review RAB" value={rabReviewAction} onChange={setRabReviewAction} />
+                <ReviewSelect label="Review RAB" value={rabReviewAction} onChange={(value) => {
+                  setRabReviewAction(value);
+                  if (value === "REJECT" && rabRejectedRows.length === 0) setRabRejectedRows([{ itemId: "", note: "" }]);
+                }} />
                 <ReviewSelect label="Review Gambar Final" value={gambarReviewAction} onChange={setGambarReviewAction} />
               </div>
               {rabReviewAction === "REJECT" && (
@@ -1256,9 +1325,15 @@ export default function DetailProjekPlanning() {
                 />
               )}
               {(rabReviewAction === "REJECT" || gambarReviewAction === "REJECT") && (
-                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." rows={2} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Alasan Penolakan</Label>
+                  <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan utama kenapa RAB atau gambar final ditolak..." rows={2} className="bg-white" />
+                </div>
               )}
-              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval/review..." rows={2} />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Catatan Tambahan</Label>
+                <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Opsional, untuk catatan internal approval/review..." rows={2} className="bg-white" />
+              </div>
               <Button onClick={() => handleApprove("pp2")} className="flex-1 bg-cyan-600 hover:bg-cyan-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                 <CheckCircle2 className="w-4 h-4 mr-1.5" /> Simpan Review
               </Button>
@@ -1272,7 +1347,10 @@ export default function DetailProjekPlanning() {
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-indigo-800">Approval PP Manager (Final)</CardTitle></CardHeader>
             <CardContent className="p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <ReviewSelect label="Review RAB" value={rabReviewAction} onChange={setRabReviewAction} />
+                <ReviewSelect label="Review RAB" value={rabReviewAction} onChange={(value) => {
+                  setRabReviewAction(value);
+                  if (value === "REJECT" && rabRejectedRows.length === 0) setRabRejectedRows([{ itemId: "", note: "" }]);
+                }} />
                 <ReviewSelect label="Review Gambar Final" value={gambarReviewAction} onChange={setGambarReviewAction} />
               </div>
               {rabReviewAction === "REJECT" && (
@@ -1285,9 +1363,15 @@ export default function DetailProjekPlanning() {
                 />
               )}
               {(rabReviewAction === "REJECT" || gambarReviewAction === "REJECT") && (
-                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." rows={2} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Alasan Penolakan</Label>
+                  <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Alasan utama kenapa RAB atau gambar final ditolak..." rows={2} className="bg-white" />
+                </div>
               )}
-              <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval/review..." rows={2} />
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Catatan Tambahan</Label>
+                <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Opsional, untuk catatan internal approval/review..." rows={2} className="bg-white" />
+              </div>
               <Button onClick={() => handleApprove("pp_mgr")} className="flex-1 bg-indigo-600 hover:bg-indigo-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                 <CheckCircle2 className="w-4 h-4 mr-1.5" /> Simpan Review Final
               </Button>
