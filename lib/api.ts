@@ -889,10 +889,21 @@ export type RABDetailItem = {
     catatan?:          string | null;
 };
 
+export type RABRevisionItem = {
+    id:             number;
+    id_rab:         number;
+    id_rab_item:    number | null;
+    approver_email: string | null;
+    approver_role:  string | null;
+    catatan_item:   string | null;
+    created_at:     string;
+};
+
 export type RABDetailResponse = {
-    rab:   RABDetailData;
-    toko:  RABDetailToko;
-    items: RABDetailItem[];
+    rab:          RABDetailData;
+    toko:         RABDetailToko;
+    items:        RABDetailItem[];
+    revisi_items?: RABRevisionItem[];
 };
 
 export type RABApprovalPayload = {
@@ -904,7 +915,6 @@ export type RABApprovalPayload = {
     tindakan:         "APPROVE" | "REJECT" | string;
     alasan_penolakan?: string | null;
     catatan_approval?: string | null;
-    catatan_revisi_umum?: string | null;
     revisi_item_ids?: number[];
     revisi_item_notes?: Record<string, string | null | undefined>;
 };
@@ -1348,7 +1358,6 @@ export type GanttDependency = {
 export type GanttPengawasan = {
     kategori_pekerjaan?: string;
     tanggal_pengawasan?: string;
-    catatan_memo?: string | null;
 };
 
 export type GanttSubmitPayload = {
@@ -1363,6 +1372,7 @@ export type GanttSubmitPayload = {
     email_pembuat:      string;
     kategori_pekerjaan: string[];
     day_items:          GanttDayItem[];
+    catatan_gantt?:     string | null;
     pengawasan?:        GanttPengawasan[];
     dependencies?:      GanttDependency[];
 };
@@ -1427,7 +1437,6 @@ export type GanttDetailPengawasan = {
     id_gantt:           number;
     kategori_pekerjaan?: string;
     tanggal_pengawasan?: string;
-    catatan_memo?: string | null;
 };
 
 export type GanttDetailDependency = {
@@ -1446,6 +1455,7 @@ export type GanttDetailData = {
         status:       string;
         email_pembuat:string;
         timestamp:    string;
+        catatan_gantt?: string | null;
     };
     toko:               GanttDetailToko;
     kategori_pekerjaan: GanttDetailKategori[];
@@ -1459,6 +1469,7 @@ export type GanttUpdatePayload = {
     day_items:          GanttDayItem[];
     dependencies?:      GanttDependency[];
     pengawasan?:        GanttPengawasan[];
+    catatan_gantt?:     string | null;
     status?:            string;
 };
 
@@ -1589,11 +1600,11 @@ export const lockGanttChart = async (id: number, email: string) => {
 };
 
 /** Submit Hari Pengawasan ke Gantt */
-export const submitGanttPengawasan = async (id: number, tanggal_pengawasan: string[], catatan_memo?: string | null) => {
+export const submitGanttPengawasan = async (id: number, tanggal_pengawasan: string[]) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/pengawasan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tanggal_pengawasan, catatan_memo: catatan_memo?.trim() || undefined }),
+        body: JSON.stringify({ tanggal_pengawasan }),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal menyimpan tanggal pengawasan Gantt.");

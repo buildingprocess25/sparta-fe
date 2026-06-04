@@ -133,6 +133,8 @@ export default function RABPage() {
   
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [revisionListDialogOpen, setRevisionListDialogOpen] = useState(false);
+  const [revisionRejectReason, setRevisionRejectReason] = useState('');
+  const [revisionItemNotes, setRevisionItemNotes] = useState<Record<number, string>>({});
   
   // State untuk melacak perubahan pada form revisi
   const [initialFormState, setInitialFormState] = useState<string | null>(null);
@@ -234,6 +236,16 @@ export default function RABPage() {
 
           const tokoRef = fetchedDetailData?.toko || data;
           const rabRef = fetchedDetailData?.rab || data;
+          const revisionNotes = Array.isArray(fetchedDetailData?.revisi_items)
+              ? fetchedDetailData.revisi_items.reduce((acc: Record<number, string>, item: any) => {
+                  const itemId = Number(item.id_rab_item);
+                  const note = String(item.catatan_item || '').trim();
+                  if (Number.isFinite(itemId) && itemId > 0 && note) acc[itemId] = note;
+                  return acc;
+              }, {})
+              : {};
+          setRevisionRejectReason(String(rabRef.alasan_penolakan || data.alasan_penolakan || '').trim());
+          setRevisionItemNotes(revisionNotes);
           
           let fetchedTokoDetail: TokoDetailPartial | null = null;
           let fetchedTokoAlamat = "";
@@ -329,6 +341,7 @@ export default function RABPage() {
 
                   newRows.push({
                       id: Date.now() + i + Math.random(),
+                      sourceItemId: item.id ? Number(item.id) : null,
                       category: category,
                       jenisPekerjaan: jobName,
                       satuan: item.satuan || itemPriceRef?.["Satuan"],
@@ -355,6 +368,7 @@ export default function RABPage() {
 
                       newRows.push({
                           id: Date.now() + i + Math.random(),
+                          sourceItemId: null,
                           category: category,
                           jenisPekerjaan: jobName,
                           satuan: details[`Satuan_Item_${i}`] || itemPriceRef?.["Satuan"],
@@ -905,6 +919,28 @@ export default function RABPage() {
 
           {activeCategories.length > 0 && (
             <div className="space-y-6 mb-8">
+              {(revisionRejectReason || Object.keys(revisionItemNotes).length > 0) && (
+                <Card className="border-red-200 bg-red-50/60 shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    {revisionRejectReason && (
+                      <div className="flex gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700">
+                          <AlertTriangle className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-red-800">Alasan Penolakan RAB</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-red-700">{revisionRejectReason}</p>
+                        </div>
+                      </div>
+                    )}
+                    {Object.keys(revisionItemNotes).length > 0 && (
+                      <div className="rounded-lg border border-red-100 bg-white px-3 py-2 text-xs text-slate-600">
+                        Catatan item revisi ditampilkan langsung pada baris pekerjaan yang perlu diperbaiki.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
               <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block">Detail Bill of Quantities (BoQ)</h2>
               {activeCategories.map((category) => {
                 const itemsInCategory = tableRows.filter(r => r.category === category);
@@ -937,8 +973,10 @@ export default function RABPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {itemsInCategory.map((row, index) => (
-                              <tr key={row.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                            {itemsInCategory.map((row, index) => {
+                              const itemRevisionNote = row.sourceItemId ? revisionItemNotes[Number(row.sourceItemId)] : '';
+                              return (
+                              <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
                                 <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                   <select disabled={isReadOnly} className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
@@ -949,6 +987,11 @@ export default function RABPage() {
                                         return <option key={jobName} value={jobName} title={jobName} disabled={isSelectedElsewhere} className={isSelectedElsewhere ? "text-slate-300 bg-slate-50" : ""}>{jobName}</option>;
                                     })}
                                   </select>
+                                  {itemRevisionNote && (
+                                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] leading-relaxed text-red-700 whitespace-normal">
+                                      <span className="font-bold">Catatan revisi item:</span> {itemRevisionNote}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="number" min="0" step="any" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? 0 : row.volume} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseFloat(e.target.value) || 0))} readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
@@ -964,7 +1007,7 @@ export default function RABPage() {
                                   )}
                                 </td>
                               </tr>
-                            ))}
+                            )})}
                           </tbody>
                           <tfoot className="bg-slate-50 border-t-2 border-slate-200">
                              {!isReadOnly && (

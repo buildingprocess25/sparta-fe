@@ -532,7 +532,6 @@ export default function ApprovalPage() {
     const [processingId, setProcessingId]     = useState<number | string | null>(null);
     const [rejectModal, setRejectModal]       = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [rejectNote, setRejectNote]         = useState('');
-    const [rejectRabGeneralNote, setRejectRabGeneralNote] = useState('');
     const [rejectRabRevisionItems, setRejectRabRevisionItems] = useState<Array<{ id: number | null; note: string }>>([]);
     const [approveModal, setApproveModal]     = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [approveNote, setApproveNote]       = useState('');
@@ -1159,7 +1158,6 @@ export default function ApprovalPage() {
     // ==========================================
     const openRejectModal = (item: NormalizedListItem | NormalizedDetail) => {
         setRejectNote('');
-        setRejectRabGeneralNote('');
         setRejectRabRevisionItems([]);
         setRejectModal(item);
     };
@@ -1185,7 +1183,6 @@ export default function ApprovalPage() {
                     tindakan:         'REJECT',
                     alasan_penolakan: rejectNote,
                     catatan_approval: rejectNote,
-                    catatan_revisi_umum: rejectRabGeneralNote,
                     revisi_item_ids: rejectRabRevisionItems
                         .map(item => item.id)
                         .filter((id): id is number => typeof id === 'number'),
@@ -1487,7 +1484,7 @@ export default function ApprovalPage() {
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
                                                 <p className="text-sm font-bold text-red-700">Detail Revisi RAB</p>
-                                                <p className="text-xs text-slate-600">Pilih item RAB yang perlu direvisi, atau isi catatan umum.</p>
+                                                <p className="text-xs text-slate-600">Pilih item RAB yang perlu direvisi. Catatan ditulis langsung pada item terkait.</p>
                                             </div>
                                             <Button
                                                 type="button"
@@ -1499,13 +1496,6 @@ export default function ApprovalPage() {
                                                 <Plus className="w-3.5 h-3.5 mr-1" /> Item
                                             </Button>
                                         </div>
-                                        <textarea
-                                            className="mt-2 w-full border border-slate-300 rounded-lg p-2.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-red-300 bg-white"
-                                            rows={2}
-                                            placeholder="Catatan revisi umum RAB (opsional)..."
-                                            value={rejectRabGeneralNote}
-                                            onChange={e => setRejectRabGeneralNote(e.target.value)}
-                                        />
                                     </div>
                                     {rejectRabRevisionItems.map((revision, index) => {
                                         const selectedIds = new Set(rejectRabRevisionItems.map(item => item.id).filter((id): id is number => typeof id === 'number'));

@@ -601,7 +601,7 @@ function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentP
                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                         {/* Page tabs */}
                         <div className="flex justify-center gap-2 mb-4 flex-wrap">
-                            {[1, 2, 3].map(pg => (
+                            {Object.keys(PHOTO_POINTS).map(Number).sort((a, b) => a - b).map(pg => (
                                 <button key={pg} onClick={() => setCurrentPage(pg)}
                                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${currentPage === pg ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:border-red-300'}`}>
                                     {pg}. {PAGE_LABELS[pg]}
