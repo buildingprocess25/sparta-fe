@@ -8,6 +8,7 @@ import {
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
     AlertTriangle, Activity, PieChart, ClipboardCheck,
     FileStack, ClipboardList, FileEdit, Upload, Building2,
+    ShieldAlert,
 } from "lucide-react";
 
 // -----------------------------------------------------------------------------
@@ -123,6 +124,13 @@ export const ALL_MENUS = [
         desc: "Lihat daftar dokumen RAB, SPK, dan lainnya.",
         href: "/list",
         icon: FileStack,
+    },
+    {
+        id: "menu-intervensi",
+        title: "Intervensi",
+        desc: "Pusat perubahan status khusus Super Human.",
+        href: "/intervensi",
+        icon: ShieldAlert,
     },
     {
         id: "menu-il",
@@ -259,7 +267,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-il", "menu-users", "menu-projek-planning",
+        "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
     ],
 };
 
