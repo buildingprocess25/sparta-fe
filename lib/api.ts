@@ -971,7 +971,19 @@ export const fetchPricesData = async (cabang: string, lingkup: string) => {
     const url = `${base}/get-data?cabang=${encodeURIComponent(cabang)}&lingkup=${encodeURIComponent(lingkup)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Gagal mengambil data harga (${res.status}).`);
-    return res.json();
+    const data = await res.json();
+
+    return Object.entries(data || {}).reduce((acc: Record<string, any[]>, [category, items]) => {
+        const normalizedCategory = String(category).trim().replace(/\s+/g, " ");
+        if (!normalizedCategory) return acc;
+
+        acc[normalizedCategory] = [
+            ...(acc[normalizedCategory] || []),
+            ...(Array.isArray(items) ? items : [])
+        ];
+
+        return acc;
+    }, {});
 };
 
 /** Ambil daftar User Cabang (PIC) */
