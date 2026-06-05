@@ -31,6 +31,18 @@ import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constan
 const formatRp = (num: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 
+const parseDecimalInput = (value: unknown): number => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(",")
+        ? raw.replace(/\./g, "").replace(",", ".")
+        : raw;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
+
 const formatTanggal = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
@@ -477,7 +489,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         setSubmittingItemId(rabItem.id);
         setIsSubmitting(true);
         try {
-            const volAkhir = parseFloat(input.volume_akhir) || 0;
+            const volAkhir = parseDecimalInput(input.volume_akhir);
             const volRab = Number(rabItem.volume) || 0;
             const selisihVol = Number((volAkhir - volRab).toFixed(4));
             
@@ -608,7 +620,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 return;
             }
 
-            const volAkhir = parseFloat(input.volume_akhir) || 0;
+            const volAkhir = parseDecimalInput(input.volume_akhir);
             const volRab = Number(item.volume) || 0;
             const selisihVol = Number((volAkhir - volRab).toFixed(4));
             const price = (Number(item.harga_material) || 0) + (Number(item.harga_upah) || 0);
@@ -922,7 +934,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                     {group.items.map((item, j) => {
                                                                         const input = opnameInputs[item.id] || { volume_akhir: String(item.volume), desain: '', kualitas: '', spesifikasi: '', catatan: '', file: null };
                                                                         const isItemSubmitting = submittingItemId === item.id;
-                                                                        const volAkhir = parseFloat(input.volume_akhir) || 0;
+                                                                        const volAkhir = parseDecimalInput(input.volume_akhir);
                                                                         const hMaterial = Number(item.harga_material) || 0;
                                                                         const hUpah = Number(item.harga_upah) || 0;
                                                                         const hSatuan = hMaterial + hUpah;
@@ -973,12 +985,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir *</label>
                                                                                             <div className="relative mt-1">
                                                                                                 <input
-                                                                                                    type="number"
-                                                                                                    step="any"
+                                                                                                    type="text"
+                                                                                                    inputMode="decimal"
                                                                                                     className="w-full p-2 border border-slate-300 rounded text-sm bg-emerald-50 focus:bg-white focus:border-emerald-500 focus:outline-none font-bold pr-12"
                                                                                                     disabled={isReadOnly}
                                                                                                     value={input.volume_akhir}
-                                                                                                    onChange={(e) => handleSetInput(item.id, 'volume_akhir', e.target.value)}
+                                                                                                    onChange={(e) => handleSetInput(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))}
                                                                                                 />
                                                                                                 {item.satuan && <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
                                                                                             </div>

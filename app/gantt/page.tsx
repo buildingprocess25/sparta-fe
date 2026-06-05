@@ -26,6 +26,18 @@ import { useGlobalAlert } from '@/context/GlobalAlertContext';
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 
+const parseDecimalInput = (value: unknown): number => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(",")
+        ? raw.replace(/\./g, "").replace(",", ".")
+        : raw;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
+
 function formatUlokWithDash(ulok: string) {
     if (!ulok) return "";
     if (ulok.includes("-")) return ulok;
@@ -2483,7 +2495,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
             let currentIndex = 0;
             completedItems.forEach(item => {
                 const input = opnameInputs[item.id];
-                const volAkhir = parseFloat(input.volume_akhir) || 0;
+                const volAkhir = parseDecimalInput(input.volume_akhir);
                 const selisihVol = volAkhir - item.volume_rab;
                 const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
                 const totalSelisih = Math.round(selisihVol * hargaSatuan);
@@ -2658,7 +2670,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                                 <div className="p-4 space-y-4">
                                     {category.items.map((item, j) => {
                                         const input = opnameInputs[item.id] || {};
-                                        const volAkhir = parseFloat(input.volume_akhir) || 0;
+                                        const volAkhir = parseDecimalInput(input.volume_akhir);
                                         const selisih = volAkhir - item.volume_rab;
                                         const hargaSatuan = item.harga_material + item.harga_upah;
                                         const totalHargaRAB = item.volume_rab * hargaSatuan;
@@ -2688,9 +2700,9 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                                                         <div>
                                                             <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir Opname</label>
                                                             <div className="relative mt-1">
-                                                                <input type="number" step="any" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12" 
+                                                                <input type="text" inputMode="decimal" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12" 
                                                                     value={input.volume_akhir ?? ''} 
-                                                                    onChange={(e)=>handleSetOpname(item.id, 'volume_akhir', e.target.value)} />
+                                                                    onChange={(e)=>handleSetOpname(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))} />
                                                                 {item.satuan && <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
                                                             </div>
                                                             <div className="text-[10px] text-right mt-1 text-slate-500">
