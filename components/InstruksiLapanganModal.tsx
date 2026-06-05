@@ -37,7 +37,17 @@ const isNoPpnArea = (toko: any, cabangFallback = "") => {
     return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
 };
 
-export default function InstruksiLapanganModal({ onClose, onSuccess, initialTokoId }: { onClose: () => void, onSuccess: () => void, initialTokoId?: number }) {
+export default function InstruksiLapanganModal({
+    onClose,
+    onSuccess,
+    onError,
+    initialTokoId
+}: {
+    onClose: () => void,
+    onSuccess: () => void,
+    onError?: (message: string) => void,
+    initialTokoId?: number
+}) {
     const router = useRouter();
 
     const [cabang, setCabang] = useState('');
@@ -316,12 +326,12 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
             if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
             submitTimeoutRef.current = null;
             setIsLoading(false);
-            showAlert("Berhasil", "Pengajuan Instruksi Lapangan berhasil disimpan.", "success");
-            setTimeout(() => { onSuccess(); }, 1500);
+            onSuccess();
         } catch (err: any) {
             if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
             submitTimeoutRef.current = null;
             setIsLoading(false);
+            onError?.(err.message || "Gagal menyimpan Instruksi Lapangan.");
             showAlert("Error", err.message, "error");
         }
     };

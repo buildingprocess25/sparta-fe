@@ -1121,7 +1121,25 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         {showInstruksiModal && (
             <InstruksiLapanganModal 
                 onClose={() => setShowInstruksiModal(false)} 
-                onSuccess={() => setShowInstruksiModal(false)} 
+                onSuccess={() => {
+                    setShowInstruksiModal(false);
+                    setTimeout(() => {
+                        showAlert({
+                            title: "Instruksi Lapangan Berhasil",
+                            message: "Instruksi Lapangan berhasil disimpan dan dikirim untuk approval.",
+                            type: "success"
+                        });
+                    }, 150);
+                }}
+                onError={(message) => {
+                    setTimeout(() => {
+                        showAlert({
+                            title: "Gagal Menyimpan IL",
+                            message: message || "Gagal menyimpan Instruksi Lapangan.",
+                            type: "error"
+                        });
+                    }, 150);
+                }}
                 initialTokoId={selectedRab?.id_toko}
             />
         )}
