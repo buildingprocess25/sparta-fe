@@ -1540,16 +1540,17 @@ export default function ApprovalPage() {
                                                         }}
                                                     >
                                                         <option value="">Pilih item RAB...</option>
-                                                        {(rejectModal as NormalizedDetail).items.map(item => {
-                                                            const isSelectedElsewhere = selectedIdsInOtherRows.has(item.id);
+                                                        {(rejectModal as NormalizedDetail).items.filter(item => {
+                                                            const itemId = Number(item.id);
+                                                            return itemId === revision.id || !selectedIdsInOtherRows.has(itemId);
+                                                        }).map(item => {
+                                                            const itemId = Number(item.id);
                                                             return (
                                                             <option
                                                                 key={item.id}
-                                                                value={item.id}
-                                                                disabled={isSelectedElsewhere}
-                                                                className={isSelectedElsewhere ? "text-slate-400 bg-slate-100" : ""}
+                                                                value={itemId}
                                                             >
-                                                                #{item.id} - {item.kategori} / {item.jenis_pekerjaan}{isSelectedElsewhere ? " (sudah dipilih)" : ""}
+                                                                #{item.id} - {item.kategori} / {item.jenis_pekerjaan}
                                                             </option>
                                                         )})}
                                                     </select>
