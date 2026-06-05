@@ -26,7 +26,6 @@ const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: st
     return matchedEntry?.[1] || [];
 };
 const normalizeNoPpnText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const releaseActiveFocus = () => {
     if (typeof document === "undefined") return;
     const activeElement = document.activeElement;
@@ -283,16 +282,9 @@ export default function InstruksiLapanganModal({
         return { totalEstimasi: total, pembulatan: rounded, ppn: tax, grandTotal: grand, isBatamBranch: isBatam };
     }, [tableRows, cabang, selectedToko]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        releaseActiveFocus();
-        if (!selectedToko) return showAlert("Peringatan", "Silakan pilih Toko terlebih dahulu.", "error");
-        if (!tanggalMulai || !tanggalSelesai) {
-            return showAlert("Peringatan", "Tanggal mulai dan tanggal selesai wajib diisi.", "warning");
-        }
-
-        const detailItems = tableRows
-            .filter(row => row.jenisPekerjaan && row.volume > 0)
+    const validDetailItems = React.useMemo(() => (
+        tableRows
+            .filter(row => row.jenisPekerjaan && Number(row.volume) > 0)
             .map(row => ({
                 kategori_pekerjaan: row.category,
                 jenis_pekerjaan: row.jenisPekerjaan,
@@ -301,9 +293,25 @@ export default function InstruksiLapanganModal({
                 harga_material: Number(row.hargaMaterial),
                 harga_upah: Number(row.hargaUpah),
                 catatan: row.catatan || ''
-            }));
+            }))
+    ), [tableRows]);
 
-        if (detailItems.length === 0) {
+    const canSubmit = Boolean(selectedToko)
+        && Boolean(tanggalMulai)
+        && Boolean(tanggalSelesai)
+        && validDetailItems.length > 0
+        && !isLoading
+        && !isTokoLoading;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        releaseActiveFocus();
+        if (!selectedToko) return showAlert("Peringatan", "Silakan pilih Toko terlebih dahulu.", "error");
+        if (!tanggalMulai || !tanggalSelesai) {
+            return showAlert("Peringatan", "Tanggal mulai dan tanggal selesai wajib diisi.", "warning");
+        }
+
+        if (validDetailItems.length === 0) {
             return showAlert("Peringatan", "Minimal harus ada 1 item pekerjaan dengan volume.", "warning");
         }
 
@@ -321,51 +329,8 @@ export default function InstruksiLapanganModal({
             id_instruksi_lapangan_revisi: selectedRevisionId !== 'new' ? Number(selectedRevisionId) : undefined,
         };
 
-        const submittedAt = Date.now();
-        const verifySaved = async () => {
-            for (let attempt = 0; attempt < 12; attempt++) {
-                await delay(attempt === 0 ? 2000 : 3000);
-
-                try {
-                    const listRes = await fetchInstruksiLapanganList({
-                        id_toko: Number(selectedToko.id),
-                        email_pembuat: String(fields.email_pembuat || "")
-                    }, { suppressGlobalError: true });
-
-                    const rows = Array.isArray(listRes?.data) ? listRes.data : [];
-                    const found = rows.some((row: any) => {
-                        const createdAt = new Date(row.created_at || 0).getTime();
-                        return Number(row.id_toko) === Number(selectedToko.id)
-                            && String(row.email_pembuat || "").toLowerCase() === String(fields.email_pembuat || "").toLowerCase()
-                            && (!Number.isFinite(createdAt) || createdAt >= submittedAt - 60_000);
-                    });
-
-                    if (found) return true;
-                } catch (error) {
-                    console.warn("Gagal verifikasi simpan IL", error);
-                }
-            }
-
-            return false;
-        };
-
         try {
-            const submitResult = submitInstruksiLapangan(fields, detailItems, lampiranFile).then(() => true);
-            const verifyResult = verifySaved().then((saved) => {
-                if (!saved) {
-                    throw new Error("Belum ada konfirmasi data Instruksi Lapangan tersimpan. Cek koneksi lalu coba refresh/list approval.");
-                }
-                return true;
-            });
-
-            try {
-                await Promise.race([submitResult, verifyResult]);
-            } catch (error: any) {
-                console.warn("Submit IL belum memberi response sukses", error);
-                if (!await verifySaved()) {
-                    throw error;
-                }
-            }
+            await submitInstruksiLapangan(fields, validDetailItems, lampiranFile);
 
             if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
             submitTimeoutRef.current = null;
@@ -627,7 +592,7 @@ export default function InstruksiLapanganModal({
                             <Button type="button" variant="outline" onClick={onClose} className="min-w-30">
                                 Batal
                             </Button>
-                            <Button type="submit" disabled={isLoading} className="bg-red-600 hover:bg-red-700 text-white min-w-35 shadow-md">
+                            <Button type="submit" disabled={!canSubmit} className="bg-red-600 hover:bg-red-700 text-white min-w-35 shadow-md">
                                 {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan...</> : <><Save className="mr-2 h-4 w-4" /> Simpan</>}
                             </Button>
                         </div>
