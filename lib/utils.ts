@@ -114,7 +114,9 @@ export const compressImage = async (file: File): Promise<File> => {
     const options = {
         maxSizeMB: 1,
         maxWidthOrHeight: 1920,
-        useWebWorker: true,
+        // CSP production hanya mengizinkan koneksi ke self. Web worker library ini
+        // mencoba mengambil worker dari CDN, jadi matikan agar upload tidak gagal.
+        useWebWorker: false,
         fileType: 'image/jpeg'
     };
 

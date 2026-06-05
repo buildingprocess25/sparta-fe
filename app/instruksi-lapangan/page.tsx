@@ -46,6 +46,7 @@ export default function InstruksiLapanganPage() {
     const [cabang, setCabang] = useState('');
     const [spkList, setSpkList] = useState<any[]>([]);
     const [selectedToko, setSelectedToko] = useState<any>(null);
+    const [selectedSpkId, setSelectedSpkId] = useState('');
     const [spkStartDate, setSpkStartDate] = useState('');
     const [prices, setPrices] = useState<any>({});
     const [tableRows, setTableRows] = useState<any[]>([]);
@@ -88,6 +89,7 @@ export default function InstruksiLapanganPage() {
     }, [user]);
 
     const handleSpkChange = async (spkIdStr: string) => {
+        setSelectedSpkId(spkIdStr);
         const spkId = Number(spkIdStr);
         const spkItem = spkList.find(s => s.id === spkId);
         if (!spkItem) return;
@@ -335,7 +337,7 @@ export default function InstruksiLapanganPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Label>Pilih Ulok/Toko <span className="text-red-500">*</span></Label>
-                                    <Select disabled={isReadOnly} onValueChange={handleSpkChange} required>
+                                    <Select disabled={isReadOnly} value={selectedSpkId} onValueChange={handleSpkChange} required>
                                         <SelectTrigger className="bg-white">
                                             <SelectValue placeholder="-- Pilih Toko Berdasarkan SPK Approved --" />
                                         </SelectTrigger>
