@@ -26,6 +26,7 @@ const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: st
     return matchedEntry?.[1] || [];
 };
 const normalizeNoPpnText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const isNoPpnArea = (toko: any, cabangFallback = "") => {
     const identity = [
         toko?.cabang,
@@ -302,14 +303,7 @@ export default function InstruksiLapanganModal({
 
         setIsLoading(true);
         if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
-        submitTimeoutRef.current = setTimeout(() => {
-            setIsLoading(false);
-            showAlert(
-                "Timeout",
-                "Proses simpan Instruksi Lapangan terlalu lama. Cek koneksi lalu coba lagi. Jika data belum masuk DB, hubungi admin.",
-                "error"
-            );
-        }, 50000);
+        submitTimeoutRef.current = null;
 
         const fields: Record<string, string | number | undefined> = {
             id_toko: selectedToko.id,
@@ -321,8 +315,52 @@ export default function InstruksiLapanganModal({
             id_instruksi_lapangan_revisi: selectedRevisionId !== 'new' ? Number(selectedRevisionId) : undefined,
         };
 
+        const submittedAt = Date.now();
+        const verifySaved = async () => {
+            for (let attempt = 0; attempt < 12; attempt++) {
+                await delay(attempt === 0 ? 2000 : 3000);
+
+                try {
+                    const listRes = await fetchInstruksiLapanganList({
+                        id_toko: Number(selectedToko.id),
+                        email_pembuat: String(fields.email_pembuat || "")
+                    }, { suppressGlobalError: true });
+
+                    const rows = Array.isArray(listRes?.data) ? listRes.data : [];
+                    const found = rows.some((row: any) => {
+                        const createdAt = new Date(row.created_at || 0).getTime();
+                        return Number(row.id_toko) === Number(selectedToko.id)
+                            && String(row.email_pembuat || "").toLowerCase() === String(fields.email_pembuat || "").toLowerCase()
+                            && (!Number.isFinite(createdAt) || createdAt >= submittedAt - 60_000);
+                    });
+
+                    if (found) return true;
+                } catch (error) {
+                    console.warn("Gagal verifikasi simpan IL", error);
+                }
+            }
+
+            return false;
+        };
+
         try {
-            await submitInstruksiLapangan(fields, detailItems, lampiranFile);
+            const submitResult = submitInstruksiLapangan(fields, detailItems, lampiranFile).then(() => true);
+            const verifyResult = verifySaved().then((saved) => {
+                if (!saved) {
+                    throw new Error("Belum ada konfirmasi data Instruksi Lapangan tersimpan. Cek koneksi lalu coba refresh/list approval.");
+                }
+                return true;
+            });
+
+            try {
+                await Promise.race([submitResult, verifyResult]);
+            } catch (error: any) {
+                console.warn("Submit IL belum memberi response sukses", error);
+                if (!await verifySaved()) {
+                    throw error;
+                }
+            }
+
             if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
             submitTimeoutRef.current = null;
             setIsLoading(false);
@@ -332,7 +370,6 @@ export default function InstruksiLapanganModal({
             submitTimeoutRef.current = null;
             setIsLoading(false);
             onError?.(err.message || "Gagal menyimpan Instruksi Lapangan.");
-            showAlert("Error", err.message, "error");
         }
     };
 

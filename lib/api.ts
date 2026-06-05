@@ -2707,6 +2707,7 @@ export type InstruksiLapanganFilters = {
     nomor_ulok?: string;
     cabang?: string;
     email_pembuat?: string;
+    id_toko?: number;
 };
 
 export const fetchInstruksiLapanganList = async (
@@ -2719,6 +2720,7 @@ export const fetchInstruksiLapanganList = async (
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
+    if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
     const url = `${base}/api/instruksi-lapangan/list${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
