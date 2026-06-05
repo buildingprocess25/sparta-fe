@@ -26,6 +26,7 @@ const parseDecimalInput = (value: string) => {
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
+const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
 const isConditionalPriceValue = (value: unknown) => String(value ?? "").trim().toLowerCase() === "kondisional";
 const normalizePriceCategoryName = (value?: string | null) =>
     String(value ?? "").toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s&/]/gu, "").trim();
@@ -259,7 +260,7 @@ export default function InstruksiLapanganPage() {
     const { totalEstimasi, pembulatan, ppn, grandTotal, isBatamBranch } = React.useMemo(() => {
         let total = 0;
         tableRows.forEach(row => {
-            const v = Number(row.volume) || 0;
+            const v = parseDecimalInput(String(row.volume ?? ""));
             const m = Number(row.hargaMaterial) || 0;
             const u = Number(row.hargaUpah) || 0;
             total += v * (m + u);
@@ -283,12 +284,12 @@ export default function InstruksiLapanganPage() {
         }
 
         const detailItems = tableRows
-            .filter(row => row.jenisPekerjaan && row.volume > 0)
+            .filter(row => row.jenisPekerjaan && parseDecimalInput(String(row.volume ?? "")) > 0)
             .map(row => ({
                 kategori_pekerjaan: row.category,
                 jenis_pekerjaan: row.jenisPekerjaan,
                 satuan: row.satuan,
-                volume: Number(row.volume),
+                volume: parseDecimalInput(String(row.volume ?? "")),
                 harga_material: Number(row.hargaMaterial),
                 harga_upah: Number(row.hargaUpah),
                 catatan: row.catatan || ''
@@ -442,7 +443,7 @@ export default function InstruksiLapanganPage() {
                             <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block">Detail Instruksi Lapangan</h2>
                             {categories.map((category) => {
                                 const itemsInCategory = tableRows.filter(r => r.category === category);
-                                const subTotal = itemsInCategory.reduce((acc, row) => acc + (row.volume * (row.hargaMaterial + row.hargaUpah)), 0);
+                                    const subTotal = itemsInCategory.reduce((acc, row) => acc + (parseDecimalInput(String(row.volume ?? "")) * (row.hargaMaterial + row.hargaUpah)), 0);
                                 const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
 
                                 return (
@@ -491,7 +492,7 @@ export default function InstruksiLapanganPage() {
                                                                 </td>
                                                                 <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
                                                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
-                                                                    <Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? 0 : row.volume} onChange={(e) => updateRow(row.id, 'volume', parseDecimalInput(e.target.value))} readOnly={isReadOnly || row.satuan === 'Ls'} />
+                                                                    <Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? 0 : row.volume} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} readOnly={isReadOnly || row.satuan === 'Ls'} />
                                                                 </td>
                                                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                                                     <Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} />
@@ -499,9 +500,9 @@ export default function InstruksiLapanganPage() {
                                                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                                                     <Input type="text" className={`h-9 px-2 text-right transition-colors text-xs ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditUpahPrice} />
                                                                 </td>
-                                                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaMaterial)}</td>
-                                                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaUpah)}</td>
-                                                                <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
+                                                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(parseDecimalInput(String(row.volume ?? "")) * row.hargaMaterial)}</td>
+                                                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(parseDecimalInput(String(row.volume ?? "")) * row.hargaUpah)}</td>
+                                                                <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(parseDecimalInput(String(row.volume ?? "")) * (row.hargaMaterial + row.hargaUpah))}</td>
                                                                 <td className="p-2 border-r border-slate-100">
                                                                     <Input type="text" readOnly={isReadOnly} placeholder="Catatan..." className="h-9 px-2 text-xs bg-white border-slate-300 focus-visible:ring-blue-500" value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} />
                                                                 </td>
