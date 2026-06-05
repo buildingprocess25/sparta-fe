@@ -10,14 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock } from 'lucide-react'; 
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare } from 'lucide-react'; 
 import { 
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
-    fetchRABList, fetchRABDetail, fetchSPKList
+    fetchRABList, fetchRABDetail, fetchSPKList,
+    fetchGanttNotes, createGanttNote
 } from '@/lib/api';
-import type { GanttListItem } from '@/lib/api';
+import type { GanttListItem, GanttNoteItem } from '@/lib/api';
 import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser } from '@/lib/constants';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
@@ -65,7 +66,10 @@ function GanttBoard() {
     
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
-    const [ganttNote, setGanttNote] = useState('');
+    const [ganttNotes, setGanttNotes] = useState<GanttNoteItem[]>([]);
+    const [ganttNoteInput, setGanttNoteInput] = useState('');
+    const [isGanttNoteLoading, setIsGanttNoteLoading] = useState(false);
+    const [isGanttNoteSending, setIsGanttNoteSending] = useState(false);
     
     const [projectData, setProjectData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -102,6 +106,39 @@ function GanttBoard() {
 
     const { user } = useSession();
     const isReadOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
+    const canWriteGanttCommunication = appMode === 'pic' && !!selectedGanttId && !isReadOnly;
+
+    const loadGanttNotes = async (ganttId: number) => {
+        setIsGanttNoteLoading(true);
+        try {
+            const res = await fetchGanttNotes(ganttId);
+            setGanttNotes(res.data || []);
+        } catch (err) {
+            console.error("Gagal memuat catatan pengawasan Gantt:", err);
+            setGanttNotes([]);
+        } finally {
+            setIsGanttNoteLoading(false);
+        }
+    };
+
+    const handleSendGanttNote = async () => {
+        if (!selectedGanttId || !user || !ganttNoteInput.trim()) return;
+        setIsGanttNoteSending(true);
+        try {
+            const res = await createGanttNote(selectedGanttId, {
+                author_email: user.email,
+                author_name: user.namaLengkap || user.email,
+                author_role: user.role,
+                note: ganttNoteInput.trim(),
+            });
+            setGanttNotes(prev => [...prev, res.data]);
+            setGanttNoteInput('');
+        } catch (err: any) {
+            showAlert({ message: err.message || "Gagal mengirim catatan pengawasan.", type: "error" });
+        } finally {
+            setIsGanttNoteSending(false);
+        }
+    };
 
     useEffect(() => {
         if (!user) return;
@@ -198,6 +235,8 @@ function GanttBoard() {
             if (items) setRabItems(items);
 
             setSelectedGanttId(null);
+            setGanttNotes([]);
+            setGanttNoteInput('');
             setIsProjectLocked(false);
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
             setSpkInfo(null);
@@ -264,8 +303,9 @@ function GanttBoard() {
                 await loadGanttDetail(gantt_data.id, validRabId);
             } else {
                 setSelectedGanttId(null);
+                setGanttNotes([]);
+                setGanttNoteInput('');
                 setIsProjectLocked(false);
-                setGanttNote('');
                 setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
                 setSpkInfo(null);
                 
@@ -336,12 +376,12 @@ function GanttBoard() {
         if (!ganttId) return;
         setIsLoading(true);
         setSelectedGanttId(ganttId);
+        setGanttNoteInput('');
+        loadGanttNotes(ganttId);
 
         try {
             const { data } = await fetchGanttDetail(ganttId);
             const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan } = data;
-            setGanttNote(String(gantt.catatan_gantt || ''));
-
             let baseCategories: string[] = [];
             let rabDurationFallback = 0;
 
@@ -668,8 +708,7 @@ function GanttBoard() {
                     day_items: day_items,
                     kategori_pekerjaan: [], 
                     pengawasan: [],
-                    dependencies: dependencies,
-                    catatan_gantt: ganttNote.trim() || null
+                    dependencies: dependencies
                 };
 
                 await updateGanttChart(selectedGanttId, updatePayload);
@@ -691,8 +730,7 @@ function GanttBoard() {
                     kategori_pekerjaan,
                     day_items,
                     pengawasan,
-                    dependencies,
-                    catatan_gantt: ganttNote.trim() || null
+                    dependencies
                 };
 
                 submitRes = await submitGanttChart(payload);
@@ -999,33 +1037,67 @@ function GanttBoard() {
                     </Card>
                 )}
 
-                {projectData && (
+                {projectData && selectedGanttId && appMode === 'pic' && (
                     <Card className="w-full lg:w-2/3 border-slate-200 bg-white shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex items-start gap-3">
-                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
-                                    <FileText className="h-4 w-4" />
+                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                    <MessageSquare className="h-4 w-4" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                                         <div>
-                                            <h3 className="text-sm font-bold text-slate-900">Catatan Gantt Chart</h3>
-                                            <p className="text-xs text-slate-500">Catatan umum proyek, terlihat untuk semua role yang membuka Gantt.</p>
+                                            <h3 className="text-sm font-bold text-slate-900">Catatan Pengawasan</h3>
+                                            <p className="text-xs text-slate-500">Komunikasi antar role selama mode pengawasan.</p>
                                         </div>
-                                        <Badge className="border border-slate-200 bg-slate-50 text-slate-600">Opsional</Badge>
+                                        <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
                                     </div>
-                                    {isReadOnly || isProjectLocked ? (
-                                        <div className="min-h-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
-                                            {ganttNote.trim() || 'Belum ada catatan Gantt Chart.'}
+
+                                    <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                        {isGanttNoteLoading ? (
+                                            <div className="flex items-center justify-center py-6 text-sm text-slate-500">
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat catatan...
+                                            </div>
+                                        ) : ganttNotes.length === 0 ? (
+                                            <p className="py-6 text-center text-sm text-slate-500">Belum ada catatan pengawasan.</p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {ganttNotes.map(note => (
+                                                    <div key={note.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <p className="truncate text-xs font-bold text-slate-800">{note.author_name}</p>
+                                                                <p className="truncate text-[11px] text-slate-500">{note.author_role}</p>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400">
+                                                                {new Date(note.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                                                            </span>
+                                                        </div>
+                                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{note.note}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {canWriteGanttCommunication && (
+                                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                            <textarea
+                                                value={ganttNoteInput}
+                                                onChange={(e) => setGanttNoteInput(e.target.value)}
+                                                rows={2}
+                                                className="min-h-11 flex-1 resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                                placeholder="Tulis catatan pengawasan..."
+                                            />
+                                            <Button
+                                                type="button"
+                                                className="h-11 bg-blue-600 px-5 font-semibold text-white hover:bg-blue-700"
+                                                disabled={isGanttNoteSending || !ganttNoteInput.trim()}
+                                                onClick={handleSendGanttNote}
+                                            >
+                                                {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="mr-2 h-4 w-4" /> Kirim</>}
+                                            </Button>
                                         </div>
-                                    ) : (
-                                        <textarea
-                                            value={ganttNote}
-                                            onChange={(e) => setGanttNote(e.target.value)}
-                                            rows={3}
-                                            className="w-full resize-none rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-                                            placeholder="Tulis catatan umum Gantt Chart..."
-                                        />
                                     )}
                                 </div>
                             </div>

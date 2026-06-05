@@ -1372,7 +1372,6 @@ export type GanttSubmitPayload = {
     email_pembuat:      string;
     kategori_pekerjaan: string[];
     day_items:          GanttDayItem[];
-    catatan_gantt?:     string | null;
     pengawasan?:        GanttPengawasan[];
     dependencies?:      GanttDependency[];
 };
@@ -1455,7 +1454,6 @@ export type GanttDetailData = {
         status:       string;
         email_pembuat:string;
         timestamp:    string;
-        catatan_gantt?: string | null;
     };
     toko:               GanttDetailToko;
     kategori_pekerjaan: GanttDetailKategori[];
@@ -1464,12 +1462,28 @@ export type GanttDetailData = {
     dependencies:       GanttDetailDependency[];
 };
 
+export type GanttNoteItem = {
+    id:           number;
+    id_gantt:     number;
+    author_email: string;
+    author_name:  string;
+    author_role:  string;
+    note:         string;
+    created_at:   string;
+};
+
+export type CreateGanttNotePayload = {
+    author_email: string;
+    author_name:  string;
+    author_role:  string;
+    note:         string;
+};
+
 export type GanttUpdatePayload = {
     kategori_pekerjaan: string[];
     day_items:          GanttDayItem[];
     dependencies?:      GanttDependency[];
     pengawasan?:        GanttPengawasan[];
-    catatan_gantt?:     string | null;
     status?:            string;
 };
 
@@ -1535,6 +1549,34 @@ export const fetchGanttDetail = async (
         throw new Error(`Gagal memuat Gantt Chart (${res.status}): ${text.substring(0, 100)}`);
     }
     return res.json();
+};
+
+export const fetchGanttNotes = async (
+    id: number
+): Promise<{ status: string; data: GanttNoteItem[] }> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/notes`);
+    if (res.status === 404) throw new Error(`Gantt Chart dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal memuat catatan pengawasan (${res.status}): ${text.substring(0, 100)}`);
+    }
+    return res.json();
+};
+
+export const createGanttNote = async (
+    id: number,
+    payload: CreateGanttNotePayload
+): Promise<{ status: string; message: string; data: GanttNoteItem }> => {
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (res.status === 404) throw new Error("Gantt Chart tidak ditemukan.");
+    if (res.status === 422) throw new Error(result.message || "Catatan wajib diisi.");
+    if (!res.ok) throw new Error(result.message || "Gagal mengirim catatan pengawasan.");
+    return result;
 };
 
 export const interveneGanttStatus = async (
