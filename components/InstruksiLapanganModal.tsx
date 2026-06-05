@@ -16,6 +16,15 @@ import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapanga
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
 const isConditionalPriceValue = (value: unknown) => String(value ?? "").trim().toLowerCase() === "kondisional";
+const normalizePriceCategoryName = (value?: string | null) =>
+    String(value ?? "").toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s&/]/gu, "").trim();
+const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: string): any[] => {
+    if (Array.isArray(priceData?.[category])) return priceData[category];
+
+    const targetKey = normalizePriceCategoryName(category);
+    const matchedEntry = Object.entries(priceData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
+    return matchedEntry?.[1] || [];
+};
 const normalizeNoPpnText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
 const isNoPpnArea = (toko: any, cabangFallback = "") => {
     const identity = [
@@ -145,7 +154,7 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
             setTanggalSelesai(detailRes.data?.tanggal_selesai || '');
 
             setTableRows(items.map((it: any) => {
-                const itemPriceData = prices[it.kategori_pekerjaan]?.find((p: any) => p["Jenis Pekerjaan"] === it.jenis_pekerjaan);
+                const itemPriceData = getPriceItemsForCategory(prices, it.kategori_pekerjaan).find((p: any) => p["Jenis Pekerjaan"] === it.jenis_pekerjaan);
                 const isMatCond = isConditionalPriceValue(itemPriceData?.["Harga Material"]);
                 const isUpahCond = isConditionalPriceValue(itemPriceData?.["Harga Upah"]);
 
@@ -200,7 +209,7 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
             if (row.id === id) {
                 let updatedRow = { ...row, [field]: value };
                 if (field === 'jenisPekerjaan' && value) {
-                    const itemData = prices[row.category]?.find((item: any) => item["Jenis Pekerjaan"] === value);
+                    const itemData = getPriceItemsForCategory(prices, row.category).find((item: any) => item["Jenis Pekerjaan"] === value);
                     if (itemData) {
                         updatedRow.satuan = itemData["Satuan"];
                         const isMatCond = isConditionalPriceValue(itemData["Harga Material"]);
@@ -434,7 +443,7 @@ export default function InstruksiLapanganModal({ onClose, onSuccess, initialToko
                                                                     <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                                                         <select className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
                                                                             <option value="">-- Pilih --</option>
-                                                                            {prices[category]?.map((p: any) => {
+                                                                        {getPriceItemsForCategory(prices, category).map((p: any) => {
                                                                                 const jobName = p["Jenis Pekerjaan"];
                                                                                 const isSelectedElsewhere = selectedJobs.includes(jobName) && row.jenisPekerjaan !== jobName;
                                                                                 return <option key={jobName} value={jobName} title={jobName} disabled={isSelectedElsewhere} className={isSelectedElsewhere ? "text-slate-300 bg-slate-50" : ""}>{jobName}</option>;

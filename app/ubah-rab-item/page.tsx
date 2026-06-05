@@ -61,6 +61,17 @@ const normalizeHeader = (value: string) =>
 const isConditionalPriceValue = (value: unknown) =>
   String(value ?? "").trim().toLowerCase() === "kondisional";
 
+const normalizePriceCategoryName = (value?: string | null) =>
+  String(value ?? "").toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s&/]/gu, "").trim();
+
+const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: string): any[] => {
+  if (Array.isArray(priceData?.[category])) return priceData[category];
+
+  const targetKey = normalizePriceCategoryName(category);
+  const matchedEntry = Object.entries(priceData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
+  return matchedEntry?.[1] || [];
+};
+
 const priceValueToNumber = (value: unknown, fallback = 0) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -241,7 +252,7 @@ export default function UbahRabItemPage() {
 
         const rows: RowItem[] = (detailRes.data.items || []).map((item) => {
           const tempId = `id-${item.id}`;
-          const itemData = loadedPrices[item.kategori_pekerjaan]?.find((priceItem: any) => priceItem["Jenis Pekerjaan"] === item.jenis_pekerjaan);
+          const itemData = getPriceItemsForCategory(loadedPrices, item.kategori_pekerjaan).find((priceItem: any) => priceItem["Jenis Pekerjaan"] === item.jenis_pekerjaan);
           const isMatCond = itemData ? isConditionalPriceValue(itemData["Harga Material"]) : false;
           const isUpahCond = itemData ? isConditionalPriceValue(itemData["Harga Upah"]) : false;
           return {
@@ -307,7 +318,7 @@ export default function UbahRabItemPage() {
       }
 
       if (field === "jenisPekerjaan" && value) {
-        const itemData = prices[updatedRow.category]?.find((item: any) => item["Jenis Pekerjaan"] === value);
+        const itemData = getPriceItemsForCategory(prices, updatedRow.category).find((item: any) => item["Jenis Pekerjaan"] === value);
         if (itemData) {
           updatedRow.satuan = itemData["Satuan"] || "";
           const isMatCond = isConditionalPriceValue(itemData["Harga Material"]);
@@ -414,7 +425,7 @@ export default function UbahRabItemPage() {
         catatan: row.catatan || ""
       };
 
-      const itemData = prices[kategori]?.find((item: any) => item["Jenis Pekerjaan"] === jenis);
+      const itemData = getPriceItemsForCategory(prices, kategori).find((item: any) => item["Jenis Pekerjaan"] === jenis);
       if (itemData) {
         const isMatCond = isConditionalPriceValue(itemData["Harga Material"]);
         const isUpahCond = isConditionalPriceValue(itemData["Harga Upah"]);
@@ -503,7 +514,7 @@ export default function UbahRabItemPage() {
       setGrandTotalNonSbo(Number(detailRes.data?.rab?.grand_total_non_sbo ?? 0));
       setGrandTotalFinal(Number(detailRes.data?.rab?.grand_total_final ?? 0));
       setTableRows((detailRes.data.items || []).map((item) => {
-        const itemData = prices[item.kategori_pekerjaan]?.find((priceItem: any) => priceItem["Jenis Pekerjaan"] === item.jenis_pekerjaan);
+        const itemData = getPriceItemsForCategory(prices, item.kategori_pekerjaan).find((priceItem: any) => priceItem["Jenis Pekerjaan"] === item.jenis_pekerjaan);
         const isMatCond = itemData ? isConditionalPriceValue(itemData["Harga Material"]) : false;
         const isUpahCond = itemData ? isConditionalPriceValue(itemData["Harga Upah"]) : false;
         return {
@@ -693,7 +704,7 @@ export default function UbahRabItemPage() {
                             <SelectValue placeholder="Pilih Pekerjaan" />
                           </SelectTrigger>
                           <SelectContent>
-                            {(prices[row.category] || []).map((item: any) => (
+                            {getPriceItemsForCategory(prices, row.category).map((item: any) => (
                               <SelectItem key={item["Jenis Pekerjaan"]} value={item["Jenis Pekerjaan"]}>
                                 {item["Jenis Pekerjaan"]}
                               </SelectItem>

@@ -33,6 +33,9 @@ const normalizeBranchName = (value?: string | null) =>
 const normalizeJobName = (value?: string | null) =>
   String(value ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s]/gu, '').trim();
 
+const normalizePriceCategoryName = (value?: string | null) =>
+  String(value ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s&/]/gu, '').trim();
+
 type PriceMasterItem = {
   "Jenis Pekerjaan"?: string;
   "Satuan"?: string;
@@ -41,6 +44,14 @@ type PriceMasterItem = {
 };
 
 type PriceMaster = Record<string, PriceMasterItem[]>;
+
+const getPriceItemsForCategory = (priceData: PriceMaster, category: string): PriceMasterItem[] => {
+  if (Array.isArray(priceData?.[category])) return priceData[category];
+
+  const targetKey = normalizePriceCategoryName(category);
+  const matchedEntry = Object.entries(priceData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
+  return matchedEntry?.[1] || [];
+};
 
 type RabTableRow = {
   category: string;
@@ -380,7 +391,7 @@ export default function RABPage() {
                   const category = item.kategori_pekerjaan;
                   const jobName = item.jenis_pekerjaan;
                   
-                  const itemPriceRef = fetchedPrices[category]?.find((x: any) => x["Jenis Pekerjaan"] === jobName);
+                  const itemPriceRef = getPriceItemsForCategory(fetchedPrices, category).find((x: any) => x["Jenis Pekerjaan"] === jobName);
                   const isMatCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Material"]) : false;
                   const isUpahCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Upah"]) : false;
 
@@ -407,7 +418,7 @@ export default function RABPage() {
                       const category = details[`Kategori_Pekerjaan_${i}`];
                       const jobName = details[`Jenis_Pekerjaan_${i}`];
                       
-                      const itemPriceRef = fetchedPrices[category]?.find((x: any) => x["Jenis Pekerjaan"] === jobName);
+                      const itemPriceRef = getPriceItemsForCategory(fetchedPrices, category).find((x: any) => x["Jenis Pekerjaan"] === jobName);
                       const isMatCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Material"]) : false;
                       const isUpahCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Upah"]) : false;
 
@@ -540,7 +551,7 @@ export default function RABPage() {
       if (row.id === id) {
         let updatedRow = { ...row, [field]: value };
         if (field === 'jenisPekerjaan' && value) {
-            const itemData = prices[row.category]?.find((item: any) => item["Jenis Pekerjaan"] === value);
+            const itemData = getPriceItemsForCategory(prices, row.category).find((item: any) => item["Jenis Pekerjaan"] === value);
             if (itemData) {
                 updatedRow.satuan = itemData["Satuan"];
                 const isMatCond = isConditionalPriceValue(itemData["Harga Material"]);
@@ -1070,7 +1081,7 @@ export default function RABPage() {
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                   <select disabled={isReadOnly} className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
                                     <option value="">-- Pilih --</option>
-                                    {prices[category]?.map((p: any) => {
+                                    {getPriceItemsForCategory(prices, category).map((p: any) => {
                                         const jobName = p["Jenis Pekerjaan"];
                                         const isSelectedElsewhere = selectedJobs.includes(jobName) && row.jenisPekerjaan !== jobName;
                                         return <option key={jobName} value={jobName} title={jobName} disabled={isSelectedElsewhere} className={isSelectedElsewhere ? "text-slate-300 bg-slate-50" : ""}>{jobName}</option>;
