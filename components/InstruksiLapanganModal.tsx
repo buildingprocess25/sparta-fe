@@ -194,7 +194,7 @@ export default function InstruksiLapanganModal({
                     category: it.kategori_pekerjaan,
                     jenisPekerjaan: it.jenis_pekerjaan,
                     satuan: it.satuan,
-                    volume: Number(it.volume),
+                    volume: String(it.volume ?? ''),
                     hargaMaterial: Number(it.harga_material) || 0,
                     hargaUpah: Number(it.harga_upah) || 0,
                     isKondisional: isMatCond || isUpahCond,
@@ -246,7 +246,7 @@ export default function InstruksiLapanganModal({
     };
 
     const addRow = (category: string) => {
-        setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: 0, hargaMaterial: 0, hargaUpah: 0, isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
+        setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: '', hargaMaterial: 0, hargaUpah: 0, isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
     };
 
     const removeRow = (id: number) => setTableRows(prev => prev.filter(row => row.id !== id));
@@ -267,7 +267,7 @@ export default function InstruksiLapanganModal({
                         updatedRow.isUpahKondisional = isUpahCond;
                         updatedRow.hargaMaterial = isMatCond ? 0 : parseFloat(itemData["Harga Material"]) || 0;
                         updatedRow.hargaUpah = isUpahCond ? 0 : parseFloat(itemData["Harga Upah"]) || 0;
-                        if (updatedRow.satuan === 'Ls') updatedRow.volume = 1;
+                        if (updatedRow.satuan === 'Ls') updatedRow.volume = '1';
                     }
                 }
                 return updatedRow;
@@ -519,7 +519,7 @@ export default function InstruksiLapanganModal({
                                                                     </td>
                                                                     <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
                                                                     <td className="p-2 border-r border-slate-100 whitespace-nowrap">
-                                                                        <Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? 0 : row.volume} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} readOnly={row.satuan === 'Ls'} />
+                                                                        <Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs ${row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={String(row.volume ?? '')} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} readOnly={row.satuan === 'Ls'} />
                                                                     </td>
                                                                     <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                                                         <Input type="text" className={`h-9 px-2 text-right transition-colors text-xs ${!canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={!canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} />
