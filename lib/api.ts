@@ -1804,28 +1804,46 @@ export const submitInstruksiLapangan = async (
     lampiranFile?: File | null
 ) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/submit`;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 45000);
 
     let res: Response;
 
-    if (lampiranFile) {
-        const form = new FormData();
-        Object.entries(fields).forEach(([key, value]) => {
-            if (value !== undefined && value !== null) form.append(key, String(value));
-        });
-        form.append("detail_items", JSON.stringify(detailItems));
-        form.append("lampiran", lampiranFile);
+    try {
+        if (lampiranFile) {
+            const form = new FormData();
+            Object.entries(fields).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) form.append(key, String(value));
+            });
+            form.append("detail_items", JSON.stringify(detailItems));
+            form.append("lampiran", lampiranFile);
 
-        res = await fetch(url, { method: "POST", body: form });
-    } else {
-        const jsonPayload = { ...fields, detail_items: detailItems };
-        res = await fetch(url, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify(jsonPayload),
-        });
+            res = await fetch(url, { method: "POST", body: form, signal: controller.signal });
+        } else {
+            const jsonPayload = { ...fields, detail_items: detailItems };
+            res = await fetch(url, {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify(jsonPayload),
+                signal:  controller.signal,
+            });
+        }
+    } catch (error: any) {
+        if (error?.name === "AbortError") {
+            throw new Error("Timeout saat menyimpan Instruksi Lapangan. Cek koneksi atau coba lagi; jika data belum masuk DB, hubungi admin.");
+        }
+        throw error;
+    } finally {
+        window.clearTimeout(timeoutId);
     }
 
-    const result = await res.json();
+    const text = await res.text();
+    let result: any = {};
+    try {
+        result = text ? JSON.parse(text) : {};
+    } catch {
+        result = { message: text || "Response server tidak valid saat menyimpan Instruksi Lapangan." };
+    }
     if (!res.ok) throw new Error(result.message || "Server error saat menyimpan Instruksi Lapangan.");
     return result;
 };
