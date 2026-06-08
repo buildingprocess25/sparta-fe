@@ -74,6 +74,34 @@ function formatUlokWithDash(ulok: string) {
     return ulok;
 }
 
+const getWorkItemKey = (item: Pick<RABDetailItem, 'id'> & { source_type?: string; id_instruksi_lapangan_item?: number | null }) =>
+    item.source_type === 'IL'
+        ? `il:${item.id_instruksi_lapangan_item ?? Math.abs(Number(item.id))}`
+        : `rab:${item.id}`;
+
+const getOpnameItemKey = (item: Pick<OpnameItem, 'id_rab_item'> & { id_instruksi_lapangan_item?: number | null }) =>
+    item.id_instruksi_lapangan_item
+        ? `il:${item.id_instruksi_lapangan_item}`
+        : `rab:${item.id_rab_item}`;
+
+const mapInstruksiLapanganToWorkItems = (items: any[] = []): RABDetailItem[] =>
+    items.map((item) => ({
+        id: -Number(item.id),
+        id_rab: 0,
+        source_type: 'IL' as const,
+        id_instruksi_lapangan_item: Number(item.id),
+        kategori_pekerjaan: `[IL] ${String(item.kategori_pekerjaan || 'LAIN-LAIN').toUpperCase()}`,
+        jenis_pekerjaan: item.jenis_pekerjaan || '-',
+        satuan: item.satuan || '-',
+        volume: Number(item.volume) || 0,
+        harga_material: Number(item.harga_material) || 0,
+        harga_upah: Number(item.harga_upah) || 0,
+        total_material: Number(item.total_material) || 0,
+        total_upah: Number(item.total_upah) || 0,
+        total_harga: Number(item.total_harga) || 0,
+        catatan: 'Instruksi Lapangan'
+    }));
+
 const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
     pending:    { label: 'Pending',   color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200' },
     disetujui:  { label: 'Disetujui', color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200' },
@@ -225,21 +253,28 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         try {
             const detailRes = await fetchRABDetail(rab.id);
             const { items, toko } = detailRes.data;
-            setRabItems(items || []);
             setTokoDetail(toko);
+            let workingItems: RABDetailItem[] = (items || []).map((item: RABDetailItem) => ({
+                ...item,
+                source_type: item.source_type || 'RAB'
+            }));
 
             // Check for existing opname data
             let existingData: OpnameItem[] = [];
             try {
                 const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
                 existingData = opnameRes.data || [];
+                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []);
+                workingItems = [...workingItems, ...instruksiItems];
+                setRabItems(workingItems);
                 setExistingOpname(existingData);
 
                 // Initialize opnameInputs based on existing opname data (parsial)
                 const initialInputs: any = {};
-                const safeItems = items || [];
+                const safeItems = workingItems;
                 safeItems.forEach((item: any) => {
-                    const ex = existingData.filter(o => Number(o.id_rab_item) === Number(item.id)).sort((a,b) => Number(b.id) - Number(a.id))[0];
+                    const itemKey = getWorkItemKey(item);
+                    const ex = existingData.filter(o => getOpnameItemKey(o) === itemKey).sort((a,b) => Number(b.id) - Number(a.id))[0];
                     initialInputs[item.id] = {
                         volume_akhir: ex ? String(ex.volume_akhir) : String(item.volume || 0),
                         desain: ex?.desain || '',
@@ -252,6 +287,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 });
                 setOpnameInputs(initialInputs);
             } catch {
+                setRabItems(workingItems);
                 setExistingOpname([]);
                 setOpnameInputs({});
             }
@@ -295,7 +331,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
             // Expand all categories by default
             const cats = new Set<string>();
-            (items || []).forEach((item: RABDetailItem) => {
+            (workingItems || []).forEach((item: RABDetailItem) => {
                 if (item.kategori_pekerjaan) cats.add(item.kategori_pekerjaan);
             });
             setExpandedCats(cats);
@@ -335,19 +371,19 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const groupedItems = useMemo(() => {
         // Build Set dari id_rab_item yang sudah di-opname dengan status blocking
         // Menggunakan Number() untuk menghindari type mismatch string vs number
-        const blockedRabItemIds = new Set<number>();
+        const blockedItemKeys = new Set<string>();
         existingOpname.forEach(o => {
             const status = (o.status || '').toLowerCase();
             // Samakan dengan modal Gantt: pending, disetujui, selesai, progress dianggap sudah diproses
             if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
-                blockedRabItemIds.add(Number(o.id_rab_item));
+                blockedItemKeys.add(getOpnameItemKey(o));
             }
         });
 
         const map = new Map<string, RABDetailItem[]>();
         rabItems.forEach(item => {
             // Skip item yang sudah di-opname dengan status pending/disetujui
-            if (blockedRabItemIds.has(Number(item.id))) return;
+            if (blockedItemKeys.has(getWorkItemKey(item))) return;
             // Allow: no existing record (new) or status ditolak (revision)
 
             const cat = item.kategori_pekerjaan;
@@ -359,8 +395,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Helper: check if an item was previously rejected
     const getRejectedOpname = (rabItemId: number) => {
-        // Gunakan Number() untuk menghindari type mismatch string vs number
-        return existingOpname.find(o => Number(o.id_rab_item) === Number(rabItemId) && o.status?.toLowerCase() === 'ditolak');
+        const item = rabItems.find((rabItem) => Number(rabItem.id) === Number(rabItemId));
+        const itemKey = item ? getWorkItemKey(item) : `rab:${rabItemId}`;
+        return existingOpname.find(o => getOpnameItemKey(o) === itemKey && o.status?.toLowerCase() === 'ditolak');
     };
 
     // Check if all items are approved (for Opname Final button)
@@ -385,24 +422,26 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         setIsSubmitting(true);
         try {
             // Deduplicate opname items by id_rab_item (take latest)
-            const latestOpnames = new Map<number, OpnameItem>();
+            const latestOpnames = new Map<string, OpnameItem>();
             existingOpname.forEach(item => {
-                const rid = Number(item.id_rab_item);
-                if (!latestOpnames.has(rid) || Number(item.id) > Number(latestOpnames.get(rid)!.id)) {
-                    latestOpnames.set(rid, item);
+                const itemKey = getOpnameItemKey(item);
+                if (!latestOpnames.has(itemKey) || Number(item.id) > Number(latestOpnames.get(itemKey)!.id)) {
+                    latestOpnames.set(itemKey, item);
                 }
             });
 
             // Build items payload with new API fields
             const opnameItemsData = Array.from(latestOpnames.values()).map(item => {
-                const rabRef = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
+                const itemKey = getOpnameItemKey(item);
+                const rabRef = rabItems.find(r => getWorkItemKey(r) === itemKey);
                 const hargaSatuan = (Number(rabRef?.harga_material) || 0) + (Number(rabRef?.harga_upah) || 0);
                 const totalHargaOpname = Math.round((Number(item.volume_akhir) || 0) * hargaSatuan);
 
                 return {
                     id: item.id, // existing opname item id for upsert
                     id_toko: selectedRab.id_toko,
-                    id_rab_item: Number(item.id_rab_item),
+                    id_rab_item: rabRef?.source_type === 'IL' ? undefined : Number(item.id_rab_item),
+                    id_instruksi_lapangan_item: rabRef?.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item) : undefined,
                     status: item.status || 'disetujui',
                     volume_akhir: item.volume_akhir,
                     selisih_volume: item.selisih_volume,
@@ -430,7 +469,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             });
 
             latestOpnames.forEach((item) => {
-                const rabRef = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
+                const itemKey = getOpnameItemKey(item);
+                const rabRef = rabItems.find(r => getWorkItemKey(r) === itemKey);
                 const price = (Number(rabRef?.harga_material) || 0) + (Number(rabRef?.harga_upah) || 0);
                 grandTotalOpname += (Number(item.volume_akhir) || 0) * price;
             });
@@ -501,11 +541,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
             // Check if existing opname for this item (for upsert via id)
-            const existingRecord = existingOpname.find(o => Number(o.id_rab_item) === Number(rabItem.id));
+            const existingRecord = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(rabItem));
 
             const itemPayload: Record<string, any> = {
                 id_toko: selectedRab.id_toko,
-                id_rab_item: rabItem.id,
+                id_rab_item: rabItem.source_type === 'IL' ? undefined : rabItem.id,
+                id_instruksi_lapangan_item: rabItem.source_type === 'IL' ? rabItem.id_instruksi_lapangan_item : undefined,
                 status: 'pending',
                 volume_akhir: volAkhir,
                 selisih_volume: selisihVol,
@@ -535,24 +576,24 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 grandTotalRab += Math.round((Number(r.volume) || 0) * price);
             });
             // Sum existing approved/pending opnames + this new one
-            const latestOpnames = new Map<number, OpnameItem>();
+            const latestOpnames = new Map<string, OpnameItem>();
             existingOpname.forEach(o => {
-                const rid = Number(o.id_rab_item);
-                if (!latestOpnames.has(rid) || Number(o.id) > Number(latestOpnames.get(rid)!.id)) {
-                    latestOpnames.set(rid, o);
+                const itemKey = getOpnameItemKey(o);
+                if (!latestOpnames.has(itemKey) || Number(o.id) > Number(latestOpnames.get(itemKey)!.id)) {
+                    latestOpnames.set(itemKey, o);
                 }
             });
             latestOpnames.forEach((o) => {
-                const ref = rabItems.find(r => Number(r.id) === Number(o.id_rab_item));
+                const ref = rabItems.find(r => getWorkItemKey(r) === getOpnameItemKey(o));
                 const price = (Number(ref?.harga_material) || 0) + (Number(ref?.harga_upah) || 0);
-                if (Number(o.id_rab_item) === Number(rabItem.id)) {
+                if (getOpnameItemKey(o) === getWorkItemKey(rabItem)) {
                     grandTotalOpname += Math.round(volAkhir * price); // Use new volume
                 } else {
                     grandTotalOpname += Math.round((Number(o.volume_akhir) || 0) * price);
                 }
             });
             // If this is a brand new item (not in latestOpnames), add it
-            if (!latestOpnames.has(Number(rabItem.id))) {
+            if (!latestOpnames.has(getWorkItemKey(rabItem))) {
                 grandTotalOpname += totalHargaOpname;
             }
 
@@ -598,7 +639,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
         // Collect items that are NOT approved
         const itemsToSubmit = rabItems.filter(item => {
-            const existing = existingOpname.find(o => Number(o.id_rab_item) === Number(item.id));
+            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
             return existing?.status?.toLowerCase() !== 'disetujui';
         });
 
@@ -625,12 +666,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const selisihVol = Number((volAkhir - volRab).toFixed(4));
             const price = (Number(item.harga_material) || 0) + (Number(item.harga_upah) || 0);
             
-            const existing = existingOpname.find(o => Number(o.id_rab_item) === Number(item.id));
+            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
             
             payloadItems.push({
                 id: existing?.id,
                 id_toko: selectedRab.id_toko,
-                id_rab_item: item.id,
+                id_rab_item: item.source_type === 'IL' ? undefined : item.id,
+                id_instruksi_lapangan_item: item.source_type === 'IL' ? item.id_instruksi_lapangan_item : undefined,
                 status: 'pending',
                 volume_akhir: volAkhir,
                 selisih_volume: selisihVol,
@@ -673,17 +715,20 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     let grandTotalRab = 0;
                     let grandTotalOpname = 0;
                     
-                    const submissionMap = new Map(payloadItems.map(p => [Number(p.id_rab_item), p]));
+                    const submissionMap = new Map(payloadItems.map(p => [
+                        p.id_instruksi_lapangan_item ? `il:${p.id_instruksi_lapangan_item}` : `rab:${p.id_rab_item}`,
+                        p
+                    ]));
                     
                     rabItems.forEach(r => {
                         const price = (Number(r.harga_material) || 0) + (Number(r.harga_upah) || 0);
                         grandTotalRab += Math.round((Number(r.volume) || 0) * price);
                         
-                        const sub = submissionMap.get(Number(r.id));
+                        const sub = submissionMap.get(getWorkItemKey(r));
                         if (sub) {
                             grandTotalOpname += sub.total_harga_opname;
                         } else {
-                            const existing = existingOpname.find(o => Number(o.id_rab_item) === Number(r.id));
+                            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(r));
                             if (existing) {
                                 grandTotalOpname += Math.round(Number(existing.total_harga_opname) || (Number(existing.volume_akhir) * price));
                             }
@@ -913,16 +958,18 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             <div className="space-y-3">
                                                 {groupedItems.map((group, gi) => {
                                                     const isExpanded = expandedCats.has(group.name);
+                                                    const isIlGroup = group.name.startsWith('[IL]');
                                                     return (
-                                                        <div key={gi} className="border border-slate-200 rounded-xl overflow-hidden">
+                                                        <div key={gi} className={`border rounded-xl overflow-hidden ${isIlGroup ? 'border-indigo-200' : 'border-slate-200'}`}>
                                                             {/* Category header */}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => toggleCategory(group.name)}
-                                                                className="w-full px-5 py-3 bg-slate-100 hover:bg-slate-200 flex justify-between items-center transition-colors"
+                                                                className={`w-full px-5 py-3 flex justify-between items-center transition-colors ${isIlGroup ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-slate-100 hover:bg-slate-200'}`}
                                                             >
                                                                 <h4 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
                                                                     {isExpanded ? <ChevronDown className="w-4 h-4 text-emerald-600" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                                                                    {isIlGroup && <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full">IL</span>}
                                                                     {group.name}
                                                                 </h4>
                                                                 <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none text-xs">{group.items.length} Item</Badge>
@@ -932,6 +979,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                             {isExpanded && (
                                                                 <div className="p-4 space-y-4">
                                                                     {group.items.map((item, j) => {
+                                                                        const isIlItem = item.source_type === 'IL';
                                                                         const input = opnameInputs[item.id] || { volume_akhir: String(item.volume), desain: '', kualitas: '', spesifikasi: '', catatan: '', file: null };
                                                                         const isItemSubmitting = submittingItemId === item.id;
                                                                         const volAkhir = parseDecimalInput(input.volume_akhir);
@@ -949,10 +997,15 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                         const rejectedRecord = getRejectedOpname(item.id);
 
                                                                         return (
-                                                                            <div key={j} className={`border p-4 rounded-lg ${rejectedRecord ? 'border-red-300 bg-red-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                                                                            <div key={j} className={`border p-4 rounded-lg ${rejectedRecord ? 'border-red-300 bg-red-50/30' : isIlItem ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
                                                                                 {/* Item Header */}
                                                                                 <div className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 flex justify-between items-center">
                                                                                     <div className="flex items-center gap-2">
+                                                                                        {isIlItem && (
+                                                                                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                                                                                Instruksi Lapangan
+                                                                                            </span>
+                                                                                        )}
                                                                                         <span className="text-sm">{item.jenis_pekerjaan}</span>
                                                                                         {rejectedRecord && (
                                                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-700 border border-red-200">
@@ -1207,12 +1260,15 @@ function OpnameHistoryView({ opnameList, rabItems }: { opnameList: OpnameItem[];
                     </thead>
                     <tbody>
                         {opnameList.map(item => {
-                            // Gunakan Number() untuk menghindari type mismatch string vs number
-                            const rabItem = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
+                            const rabItem = rabItems.find(r => getWorkItemKey(r) === getOpnameItemKey(item));
+                            const isIl = item.id_instruksi_lapangan_item || rabItem?.source_type === 'IL';
                             return (
                                 <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                                     <td className="py-3 pr-4 font-semibold text-slate-700 whitespace-nowrap">
-                                        <div className="text-[10px] text-slate-400 uppercase">{rabItem?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || '-'}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                                            {isIl && <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">IL</span>}
+                                            {rabItem?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || '-'}
+                                        </div>
                                         {rabItem?.jenis_pekerjaan || item.rab_item?.jenis_pekerjaan || '-'}
                                     </td>
                                     <td className="py-3 pr-4 text-center whitespace-nowrap">{rabItem?.volume || item.rab_item?.volume || '-'}</td>
@@ -1378,10 +1434,15 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
             // Load RAB items for reference (volume RAB, kategori, jenis pekerjaan)
             const rab = rabList.find(r => r.id_toko === tokoId);
+            let reviewItems: RABDetailItem[] = [];
             if (rab) {
                 const rabDetail = await fetchRABDetail(rab.id);
-                setRabItems(rabDetail.data.items || []);
+                reviewItems = (rabDetail.data.items || []).map((item: RABDetailItem) => ({
+                    ...item,
+                    source_type: item.source_type || 'RAB'
+                }));
             }
+            setRabItems([...reviewItems, ...mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || [])]);
         } catch (err: any) {
             showAlert({ message: `Gagal memuat data: ${err.message}`, type: "error" });
         } finally {
@@ -1413,7 +1474,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
     const groupedOpname = useMemo(() => {
         const map = new Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>();
         displayedOpname.forEach(item => {
-            const rabRef = rabItems.find(r => Number(r.id) === Number(item.id_rab_item));
+            const rabRef = rabItems.find(r => getWorkItemKey(r) === getOpnameItemKey(item));
             const cat = rabRef?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || 'Lainnya';
             if (!map.has(cat)) map.set(cat, []);
             map.get(cat)!.push({ ...item, rabRef });

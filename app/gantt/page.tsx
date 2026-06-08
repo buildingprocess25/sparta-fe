@@ -11,13 +11,40 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare } from 'lucide-react'; 
-import { 
+import {
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
     fetchRABList, fetchRABDetail, fetchSPKList,
     fetchGanttNotes, createGanttNote
 } from '@/lib/api';
+
+const mapInstruksiLapanganToWorkItems = (items: any[] = []) =>
+    items.map((item) => ({
+        id: -Number(item.id),
+        id_rab: 0,
+        source_type: 'IL',
+        id_instruksi_lapangan_item: Number(item.id),
+        kategori_pekerjaan: `[IL] ${String(item.kategori_pekerjaan || 'LAIN-LAIN').toUpperCase()}`,
+        jenis_pekerjaan: item.jenis_pekerjaan || '-',
+        satuan: item.satuan || '-',
+        volume: Number(item.volume) || 0,
+        harga_material: Number(item.harga_material) || 0,
+        harga_upah: Number(item.harga_upah) || 0,
+        total_material: Number(item.total_material) || 0,
+        total_upah: Number(item.total_upah) || 0,
+        total_harga: Number(item.total_harga) || 0,
+    }));
+
+const getWorkItemKey = (item: any) =>
+    item?.source_type === 'IL'
+        ? `il:${item.id_instruksi_lapangan_item ?? Math.abs(Number(item.id))}`
+        : `rab:${item?.id}`;
+
+const getOpnameItemKey = (item: any) =>
+    item?.id_instruksi_lapangan_item
+        ? `il:${item.id_instruksi_lapangan_item}`
+        : `rab:${item?.id_rab_item}`;
 import type { GanttListItem, GanttNoteItem } from '@/lib/api';
 import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser } from '@/lib/constants';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
@@ -307,7 +334,7 @@ function GanttBoard() {
         setIsLoading(true);
         try {
             const res = await fetchGanttDetailByToko(idToko);
-            const { rab, filtered_categories, gantt_data, toko } = res;
+            const { rab, filtered_categories, gantt_data, toko, instruksi_lapangan_items } = res;
 
             const validRabId = rab?.id || fallbackIdRab;
 
@@ -326,6 +353,7 @@ function GanttBoard() {
                 }
 
                 let finalCategories = filtered_categories || [];
+                const instruksiItems = mapInstruksiLapanganToWorkItems(instruksi_lapangan_items || []);
                 let rDuration = 1;
 
                 if (validRabId) {
@@ -336,7 +364,7 @@ function GanttBoard() {
                         }
 
                         if (rabDetailRes?.data?.items) {
-                            setRabItems(rabDetailRes.data.items);
+                            setRabItems([...(rabDetailRes.data.items || []), ...instruksiItems]);
                             const uniqueCats = new Set<string>();
                             rabDetailRes.data.items.forEach((item: any) => {
                                 if (item.kategori_pekerjaan && item.volume > 0) {
@@ -365,6 +393,10 @@ function GanttBoard() {
                     startDate: new Date().toISOString().split('T')[0],
                 });
                 
+                if (!validRabId) {
+                    setRabItems(instruksiItems);
+                }
+
                 const generatedTasks = finalCategories.map((kName: string, idx: number) => ({
                     id: idx + 1, 
                     name: kName, 
@@ -393,8 +425,10 @@ function GanttBoard() {
 
         try {
             const { data } = await fetchGanttDetail(ganttId);
-            const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan } = data;
+            const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan, instruksi_lapangan_items } = data;
             let baseCategories: string[] = [];
+            const instruksiItems = mapInstruksiLapanganToWorkItems(instruksi_lapangan_items || []);
+            const instruksiCategories = instruksiItems.map((item: any) => item.kategori_pekerjaan);
             let rabDurationFallback = 0;
 
             if (idRabFallback) {
@@ -406,7 +440,7 @@ function GanttBoard() {
                             rabDurationFallback = parseInt(String(rData.durasi_pekerjaan).replace(/\D/g, '')) || 0;
                         }
                         if (rabDetailRes.data.items) {
-                            setRabItems(rabDetailRes.data.items);
+                            setRabItems([...(rabDetailRes.data.items || []), ...instruksiItems]);
                             const uniqueCats = new Set<string>();
                             rabDetailRes.data.items.forEach((item: any) => {
                                 if (item.kategori_pekerjaan && item.volume > 0) {
@@ -419,6 +453,9 @@ function GanttBoard() {
                 } catch (e) {
                     console.error("Gagal get fallback RAB details:", e);
                 }
+            }
+            if (!idRabFallback) {
+                setRabItems(instruksiItems);
             }
 
             const startDaysRaw = day_items
@@ -528,7 +565,7 @@ function GanttBoard() {
             setRawDayGanttData(normalizedRaw);
 
             const savedCategories = kategori_pekerjaan.map(k => k.kategori_pekerjaan.toUpperCase());
-            const mergedCategoriesRaw = new Set([...baseCategories, ...savedCategories]);
+            const mergedCategoriesRaw = new Set([...baseCategories, ...savedCategories, ...instruksiCategories]);
             if (mergedCategoriesRaw.size === 0) mergedCategoriesRaw.add("PERSIAPAN");
 
             let generatedTasks: any[] = Array.from(mergedCategoriesRaw).map((catName, idx) => ({
@@ -1307,10 +1344,14 @@ function GanttBoard() {
 
                                 {chartData.processedTasks.map((task: any, idx: number) => {
                                     const shift = task.computed.shift || 0;
+                                    const isIlTask = String(task.name || '').startsWith('[IL]');
                                     return (
                                         <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: 250 + chartData.totalChartWidth }}>
-                                            <div className="shrink-0 px-2.5 py-1 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: 250, minWidth: 250, maxWidth: 250 }}>
-                                                <span className="text-[13px] font-semibold text-slate-800 leading-tight">{task.name}</span>
+                                            <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: 250, minWidth: 250, maxWidth: 250 }}>
+                                                <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5">
+                                                    {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">IL</span>}
+                                                    {task.name}
+                                                </span>
                                             </div>
                                             <div className="relative" style={{ width: chartData.totalChartWidth }}>
                                                 {task.ranges && task.ranges.map((r: any, rIdx: number) => {
@@ -1442,7 +1483,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
     const [instruksiToast, setInstruksiToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [nextHandoverDate, setNextHandoverDate] = useState('');
-    const [blockedOpnameRabItemIds, setBlockedOpnameRabItemIds] = useState<Set<number>>(new Set());
+    const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
 
     const showInstruksiToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -1519,14 +1560,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const dataAll = resAll.data || [];
                 const dataOpname = resOpname.data || [];
 
-                const blockedOpnameIds = new Set<number>();
+                const blockedOpnameIds = new Set<string>();
                 dataOpname.forEach((op: any) => {
                     const status = (op.status || '').toLowerCase();
                     if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
-                        blockedOpnameIds.add(Number(op.id_rab_item));
+                        blockedOpnameIds.add(getOpnameItemKey(op));
                     }
                 });
-                setBlockedOpnameRabItemIds(blockedOpnameIds);
+                setBlockedOpnameItemKeys(blockedOpnameIds);
 
                 setLiveHistory(dataLive);
                 
@@ -1658,7 +1699,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
             
             const filteredItems = catItems.filter((item: any) => {
-                 if (blockedOpnameRabItemIds.has(Number(item.id))) return false;
+                 if (blockedOpnameItemKeys.has(getWorkItemKey(item))) return false;
 
                  const key = `${task.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                  const latestStatus = latestStatusMapState.get(key);
@@ -1682,7 +1723,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameRabItemIds]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys]);
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
@@ -2333,17 +2374,17 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
 
                     // Build maps from existing opname items
                     // Menggunakan Number() untuk menghindari type mismatch string vs number
-                    const blockedRabItemIds = new Set<number>();
-                    const existingOpnameMap = new Map<number, any>(); // id_rab_item -> opname record
+                    const blockedItemKeys = new Set<string>();
+                    const existingOpnameMap = new Map<string, any>();
                     existingOpnameItems.forEach((op: any) => {
-                        const rid = Number(op.id_rab_item);
+                        const sourceKey = getOpnameItemKey(op);
                         const status = (op.status || '').toLowerCase();
                         if (['pending', 'disetujui'].includes(status)) {
-                            blockedRabItemIds.add(rid);
+                            blockedItemKeys.add(sourceKey);
                         }
-                        // Track latest opname record per rab_item for upsert (including ditolak)
-                        if (!existingOpnameMap.has(rid) || Number(op.id) > Number(existingOpnameMap.get(rid).id)) {
-                            existingOpnameMap.set(rid, op);
+                        // Track latest opname record per source item for upsert (including ditolak)
+                        if (!existingOpnameMap.has(sourceKey) || Number(op.id) > Number(existingOpnameMap.get(sourceKey).id)) {
+                            existingOpnameMap.set(sourceKey, op);
                         }
                     });
 
@@ -2353,7 +2394,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                         try {
                             const rabRes = await fetchRABDetail(idRab);
                             if (rabRes?.data?.items) {
-                                latestRabItems = rabRes.data.items;
+                                const ilItems = (rabItems || []).filter((item: any) => item.source_type === 'IL');
+                                latestRabItems = [...rabRes.data.items, ...ilItems];
                             }
                         } catch (e) {
                             console.error("Gagal get RAB detail fallback", e);
@@ -2380,11 +2422,15 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                         }
 
                         // Lookup existing opname record for upsert id
-                        const existingOp = matchedRabItemId ? existingOpnameMap.get(matchedRabItemId) : null;
+                        const sourceKey = rItem ? getWorkItemKey(rItem) : null;
+                        const existingOp = sourceKey ? existingOpnameMap.get(sourceKey) : null;
 
                         return {
                             ...p,
-                            id_rab_item: matchedRabItemId || rItem?.id,
+                            id_rab_item: rItem?.source_type === 'IL' ? null : (matchedRabItemId || rItem?.id),
+                            id_instruksi_lapangan_item: rItem?.source_type === 'IL' ? rItem.id_instruksi_lapangan_item : null,
+                            source_type: rItem?.source_type || 'RAB',
+                            source_key: sourceKey,
                             volume_rab: parseFloat(rItem?.volume) || 0,
                             harga_material: parseFloat(rItem?.harga_material) || 0,
                             harga_upah: parseFloat(rItem?.harga_upah) || 0,
@@ -2393,18 +2439,18 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                             existing_opname: existingOp || null,
                         };
                     }).filter((item: any) => {
-                        if (!item.id_rab_item) return false;
+                        if (!item.source_key) return false;
                         
                         // Filter: item yg sudah diajukan opname (pending/disetujui) tidak muncul lagi
-                        if (blockedRabItemIds.has(Number(item.id_rab_item))) return false;
+                        if (blockedItemKeys.has(item.source_key)) return false;
                         return true;
                     });
 
-                    const deduped = new Map<number, any>();
+                    const deduped = new Map<string, any>();
                     merged.forEach((item: any) => {
-                        const rid = Number(item.id_rab_item);
-                        if (!deduped.has(rid) || Number(item.id) > Number(deduped.get(rid).id)) {
-                            deduped.set(rid, item);
+                        const key = item.source_key;
+                        if (!deduped.has(key) || Number(item.id) > Number(deduped.get(key).id)) {
+                            deduped.set(key, item);
                         }
                     });
                     const dedupedItems = Array.from(deduped.values());
@@ -2503,7 +2549,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 
                 const itemData: any = {
                     id_toko: Number(id_toko),
-                    id_rab_item: Number(item.id_rab_item),
+                    id_rab_item: item.source_type === 'IL' ? undefined : Number(item.id_rab_item),
+                    id_instruksi_lapangan_item: item.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item) : undefined,
                     status: 'pending',
                     volume_akhir: volAkhir,
                     selisih_volume: selisihVol,
@@ -2561,7 +2608,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
             }
 
             const grandTotalOpname = itemsArray.reduce((acc, item) => {
-                const rabRef = completedItems.find((completed) => completed.id_rab_item === item.id_rab_item);
+                const sourceKey = item.id_instruksi_lapangan_item ? `il:${item.id_instruksi_lapangan_item}` : `rab:${item.id_rab_item}`;
+                const rabRef = completedItems.find((completed) => completed.source_key === sourceKey);
                 const hargaSatuan = Number(rabRef?.harga_material || 0) + Number(rabRef?.harga_upah || 0);
                 return acc + Math.round(Number(item.volume_akhir) * hargaSatuan);
             }, 0);
@@ -2661,14 +2709,20 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                             )}
                         </div>
                     ) : (
-                        groupedByCategory.map((category, i) => (
-                            <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6">
-                                <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
-                                    <h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">{category.name}</h3>
+                        groupedByCategory.map((category, i) => {
+                            const isIlCategory = String(category.name || '').startsWith('[IL]');
+                            return (
+                            <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden mb-6 ${isIlCategory ? 'border-indigo-200' : 'border-slate-200'}`}>
+                                <div className={`px-5 py-3 border-b flex justify-between items-center ${isIlCategory ? 'bg-indigo-50' : 'bg-slate-100'}`}>
+                                    <h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
+                                        {isIlCategory && <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full">IL</span>}
+                                        {category.name}
+                                    </h3>
                                     <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">{category.items.length} Item</Badge>
                                 </div>
                                 <div className="p-4 space-y-4">
                                     {category.items.map((item, j) => {
+                                        const isIlItem = item.source_type === 'IL';
                                         const input = opnameInputs[item.id] || {};
                                         const volAkhir = parseDecimalInput(input.volume_akhir);
                                         const selisih = volAkhir - item.volume_rab;
@@ -2680,9 +2734,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                                         const formatRp = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
                                         
                                         return (
-                                            <div key={j} className="border border-slate-200 p-4 rounded-lg bg-slate-50 flex flex-col gap-4">
+                                            <div key={j} className={`border p-4 rounded-lg flex flex-col gap-4 ${isIlItem ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 bg-slate-50'}`}>
                                                 <div className="font-bold text-slate-800 border-b border-slate-200 pb-2 flex justify-between items-center">
-                                                    <span>{item.jenis_pekerjaan}</span>
+                                                    <span className="flex items-center gap-2">
+                                                        {isIlItem && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">Instruksi Lapangan</span>}
+                                                        {item.jenis_pekerjaan}
+                                                    </span>
                                                     <div className="flex gap-2">
                                                         <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Material: {formatRp(item.harga_material)}</span>
                                                         <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Upah: {formatRp(item.harga_upah)}</span>
@@ -2786,7 +2843,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                                     })}
                                 </div>
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
 

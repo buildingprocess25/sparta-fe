@@ -877,6 +877,8 @@ export type RABDetailData = {
 export type RABDetailItem = {
     id:                number;
     id_rab:            number;
+    source_type?:      'RAB' | 'IL';
+    id_instruksi_lapangan_item?: number;
     kategori_pekerjaan:string;
     jenis_pekerjaan:   string;
     satuan:            string;
@@ -1472,6 +1474,7 @@ export type GanttDetailData = {
     day_items:          GanttDetailDayItem[];
     pengawasan:         GanttDetailPengawasan[];
     dependencies:       GanttDetailDependency[];
+    instruksi_lapangan_items?: any[];
 };
 
 export type GanttNoteItem = {
@@ -1508,6 +1511,7 @@ export type GanttTokoDetailResponse = {
     dependency_data:     GanttDetailDependency[];
     pengawasan_data:     GanttDetailPengawasan[];
     kategori_pekerjaan:  GanttDetailKategori[];
+    instruksi_lapangan_items?: any[];
     toko:                GanttDetailToko;
 };
 
@@ -1858,7 +1862,8 @@ export type OpnameItem = {
     id:              number;
     id_toko:         number;
     id_opname_final: number;
-    id_rab_item:     number;
+    id_rab_item:     number | null;
+    id_instruksi_lapangan_item?: number | null;
     status:          'pending' | 'disetujui' | 'ditolak' | string;
     volume_akhir:    number;
     selisih_volume:  number;
@@ -1899,6 +1904,7 @@ export type OpnameListFilters = {
     id_toko?:         number;
     id_opname_final?: number;
     id_rab_item?:     number;
+    id_instruksi_lapangan_item?: number;
     status?:          string;
 };
 
@@ -1941,12 +1947,13 @@ export const submitOpnameBulk = async (
 /** Ambil daftar Opname dengan filter opsional. */
 export const fetchOpnameList = async (
     filters?: OpnameListFilters
-): Promise<{ status: string; data: OpnameItem[]; toko?: { id: number; nomor_ulok: string; lingkup_pekerjaan: string; nama_toko: string; kode_toko: string; proyek: string; cabang: string; alamat: string; nama_kontraktor: string } }> => {
+): Promise<{ status: string; data: OpnameItem[]; instruksi_lapangan_items?: any[]; toko?: { id: number; nomor_ulok: string; lingkup_pekerjaan: string; nama_toko: string; kode_toko: string; proyek: string; cabang: string; alamat: string; nama_kontraktor: string } }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.id_toko)         params.append("id_toko", filters.id_toko.toString());
     if (filters?.id_opname_final) params.append("id_opname_final", filters.id_opname_final.toString());
     if (filters?.id_rab_item)     params.append("id_rab_item", filters.id_rab_item.toString());
+    if (filters?.id_instruksi_lapangan_item) params.append("id_instruksi_lapangan_item", filters.id_instruksi_lapangan_item.toString());
     if (filters?.status)          params.append("status", filters.status);
     const url = `${base}/api/opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
