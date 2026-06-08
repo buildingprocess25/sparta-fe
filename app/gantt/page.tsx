@@ -415,7 +415,7 @@ function GanttBoard() {
                                 }
                             });
                             if (uniqueCats.size > 0) {
-                                finalCategories = Array.from(uniqueCats);
+                                finalCategories = Array.from(new Set([...Array.from(uniqueCats), ...finalCategories]));
                             }
                         }
                     } catch (e) {
