@@ -102,6 +102,51 @@ const mapInstruksiLapanganToWorkItems = (items: any[] = []): RABDetailItem[] =>
         catatan: 'Instruksi Lapangan'
     }));
 
+const mapApprovedInstruksiToOpnameProjects = (items: any[] = []): RABListItem[] => {
+    const map = new Map<number, RABListItem>();
+    items.forEach((item) => {
+        const idToko = Number(item.id_toko);
+        if (!idToko || map.has(idToko)) return;
+        map.set(idToko, {
+            id: -idToko,
+            id_toko: idToko,
+            status: 'Disetujui',
+            nama_pt: '',
+            email_pembuat: item.email_pembuat || '',
+            grand_total: String(item.grand_total || 0),
+            grand_total_non_sbo: String(item.grand_total_non_sbo || item.grand_total || 0),
+            grand_total_final: String(item.grand_total_final || item.grand_total || 0),
+            link_pdf_gabungan: '',
+            link_pdf_non_sbo: '',
+            link_pdf_rekapitulasi: '',
+            created_at: item.created_at || '',
+            nomor_ulok: item.nomor_ulok || '',
+            nama_toko: item.nama_toko || 'Toko',
+            cabang: item.cabang || '',
+            proyek: item.proyek || 'Instruksi Lapangan',
+            toko: {
+                nomor_ulok: item.nomor_ulok || '',
+                nama_toko: item.nama_toko || 'Toko',
+                cabang: item.cabang || '',
+                proyek: item.proyek || 'Instruksi Lapangan'
+            },
+            ...( { source_type: 'IL_ONLY', lingkup_pekerjaan: item.lingkup_pekerjaan } as any )
+        });
+    });
+    return Array.from(map.values());
+};
+
+const mergeOpnameProjects = (rabProjects: RABListItem[], ilProjects: RABListItem[]) => {
+    const map = new Map<number, RABListItem>();
+    rabProjects.forEach((item) => map.set(Number(item.id_toko), item));
+    ilProjects.forEach((item) => {
+        if (!map.has(Number(item.id_toko))) {
+            map.set(Number(item.id_toko), item);
+        }
+    });
+    return Array.from(map.values());
+};
+
 const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
     pending:    { label: 'Pending',   color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200' },
     disetujui:  { label: 'Disetujui', color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200' },
@@ -204,8 +249,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     // Load RAB list
     useEffect(() => {
         setIsLoading(true);
-        fetchRABList()
-            .then(res => {
+        Promise.all([
+            fetchRABList(),
+            fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true })
+        ])
+            .then(([res, instruksiRes]) => {
                 const data = res.data || [];
                 const filtered = data.filter(item => {
                     const matchCabang = canSeeAllBranches || !userInfo.cabang
@@ -215,7 +263,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                         item.status?.toUpperCase().includes('APPROVED');
                     return matchCabang && isApproved;
                 });
-                setRabList(filtered);
+                const ilProjects = mapApprovedInstruksiToOpnameProjects(instruksiRes.data || [])
+                    .filter(item => {
+                        if (canSeeAllBranches || !userInfo.cabang) return true;
+                        return item.cabang?.toUpperCase() === userInfo.cabang.toUpperCase();
+                    });
+                setRabList(mergeOpnameProjects(filtered, ilProjects));
             })
             .catch(err => console.error("Gagal memuat RAB list:", err))
             .finally(() => setIsLoading(false));
@@ -251,13 +304,29 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         setIsLoadingDetail(true);
 
         try {
-            const detailRes = await fetchRABDetail(rab.id);
-            const { items, toko } = detailRes.data;
-            setTokoDetail(toko);
-            let workingItems: RABDetailItem[] = (items || []).map((item: RABDetailItem) => ({
-                ...item,
-                source_type: item.source_type || 'RAB'
-            }));
+            const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
+            let workingItems: RABDetailItem[] = [];
+            if (isIlOnlyProject) {
+                setTokoDetail({
+                    id: rab.id_toko,
+                    nomor_ulok: rab.nomor_ulok,
+                    lingkup_pekerjaan: (rab as any).lingkup_pekerjaan || '',
+                    nama_toko: rab.nama_toko,
+                    kode_toko: '',
+                    proyek: rab.proyek,
+                    cabang: rab.cabang,
+                    alamat: '',
+                    nama_kontraktor: ''
+                });
+            } else {
+                const detailRes = await fetchRABDetail(rab.id);
+                const { items, toko } = detailRes.data;
+                setTokoDetail(toko);
+                workingItems = (items || []).map((item: RABDetailItem) => ({
+                    ...item,
+                    source_type: item.source_type || 'RAB'
+                }));
+            }
 
             // Check for existing opname data
             let existingData: OpnameItem[] = [];
@@ -854,7 +923,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         <option value="">— Pilih Proyek —</option>
                                         {filteredRabList.map(rab => (
                                             <option key={rab.id} value={rab.id}>
-                                                {formatUlokWithDash(rab.nomor_ulok)} — {rab.nama_toko} ({rab.proyek})
+                                                {formatUlokWithDash(rab.nomor_ulok)} - {rab.nama_toko} ({(rab as any).source_type === 'IL_ONLY' ? `IL${(rab as any).lingkup_pekerjaan ? ` - ${(rab as any).lingkup_pekerjaan}` : ''}` : rab.proyek})
                                             </option>
                                         ))}
                                     </select>
