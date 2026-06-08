@@ -167,9 +167,9 @@ function FpdTimeline({ currentStatus }: { currentStatus: string }) {
 function InfoRow({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-0.5 py-1.5 border-b border-slate-50 last:border-0">
-      <span className="text-xs font-semibold text-slate-500 sm:w-48 shrink-0">{String(label)}</span>
-      <span className="text-sm text-slate-800">{value}</span>
+    <div className="flex flex-col gap-0.5 p-3 bg-white border border-slate-100 rounded-lg shadow-sm hover:border-slate-200 transition-colors">
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{String(label)}</span>
+      <span className="text-sm font-semibold text-slate-800 break-words">{value}</span>
     </div>
   );
 }
@@ -754,8 +754,8 @@ export default function DetailProjekPlanning() {
       showAlert("RAB Belum Tersedia", "RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.");
       return;
     }
-    if (!selectedRabSipil && !selectedRabMe) {
-      showAlert("RAB Belum Sesuai", "RAB approved tersedia, tetapi belum ada RAB dengan lingkup Sipil atau ME untuk ULOK ini.");
+    if (!selectedRabSipil || !selectedRabMe) {
+      showAlert("RAB Belum Lengkap", "RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ini sebelum melanjutkan FPD.");
       return;
     }
     if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
@@ -932,8 +932,8 @@ export default function DetailProjekPlanning() {
 
         {/* Info Toko */}
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Informasi Toko</CardTitle></CardHeader>
-          <CardContent className="space-y-0">
+          <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Informasi Toko</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             <InfoRow label="Nomor ULOK" value={data.nomor_ulok} />
             <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
             <InfoRow label="Cabang" value={data.cabang} />
@@ -961,8 +961,8 @@ export default function DetailProjekPlanning() {
             <InfoRow label="Luas Gudang" value={(data as any).luas_gudang ? `${(data as any).luas_gudang} m²` : null} />
             <InfoRow label="Luas Area Parkir" value={(data as any).luas_area_parkir ? `${(data as any).luas_area_parkir} m²` : null} />
             <InfoRow label="Luas Area Sales" value={(data as any).luas_area_sales ? `${(data as any).luas_area_sales} m²` : null} />
-            <InfoRow label="P x L Bangunan" value={(data as any).pxl_bangunan || null} />
-            <InfoRow label="P x L Area Parkir" value={(data as any).pxl_area_parkir || null} />
+            <InfoRow label="P x L Bangunan" value={(data as any).p_bangunan && (data as any).l_bangunan ? `${(data as any).p_bangunan} x ${(data as any).l_bangunan}` : (data as any).pxl_bangunan || null} />
+            <InfoRow label="P x L Area Parkir" value={(data as any).p_area_parkir && (data as any).l_area_parkir ? `${(data as any).p_area_parkir} x ${(data as any).l_area_parkir}` : (data as any).pxl_area_parkir || null} />
             <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
           </CardContent>
         </Card>
@@ -970,8 +970,8 @@ export default function DetailProjekPlanning() {
         {/* Fasilitas */}
         {data.fasilitas && data.fasilitas.length > 0 && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><Droplets className="w-4 h-4 text-blue-600" /> Fasilitas Yang Disediakan</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
+            <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold flex items-center gap-2"><Droplets className="w-4 h-4 text-blue-600" /> Fasilitas Yang Disediakan</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
               {data.fasilitas.map((f: any, idx: number) => {
                 let label = f.jenis_fasilitas;
                 if (label === 'AIR_BERSIH') label = "Sumber Air Bersih";
@@ -987,16 +987,16 @@ export default function DetailProjekPlanning() {
         {/* Ketentuan & Catatan */}
         {data.ketentuan && data.ketentuan.length > 0 && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Ketentuan Pengelola / Landlord</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
+            <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold">Ketentuan Pengelola / Landlord</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {data.ketentuan.map((k: any, idx: number) => <InfoRow key={idx} label={`Ketentuan ${idx + 1}`} value={k.isi_ketentuan} />)}
             </CardContent>
           </Card>
         )}
         {data.catatan_design && data.catatan_design.length > 0 && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold">Catatan Desain</CardTitle></CardHeader>
-            <CardContent className="space-y-0">
+            <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold">Catatan Desain</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {data.catatan_design.map((c: any, idx: number) => <InfoRow key={idx} label={`Catatan ${idx + 1}`} value={c.isi_catatan} />)}
             </CardContent>
           </Card>
@@ -1268,52 +1268,82 @@ export default function DetailProjekPlanning() {
                       );
                     }
 
-                    const unitOptions = meta?.units ?? ["unit"];
-                    const measurement = parseFacilityMeasurement(fac.keterangan, unitOptions[0]);
-                    const icon = fac.jenis_fasilitas === "AIR_BERSIH"
-                      ? <Droplets className="w-3.5 h-3.5" />
-                      : fac.jenis_fasilitas === "DRAINASE"
-                        ? <Wind className="w-3.5 h-3.5" />
-                        : <Zap className={`w-3.5 h-3.5 ${fac.jenis_fasilitas === "LISTRIK" ? "text-yellow-500" : ""}`} />;
-
-                    return (
-                      <div key={`${fac.jenis_fasilitas}-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
-                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={!!fac.is_tersedia}
-                            onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))}
-                          />
-                          <span className="flex items-center gap-1.5">{icon} {meta?.label || fac.jenis_fasilitas}</span>
-                        </label>
-                        {fac.is_tersedia && (
-                          <div className="grid grid-cols-[1fr_104px] gap-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={measurement.amount}
-                              onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
-                                ...item,
-                                keterangan: e.target.value ? `${e.target.value} ${measurement.unit}` : "",
-                              } : item))}
-                              placeholder={meta?.placeholder || "Jumlah"}
-                              className="bg-white"
-                            />
-                            <select
-                              value={measurement.unit}
-                              onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? {
-                                ...item,
-                                keterangan: measurement.amount ? `${measurement.amount} ${e.target.value}` : "",
-                              } : item))}
-                              className="h-10 rounded-md border border-input bg-white px-3 text-sm text-slate-700"
-                            >
-                              {unitOptions.map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                    if (fac.jenis_fasilitas === "AIR_BERSIH") {
+                      return (
+                        <div key={`${fac.jenis_fasilitas}-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" checked={!!fac.is_tersedia} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))} />
+                            <span className="flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5" /> Sumber Air Bersih</span>
+                          </label>
+                          {fac.is_tersedia && (
+                            <select value={fac.keterangan || ""} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))} className="w-full text-sm h-10 rounded-md border border-slate-200 bg-white px-3">
+                              <option value="">Pilih Sumber Air...</option>
+                              <option value="PAM">PAM</option>
+                              <option value="Sumur Eksisting">Sumur Eksisting</option>
+                              <option value="Sumur Bor">Sumur Bor</option>
+                              <option value="Lainnya">Lainnya</option>
                             </select>
-                          </div>
-                        )}
-                      </div>
-                    );
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (fac.jenis_fasilitas === "DRAINASE") {
+                      return (
+                        <div key={`${fac.jenis_fasilitas}-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" checked={!!fac.is_tersedia} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))} />
+                            <span className="flex items-center gap-1.5"><Wind className="w-3.5 h-3.5" /> Drain Pembuangan Air Kotor</span>
+                          </label>
+                          {fac.is_tersedia && (
+                            <select value={fac.keterangan || ""} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))} className="w-full text-sm h-10 rounded-md border border-slate-200 bg-white px-3">
+                              <option value="">Pilih Drainase...</option>
+                              <option value="Septictank">Septictank</option>
+                              <option value="Toilet Eksisting">Toilet Eksisting</option>
+                              <option value="Lainnya">Lainnya</option>
+                            </select>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (fac.jenis_fasilitas === "AC") {
+                      return (
+                        <div key={`${fac.jenis_fasilitas}-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" checked={!!fac.is_tersedia} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))} />
+                            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> AC</span>
+                          </label>
+                          {fac.is_tersedia && (
+                            <div className="flex items-center gap-2">
+                              <Input type="number" placeholder="Unit" min="0" value={fac.keterangan?.match(/(\d+)\s*Unit/)?.[1] || ""} onChange={e => { const pk = fac.keterangan?.match(/([\d.]+)\s*PK/)?.[1] || ""; setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: `${e.target.value} Unit ${pk} PK` } : item)); }} className="text-sm w-20 bg-white" />
+                              <span className="text-xs font-bold text-slate-500">Unit</span>
+                              <Input type="number" step="0.5" placeholder="PK" min="0" value={fac.keterangan?.match(/([\d.]+)\s*PK/)?.[1] || ""} onChange={e => { const unit = fac.keterangan?.match(/(\d+)\s*Unit/)?.[1] || ""; setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: `${unit} Unit ${e.target.value} PK` } : item)); }} className="text-sm w-20 bg-white" />
+                              <span className="text-xs font-bold text-slate-500">PK</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (fac.jenis_fasilitas === "LISTRIK") {
+                      return (
+                        <div key={`${fac.jenis_fasilitas}-${idx}`} className="p-3 border border-orange-100 rounded-lg space-y-2 bg-white">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" checked={!!fac.is_tersedia} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, is_tersedia: e.target.checked } : item))} />
+                            <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-yellow-500" /> Listrik</span>
+                          </label>
+                          {fac.is_tersedia && (
+                            <div className="flex items-center gap-2">
+                              <Input type="number" placeholder="VA" min="0" value={fac.keterangan?.match(/(\d+)\s*VA/)?.[1] || ""} onChange={e => { const phase = fac.keterangan?.match(/(\d+)\s*Phase/)?.[1] || ""; setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: `${e.target.value} VA / ${phase} Phase` } : item)); }} className="text-sm w-28 bg-white" />
+                              <span className="text-xs font-bold text-slate-500">VA</span>
+                              <Input type="number" placeholder="Phase" min="0" value={fac.keterangan?.match(/(\d+)\s*Phase/)?.[1] || ""} onChange={e => { const va = fac.keterangan?.match(/(\d+)\s*VA/)?.[1] || ""; setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: `${va} VA / ${e.target.value} Phase` } : item)); }} className="text-sm w-20 bg-white" />
+                              <span className="text-xs font-bold text-slate-500">Phase</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
                   })}
                 </div>
                 <Button

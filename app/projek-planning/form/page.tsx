@@ -12,8 +12,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye } from "lucide-react";
-import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail } from "@/lib/api";
+import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle } from "lucide-react";
+import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList } from "@/lib/api";
 import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
 
@@ -97,6 +97,36 @@ function FormProjekPlanningInner() {
   const [beanspotTipe, setBeanspotTipe] = useState("");
   const isDarkStoreDesign = jenisSelected.includes(DARK_STORE_OPTION);
 
+  const [isRabApproved, setIsRabApproved] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let finalUlok = "";
+    if (!isManualUlok) {
+       if (manualCabang && manualTanggal && manualUrutan) finalUlok = `${manualCabang}-${manualTanggal}-${manualUrutan}-R`;
+    } else {
+       if (manualCabang && manualTanggal && manualUrutan) finalUlok = `${manualCabang}-${manualTanggal}-${manualUrutan}`;
+    }
+
+    if (finalUlok.length >= 8) {
+       const timer = setTimeout(() => {
+         fetchRABList({ nomor_ulok: finalUlok, status: "Disetujui" }, { suppressGlobalError: true })
+           .then(res => {
+             if (res.data && res.data.length > 0) {
+               const hasSipil = res.data.some((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("SIPIL"));
+               const hasMe = res.data.some((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("ME"));
+               setIsRabApproved(hasSipil && hasMe);
+             } else {
+               setIsRabApproved(false);
+             }
+           })
+           .catch(() => setIsRabApproved(false));
+       }, 500);
+       return () => clearTimeout(timer);
+    } else {
+       setIsRabApproved(null);
+    }
+  }, [isManualUlok, manualCabang, manualTanggal, manualUrutan]);
+
   useEffect(() => {
     if (!isDarkStoreDesign) return;
     setIsHeadToHead(false);
@@ -168,6 +198,9 @@ function FormProjekPlanningInner() {
     luas_bangunan: "", luas_area_terbuka: "", luas_area_terbangun: "",
     luas_gudang: "", luas_area_parkir: "", luas_area_sales: "",
     pxl_bangunan: "", pxl_area_parkir: "",
+    p_bangunan: "", l_bangunan: "", p_area_parkir: "", l_area_parkir: "",
+    jumlah_ac: "", pk_ac: "", listrik_va: "", listrik_phase: "",
+    sumber_air_bersih: "", drainase_air_kotor: "",
     link_gambar_kerja: "",
     link_gambar_kompetitor: "",
     jarak_head_to_head: "",
@@ -341,6 +374,12 @@ function FormProjekPlanningInner() {
     setF(p => ({ ...p, id_toko: t.id, nomor_ulok: t.nomor_ulok, nama_lokasi: t.nama_toko, lingkup_pekerjaan: t.lingkup_pekerjaan, jenis_proyek: t.proyek }));
     setTokoSearch(`${t.nomor_ulok} — ${t.nama_toko}`);
     setShowToko(false);
+    const parts = t.nomor_ulok.split("-");
+    if (parts.length >= 3) {
+      setManualCabang(parts[0]);
+      setManualTanggal(parts[1]);
+      setManualUrutan(parts[2]);
+    }
   };
 
   const filteredToko = tokoList.filter(t =>
@@ -352,6 +391,11 @@ function FormProjekPlanningInner() {
     if (!manualCabang || !manualTanggal || !manualUrutan) { setAlertMsg({ title: "Error", desc: "Harap lengkapi semua field Nomor ULOK (Kode Cabang, Tanggal, dan Urutan)", type: "error" }); setAlertOpen(true); return; }
     if (!isManualUlok && !f.jenis_proyek) { setAlertMsg({ title: "Error", desc: "Pilih proyek", type: "error" }); setAlertOpen(true); return; }
     if (jenisSelected.length === 0) { setAlertMsg({ title: "Error", desc: "Pilih minimal satu jenis pengajuan", type: "error" }); setAlertOpen(true); return; }
+    if (isRabApproved === false) {
+      setAlertMsg({ title: "RAB Belum Disetujui", desc: "RAB Sparta belum di-Approve untuk ULOK ini. Form tidak dapat disubmit.", type: "error" });
+      setAlertOpen(true);
+      return;
+    }
     if (resubmitId && originalF) {
       // Cek apakah ada perubahan
       const hasChanges =
@@ -566,6 +610,18 @@ function FormProjekPlanningInner() {
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700">Link Google Maps</Label>
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" />
+                      {isRabApproved === false && (
+                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg md:col-span-2">
+                          <AlertTriangle className="w-4 h-4 inline mr-1" />
+                          RAB Sparta belum lengkap. Pastikan RAB Sipil DAN RAB ME telah disubmit dan berstatus Approved sebelum mengajukan FPD.
+                        </div>
+                      )}
+                      {isRabApproved === true && (
+                        <div className="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg md:col-span-2">
+                          <CheckCircle className="w-4 h-4 inline mr-1" />
+                          RAB Sparta telah lengkap (Sipil & ME Approved).
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -599,6 +655,18 @@ function FormProjekPlanningInner() {
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700">Link Google Maps</Label>
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
+                      {isRabApproved === false && (
+                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg md:col-span-2">
+                          <AlertTriangle className="w-4 h-4 inline mr-1" />
+                          RAB Sparta belum lengkap. Pastikan RAB Sipil DAN RAB ME telah disubmit dan berstatus Approved sebelum mengajukan FPD.
+                        </div>
+                      )}
+                      {isRabApproved === true && (
+                        <div className="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg md:col-span-2">
+                          <CheckCircle className="w-4 h-4 inline mr-1" />
+                          RAB Sparta telah lengkap (Sipil & ME Approved).
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -607,6 +675,88 @@ function FormProjekPlanningInner() {
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">Nama Pengaju *</Label>
                   <Input value={f.nama_pengaju} onChange={e => set("nama_pengaju", e.target.value)} required className="mt-1" />
+                </div>
+              </div>
+
+              {/* === SECTION: Luasan === */}
+              <SectionTitle icon={<Building2 className="w-4 h-4" />} title="Data Luasan & Dimensi" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  ["luas_bangunan", "Luas Bangunan (m²)"],
+                  ["luas_area_terbuka", "Luas Area Terbuka (m²)"],
+                  ["luas_area_terbangun", "Luas Area Terbangun (m²)"],
+                  ["luas_gudang", "Luas Gudang (m²)"],
+                  ["luas_area_parkir", "Luas Area Parkir (m²)"],
+                  ["luas_area_sales", "Luas Area Sales (m²)"],
+                ].map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs font-semibold text-slate-600">{label}</Label>
+                    <Input
+                      type="number" min="0" step="0.01"
+                      value={(f as any)[key]} onChange={e => set(key, e.target.value)}
+                      placeholder="0.00" className="mt-1"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">P Bangunan</Label>
+                  <Input type="number" min="0" step="0.01" value={(f as any).p_bangunan} onChange={e => set("p_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">L Bangunan</Label>
+                  <Input type="number" min="0" step="0.01" value={(f as any).l_bangunan} onChange={e => set("l_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">P Area Parkir</Label>
+                  <Input type="number" min="0" step="0.01" value={(f as any).p_area_parkir} onChange={e => set("p_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">L Area Parkir</Label>
+                  <Input type="number" min="0" step="0.01" value={(f as any).l_area_parkir} onChange={e => set("l_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
+                </div>
+              </div>
+
+              {/* === SECTION: Fasilitas Khusus === */}
+              <SectionTitle icon={<Droplets className="w-4 h-4" />} title="Fasilitas Tambahan" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">Sumber Air Bersih</Label>
+                  <select value={(f as any).sumber_air_bersih} onChange={e => set("sumber_air_bersih", e.target.value)} className="w-full mt-1 h-10 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
+                    <option value="">Pilih Sumber Air...</option>
+                    <option value="PAM">PAM</option>
+                    <option value="Sumur Eksisting">Sumur Eksisting</option>
+                    <option value="Sumur Bor">Sumur Bor</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600">Drain Pembuangan Air Kotor</Label>
+                  <select value={(f as any).drainase_air_kotor} onChange={e => set("drainase_air_kotor", e.target.value)} className="w-full mt-1 h-10 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
+                    <option value="">Pilih Drainase...</option>
+                    <option value="Septictank">Septictank</option>
+                    <option value="Toilet Eksisting">Toilet Eksisting</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-600">AC (Jumlah Unit)</Label>
+                    <Input type="number" min="0" value={(f as any).jumlah_ac} onChange={e => set("jumlah_ac", e.target.value)} placeholder="0" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-600">AC (PK)</Label>
+                    <Input type="number" min="0" step="0.1" value={(f as any).pk_ac} onChange={e => set("pk_ac", e.target.value)} placeholder="0.0" className="mt-1" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-600">Listrik (VA)</Label>
+                    <Input type="number" min="0" step="100" value={(f as any).listrik_va} onChange={e => set("listrik_va", e.target.value)} placeholder="0" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold text-slate-600">Listrik (Phase)</Label>
+                    <Input type="number" min="0" value={(f as any).listrik_phase} onChange={e => set("listrik_phase", e.target.value)} placeholder="0" className="mt-1" />
+                  </div>
                 </div>
               </div>
 
@@ -747,7 +897,7 @@ function FormProjekPlanningInner() {
                       </div>
                       <Label className="text-xs font-semibold text-slate-600">Gambar Kompetitor *</Label>
                       <Input placeholder="Link Google Drive..." value={(f as any).link_gambar_kompetitor} onChange={e => { set("link_gambar_kompetitor", e.target.value); setFileGambarKompetitor([]); }} className="bg-white" disabled={fileGambarKompetitor.length > 0} />
-                      <Input type="file" accept="image/*,.pdf" multiple className="file:bg-slate-100 file:text-slate-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-slate-200 cursor-pointer"
+                      <Input type="file" accept="image/png, image/jpeg" multiple className="file:bg-slate-100 file:text-slate-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-slate-200 cursor-pointer"
                         onChange={handleMultiFileChange(setFileGambarKompetitor, () => set("link_gambar_kompetitor", ""))} />
                       {fileGambarKompetitor.length > 0 && <p className="text-[10px] text-slate-600">File siap: {fileGambarKompetitor.map(file => file.name).join(", ")}</p>}
                     </div>
@@ -808,13 +958,82 @@ function FormProjekPlanningInner() {
                         {icons[fac.jenis_fasilitas]} {labels[fac.jenis_fasilitas]}
                       </label>
                     </div>
-                    {fac.is_tersedia && (
-                      <Input placeholder={placeholder} value={fac.keterangan || ""}
+                    {fac.is_tersedia && fac.jenis_fasilitas === "AIR_BERSIH" && (
+                      <select
+                        value={fac.keterangan || ""}
                         onChange={e => {
                           const newF = [...fasilitas];
                           newF[idx].keterangan = e.target.value;
                           setFasilitas(newF);
-                        }} className="text-sm" />
+                        }}
+                        className="w-full text-sm h-9 rounded-md border border-slate-200 bg-white px-3"
+                      >
+                        <option value="">Pilih Sumber Air...</option>
+                        <option value="PAM">PAM</option>
+                        <option value="Sumur Eksisting">Sumur Eksisting</option>
+                        <option value="Sumur Bor">Sumur Bor</option>
+                        <option value="Lainnya">Lainnya</option>
+                      </select>
+                    )}
+                    {fac.is_tersedia && fac.jenis_fasilitas === "DRAINASE" && (
+                      <select
+                        value={fac.keterangan || ""}
+                        onChange={e => {
+                          const newF = [...fasilitas];
+                          newF[idx].keterangan = e.target.value;
+                          setFasilitas(newF);
+                        }}
+                        className="w-full text-sm h-9 rounded-md border border-slate-200 bg-white px-3"
+                      >
+                        <option value="">Pilih Drainase...</option>
+                        <option value="Septictank">Septictank</option>
+                        <option value="Toilet Eksisting">Toilet Eksisting</option>
+                        <option value="Lainnya">Lainnya</option>
+                      </select>
+                    )}
+                    {fac.is_tersedia && fac.jenis_fasilitas === "AC" && (
+                      <div className="flex items-center gap-2">
+                        <Input type="number" placeholder="Unit" min="0"
+                          value={fac.keterangan?.match(/(\d+)\s*Unit/)?.[1] || ""}
+                          onChange={e => {
+                            const pk = fac.keterangan?.match(/([\d.]+)\s*PK/)?.[1] || "";
+                            const newF = [...fasilitas];
+                            newF[idx].keterangan = `${e.target.value} Unit ${pk} PK`;
+                            setFasilitas(newF);
+                          }} className="text-sm w-20 bg-white" />
+                        <span className="text-xs font-bold text-slate-500">Unit</span>
+                        <Input type="number" step="0.5" placeholder="PK" min="0"
+                          value={fac.keterangan?.match(/([\d.]+)\s*PK/)?.[1] || ""}
+                          onChange={e => {
+                            const unit = fac.keterangan?.match(/(\d+)\s*Unit/)?.[1] || "";
+                            const newF = [...fasilitas];
+                            newF[idx].keterangan = `${unit} Unit ${e.target.value} PK`;
+                            setFasilitas(newF);
+                          }} className="text-sm w-20 bg-white" />
+                        <span className="text-xs font-bold text-slate-500">PK</span>
+                      </div>
+                    )}
+                    {fac.is_tersedia && fac.jenis_fasilitas === "LISTRIK" && (
+                      <div className="flex items-center gap-2">
+                        <Input type="number" placeholder="VA" min="0"
+                          value={fac.keterangan?.match(/(\d+)\s*VA/)?.[1] || ""}
+                          onChange={e => {
+                            const phase = fac.keterangan?.match(/(\d+)\s*Phase/)?.[1] || "";
+                            const newF = [...fasilitas];
+                            newF[idx].keterangan = `${e.target.value} VA / ${phase} Phase`;
+                            setFasilitas(newF);
+                          }} className="text-sm w-28 bg-white" />
+                        <span className="text-xs font-bold text-slate-500">VA</span>
+                        <Input type="number" placeholder="Phase" min="0"
+                          value={fac.keterangan?.match(/(\d+)\s*Phase/)?.[1] || ""}
+                          onChange={e => {
+                            const va = fac.keterangan?.match(/(\d+)\s*VA/)?.[1] || "";
+                            const newF = [...fasilitas];
+                            newF[idx].keterangan = `${va} VA / ${e.target.value} Phase`;
+                            setFasilitas(newF);
+                          }} className="text-sm w-20 bg-white" />
+                        <span className="text-xs font-bold text-slate-500">Phase</span>
+                      </div>
                     )}
                   </div>
                 );
@@ -916,39 +1135,7 @@ function FormProjekPlanningInner() {
                 + Tambah Catatan
               </Button>
 
-              {/* === SECTION: Luasan === */}
-              <SectionTitle icon={<Building2 className="w-4 h-4" />} title="Data Luasan & Dimensi" />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  ["luas_bangunan", "Luas Bangunan (m²)"],
-                  ["luas_area_terbuka", "Luas Area Terbuka (m²)"],
-                  ["luas_area_terbangun", "Luas Area Terbangun (m²)"],
-                  ["luas_gudang", "Luas Gudang (m²)"],
-                  ["luas_area_parkir", "Luas Area Parkir (m²)"],
-                  ["luas_area_sales", "Luas Area Sales (m²)"],
-                ].map(([key, label]) => (
-                  <div key={key}>
-                    <Label className="text-xs font-semibold text-slate-600">{label}</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={(f as any)[key]}
-                      onChange={e => set(key, e.target.value)}
-                      placeholder="0.00"
-                      className="mt-1"
-                    />
-                  </div>
-                ))}
-                <div>
-                  <Label className="text-xs font-semibold text-slate-600">P x L Bangunan</Label>
-                  <Input value={(f as any).pxl_bangunan} onChange={e => set("pxl_bangunan", e.target.value)} placeholder="Contoh: 12 x 20" className="mt-1" />
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold text-slate-600">P x L Area Parkir</Label>
-                  <Input value={(f as any).pxl_area_parkir} onChange={e => set("pxl_area_parkir", e.target.value)} placeholder="Contoh: 8 x 15" className="mt-1" />
-                </div>
-              </div>
+
 
               {/* === SECTION: Upload Files === */}
               <SectionTitle icon={<FileText className="w-4 h-4" />} title="Upload Gambar Kerja & Siteplan (Link / File Lokal)" />
