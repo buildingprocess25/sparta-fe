@@ -2064,6 +2064,7 @@ export const fetchOpnameFinalList = async (filters?: {
     id_toko?: number;
     nomor_ulok?: string;
     cabang?: string;
+    nama_kontraktor?: string;
 }, options?: ApiRequestOptions) => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
@@ -2072,6 +2073,7 @@ export const fetchOpnameFinalList = async (filters?: {
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     if (filters?.cabang) params.append("cabang", filters.cabang);
+    if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
     const url = `${base}/api/final_opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };

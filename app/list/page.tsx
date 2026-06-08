@@ -800,7 +800,14 @@ export default function DaftarDokumenPage() {
                 const res = await fetchPertambahanSPKList();
                 docs = normalizePertambahanSPKDocs(res.data ?? []);
             } else if (kategori === 'OPNAME_FINAL') {
-                const res = await fetchOpnameFinalList();
+                let filters: any = undefined;
+                const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
+                const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
+                const isKontraktorOrDirektur = sessionRole.includes('KONTRAKTOR') || sessionRole.includes('DIREKTUR');
+                if (isKontraktorOrDirektur && sessionNamaPt) {
+                    filters = { nama_kontraktor: sessionNamaPt };
+                }
+                const res = await fetchOpnameFinalList(filters);
                 docs = normalizeOpnameFinalDocs(res.data ?? []);
             } else if (kategori === 'PENGAWASAN') {
                 const res = await fetchPengawasanList();

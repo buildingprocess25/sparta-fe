@@ -1420,15 +1420,17 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
             .then(([res, instruksiRes]) => {
                 const data = res.data || [];
                 const ilRows = instruksiRes.data || [];
+                const userNamaPt = (userInfo.nama_pt || '').toUpperCase();
+                
                 const nextIlTokoMap = new Map<number, any>();
                 ilRows.forEach((item: any) => {
+                    if (userNamaPt && (item.nama_kontraktor || '').toUpperCase() !== userNamaPt) return;
                     const idToko = Number(item.id_toko);
                     if (!idToko || nextIlTokoMap.has(idToko)) return;
                     nextIlTokoMap.set(idToko, item);
                 });
                 setIlTokoMap(nextIlTokoMap);
 
-                const userNamaPt = (userInfo.nama_pt || '').toUpperCase();
                 const filteredRab = data.filter(item => {
                     if (!userNamaPt) return true;
                     return (item.nama_pt || '').toUpperCase() === userNamaPt;
