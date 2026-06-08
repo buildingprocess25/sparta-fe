@@ -1582,11 +1582,11 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                     setTimeout(() => {
                         showAlert({ message: "Opname berhasil disetujui.", type: "success" });
                         refreshData();
-                    }, 300);
+                    }, 500);
                 } catch (err: any) {
                     setTimeout(() => {
                         showAlert({ message: `Gagal: ${err.message}`, type: "error" });
-                    }, 300);
+                    }, 500);
                 } finally {
                     setIsProcessing(false);
                 }
@@ -1608,11 +1608,11 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 setShowDetailModal(false);
                 setSelectedOpname(null);
                 refreshData();
-            }, 300);
+            }, 500);
         } catch (err: any) {
             setTimeout(() => {
                 showAlert({ message: `Gagal: ${err.message}`, type: "error" });
-            }, 300);
+            }, 500);
         } finally {
             setIsProcessing(false);
         }
