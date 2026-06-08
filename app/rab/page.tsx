@@ -157,6 +157,26 @@ const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: P
   });
 };
 
+const getPriceDirectiveForRow = (priceData: PriceMaster, row: Partial<RabTableRow>) => {
+  if (!row.category || !row.jenisPekerjaan) {
+    return {
+      materialDirectiveToUpah: false,
+      isMaterialEditable: Boolean(row.isMaterialKondisional),
+      isUpahEditable: Boolean(row.isUpahKondisional),
+    };
+  }
+
+  const itemData = getPriceItemsForCategory(priceData, String(row.category))
+    .find((item) => item["Jenis Pekerjaan"] === row.jenisPekerjaan);
+
+  const materialDirectiveToUpah = isTextPriceDirective(itemData?.["Harga Material"]);
+  return {
+    materialDirectiveToUpah,
+    isMaterialEditable: !materialDirectiveToUpah && (Boolean(row.isMaterialKondisional) || isConditionalPriceValue(itemData?.["Harga Material"])),
+    isUpahEditable: materialDirectiveToUpah || Boolean(row.isUpahKondisional) || isConditionalPriceValue(itemData?.["Harga Upah"]),
+  };
+};
+
 export default function RABPage() {
   const router = useRouter();
   
@@ -1089,8 +1109,9 @@ export default function RABPage() {
                           <tbody>
                             {itemsInCategory.map((row, index) => {
                               const itemRevisionNote = row.sourceItemId ? revisionItemNotes[Number(row.sourceItemId)] : '';
-                              const canEditMaterialPrice = Boolean(row.isMaterialKondisional);
-                              const canEditUpahPrice = Boolean(row.isUpahKondisional);
+                              const priceDirective = getPriceDirectiveForRow(prices, row);
+                              const canEditMaterialPrice = priceDirective.isMaterialEditable;
+                              const canEditUpahPrice = priceDirective.isUpahEditable;
                               return (
                               <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
                                 <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
