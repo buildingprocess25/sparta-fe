@@ -760,7 +760,7 @@ export default function ApprovalPage() {
 
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
                 // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
-                if (jabatan !== 'DIREKTUR' && type !== 'PERTAMBAHAN_SPK' && upperUserCabang && item.cabang && item.cabang !== '-') {
+                if (jabatan !== 'DIREKTUR' && upperUserCabang && item.cabang && item.cabang !== '-') {
                     let userGroup: string[] | null = null;
                     for (const grp of Object.values(BRANCH_GROUPS)) {
                         if (grp.includes(upperUserCabang)) {
