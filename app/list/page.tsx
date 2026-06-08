@@ -951,6 +951,36 @@ export default function DaftarDokumenPage() {
                         waktu_tindakan: log.waktu_tindakan,
                     })),
                 };
+            } else if (doc.tipe === 'PERTAMBAHAN_SPK') {
+                const res = await fetchPertambahanSPKDetail(doc.id);
+                const d = res.data;
+                detail = {
+                    id: d.id,
+                    tipe: 'PERTAMBAHAN_SPK',
+                    nomor_ulok:        d.spk?.nomor_ulok || d.toko?.nomor_ulok || doc.nomor_ulok,
+                    nama_toko:         d.toko?.nama_toko || d.spk?.nama_toko || doc.nama_toko,
+                    cabang:            d.toko?.cabang || d.spk?.cabang || doc.cabang,
+                    proyek:            d.toko?.proyek || d.spk?.proyek || doc.proyek,
+                    status:            d.status_persetujuan,
+                    email_pembuat:     d.dibuat_oleh,
+                    total_nilai:       0,
+                    created_at:        d.created_at,
+                    nomor_spk:         d.nomor_spk || d.spk?.nomor_spk,
+                    nama_kontraktor:   d.spk?.nama_kontraktor || d.toko?.nama_kontraktor,
+                    lingkup_pekerjaan: d.spk?.lingkup_pekerjaan || d.toko?.lingkup_pekerjaan,
+                    durasi:            d.spk?.durasi,
+                    waktu_mulai:       d.spk?.waktu_mulai,
+                    waktu_selesai:     d.spk?.waktu_selesai,
+                    pertambahan_hari:  d.pertambahan_hari,
+                    alasan_perpanjangan: d.alasan_perpanjangan,
+                    tanggal_spk_akhir: d.tanggal_spk_akhir,
+                    tanggal_spk_akhir_setelah_perpanjangan: d.tanggal_spk_akhir_setelah_perpanjangan,
+                    disetujui_oleh:    d.disetujui_oleh || undefined,
+                    waktu_persetujuan_detail: d.waktu_persetujuan || undefined,
+                    alasan_penolakan:  d.alasan_penolakan,
+                    link_pdf:          d.link_pdf,
+                    link_lampiran_pendukung: d.link_lampiran_pendukung,
+                };
             } else if (doc.tipe === 'OPNAME_FINAL') {
                 const res = await fetchOpnameFinalDetail(doc.id);
                 const d = res.data;
@@ -1144,12 +1174,14 @@ export default function DaftarDokumenPage() {
                 };
             }
 
-            if (detail) {
-                const logs = await fetchActivityLogs(detail.tipe, detail.id)
-                    .then(res => res.data)
-                    .catch(() => []);
-                detail = { ...detail, activity_logs: logs };
+            if (!detail) {
+                throw new Error(`Detail dokumen ${doc.tipe} belum tersedia.`);
             }
+
+            const logs = await fetchActivityLogs(detail.tipe, detail.id)
+                .then(res => res.data)
+                .catch(() => []);
+            detail = { ...detail, activity_logs: logs };
 
             setSelectedDetail(detail);
         } catch (err: any) {
