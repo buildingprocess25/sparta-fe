@@ -135,6 +135,14 @@ function GanttBoard() {
 
     const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
     const [userRole, setUserRole] = useState('');
+    const [labelColWidth, setLabelColWidth] = useState(250);
+
+    useEffect(() => {
+        const handleResize = () => setLabelColWidth(window.innerWidth < 768 ? 140 : 250);
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
     
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
@@ -1317,8 +1325,8 @@ function GanttBoard() {
                         </div>
                     ) : chartData ? (
                         <div style={{ width: 'max-content', minWidth: '100%' }}>
-                            <div className="flex sticky top-0 bg-white z-20 border-b-2 border-slate-300 shadow-sm" style={{ width: 250 + chartData.totalChartWidth }}>
-                                <div className="shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: 250, minWidth: 250, maxWidth: 250 }}>Tahapan</div>
+                            <div className="flex sticky top-0 bg-white z-20 border-b-2 border-slate-300 shadow-sm" style={{ width: labelColWidth + chartData.totalChartWidth }}>
+                                <div className="shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>Tahapan</div>
                                 <div className="flex" style={{ width: chartData.totalChartWidth }}>
                                 {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
                                     let label: string = String(i + 1);
@@ -1366,38 +1374,38 @@ function GanttBoard() {
                                 </div>
                             </div>
                             
-                            <div className="relative" style={{ width: 250 + chartData.totalChartWidth }}>
+                            <div className="relative" style={{ width: labelColWidth + chartData.totalChartWidth }}>
                                 {/* Garis Live Day - kolom hijau samar full height */}
                                 {chartData.liveDayIndex !== -1 && (
                                     <div 
                                         className="absolute top-0 bottom-0 pointer-events-none"
-                                        style={{ left: 250 + (chartData.liveDayIndex * DAY_WIDTH), width: DAY_WIDTH, zIndex: 5, backgroundColor: 'rgba(34, 197, 94, 0.08)' }} 
+                                        style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH), width: DAY_WIDTH, zIndex: 5, backgroundColor: 'rgba(34, 197, 94, 0.08)' }} 
                                     />
                                 )}
                                 {chartData.liveDayIndex !== -1 && (
                                     <div 
                                         className="absolute top-0 bottom-0 pointer-events-none"
-                                        style={{ left: 250 + (chartData.liveDayIndex * DAY_WIDTH) + (DAY_WIDTH / 2), width: 2, zIndex: 16, backgroundColor: 'rgba(34, 197, 94, 0.7)' }} 
+                                        style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH) + (DAY_WIDTH / 2), width: 2, zIndex: 16, backgroundColor: 'rgba(34, 197, 94, 0.7)' }} 
                                     />
                                 )}
 
                                 {/* Garis pemisah tegas antara Tahapan Pekerjaan dan Hari */}
-                                <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: 250, borderRight: '3px solid #94a3b8', zIndex: 18, boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }} />
+                                <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: labelColWidth, borderRight: '3px solid #94a3b8', zIndex: 18, boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }} />
 
                                 {/* Garis vertikal pembatas kolom - full height */}
                                 {Array.from({ length: chartData.totalDaysToRender }).map((_, ci) => (
-                                    <div key={`vl-${ci}`} className="absolute top-0 bottom-0 pointer-events-none z-0" style={{ left: 250 + ((ci + 1) * DAY_WIDTH), borderRight: '1px solid #e2e8f0' }} />
+                                    <div key={`vl-${ci}`} className="absolute top-0 bottom-0 pointer-events-none z-0" style={{ left: labelColWidth + ((ci + 1) * DAY_WIDTH), borderRight: '1px solid #e2e8f0' }} />
                                 ))}
 
                                 {chartData.processedTasks.map((task: any, idx: number) => {
                                     const shift = task.computed.shift || 0;
                                     const isIlTask = String(task.name || '').startsWith('[IL]');
                                     return (
-                                        <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: 250 + chartData.totalChartWidth }}>
-                                            <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: 250, minWidth: 250, maxWidth: 250 }}>
-                                                <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5">
-                                                    {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full">IL</span>}
-                                                    {task.name}
+                                        <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
+                                            <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
+                                                <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 truncate">
+                                                    {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
+                                                    <span className="truncate" title={task.name}>{task.name}</span>
                                                 </span>
                                             </div>
                                             <div className="relative" style={{ width: chartData.totalChartWidth }}>
@@ -1431,7 +1439,7 @@ function GanttBoard() {
                                     )
                                 })}
 
-                                <svg className="absolute top-0 pointer-events-none z-20 overflow-visible" style={{ left: 250, width: chartData.totalChartWidth, height: chartData.svgHeight }}>
+                                <svg className="absolute top-0 pointer-events-none z-20 overflow-visible" style={{ left: labelColWidth, width: chartData.totalChartWidth, height: chartData.svgHeight }}>
                                     <defs>
                                         <marker id="depArrow" viewBox="0 0 10 6" refX="7" refY="3" markerWidth="8" markerHeight="6" orient="auto">
                                             <path d="M0,0 L10,3 L0,6 Z" fill="#3b82f6" />
