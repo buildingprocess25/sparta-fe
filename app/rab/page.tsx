@@ -131,6 +131,20 @@ const isTextPriceDirective = (value: unknown) =>
 const isManualInputFlag = (value: unknown) =>
   value === true || value === 1 || String(value ?? '').trim().toLowerCase() === 'true';
 
+const getManualPriceFlags = (itemData?: PriceMasterItem) => {
+  const materialDirectiveToUpah = isTextPriceDirective(itemData?.["Harga Material"]);
+  const isMatCond = !materialDirectiveToUpah && (
+    isManualInputFlag(itemData?.["Input Material Manual"]) ||
+    isConditionalPriceValue(itemData?.["Harga Material"])
+  );
+  const isUpahCond =
+    materialDirectiveToUpah ||
+    isManualInputFlag(itemData?.["Input Upah Manual"]) ||
+    isConditionalPriceValue(itemData?.["Harga Upah"]);
+
+  return { materialDirectiveToUpah, isMatCond, isUpahCond };
+};
+
 const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: PriceMaster): T[] => {
   const lookup = new Map<string, PriceMasterItem & { category: string }>();
   Object.entries(masterPrices || {}).forEach(([category, items]) => {
@@ -145,14 +159,7 @@ const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: P
     const itemData = lookup.get(normalizeJobName(row.jenisPekerjaan));
     if (!itemData) return row;
 
-    const materialDirectiveToUpah = isTextPriceDirective(itemData["Harga Material"]);
-    const isMatCond = !materialDirectiveToUpah && (
-      isManualInputFlag(itemData["Input Material Manual"]) || isConditionalPriceValue(itemData["Harga Material"])
-    );
-    const isUpahCond =
-      materialDirectiveToUpah ||
-      isManualInputFlag(itemData["Input Upah Manual"]) ||
-      isConditionalPriceValue(itemData["Harga Upah"]);
+    const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
     return {
       ...row,
       category: itemData.category || row.category,
@@ -179,19 +186,11 @@ const getPriceDirectiveForRow = (priceData: PriceMaster, row: Partial<RabTableRo
   const itemData = getPriceItemsForCategory(priceData, String(row.category))
     .find((item) => item["Jenis Pekerjaan"] === row.jenisPekerjaan);
 
-  const materialDirectiveToUpah = isTextPriceDirective(itemData?.["Harga Material"]);
+  const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
   return {
     materialDirectiveToUpah,
-    isMaterialEditable: !materialDirectiveToUpah && (
-      Boolean(row.isMaterialKondisional) ||
-      isManualInputFlag(itemData?.["Input Material Manual"]) ||
-      isConditionalPriceValue(itemData?.["Harga Material"])
-    ),
-    isUpahEditable:
-      materialDirectiveToUpah ||
-      Boolean(row.isUpahKondisional) ||
-      isManualInputFlag(itemData?.["Input Upah Manual"]) ||
-      isConditionalPriceValue(itemData?.["Harga Upah"]),
+    isMaterialEditable: !materialDirectiveToUpah && (Boolean(row.isMaterialKondisional) || isMatCond),
+    isUpahEditable: Boolean(row.isUpahKondisional) || isUpahCond,
   };
 };
 
@@ -445,8 +444,7 @@ export default function RABPage() {
                   const jobName = item.jenis_pekerjaan;
                   
                   const itemPriceRef = getPriceItemsForCategory(fetchedPrices, category).find((x: any) => x["Jenis Pekerjaan"] === jobName);
-                  const isMatCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Material"]) : false;
-                  const isUpahCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Upah"]) : false;
+                  const { isMatCond, isUpahCond } = getManualPriceFlags(itemPriceRef);
 
                   newRows.push({
                       id: Date.now() + i + Math.random(),
@@ -472,8 +470,7 @@ export default function RABPage() {
                       const jobName = details[`Jenis_Pekerjaan_${i}`];
                       
                       const itemPriceRef = getPriceItemsForCategory(fetchedPrices, category).find((x: any) => x["Jenis Pekerjaan"] === jobName);
-                      const isMatCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Material"]) : false;
-                      const isUpahCond = itemPriceRef ? isConditionalPriceValue(itemPriceRef["Harga Upah"]) : false;
+                      const { isMatCond, isUpahCond } = getManualPriceFlags(itemPriceRef);
 
                       newRows.push({
                           id: Date.now() + i + Math.random(),
