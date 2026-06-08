@@ -702,9 +702,8 @@ export default function ApprovalPage() {
                 const isRegionalManagerUser = user?.isRegionalManager ?? false;
 
                 if (
-                    type === 'RAB'
+                    ['RAB', 'OPNAME_FINAL', 'INSTRUKSI_LAPANGAN'].includes(type)
                     && isContractorCompanyScopedRole(userRoles)
-                    && !(isPendingApprovalStatus(upper) && isDirectorApprovalStatus(upper))
                     && userInfo.nama_pt
                     && !matchesUserCompany(item._raw, userInfo.nama_pt)
                 ) {
