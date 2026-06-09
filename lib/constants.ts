@@ -68,6 +68,13 @@ export const ALL_MENUS = [
         icon: CheckSquare,
     },
     {
+        id: "menu-opname-final",
+        title: "Opname Final",
+        desc: "Form opname final proyek toko.",
+        href: "/opname-final",
+        icon: CheckSquare,
+    },
+    {
         id: "menu-dokumentasi",
         title: "Dokumentasi Bangunan Toko Baru",
         desc: "Form dokumentasi foto bangunan.",
@@ -162,7 +169,7 @@ export const ALL_MENUS = [
 
 export const ROLE_CONFIG: Record<string, string[]> = {
     "HEAD OFFICE": [
-        "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-rab", "menu-spk", "menu-inputpic", "menu-opname", "menu-opname-final",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-projek-planning",
@@ -173,19 +180,19 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
-        "menu-spk", "menu-opname", "menu-tambahspk",
+        "menu-spk", "menu-opname", "menu-opname-final", "menu-tambahspk",
         "menu-gantt", "menu-dokumentasi", "menu-svdokumen", "menu-sp",
         "menu-approval", "menu-daftardokumen", "menu-projek-planning"
     ],
 
     "BRANCH BUILDING COORDINATOR": [
         "menu-dokumentasi", "menu-svdokumen", "menu-gantt",
-        "menu-opname", "menu-sp", "menu-approval", "menu-daftardokumen", "menu-inputpic",
+        "menu-opname", "menu-opname-final", "menu-sp", "menu-approval", "menu-daftardokumen", "menu-inputpic",
         "menu-projek-planning"
     ],
 
     "BRANCH BUILDING SUPPORT": [
-        "menu-dokumentasi", "menu-opname", "menu-gantt",
+        "menu-dokumentasi", "menu-opname", "menu-opname-final", "menu-gantt",
         "menu-svdokumen", "menu-sp", "menu-daftardokumen", "menu-il"
     ],
 
@@ -198,7 +205,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "KONTRAKTOR": [
-        "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen"
+        "menu-rab", "menu-opname", "menu-opname-final", "menu-gantt", "menu-daftardokumen"
     ],
 
     "KONSULTAN SOIL INVESTIGATION": [
@@ -264,7 +271,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-dc-development",
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname", "menu-opname-final",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",

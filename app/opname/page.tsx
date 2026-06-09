@@ -331,7 +331,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             // Check for existing opname data
             let existingData: OpnameItem[] = [];
             try {
-                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
+                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko, tipe_opname: 'OPNAME' });
                 existingData = opnameRes.data || [];
                 const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []);
                 workingItems = [...workingItems, ...instruksiItems];
@@ -361,10 +361,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 setOpnameInputs({});
             }
 
-            // Check opname final status
+            // Check locked opname status
             let lockedOpnameFinal = false;
             try {
-                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci' });
+                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci', tipe_opname: 'OPNAME' });
                 const finalData = finalRes.data as unknown;
                 let finalItems: OpnameFinalSummary[] = [];
                 if (Array.isArray(finalData)) {
@@ -469,7 +469,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         return existingOpname.find(o => getOpnameItemKey(o) === itemKey && o.status?.toLowerCase() === 'ditolak');
     };
 
-    // Check if all items are approved (for Opname Final button)
+    // Check if all items are approved (for Opname button)
     const allApproved = useMemo(() => {
         if (rabItems.length === 0) return false;
         const approvedCount = existingOpname.filter(o => o.status?.toLowerCase() === 'disetujui').length;
@@ -483,7 +483,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             return;
         }
         if (!canLockOpnameFinal) {
-            showAlert({ message: "Opname Final hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
+            showAlert({ message: "Opname hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
             return;
         }
         if (!selectedRab || !allApproved) return;
@@ -525,7 +525,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
             const opnameFinalId = Array.from(latestOpnames.values())[0]?.id_opname_final;
             if (!opnameFinalId) {
-                throw new Error('ID Opname Final tidak ditemukan. Simpan item opname terlebih dahulu sebelum dikunci.');
+                throw new Error('ID Opname tidak ditemukan. Simpan item opname terlebih dahulu sebelum dikunci.');
             }
 
             // Calculate grand totals
@@ -553,26 +553,26 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 opname_item: opnameItemsData,
             });
 
-            showAlert({ message: 'Opname Final berhasil dikunci! Data telah dikirim untuk approval Koordinator.', type: "success" });
+            showAlert({ message: 'Opname berhasil dikunci! Data telah dikirim untuk approval Koordinator.', type: "success" });
             // Refresh data
             handleSelectRab(selectedRab.id.toString());
         } catch (err: any) {
-            showAlert({ message: `Gagal mengunci opname final: ${err.message}`, type: "error" });
+            showAlert({ message: `Gagal mengunci opname: ${err.message}`, type: "error" });
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Handle Kunci Opname Final — shows confirmation via GlobalAlert
+    // Handle Kunci Opname — shows confirmation via GlobalAlert
     const handleKunciOpnameFinal = () => {
         if (!canLockOpnameFinal) {
-            showAlert({ message: "Opname Final hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
+            showAlert({ message: "Opname hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
             return;
         }
         if (!selectedRab || !allApproved) return;
         showAlert({
-            title: 'Kunci Opname Final',
-            message: 'Kunci Opname Final untuk proyek ini? Setelah dikunci, data akan masuk proses approval Koordinator.',
+            title: 'Kunci Opname',
+            message: 'Kunci Opname untuk proyek ini? Setelah dikunci, data akan masuk proses approval Koordinator.',
             type: 'warning',
             confirmMode: true,
             confirmText: 'Ya, Kunci',
@@ -675,6 +675,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 formData.append('items', JSON.stringify([itemPayload]));
                 formData.append('file_foto_opname', input.file);
                 formData.append('file_foto_opname_indexes', JSON.stringify([0]));
+                formData.append('tipe_opname', 'OPNAME');
                 await submitOpnameBulk(formData);
             } else {
                 // If no new file, but existing_foto exists, we send JSON only.
@@ -682,6 +683,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 await submitOpnameBulk({
                     id_toko: Number(selectedRab.id_toko),
                     email_pembuat: userInfo.email,
+                    tipe_opname: 'OPNAME',
                     grand_total_opname: String(Math.round(grandTotalOpname)),
                     grand_total_rab: String(Math.round(grandTotalRab)),
                     items: [itemPayload],
@@ -691,7 +693,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: `Item "${rabItem.jenis_pekerjaan}" berhasil disubmit!`, type: "success" });
             // Refresh existing opname data so the item disappears from form
             try {
-                const opnameRes = await fetchOpnameList({ id_toko: selectedRab.id_toko });
+                const opnameRes = await fetchOpnameList({ id_toko: selectedRab.id_toko, tipe_opname: 'OPNAME' });
                 setExistingOpname(opnameRes.data || []);
             } catch { /* ignore */ }
         } catch (err: any) {
@@ -815,11 +817,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                         formData.append('items', JSON.stringify(payloadItems));
                         files.forEach(f => formData.append('file_foto_opname', f));
                         formData.append('file_foto_opname_indexes', JSON.stringify(fileIndexes));
+                        formData.append('tipe_opname', 'OPNAME');
                         await submitOpnameBulk(formData);
                     } else {
                         await submitOpnameBulk({
                             id_toko: Number(selectedRab.id_toko),
                             email_pembuat: userInfo.email,
+                            tipe_opname: 'OPNAME',
                             grand_total_opname: String(grandTotalOpname),
                             grand_total_rab: String(grandTotalRab),
                             items: payloadItems,
@@ -855,7 +859,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 <CheckSquare className="w-6 h-6" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800">Opname Final</h2>
+                                <h2 className="text-xl font-bold text-slate-800">Opname</h2>
                                 <p className="text-sm text-slate-500">Isi volume akhir dan verifikasi pekerjaan proyek.</p>
                             </div>
                         </div>
@@ -936,9 +940,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                             <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 flex items-start gap-3">
                                 <Lock className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
                                 <div>
-                                    <h4 className="font-bold text-red-800 text-sm">Opname Final Terkunci</h4>
+                                    <h4 className="font-bold text-red-800 text-sm">Opname Terkunci</h4>
                                     <p className="text-xs text-red-600 mt-1">
-                                        Proyek ini sudah berstatus Opname Final dan aksi sudah terkunci. Anda tidak dapat mensubmit item opname baru.
+                                        Proyek ini sudah berstatus Opname dan aksi sudah terkunci. Anda tidak dapat mensubmit item opname baru.
                                     </p>
                                 </div>
                             </div>
@@ -961,13 +965,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Kontraktor" value={tokoDetail.nama_kontraktor || '-'} />
                                 </div>
 
-                                {/* Opname Final Button */}
+                                {/* Opname Button */}
                                 {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
                                     <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${allApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div>
                                             <h4 className={`font-bold text-sm ${allApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
                                                 <Lock className="w-4 h-4 inline mr-1.5" />
-                                                Kunci Opname Final
+                                                Kunci Opname
                                             </h4>
                                             <p className={`text-xs mt-0.5 ${allApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
                                                 {allApproved
@@ -982,7 +986,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${allApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
                                         >
                                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-                                            Opname Final
+                                            Opname
                                         </Button>
                                     </div>
                                 )}
@@ -1439,7 +1443,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 setRabList(filteredRab);
 
                 // Load all opnames (backend should filter by user access)
-                return fetchOpnameList().then(opnameRes => ({ opnameRes, filteredRab, ilTokoIds: new Set(nextIlTokoMap.keys()) }));
+                return fetchOpnameList({ tipe_opname: 'OPNAME' }).then(opnameRes => ({ opnameRes, filteredRab, ilTokoIds: new Set(nextIlTokoMap.keys()) }));
             })
             .then(({ opnameRes, filteredRab, ilTokoIds }) => {
                 const allOpname = opnameRes.data || [];
@@ -1502,7 +1506,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
         try {
             // Load fresh opname data by id_toko — response includes toko + rab_item relations
-            const opnameRes = await fetchOpnameList({ id_toko: tokoId });
+            const opnameRes = await fetchOpnameList({ id_toko: tokoId, tipe_opname: 'OPNAME' });
             const opnameData = opnameRes.data || [];
             setFilteredOpname(opnameData);
 
@@ -1538,7 +1542,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         if (!selectedToko) return;
         setIsLoadingItems(true);
         try {
-            const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko });
+            const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko, tipe_opname: 'OPNAME' });
             setFilteredOpname(opnameRes.data || []);
         } catch (err) {
             console.error(err);
@@ -2060,7 +2064,7 @@ export default function OpnamePage() {
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
             <AppNavbar
-                title={appMode === 'pic' ? 'OPNAME FINAL' : 'REVIEW OPNAME'}
+                title={appMode === 'pic' ? 'OPNAME' : 'REVIEW OPNAME'}
                 showBackButton
                 backHref="/dashboard"
             />

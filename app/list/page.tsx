@@ -38,7 +38,7 @@ import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles, canAccessProjectPlanningByCa
 // =============================================================================
 // TYPES
 // =============================================================================
-type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN';
+type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
@@ -263,6 +263,17 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
         description: 'Daftar pengajuan perpanjangan hari SPK.',
     },
+    OPNAME: {
+        label: 'Opname',
+        fullLabel: 'Opname',
+        icon: <CheckSquare className="w-10 h-10" />,
+        color: 'text-sky-600',
+        bgColor: 'bg-sky-50',
+        borderColor: 'border-sky-200',
+        hoverBorder: 'hover:border-sky-400',
+        badgeColor: 'bg-sky-100 text-sky-700 border-sky-200',
+        description: 'Daftar dokumen Opname.',
+    },
     OPNAME_FINAL: {
         label: 'Opname Final',
         fullLabel: 'Opname Final',
@@ -334,6 +345,7 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
 const STATUS_BADGE: Record<string, string> = {
     'PENDING':                          'bg-yellow-100 text-yellow-700 border-yellow-200',
     'PENDING_KOORDINATOR':              'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'PROSES KTK/APPROVAL KONTRAKTOR':   'bg-sky-100 text-sky-700 border-sky-200',
     'MENUNGGU PERSETUJUAN KOORDINATOR': 'bg-yellow-100 text-yellow-700 border-yellow-200',
     'PENDING_MANAGER':                  'bg-orange-100 text-orange-700 border-orange-200',
     'MENUNGGU PERSETUJUAN MANAGER':     'bg-orange-100 text-orange-700 border-orange-200',
@@ -554,10 +566,10 @@ const normalizePertambahanSPKDocs = (items: PertambahanSPKListItem[]): Normalize
         dibuat_oleh: p.dibuat_oleh,
     }));
 
-const normalizeOpnameFinalDocs = (items: any[]): NormalizedDoc[] =>
+const normalizeOpnameDocs = (items: any[], tipe: 'OPNAME' | 'OPNAME_FINAL'): NormalizedDoc[] =>
     items.map(o => ({
         id: o.id,
-        tipe: 'OPNAME_FINAL' as DokumenKategori,
+        tipe: tipe as DokumenKategori,
         nomor_ulok:    o.nomor_ulok    ?? o.toko?.nomor_ulok ?? '-',
         nama_toko:     o.nama_toko     ?? o.toko?.nama_toko  ?? '-',
         cabang:        o.cabang        ?? o.toko?.cabang     ?? '-',
@@ -570,6 +582,8 @@ const normalizeOpnameFinalDocs = (items: any[]): NormalizedDoc[] =>
         hari_denda:    Number(o.hari_denda ?? 0),
         nilai_denda:   o.nilai_denda,
     }));
+
+const normalizeOpnameFinalDocs = (items: any[]): NormalizedDoc[] => normalizeOpnameDocs(items, 'OPNAME_FINAL');
 
 const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): NormalizedDoc[] => {
     const groups = new Map<number, any[]>();
@@ -799,7 +813,7 @@ export default function DaftarDokumenPage() {
             } else if (kategori === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKList();
                 docs = normalizePertambahanSPKDocs(res.data ?? []);
-            } else if (kategori === 'OPNAME_FINAL') {
+            } else if (kategori === 'OPNAME' || kategori === 'OPNAME_FINAL') {
                 let filters: any = undefined;
                 const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
                 const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
@@ -807,8 +821,9 @@ export default function DaftarDokumenPage() {
                 if (isKontraktorOrDirektur && sessionNamaPt) {
                     filters = { nama_kontraktor: sessionNamaPt };
                 }
+                filters = { ...(filters ?? {}), tipe_opname: kategori };
                 const res = await fetchOpnameFinalList(filters);
-                docs = normalizeOpnameFinalDocs(res.data ?? []);
+                docs = normalizeOpnameDocs(res.data ?? [], kategori);
             } else if (kategori === 'PENGAWASAN') {
                 const res = await fetchPengawasanList();
                 const ganttRes = await fetchGanttList();
@@ -996,12 +1011,12 @@ export default function DaftarDokumenPage() {
                     link_pdf:          d.link_pdf,
                     link_lampiran_pendukung: d.link_lampiran_pendukung,
                 };
-            } else if (doc.tipe === 'OPNAME_FINAL') {
+            } else if (doc.tipe === 'OPNAME' || doc.tipe === 'OPNAME_FINAL') {
                 const res = await fetchOpnameFinalDetail(doc.id);
                 const d = res.data;
                 detail = {
                     id: d.opname_final.id,
-                    tipe: 'OPNAME_FINAL',
+                    tipe: doc.tipe,
                     nomor_ulok:          d.toko?.nomor_ulok || doc.nomor_ulok,
                     nama_toko:           d.toko?.nama_toko || doc.nama_toko,
                     cabang:              d.toko?.cabang || doc.cabang,
@@ -1219,7 +1234,7 @@ export default function DaftarDokumenPage() {
                 await downloadSPKPdf(id);
             } else if (tipe === 'PERTAMBAHAN_SPK') {
                 await downloadPertambahanSPKPdf(id);
-            } else if (tipe === 'OPNAME_FINAL') {
+            } else if (tipe === 'OPNAME' || tipe === 'OPNAME_FINAL') {
                 await downloadOpnameFinalPdf(id);
             } else if (tipe === 'PENGAWASAN') {
                 await downloadPengawasanPdf(id);
@@ -1248,6 +1263,7 @@ export default function DaftarDokumenPage() {
             }
 
             if (
+                detail.tipe === 'OPNAME' ||
                 detail.tipe === 'OPNAME_FINAL' ||
                 detail.tipe === 'INSTRUKSI_LAPANGAN' ||
                 detail.tipe === 'PROJECT_PLANNING' ||
@@ -2036,6 +2052,7 @@ export default function DaftarDokumenPage() {
                                     <div className={`px-6 py-4 ${
                                         selectedDetail.tipe === 'RAB' ? 'bg-linear-to-r from-blue-50 to-blue-100/50 border-b border-blue-100'
                                         : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'bg-linear-to-r from-emerald-50 to-emerald-100/50 border-b border-emerald-100'
+                                        : selectedDetail.tipe === 'OPNAME' ? 'bg-linear-to-r from-sky-50 to-sky-100/50 border-b border-sky-100'
                                         : selectedDetail.tipe === 'OPNAME_FINAL' ? 'bg-linear-to-r from-orange-50 to-orange-100/50 border-b border-orange-100'
                                         : selectedDetail.tipe === 'PENGAWASAN' ? 'bg-linear-to-r from-indigo-50 to-indigo-100/50 border-b border-indigo-100'
                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'bg-linear-to-r from-teal-50 to-teal-100/50 border-b border-teal-100'
@@ -2048,6 +2065,7 @@ export default function DaftarDokumenPage() {
                                                 <div className={`w-10 h-10 rounded-xl ${
                                                     selectedDetail.tipe === 'RAB' ? 'bg-blue-100'
                                                     : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'bg-emerald-100'
+                                                    : selectedDetail.tipe === 'OPNAME' ? 'bg-sky-100'
                                                     : selectedDetail.tipe === 'OPNAME_FINAL' ? 'bg-orange-100'
                                                     : selectedDetail.tipe === 'PENGAWASAN' ? 'bg-indigo-100'
                                                     : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'bg-teal-100'
@@ -2059,6 +2077,8 @@ export default function DaftarDokumenPage() {
                                                         ? <FileText className="w-5 h-5 text-blue-600" />
                                                         : selectedDetail.tipe === 'PERTAMBAHAN_SPK'
                                                         ? <FilePlus className="w-5 h-5 text-emerald-600" />
+                                                        : selectedDetail.tipe === 'OPNAME'
+                                                        ? <CheckSquare className="w-5 h-5 text-sky-600" />
                                                         : selectedDetail.tipe === 'OPNAME_FINAL'
                                                         ? <CheckSquare className="w-5 h-5 text-orange-600" />
                                                         : selectedDetail.tipe === 'PENGAWASAN'
@@ -2077,6 +2097,7 @@ export default function DaftarDokumenPage() {
                                                         {selectedDetail.tipe === 'RAB' ? 'Detail RAB'
                                                         : selectedDetail.tipe === 'SPK' ? 'Detail SPK'
                                                         : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'Detail Pertambahan SPK'
+                                                        : selectedDetail.tipe === 'OPNAME' ? 'Detail Opname'
                                                         : selectedDetail.tipe === 'OPNAME_FINAL' ? 'Detail Opname Final'
                                                         : selectedDetail.tipe === 'PENGAWASAN' ? 'Detail Pengawasan'
                                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'Detail Serah Terima'
@@ -2321,7 +2342,7 @@ export default function DaftarDokumenPage() {
                                                 )}
                                             </div>
                                         )}
-                                        {selectedDetail.tipe === 'OPNAME_FINAL' && (
+                                        {(selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL') && (
                                             <div className="flex flex-wrap gap-4 mt-3 text-sm">
                                                 <div>
                                                     <span className="text-slate-400">Subtotal Opname: </span>
@@ -2533,12 +2554,12 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 )}
 
-                                {/* Items Table (RAB, OPNAME_FINAL & INSTRUKSI_LAPANGAN) */}
-                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
+                                {/* Items Table (RAB, OPNAME, OPNAME_FINAL & INSTRUKSI_LAPANGAN) */}
+                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                         <div className="px-6 py-4 border-b border-slate-100">
                                             <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                                <div className={`w-1.5 h-5 ${selectedDetail.tipe === 'OPNAME_FINAL' ? 'bg-orange-500' : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-pink-500' : 'bg-blue-500'} rounded-full`} />
+                                                <div className={`w-1.5 h-5 ${selectedDetail.tipe === 'OPNAME' ? 'bg-sky-500' : selectedDetail.tipe === 'OPNAME_FINAL' ? 'bg-orange-500' : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-pink-500' : 'bg-blue-500'} rounded-full`} />
                                                 Item Pekerjaan ({selectedDetail.items.length} item)
                                             </h4>
                                         </div>
@@ -2687,6 +2708,7 @@ export default function DaftarDokumenPage() {
                                             (selectedDetail.tipe === 'RAB' && selectedDetail.link_pdf_gabungan) ||
                                             (selectedDetail.tipe === 'SPK' && selectedDetail.link_pdf) ||
                                             selectedDetail.tipe === 'PERTAMBAHAN_SPK' ||
+                                            selectedDetail.tipe === 'OPNAME' ||
                                             selectedDetail.tipe === 'OPNAME_FINAL' ||
                                             selectedDetail.tipe === 'PENGAWASAN' ||
                                             selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ||
@@ -2733,6 +2755,7 @@ export default function DaftarDokumenPage() {
 
                                         {(
                                             ((selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && selectedDetail.link_pdf) ||
+                                            selectedDetail.tipe === 'OPNAME' ||
                                             selectedDetail.tipe === 'OPNAME_FINAL' ||
                                             selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ||
                                             selectedDetail.tipe === 'PROJECT_PLANNING' ||

@@ -1906,6 +1906,7 @@ export type OpnameListFilters = {
     id_rab_item?:     number;
     id_instruksi_lapangan_item?: number;
     status?:          string;
+    tipe_opname?:     "OPNAME" | "OPNAME_FINAL";
 };
 
 // --- Fungsi ---
@@ -1928,6 +1929,7 @@ export const submitOpnameBulk = async (
     payload: FormData | {
         id_toko: number;
         email_pembuat: string;
+        tipe_opname?: string;
         grand_total_opname: string;
         grand_total_rab: string;
         items: any[];
@@ -1955,6 +1957,7 @@ export const fetchOpnameList = async (
     if (filters?.id_rab_item)     params.append("id_rab_item", filters.id_rab_item.toString());
     if (filters?.id_instruksi_lapangan_item) params.append("id_instruksi_lapangan_item", filters.id_instruksi_lapangan_item.toString());
     if (filters?.status)          params.append("status", filters.status);
+    if (filters?.tipe_opname)     params.append("tipe_opname", filters.tipe_opname);
     const url = `${base}/api/opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
@@ -2065,6 +2068,7 @@ export const fetchOpnameFinalList = async (filters?: {
     nomor_ulok?: string;
     cabang?: string;
     nama_kontraktor?: string;
+    tipe_opname?: "OPNAME" | "OPNAME_FINAL";
 }, options?: ApiRequestOptions) => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
@@ -2074,6 +2078,7 @@ export const fetchOpnameFinalList = async (filters?: {
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
+    if (filters?.tipe_opname) params.append("tipe_opname", filters.tipe_opname);
     const url = `${base}/api/final_opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
@@ -2909,7 +2914,7 @@ export const downloadDokumentasiBangunanPdf = async (id: number): Promise<boolea
 
 export const viewGeneratedPdfOnline = async (
     id: number,
-    tipe: "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
+    tipe: "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
 ): Promise<boolean> => {
     const popup = window.open("about:blank", "_blank");
     if (!popup) throw new Error("Browser memblokir tab baru. Izinkan popup untuk membuka PDF online.");
@@ -2927,6 +2932,7 @@ export const viewGeneratedPdfOnline = async (
     }
 
     const endpointByType = {
+        OPNAME: `/api/final_opname/${id}/pdf`,
         OPNAME_FINAL: `/api/final_opname/${id}/pdf`,
         INSTRUKSI_LAPANGAN: `/api/instruksi-lapangan/${id}/pdf`,
         PROJECT_PLANNING: `/api/projek-planning/${id}/pdf`,

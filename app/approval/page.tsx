@@ -48,7 +48,7 @@ import {
 // =============================================
 // TYPES INTERNAL
 // =============================================
-type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME_FINAL' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
+type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FINAL' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 
@@ -180,6 +180,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
     SPK: ['BRANCH MANAGER', 'MANAGER'],
     PERTAMBAHAN_SPK: ['BRANCH MANAGER', 'MANAGER'],
+    OPNAME: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
     OPNAME_FINAL: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
     INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'COORDINATOR', 'MANAGER'],
     PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
@@ -277,6 +278,15 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         description: 'Perpanjangan hari SPK yang menunggu persetujuan.',
         emptyMsg: 'Tidak ada pengajuan pertambahan SPK yang menunggu persetujuan.',
     },
+    OPNAME: {
+        label: 'Approval Opname',
+        icon: <CheckCircle className="w-10 h-10" />,
+        color: 'text-sky-700',
+        hoverBorder: 'hover:border-sky-500',
+        badgeColor: 'bg-sky-100 text-sky-700 border-sky-200',
+        description: 'Opname yang menunggu persetujuan.',
+        emptyMsg: 'Tidak ada pengajuan Opname yang menunggu persetujuan.',
+    },
     OPNAME_FINAL: {
         label: 'Approval Opname Final',
         icon: <CheckCircle className="w-10 h-10" />,
@@ -321,6 +331,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     'DISETUJUI BM':          'bg-green-100 text-green-700 border-green-200',
     'DITOLAK BM':            'bg-red-100 text-red-700 border-red-200',
     // Opname Final Specific
+    'PROSES KTK/APPROVAL KONTRAKTOR':   'bg-sky-100 text-sky-700 border-sky-200',
     'MENUNGGU PERSETUJUAN KOORDINATOR': 'bg-yellow-100 text-yellow-700 border-yellow-200',
     'MENUNGGU PERSETUJUAN MANAJER':     'bg-orange-100 text-orange-700 border-orange-200',
     'MENUNGGU PERSETUJUAN DIREKTUR KONTRAKTOR': 'bg-red-100 text-red-700 border-red-200',
@@ -431,6 +442,22 @@ const normalizePertambahanSPKList = (items: PertambahanSPKListItem[]): Normalize
         nomor_spk:     p.nomor_spk,
         alasan_perpanjangan: p.alasan_perpanjangan,
         _raw: p,
+    }));
+
+const normalizeOpnameList = (items: any[]): NormalizedListItem[] =>
+    items.map(o => ({
+        id: o.id,
+        tipe: 'OPNAME' as ApprovalType,
+        nomor_ulok:    o.nomor_ulok || o.toko?.nomor_ulok || '-',
+        nama_toko:     o.nama_toko  || o.toko?.nama_toko  || '-',
+        cabang:        o.cabang     || o.toko?.cabang     || '-',
+        status:        o.status_opname_final,
+        total_nilai:   Math.max(0, parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda)),
+        email_pembuat: o.email_pembuat,
+        created_at:    o.created_at,
+        hari_denda:    Number(o.hari_denda ?? 0),
+        nilai_denda:   o.nilai_denda,
+        _raw: o,
     }));
 
 const normalizeOpnameFinalList = (items: any[]): NormalizedListItem[] =>
@@ -567,6 +594,7 @@ export default function ApprovalPage() {
             allAccessibleTypes.add('RAB');
             allAccessibleTypes.add('SPK');
             allAccessibleTypes.add('PERTAMBAHAN_SPK');
+            allAccessibleTypes.add('OPNAME');
             allAccessibleTypes.add('OPNAME_FINAL');
             allAccessibleTypes.add('INSTRUKSI_LAPANGAN');
             allAccessibleTypes.add('PROJECT_PLANNING');
@@ -574,6 +602,7 @@ export default function ApprovalPage() {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isDirectorHO) {
             allAccessibleTypes.add('RAB');
+            allAccessibleTypes.add('OPNAME');
             allAccessibleTypes.add('OPNAME_FINAL');
         } else {
             roles.forEach(r => {
@@ -671,8 +700,16 @@ export default function ApprovalPage() {
             } else if (type === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKList({ status_persetujuan: 'Menunggu Persetujuan' });
                 normalized = normalizePertambahanSPKList(res.data ?? []);
+            } else if (type === 'OPNAME') {
+                const res = await fetchOpnameFinalList({ aksi: 'terkunci', tipe_opname: 'OPNAME' });
+                const opnameListRaw = Array.isArray(res.data)
+                    ? res.data
+                    : Array.isArray((res.data as any)?.opname_final)
+                        ? (res.data as any).opname_final
+                        : [];
+                normalized = normalizeOpnameList(opnameListRaw);
             } else if (type === 'OPNAME_FINAL') {
-                const res = await fetchOpnameFinalList({ aksi: 'terkunci' });
+                const res = await fetchOpnameFinalList({ aksi: 'terkunci', tipe_opname: 'OPNAME_FINAL' });
                 const opnameListRaw = Array.isArray(res.data)
                     ? res.data
                     : Array.isArray((res.data as any)?.opname_final)
@@ -702,7 +739,7 @@ export default function ApprovalPage() {
                 const isRegionalManagerUser = user?.isRegionalManager ?? false;
 
                 if (
-                    ['RAB', 'OPNAME_FINAL', 'INSTRUKSI_LAPANGAN'].includes(type)
+                    ['RAB', 'OPNAME', 'OPNAME_FINAL', 'INSTRUKSI_LAPANGAN'].includes(type)
                     && isContractorCompanyScopedRole(userRoles)
                     && userInfo.nama_pt
                     && !matchesUserCompany(item._raw, userInfo.nama_pt)
@@ -934,7 +971,7 @@ export default function ApprovalPage() {
                     nomor_spk:         d.nomor_spk || d.spk?.nomor_spk,
                     items: [],
                 };
-            } else if (item.tipe === 'OPNAME_FINAL') {
+            } else if (item.tipe === 'OPNAME' || item.tipe === 'OPNAME_FINAL') {
                 const res = await fetchOpnameFinalDetail(item.id);
                 const payload = res?.data ?? {};
                 const header = payload.opname_final ?? payload;
@@ -942,7 +979,7 @@ export default function ApprovalPage() {
                 const detailItems = getOpnameFinalItems(payload);
                 detail = {
                     id: header.id,
-                    tipe: 'OPNAME_FINAL',
+                    tipe: item.tipe,
                     nomor_ulok:        toko.nomor_ulok || item.nomor_ulok || '-',
                     id_toko:           header.id_toko ?? toko.id,
                     nama_toko:         toko.nama_toko || item.nama_toko || '-',
@@ -1123,7 +1160,7 @@ export default function ApprovalPage() {
                     tindakan:       'APPROVE',
                     catatan_approval: catatanApproval,
                 });
-            } else if (item.tipe === 'OPNAME_FINAL') {
+            } else if (item.tipe === 'OPNAME' || item.tipe === 'OPNAME_FINAL') {
                 await approveOpnameFinal(item.id as number, {
                     approver_email: userInfo.email,
                     jabatan:        jabatan as any ?? 'KOORDINATOR',
@@ -1223,7 +1260,7 @@ export default function ApprovalPage() {
                     alasan_penolakan: rejectNote,
                     catatan_approval: rejectNote,
                 });
-            } else if (item.tipe === 'OPNAME_FINAL') {
+            } else if (item.tipe === 'OPNAME' || item.tipe === 'OPNAME_FINAL') {
                 await approveOpnameFinal(item.id as number, {
                     approver_email:   userInfo.email,
                     jabatan:          jabatan as any ?? 'KOORDINATOR',
@@ -1266,7 +1303,7 @@ export default function ApprovalPage() {
                 await downloadRABPdf(id);
             } else if (type === 'SPK') {
                 await downloadSPKPdf(id);
-            } else if (type === 'OPNAME_FINAL') {
+            } else if (type === 'OPNAME' || type === 'OPNAME_FINAL') {
                 await downloadOpnameFinalPdf(id);
             } else if (type === 'INSTRUKSI_LAPANGAN') {
                 await downloadInstruksiLapanganPdf(id);
@@ -1805,6 +1842,20 @@ export default function ApprovalPage() {
                                         {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download SPK (PDF)'}
                                     </Button>
                                 )}
+                                {selectedDetail?.tipe === 'OPNAME' && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-sky-600 text-sky-700 hover:bg-sky-50 font-bold"
+                                        disabled={processingId === `pdf-${selectedDetail.id}`}
+                                        onClick={() => handleDownloadPDF(selectedDetail.id as number, 'OPNAME')}
+                                    >
+                                        {processingId === `pdf-${selectedDetail.id}`
+                                            ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            : <FileDown className="w-4 h-4 mr-2" />
+                                        }
+                                        {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download Opname (PDF)'}
+                                    </Button>
+                                )}
                                 {selectedDetail?.tipe === 'OPNAME_FINAL' && (
                                     <Button
                                         variant="outline"
@@ -1936,7 +1987,7 @@ export default function ApprovalPage() {
                                                     <>
                                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Nilai</p>
                                                         <p className="text-3xl font-extrabold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
-                                                        {selectedDetail.tipe === 'OPNAME_FINAL' && (
+                                                        {(selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL') && (
                                                             <p className="text-xs font-semibold text-red-500 mt-1">
                                                                 Denda {formatRupiah(parseCurrency(selectedDetail.nilai_denda))} ({selectedDetail.hari_denda ?? 0} hari)
                                                             </p>

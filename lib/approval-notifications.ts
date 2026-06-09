@@ -17,6 +17,7 @@ export type ApprovalType =
     | "RAB"
     | "SPK"
     | "PERTAMBAHAN_SPK"
+    | "OPNAME"
     | "OPNAME_FINAL"
     | "INSTRUKSI_LAPANGAN"
     | "PROJECT_PLANNING";
@@ -36,6 +37,7 @@ export const EMPTY_APPROVAL_COUNTS: ApprovalCounts = {
     RAB: 0,
     SPK: 0,
     PERTAMBAHAN_SPK: 0,
+    OPNAME: 0,
     OPNAME_FINAL: 0,
     INSTRUKSI_LAPANGAN: 0,
     PROJECT_PLANNING: 0,
@@ -45,6 +47,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     RAB: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "DIREKTUR", "COORDINATOR", "MANAGER"],
     SPK: ["BRANCH MANAGER", "MANAGER"],
     PERTAMBAHAN_SPK: ["BRANCH MANAGER", "MANAGER"],
+    OPNAME: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "DIREKTUR", "COORDINATOR", "MANAGER"],
     OPNAME_FINAL: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "DIREKTUR", "COORDINATOR", "MANAGER"],
     INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
     PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
@@ -127,6 +130,7 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         allAccessibleTypes.add("PROJECT_PLANNING");
     } else if (isDirectorHO) {
         allAccessibleTypes.add("RAB");
+        allAccessibleTypes.add("OPNAME");
         allAccessibleTypes.add("OPNAME_FINAL");
     } else {
         roles.forEach(role => {
@@ -292,8 +296,21 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                     cabang: item.toko?.cabang,
                     raw: item,
                 })), user, jabatan);
+            } else if (type === "OPNAME") {
+                const res = await fetchOpnameFinalList({ aksi: "terkunci", tipe_opname: "OPNAME" }, { suppressGlobalError: true });
+                const rows = Array.isArray(res.data)
+                    ? res.data
+                    : Array.isArray((res.data as any)?.opname_final)
+                        ? (res.data as any).opname_final
+                        : [];
+                counts.OPNAME = countItems(rows.map((item: any) => ({
+                    tipe: "OPNAME",
+                    status: item.status_opname_final,
+                    cabang: item.cabang ?? item.toko?.cabang,
+                    raw: item,
+                })), user, jabatan);
             } else if (type === "OPNAME_FINAL") {
-                const res = await fetchOpnameFinalList({ aksi: "terkunci" }, { suppressGlobalError: true });
+                const res = await fetchOpnameFinalList({ aksi: "terkunci", tipe_opname: "OPNAME_FINAL" }, { suppressGlobalError: true });
                 const rows = Array.isArray(res.data)
                     ? res.data
                     : Array.isArray((res.data as any)?.opname_final)
