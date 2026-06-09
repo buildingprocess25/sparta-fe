@@ -1424,11 +1424,16 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
             .then(([res, instruksiRes]) => {
                 const data = res.data || [];
                 const ilRows = instruksiRes.data || [];
-                const userNamaPt = (userInfo.nama_pt || '').toUpperCase();
+                const userNamaPtRaw = userInfo.nama_pt || '';
+                const normalizeNamaPt = (name: string) => {
+                    if (!name) return '';
+                    return name.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/PT/g, '').replace(/CV/g, '');
+                };
+                const userNamaPt = normalizeNamaPt(userNamaPtRaw);
                 
                 const nextIlTokoMap = new Map<number, any>();
                 ilRows.forEach((item: any) => {
-                    if (userNamaPt && (item.nama_kontraktor || '').toUpperCase() !== userNamaPt) return;
+                    if (userNamaPt && normalizeNamaPt(item.nama_kontraktor) !== userNamaPt) return;
                     const idToko = Number(item.id_toko);
                     if (!idToko || nextIlTokoMap.has(idToko)) return;
                     nextIlTokoMap.set(idToko, item);
@@ -1437,7 +1442,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
                 const filteredRab = data.filter(item => {
                     if (!userNamaPt) return true;
-                    return (item.nama_pt || '').toUpperCase() === userNamaPt;
+                    return normalizeNamaPt(item.nama_pt) === userNamaPt;
                 });
                 
                 setRabList(filteredRab);
