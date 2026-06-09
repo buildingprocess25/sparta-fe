@@ -933,37 +933,56 @@ export default function DetailProjekPlanning() {
         {/* Info Toko */}
         <Card>
           <CardHeader className="pb-2 border-b border-slate-100 mb-3"><CardTitle className="text-sm font-bold flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Informasi Toko</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-            <InfoRow label="Nomor ULOK" value={data.nomor_ulok} />
-            <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
-            <InfoRow label="Cabang" value={data.cabang} />
-            <InfoRow label="Proyek" value={data.proyek || data.jenis_proyek} />
-            <InfoRow label="Tipe Bangunan" value={`${data.is_ruko ? 'Ruko' : 'Non-Ruko'}${data.jumlah_lantai ? ` — ${data.jumlah_lantai} Lantai` : ''}`} />
-            <InfoRow label="Kategori Toko" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_dark_store ? 'B2B' : 'Reguler')} />
-            <InfoRow label="Lingkup Pekerjaan" value={data.lingkup_pekerjaan} />
-            <InfoRow label="Pengaju" value={data.nama_pengaju} />
-            <InfoRow label="Email Pembuat" value={data.email_pembuat} />
-            <InfoRow label="Link Google Maps" value={(data as any).link_google_maps} />
-            <InfoRow
-              label="Jenis Pengajuan"
-              value={(() => {
-                const items = (data.jenis_pengajuan || '').split(',').map((j: string) => j.trim()).filter(Boolean);
-                const lainnya = items.includes('LAINNYA') && data.jenis_pengajuan_lainnya ? ` (${data.jenis_pengajuan_lainnya})` : '';
-                return items.join(', ') + lainnya || data.jenis_pengajuan;
-              })()}
-            />
-            {(data as any).beanspot_tipe && <InfoRow label="Tipe Bean Spot" value={(data as any).beanspot_tipe === "Basic" ? "RTD ONLY" : (data as any).beanspot_tipe} />}
-            <InfoRow label="Head to Head" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_head_to_head ? `✓ Ya${(data as any).jarak_head_to_head ? ` (${(data as any).jarak_head_to_head} m)` : ''}` : 'Tidak')} />
-            <InfoRow label="Seating Area" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_seating_area ? '✓ Ya' : 'Tidak')} />
-            <InfoRow label="Luas Bangunan" value={(data as any).luas_bangunan ? `${(data as any).luas_bangunan} m²` : null} />
-            <InfoRow label="Luas Area Terbuka" value={(data as any).luas_area_terbuka ? `${(data as any).luas_area_terbuka} m²` : null} />
-            <InfoRow label="Luas Area Terbangun" value={(data as any).luas_area_terbangun ? `${(data as any).luas_area_terbangun} m²` : null} />
-            <InfoRow label="Luas Gudang" value={(data as any).luas_gudang ? `${(data as any).luas_gudang} m²` : null} />
-            <InfoRow label="Luas Area Parkir" value={(data as any).luas_area_parkir ? `${(data as any).luas_area_parkir} m²` : null} />
-            <InfoRow label="Luas Area Sales" value={(data as any).luas_area_sales ? `${(data as any).luas_area_sales} m²` : null} />
-            <InfoRow label="P x L Bangunan" value={(data as any).p_bangunan && (data as any).l_bangunan ? `${(data as any).p_bangunan} x ${(data as any).l_bangunan}` : (data as any).pxl_bangunan || null} />
-            <InfoRow label="P x L Area Parkir" value={(data as any).p_area_parkir && (data as any).l_area_parkir ? `${(data as any).p_area_parkir} x ${(data as any).l_area_parkir}` : (data as any).pxl_area_parkir || null} />
-            <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
+          <CardContent className="space-y-6">
+            
+            <div>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Informasi Utama</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                <InfoRow label="Nomor ULOK" value={data.nomor_ulok} />
+                <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
+                <InfoRow label="Cabang" value={data.cabang} />
+                <InfoRow label="Proyek" value={data.proyek || data.jenis_proyek} />
+                <InfoRow label="Tipe Bangunan" value={`${data.is_ruko ? 'Ruko' : 'Non-Ruko'}${data.jumlah_lantai ? ` — ${data.jumlah_lantai} Lantai` : ''}`} />
+                <InfoRow label="Kategori Toko" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_dark_store ? 'B2B' : 'Reguler')} />
+                <InfoRow label="Lingkup Pekerjaan" value={data.lingkup_pekerjaan} />
+                <InfoRow label="Pengaju" value={data.nama_pengaju} />
+                <InfoRow label="Email Pembuat" value={data.email_pembuat} />
+                <InfoRow
+                  label="Jenis Pengajuan"
+                  value={(() => {
+                    const items = (data.jenis_pengajuan || '').split(',').map((j: string) => j.trim()).filter(Boolean);
+                    const lainnya = items.includes('LAINNYA') && data.jenis_pengajuan_lainnya ? ` (${data.jenis_pengajuan_lainnya})` : '';
+                    return items.join(', ') + lainnya || data.jenis_pengajuan;
+                  })()}
+                />
+                {(data as any).beanspot_tipe && <InfoRow label="Tipe Bean Spot" value={(data as any).beanspot_tipe === "Basic" ? "RTD ONLY" : (data as any).beanspot_tipe} />}
+                <InfoRow label="Head to Head" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_head_to_head ? `✓ Ya${(data as any).jarak_head_to_head ? ` (${(data as any).jarak_head_to_head} m)` : ''}` : 'Tidak')} />
+                <InfoRow label="Seating Area" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_seating_area ? '✓ Ya' : 'Tidak')} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Data Luasan & Dimensi</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                <InfoRow label="Luas Bangunan" value={(data as any).luas_bangunan ? `${(data as any).luas_bangunan} m²` : null} />
+                <InfoRow label="Luas Area Terbuka" value={(data as any).luas_area_terbuka ? `${(data as any).luas_area_terbuka} m²` : null} />
+                <InfoRow label="Luas Area Terbangun" value={(data as any).luas_area_terbangun ? `${(data as any).luas_area_terbangun} m²` : null} />
+                <InfoRow label="Luas Gudang" value={(data as any).luas_gudang ? `${(data as any).luas_gudang} m²` : null} />
+                <InfoRow label="Luas Area Parkir" value={(data as any).luas_area_parkir ? `${(data as any).luas_area_parkir} m²` : null} />
+                <InfoRow label="Luas Area Sales" value={(data as any).luas_area_sales ? `${(data as any).luas_area_sales} m²` : null} />
+                <InfoRow label="P x L Bangunan" value={(data as any).p_bangunan && (data as any).l_bangunan ? `${(data as any).p_bangunan} x ${(data as any).l_bangunan}` : (data as any).pxl_bangunan || null} />
+                <InfoRow label="P x L Area Parkir" value={(data as any).p_area_parkir && (data as any).l_area_parkir ? `${(data as any).p_area_parkir} x ${(data as any).l_area_parkir}` : (data as any).pxl_area_parkir || null} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Lokasi & Keterangan</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                <InfoRow label="Link Google Maps" value={(data as any).link_google_maps} />
+                <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
+              </div>
+            </div>
+
           </CardContent>
         </Card>
 
