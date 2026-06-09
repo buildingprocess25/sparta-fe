@@ -164,7 +164,7 @@ function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string | null }) {
+function InfoRow({ label, value }: { label: string; value: React.ReactNode | null }) {
   if (!value) return null;
   return (
     <div className="flex flex-col gap-0.5 p-3 bg-white border border-slate-100 rounded-lg shadow-sm hover:border-slate-200 transition-colors">
@@ -978,7 +978,19 @@ export default function DetailProjekPlanning() {
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Lokasi & Keterangan</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                <InfoRow label="Link Google Maps" value={(data as any).link_google_maps} />
+                <InfoRow 
+                  label="Link Google Maps" 
+                  value={(data as any).link_google_maps ? (
+                    <a 
+                      href={String((data as any).link_google_maps).startsWith('http') ? (data as any).link_google_maps : `https://${(data as any).link_google_maps}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline break-all"
+                    >
+                      Buka Google Maps
+                    </a>
+                  ) : null} 
+                />
                 <InfoRow label="Estimasi Biaya" value={data.estimasi_biaya ? `Rp ${Number(data.estimasi_biaya).toLocaleString('id-ID')}` : null} />
               </div>
             </div>
