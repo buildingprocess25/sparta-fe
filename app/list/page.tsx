@@ -800,15 +800,28 @@ export default function DaftarDokumenPage() {
                 const res = await fetchRABList(filters);
                 docs = normalizeRABDocs(res.data ?? []);
             } else if (kategori === 'SPK') {
-                let filters: any = undefined;
+                let filters: any = {};
                 // Read directly from sessionStorage to avoid stale closure
                 const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
                 const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
+                const sessionCabang = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
                 const isKontraktorOrDirektur = sessionRole.includes('KONTRAKTOR') || sessionRole.includes('DIREKTUR');
                 if (isKontraktorOrDirektur && sessionNamaPt) {
-                    filters = { nama_kontraktor: sessionNamaPt };
+                    filters.nama_kontraktor = sessionNamaPt;
                 }
-                const res = await fetchSPKList(filters);
+                if (sessionCabang && !sessionCanViewAllBranches) {
+                    let userGroup: string[] | null = null;
+                    for (const grp of Object.values(BRANCH_GROUPS)) {
+                        if (grp.includes(sessionCabang)) {
+                            userGroup = grp;
+                            break;
+                        }
+                    }
+                    if (!userGroup) {
+                        filters.cabang = sessionCabang;
+                    }
+                }
+                const res = await fetchSPKList(Object.keys(filters).length > 0 ? filters : undefined);
                 docs = normalizeSPKDocs(res.data ?? []);
             } else if (kategori === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKList();
