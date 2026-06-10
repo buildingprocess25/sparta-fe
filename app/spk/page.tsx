@@ -59,7 +59,7 @@ const getTodayDateString = () => {
     return `${year}-${month}-${day}`;
 };
 
-const BACKDATE_ALLOWED_BRANCHES = ['LAMPUNG', 'LUWU', 'JEMBER', 'CILACAP', 'BANJARMASIN', 'BANDUNG', 'BANDUNG 1', 'BANDUNG 2'];
+const BACKDATE_ALLOWED_BRANCHES = ['LAMPUNG', 'LUWU', 'JEMBER', 'CILACAP', 'BANJARMASIN', 'BANDUNG', 'BANDUNG 1', 'BANDUNG 2', 'BANDUNG RAYA', 'BANDUNG_RAYA'];
 
 // Tipe untuk data form yang dimuat saat revisi
 type RevisiFormSnapshot = {
