@@ -2950,6 +2950,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
     );
 }
 
+
 export default function Page() {
     return (
         <Suspense fallback={

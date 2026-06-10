@@ -1731,6 +1731,34 @@ export const updateGanttSpeed = async (
     return result;
 };
 
+export const previewGanttMigration = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/preview`, {
+        method: 'POST',
+        body: formData,
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal membuat preview migrasi Gantt Chart.");
+    return result;
+};
+
+export const commitGanttMigration = async (file: File, emailPembuat: string, limit?: number) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("email_pembuat", emailPembuat);
+    if (limit !== undefined) formData.append("limit", String(limit));
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/commit`, {
+        method: 'POST',
+        body: formData,
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal memproses migrasi Gantt Chart.");
+    return result;
+};
+
 /** Tambah atau hapus kategori dari daftar pengawasan Gantt Chart. */
 export const manageGanttPengawasan = async (
     id: number,
