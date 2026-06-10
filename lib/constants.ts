@@ -103,6 +103,13 @@ export const ALL_MENUS = [
         icon: BarChartHorizontal,
     },
     {
+        id: "menu-migrasi-gantt",
+        title: "Migrasi Gantt Chart",
+        desc: "Upload Excel Gantt Chart.",
+        href: "/gantt/migrasi",
+        icon: Upload,
+    },
+    {
         id: "menu-sp",
         title: "Surat Peringatan",
         desc: "Form surat peringatan.",
@@ -266,7 +273,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-dc-development",
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
-        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-gantt", "menu-migrasi-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
     ],
 };
