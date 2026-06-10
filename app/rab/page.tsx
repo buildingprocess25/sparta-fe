@@ -233,6 +233,10 @@ export default function RABPage() {
   // State untuk melacak perubahan pada form revisi
   const [initialFormState, setInitialFormState] = useState<string | null>(null);
 
+  // --- 1a. DRAFT (AUTO-SAVE) ---
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
+  const [draftData, setDraftData] = useState<any>(null);
+
   useEffect(() => {
      if (initialFormState === "TRACKING_PENDING" && !isLoading) {
          setInitialFormState(JSON.stringify({ formData, tableRows }));
@@ -262,6 +266,52 @@ export default function RABPage() {
   const isSuperHuman = user?.isSuperHuman ?? false;
   const isContractor = user?.roles?.some(role => role.includes('KONTRAKTOR')) ?? false;
   const isReadOnly = isViewOnlyUser(user?.roles, isSuperHuman) && !isContractor;
+
+  useEffect(() => {
+    // Simpan otomatis jika tidak dalam mode loading, bukan readonly, tidak sedang edit revisi (currentRabId == null),
+    // dan jika form atau tabel sudah terisi sebagian
+    if (!isLoading && !isReadOnly && user?.email && !currentRabId) {
+      const draftKey = `rab_draft_${user.email}`;
+      const hasData = tableRows.length > 0 || formData.namaToko.trim() !== '' || formData.lokasiTanggal.trim() !== '';
+      if (hasData) {
+         localStorage.setItem(draftKey, JSON.stringify({ formData, tableRows }));
+      }
+    }
+  }, [formData, tableRows, isLoading, isReadOnly, user, currentRabId]);
+
+  useEffect(() => {
+    if (user?.email && !currentRabId) {
+      const draftKey = `rab_draft_${user.email}`;
+      const savedDraft = localStorage.getItem(draftKey);
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed && parsed.formData && (parsed.tableRows?.length > 0 || parsed.formData.namaToko !== '')) {
+            setDraftData(parsed);
+            setDraftDialogOpen(true);
+          }
+        } catch (e) {
+          console.error("Gagal load draft RAB", e);
+        }
+      }
+    }
+  }, [user, currentRabId]);
+
+  const loadDraft = () => {
+    if (draftData) {
+      setFormData(draftData.formData);
+      setTableRows(draftData.tableRows || []);
+    }
+    setDraftDialogOpen(false);
+  };
+
+  const deleteDraft = () => {
+    if (user?.email) {
+      localStorage.removeItem(`rab_draft_${user.email}`);
+    }
+    setDraftData(null);
+    setDraftDialogOpen(false);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -748,6 +798,9 @@ export default function RABPage() {
         // Simpan response API ke dalam variabel submitRes
         const submitRes = await submitRABData(textFields, detailItems, asuransiFile);
         
+        // Hapus draft setelah submit berhasil
+        if (sessionEmail) localStorage.removeItem(`rab_draft_${sessionEmail}`);
+
         // Tangkap id_toko dari data response API
         const idToko = submitRes.data?.id_toko;
 
@@ -1294,6 +1347,22 @@ export default function RABPage() {
       </AlertDialog>
 
       {/* MODAL KONFIRMASI LOAD REVISI SAAT NGETIK ULOK DIHAPUS */}
+
+      {/* MODAL LOAD DRAFT */}
+      <AlertDialog open={draftDialogOpen} onOpenChange={setDraftDialogOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Draft Tersimpan Ditemukan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sistem menemukan data pengisian RAB yang belum selesai dari sesi sebelumnya. Apakah Anda ingin melanjutkan pengisian dari draft ini?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={deleteDraft}>Abaikan & Hapus</AlertDialogCancel>
+            <AlertDialogAction onClick={loadDraft} className="bg-blue-600 hover:bg-blue-700 text-white">Lanjutkan Draft</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* MODAL KONFIRMASI RESET FORM */}
       <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
