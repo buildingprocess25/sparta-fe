@@ -812,6 +812,12 @@ export default function ApprovalPage() {
                     return isPendingApprovalStatus(upper) && isDirectorApprovalStatus(upper);
                 }
 
+                // Khusus OPNAME — tampilkan semua yang statusnya menunggu persetujuan apapun level-nya
+                // karena tidak ada jabatan multi-level seperti RAB; semua approver bisa melihat antrian
+                if (type === 'OPNAME') {
+                    return isPendingApprovalStatus(upper) || upper.includes('MENUNGGU');
+                }
+
                 // Untuk RAB & IL (Multi-level)
                 if (!isPendingApprovalStatus(upper)) return false;
                 if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(upper);
@@ -1337,6 +1343,15 @@ export default function ApprovalPage() {
         // Pertambahan SPK — status "Menunggu Persetujuan"
         if (tipe === 'PERTAMBAHAN_SPK') {
             return upper === 'MENUNGGU PERSETUJUAN';
+        }
+
+        // OPNAME (Final) — multi-level mirip RAB tapi status dalam Bahasa Indonesia
+        if (tipe === 'OPNAME') {
+            if (!isPendingApprovalStatus(upper) && !upper.includes('MENUNGGU')) return false;
+            if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(upper);
+            if (jabatan === 'MANAGER')     return isManagerApprovalStatus(upper);
+            if (jabatan === 'DIREKTUR')    return isDirectorApprovalStatus(upper);
+            return isPendingApprovalStatus(upper) || upper.includes('MENUNGGU');
         }
 
         // RAB & IL — multi-level
