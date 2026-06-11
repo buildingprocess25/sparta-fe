@@ -1197,6 +1197,7 @@ export const replaceRabItems = async (
 export type RabMigrationAction =
     | "insert"
     | "skip"
+    | "update_created_at"
     | "replace_rab_items"
     | "replace_toko_rab_items"
     | "replace_items";
@@ -1211,9 +1212,10 @@ export type RabMigrationPreviewDetail = {
     status_rab: string;
     item_count: number;
     grand_total: string;
-    db_state: "ready" | "conflict" | "invalid";
+    db_state: "ready" | "conflict" | "missing_created_at" | "invalid";
     existing_toko_id: number | null;
     existing_rab_id: number | null;
+    existing_created_at: string | null;
     existing_item_count: number;
     issues: string[];
 };
@@ -1223,6 +1225,7 @@ export type RabMigrationPreviewResult = {
     total_items: number;
     ready_count: number;
     conflict_count: number;
+    missing_created_at_count: number;
     invalid_count: number;
     ignored_sheets: string[];
     details: RabMigrationPreviewDetail[];
@@ -1237,6 +1240,7 @@ export type RabMigrationCommitResult = {
     total_selected: number;
     inserted: number;
     replaced: number;
+    updated_created_at: number;
     skipped: number;
     migrated_items: number;
     details: Array<{

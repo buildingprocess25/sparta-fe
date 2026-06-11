@@ -38,6 +38,7 @@ const formatNumber = (value?: number | string | null) =>
 const ACTION_LABELS: Record<RabMigrationAction, string> = {
     insert: "Insert baru",
     skip: "Skip",
+    update_created_at: "Isi tanggal dibuat saja",
     replace_rab_items: "Replace RAB + item",
     replace_toko_rab_items: "Replace toko + RAB + item",
     replace_items: "Replace item saja",
@@ -45,6 +46,7 @@ const ACTION_LABELS: Record<RabMigrationAction, string> = {
 
 const getDefaultAction = (row: RabMigrationPreviewDetail): RabMigrationAction => {
     if (row.db_state === "ready") return "insert";
+    if (row.db_state === "missing_created_at") return "replace_toko_rab_items";
     if (row.db_state === "conflict") return "skip";
     return "skip";
 };
@@ -63,7 +65,7 @@ export default function RabMigrasiPage() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [actions, setActions] = useState<Record<number, RabMigrationAction>>({});
     const [searchQuery, setSearchQuery] = useState("");
-    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid">("all");
+    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "missing_created_at" | "invalid">("all");
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isCommitting, setIsCommitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error" | "info" | "warning"; text: string } | null>(null);
@@ -299,12 +301,13 @@ export default function RabMigrasiPage() {
 
                 {preview && (
                     <>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                             {[
                                 ["Total RAB", preview.total_rab, "text-slate-950"],
                                 ["Total Item", preview.total_items, "text-slate-950"],
                                 ["Siap Insert", preview.ready_count, "text-emerald-700"],
                                 ["Konflik DB", preview.conflict_count, "text-amber-700"],
+                                ["Target Timpa", preview.missing_created_at_count, "text-orange-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
                                 <Card key={String(label)} className="border-slate-200 shadow-sm">
@@ -318,11 +321,12 @@ export default function RabMigrasiPage() {
 
                         {commitResult && (
                             <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
-                                <CardContent className="grid gap-3 p-5 sm:grid-cols-4">
+                                <CardContent className="grid gap-3 p-5 sm:grid-cols-5">
                                     {[
                                         ["Dipilih", commitResult.total_selected],
                                         ["Insert", commitResult.inserted],
                                         ["Replace", commitResult.replaced],
+                                        ["Tanggal Diisi", commitResult.updated_created_at],
                                         ["Item Masuk", commitResult.migrated_items],
                                     ].map(([label, value]) => (
                                         <div key={String(label)} className="rounded-lg border border-emerald-100 bg-white p-3">
@@ -356,6 +360,7 @@ export default function RabMigrasiPage() {
                                                 <SelectItem value="all">Semua status</SelectItem>
                                                 <SelectItem value="ready">Siap insert</SelectItem>
                                                 <SelectItem value="conflict">Konflik DB</SelectItem>
+                                                <SelectItem value="missing_created_at">Target timpa</SelectItem>
                                                 <SelectItem value="invalid">Invalid</SelectItem>
                                             </SelectContent>
                                         </Select>
@@ -424,13 +429,15 @@ export default function RabMigrasiPage() {
                                                                 <Badge className={`border-none ${
                                                                     row.db_state === "ready" ? "bg-emerald-100 text-emerald-700" :
                                                                     row.db_state === "conflict" ? "bg-amber-100 text-amber-700" :
+                                                                    row.db_state === "missing_created_at" ? "bg-orange-100 text-orange-700" :
                                                                     "bg-red-100 text-red-700"
                                                                 }`}>
-                                                                    {row.db_state === "ready" ? "Siap insert" : row.db_state === "conflict" ? "Sudah ada" : "Invalid"}
+                                                                    {row.db_state === "ready" ? "Siap insert" : row.db_state === "conflict" ? "Sudah ada" : row.db_state === "missing_created_at" ? "Target timpa" : "Invalid"}
                                                                 </Badge>
                                                                 {row.existing_rab_id && (
                                                                     <div className="mt-2 text-xs text-slate-400">
                                                                         DB RAB #{row.existing_rab_id}, {formatNumber(row.existing_item_count)} item
+                                                                        {row.existing_created_at ? `, ${row.existing_created_at}` : ""}
                                                                     </div>
                                                                 )}
                                                             </td>
@@ -449,7 +456,10 @@ export default function RabMigrasiPage() {
                                                                     <SelectContent>
                                                                         {row.db_state === "ready" && <SelectItem value="insert">{ACTION_LABELS.insert}</SelectItem>}
                                                                         <SelectItem value="skip">{ACTION_LABELS.skip}</SelectItem>
-                                                                        {row.db_state === "conflict" && (
+                                                                        {row.db_state === "missing_created_at" && (
+                                                                            <SelectItem value="update_created_at">{ACTION_LABELS.update_created_at}</SelectItem>
+                                                                        )}
+                                                                        {(row.db_state === "conflict" || row.db_state === "missing_created_at") && (
                                                                             <>
                                                                                 <SelectItem value="replace_rab_items">{ACTION_LABELS.replace_rab_items}</SelectItem>
                                                                                 <SelectItem value="replace_toko_rab_items">{ACTION_LABELS.replace_toko_rab_items}</SelectItem>
@@ -474,7 +484,7 @@ export default function RabMigrasiPage() {
                                         Menampilkan {formatNumber(filteredRows.length)} dari {formatNumber(rows.length)} RAB. Dipilih {formatNumber(selectedRows.length)} RAB, eksekusi {formatNumber(selectedExecutableRows.length)} RAB.
                                     </span>
                                     <span>
-                                        Invalid tidak bisa dipilih. Sheet import lain diabaikan: {preview.ignored_sheets.join(", ")}.
+                                        Target timpa berarti RAB sudah ada di DB tetapi tanggal dibuat kosong. Sheet import lain diabaikan: {preview.ignored_sheets.join(", ")}.
                                     </span>
                                 </div>
                             </CardContent>

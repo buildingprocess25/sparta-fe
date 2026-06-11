@@ -47,6 +47,13 @@ export const ALL_MENUS = [
         icon: FileEdit,
     },
     {
+        id: "menu-migrasi-rab",
+        title: "Migrasi RAB",
+        desc: "Upload Excel dan pilih RAB untuk migrasi.",
+        href: "/rab/migrasi",
+        icon: Upload,
+    },
+    {
         id: "menu-spk",
         title: "Surat Perintah Kerja",
         desc: "Form surat perintah kerja untuk kontraktor.",
@@ -271,7 +278,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-dc-development",
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-rab", "menu-ubah-rab-item", "menu-migrasi-rab", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
         "menu-gantt", "menu-migrasi-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
