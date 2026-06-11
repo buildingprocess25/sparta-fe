@@ -3251,6 +3251,49 @@ export const fetchDashboardAll = async (search?: string) => {
     return safeFetchJSON(url);
 };
 
+export type DashboardExportFormat = "xlsx" | "csv" | "pdf";
+
+export const downloadDashboardExport = async (params: {
+    format: DashboardExportFormat;
+    actorRole: string;
+    actorCabang: string;
+    cabang?: string;
+    search?: string;
+}): Promise<boolean> => {
+    const query = new URLSearchParams();
+    query.set("format", params.format);
+    query.set("actor_role", params.actorRole);
+    query.set("actor_cabang", params.actorCabang);
+    if (params.cabang && params.cabang !== "ALL") query.set("cabang", params.cabang);
+    if (params.search?.trim()) query.set("search", params.search.trim());
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengunduh export (${res.status}): ${text.substring(0, 160)}`);
+    }
+
+    const disposition = res.headers.get("Content-Disposition");
+    const fallbackExt = params.format === "xlsx" ? "xlsx" : params.format;
+    let filename = `SPARTA_DASHBOARD_EXPORT.${fallbackExt}`;
+    if (disposition?.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match?.[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(blobUrl);
+    document.body.removeChild(a);
+    return true;
+};
+
 // =============================================================================
 // PENYIMPANAN DOKUMEN TOKO
 // =============================================================================

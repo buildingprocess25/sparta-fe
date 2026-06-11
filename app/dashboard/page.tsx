@@ -13,7 +13,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { fetchDashboardAll } from '@/lib/api';
+import { downloadDashboardExport, fetchDashboardAll, type DashboardExportFormat } from '@/lib/api';
 import {
     EMPTY_APPROVAL_COUNTS,
     fetchApprovalNotificationCounts,
@@ -25,7 +25,7 @@ import {
     Activity, CheckCircle2, ChevronRight, Clock, FileCheck, FileEdit, FileText, 
     HardHat, Layers, Search, Store, Users, MapPin, RefreshCw,
     TrendingUp, AlertCircle, Calendar, Loader2, Home, DollarSign,
-    Tag, UserCheck, Coffee, AlertTriangle, X, LogOut
+    Tag, UserCheck, Coffee, AlertTriangle, X, LogOut, Download, FileDown, FileSpreadsheet
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -283,6 +283,7 @@ export default function DashboardPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCabang, setSelectedCabang] = useState('ALL');
     const [cabangList, setCabangList] = useState<string[]>([]);
+    const [exportingFormat, setExportingFormat] = useState<DashboardExportFormat | null>(null);
 
     // Opname items map keyed by id_toko — populated once via bulk fetch
     const [opnameItemsMap, setOpnameItemsMap] = useState<Record<number, any[]>>({});
@@ -369,10 +370,10 @@ export default function DashboardPage() {
         setCanViewMonitoringDashboard(canViewMonitoring);
 
         // Dashboard monitoring tersedia untuk semua cabang.
-        // Hanya Super Human dan role global view-only yang melihat semua cabang.
+        // Head Office, Super Human, dan role global view-only melihat semua cabang.
         fetchDashboardData(
             userCabang.toUpperCase(),
-            canViewAllBranches(roles, isSuperHuman),
+            userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman),
             user.email,
             namaPt,
             companyScopedRole
@@ -403,8 +404,8 @@ export default function DashboardPage() {
             const json = await fetchDashboardAll();
             let data = json.data || [];
             
-            // Super Human dan role global view-only melihat semua cabang.
-            // User lain, termasuk HEAD OFFICE non-global, hanya melihat cabang session-nya sendiri.
+            // Head Office, Super Human, dan role global view-only melihat semua cabang.
+            // User cabang biasa hanya melihat cabang session-nya sendiri.
             let allowedBranches: string[] = [];
             if (!canSeeAllBranches || shouldFilterByCompany) {
                 allowedBranches = [userCabang];
@@ -458,6 +459,31 @@ export default function DashboardPage() {
             setRabRevisionCount(0);
         } finally {
             setIsDataLoading(false);
+        }
+    };
+
+    const canExportDashboard = canViewMonitoringDashboard && !userInfo.roles.some((role) => role.toUpperCase().includes('KONTRAKTOR'));
+
+    const handleDownloadDashboardExport = async (format: DashboardExportFormat) => {
+        if (!canExportDashboard || exportingFormat) return;
+        setExportingFormat(format);
+        try {
+            await downloadDashboardExport({
+                format,
+                actorRole: userInfo.roles.join(', '),
+                actorCabang: userInfo.cabang,
+                cabang: selectedCabang,
+                search: searchQuery,
+            });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Gagal mengunduh export dashboard.';
+            setFeatureAlert({
+                title: "Export Dashboard Gagal",
+                description: message,
+            });
+            setFeatureAlertOpen(true);
+        } finally {
+            setExportingFormat(null);
         }
     };
 
@@ -859,7 +885,7 @@ export default function DashboardPage() {
     }, [filteredProjects, rabItemsMap, opnameItemsMap]);
 
     const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
-    const canSeeAllMonitoringBranches = canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
+    const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
     const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
 
     // =========================================================================
@@ -1045,6 +1071,60 @@ export default function DashboardPage() {
                                             {cabangList.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
+                                )}
+
+                                {canExportDashboard && (
+                                    <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1">
+                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 px-1">Export</span>
+                                        {[
+                                            { format: "xlsx" as const, label: "XLSX", icon: FileSpreadsheet },
+                                            { format: "csv" as const, label: "CSV", icon: Download },
+                                            { format: "pdf" as const, label: "PDF", icon: FileDown },
+                                        ].map(({ format, label, icon: Icon }) => (
+                                            <Button
+                                                key={format}
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-6 rounded-md border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                                                onClick={() => handleDownloadDashboardExport(format)}
+                                                disabled={Boolean(exportingFormat)}
+                                                title={`Download dashboard ${label}`}
+                                            >
+                                                {exportingFormat === format ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                    <Icon className="w-3 h-3" />
+                                                )}
+                                                {label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {canExportDashboard && (
+                                    <div className="flex xl:hidden items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1 py-1">
+                                        {[
+                                            { format: "xlsx" as const, label: "XLSX", icon: FileSpreadsheet },
+                                            { format: "csv" as const, label: "CSV", icon: Download },
+                                            { format: "pdf" as const, label: "PDF", icon: FileDown },
+                                        ].map(({ format, label, icon: Icon }) => (
+                                            <Button
+                                                key={format}
+                                                variant="outline"
+                                                size="icon-sm"
+                                                className="rounded-md border-slate-200 bg-white text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                                                onClick={() => handleDownloadDashboardExport(format)}
+                                                disabled={Boolean(exportingFormat)}
+                                                title={`Download dashboard ${label}`}
+                                            >
+                                                {exportingFormat === format ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                    <Icon className="w-3.5 h-3.5" />
+                                                )}
+                                            </Button>
+                                        ))}
+                                    </div>
                                 )}
 
                                 {/* Refresh Button */}
