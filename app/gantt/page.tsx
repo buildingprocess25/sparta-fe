@@ -957,8 +957,9 @@ function GanttBoard() {
         const svgHeight = processedTasks.length * ROW_HEIGHT;
         const supervisionDays: Record<number, boolean> = {};
         
-        if (spkInfo && spkInfo.startDate && pengawasanDates.length > 0) {
-            const startD = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+        const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
+        if (effectiveStartDate && pengawasanDates.length > 0) {
+            const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
             pengawasanDates.forEach(pd => {
                 const pD = new Date(pd.split('T')[0] + 'T00:00:00');
                 const diffTime = pD.getTime() - startD.getTime();
@@ -1380,13 +1381,17 @@ function GanttBoard() {
                                     let isLiveDay = false;
                                     let fullDateString = '';
                                     
-                                    if (spkInfo) {
-                                        const d = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+                                    const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
+                                    if (effectiveStartDate) {
+                                        const d = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
                                         d.setDate(d.getDate() + i);
                                         const dd = String(d.getDate()).padStart(2, '0');
                                         const mm = String(d.getMonth() + 1).padStart(2, '0');
                                         const yyyy = d.getFullYear();
-                                        label = `${dd}/${mm}`;
+                                        
+                                        if (spkInfo) {
+                                            label = `${dd}/${mm}`;
+                                        }
                                         
                                         fullDateString = `${dd}/${mm}/${yyyy}`;
                                         
