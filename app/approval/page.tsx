@@ -23,7 +23,7 @@ import {
     fetchSPKList, fetchSPKDetail, processSPKApproval, downloadSPKPdf,
     type SPKListItem,
     // Pertambahan SPK
-    fetchPertambahanSPKList, fetchPertambahanSPKDetail, processPertambahanSPKApproval,
+    fetchPertambahanSPKList, fetchPertambahanSPKDetail, processPertambahanSPKApproval, downloadPertambahanSPKPdf,
     type PertambahanSPKListItem, type PertambahanSPKDetailResponse,
     // Opname Final
     fetchOpnameFinalList, fetchOpnameFinalDetail, approveOpnameFinal, downloadOpnameFinalPdf,
@@ -1122,6 +1122,7 @@ export default function ApprovalPage() {
                     await sendEmailNotification({
                         cabang: item.cabang,
                         id_toko: item.id_toko,
+                        id_spk: item.id,
                         flag: "notification-spk-has-approve"
                     });
                 } catch (emailErr) {
@@ -1221,6 +1222,7 @@ export default function ApprovalPage() {
                     await sendEmailNotification({
                         cabang: item.cabang,
                         id_toko: item.id_toko,
+                        id_spk: item.id,
                         flag: "notification-spk-has-reject"
                     });
                 } catch (emailErr) {
@@ -2030,15 +2032,21 @@ export default function ApprovalPage() {
                                             {/* Lampiran links */}
                                             <div className="mt-4 flex flex-wrap gap-3">
                                                 {selectedDetail.link_pdf && (
-                                                    <a
-                                                        href={selectedDetail.link_pdf}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                await downloadPertambahanSPKPdf(Number(selectedDetail.id));
+                                                            } catch (err: unknown) {
+                                                                const message = err instanceof Error ? err.message : 'Gagal mengunduh PDF perpanjangan.';
+                                                                showToast(message, 'error');
+                                                            }
+                                                        }}
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors"
                                                     >
                                                         <FileText className="w-4 h-4" />
                                                         Lihat PDF Perpanjangan
-                                                    </a>
+                                                    </button>
                                                 )}
                                                 {selectedDetail.link_lampiran_pendukung && (
                                                     <a
