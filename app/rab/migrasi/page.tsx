@@ -440,6 +440,11 @@ export default function RabMigrasiPage() {
                                                                         {row.existing_created_at ? `, ${row.existing_created_at}` : ""}
                                                                     </div>
                                                                 )}
+                                                                {row.existing_match_count > 1 && (
+                                                                    <div className="mt-1 text-xs font-semibold text-red-600">
+                                                                        {formatNumber(row.existing_match_count)} target DB cocok
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3 align-top">
                                                                 <Select
@@ -471,6 +476,11 @@ export default function RabMigrasiPage() {
                                                             </td>
                                                             <td className="px-4 py-3 align-top text-xs text-slate-500">
                                                                 {row.issues.length > 0 ? row.issues.join(", ") : row.status_rab || "-"}
+                                                                {row.warnings.length > 0 && (
+                                                                    <div className="mt-1 font-medium text-amber-600">
+                                                                        {row.warnings.join(", ")}
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                         </tr>
                                                     );

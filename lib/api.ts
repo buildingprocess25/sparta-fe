@@ -1217,7 +1217,9 @@ export type RabMigrationPreviewDetail = {
     existing_rab_id: number | null;
     existing_created_at: string | null;
     existing_item_count: number;
+    existing_match_count: number;
     issues: string[];
+    warnings: string[];
 };
 
 export type RabMigrationPreviewResult = {
