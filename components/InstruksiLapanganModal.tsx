@@ -35,6 +35,7 @@ const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: st
     return matchedEntry?.[1] || [];
 };
 const normalizeNoPpnText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+const normalizeBranch = (value?: string | null) => String(value ?? "").trim().toUpperCase();
 const releaseActiveFocus = () => {
     if (typeof document === "undefined") return;
     const activeElement = document.activeElement;
@@ -84,9 +85,10 @@ export default function InstruksiLapanganModal({
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState<{title: string, desc: string, type: 'info' | 'error' | 'success' | 'warning'}>({ title: "", desc: "", type: "info" });
     const submitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const loadedInitialTokoIdRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const userCabang = sessionStorage.getItem('loggedInUserCabang')?.toUpperCase();
+        const userCabang = normalizeBranch(sessionStorage.getItem('loggedInUserCabang'));
         const userRole = sessionStorage.getItem('userRole') || '';
         const roles = userRole.split(',').map(role => role.trim().toUpperCase());
         const canCreateInstruksiLapangan = roles.includes('BUILDING & MAINTENANCE SUPER HUMAN') || roles.includes('BRANCH BUILDING SUPPORT');
@@ -102,7 +104,7 @@ export default function InstruksiLapanganModal({
         setCabang(userCabang);
 
         fetchTokoList().then(res => {
-            const filtered = res.data.filter((t: any) => (t.cabang || "").toUpperCase() === userCabang);
+            const filtered = res.data.filter((t: any) => normalizeBranch(t.cabang) === userCabang);
             setTokoList(filtered);
         }).catch(err => {
             console.error(err);
@@ -111,10 +113,61 @@ export default function InstruksiLapanganModal({
     }, [router]);
 
     useEffect(() => {
-        if (initialTokoId && tokoList.length > 0 && !selectedToko) {
-            handleTokoChange(String(initialTokoId));
-        }
-    }, [initialTokoId, tokoList]);
+        if (!initialTokoId || !cabang || loadedInitialTokoIdRef.current === initialTokoId) return;
+
+        let isCancelled = false;
+        loadedInitialTokoIdRef.current = initialTokoId;
+        const loadInitialToko = async () => {
+            setIsTokoLoading(true);
+            try {
+                const resDetail = await fetchTokoDetail(initialTokoId);
+                if (isCancelled) return;
+
+                const toko = resDetail.data;
+                setSelectedToko(toko || null);
+                if (toko) {
+                    setTokoList(prev => prev.some(t => t.id === toko.id) ? prev : [toko, ...prev]);
+                }
+                setTableRows([]);
+                setRejectedInstruksiList([]);
+                setSelectedRevisionId('new');
+                setLampiranFileName(null);
+                setLampiranFile(null);
+                setTanggalMulai('');
+                setTanggalSelesai('');
+
+                if (toko?.lingkup_pekerjaan) {
+                    let scope = toko.lingkup_pekerjaan;
+                    if (scope.toUpperCase() === 'SIPIL') scope = 'Sipil';
+                    if (scope.toUpperCase() === 'ME') scope = 'ME';
+                    const priceData = await fetchPricesData(cabang || toko.cabang, scope);
+                    if (isCancelled) return;
+                    setPrices(priceData);
+
+                    const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
+                    if (isCancelled) return;
+                    const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
+                    setRejectedInstruksiList(rejected);
+
+                    if (rejected.length > 0) {
+                        showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
+                    }
+                }
+            } catch (error: any) {
+                if (!isCancelled) {
+                    loadedInitialTokoIdRef.current = null;
+                    showAlert("Error", error.message, "error");
+                }
+            } finally {
+                if (!isCancelled) setIsTokoLoading(false);
+            }
+        };
+
+        loadInitialToko();
+        return () => {
+            isCancelled = true;
+        };
+    }, [initialTokoId, cabang]);
 
     useEffect(() => {
         return () => {
@@ -134,6 +187,9 @@ export default function InstruksiLapanganModal({
             const toko = resDetail.data;
 
             setSelectedToko(toko || null);
+            if (toko && !tokoList.some(t => t.id === toko.id)) {
+                setTokoList(prev => [toko, ...prev]);
+            }
             setTableRows([]);
             setRejectedInstruksiList([]);
             setSelectedRevisionId('new');
@@ -146,7 +202,7 @@ export default function InstruksiLapanganModal({
                 let scope = toko.lingkup_pekerjaan;
                 if (scope.toUpperCase() === 'SIPIL') scope = 'Sipil';
                 if (scope.toUpperCase() === 'ME') scope = 'ME';
-                const priceData = await fetchPricesData(cabang, scope);
+                const priceData = await fetchPricesData(cabang || toko.cabang, scope);
                 setPrices(priceData);
 
                 const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
