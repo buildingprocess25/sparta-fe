@@ -255,43 +255,52 @@ export default function RabMigrasiPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-center">
-                            <Input
-                                type="file"
-                                accept=".xlsx,.xls"
-                                className="h-11 rounded-xl bg-white"
-                                onChange={(event) => {
-                                    setFile(event.target.files?.[0] ?? null);
-                                    resetPreviewState();
-                                }}
-                            />
-                            <Input
-                                type="file"
-                                accept=".xlsx,.xls"
-                                className="h-11 rounded-xl bg-white"
-                                title="File MATERAI opsional"
-                                onChange={(event) => {
-                                    setMateraiFile(event.target.files?.[0] ?? null);
-                                    resetPreviewState();
-                                }}
-                            />
-                            <Button
-                                variant="outline"
-                                className="h-11 rounded-xl"
-                                disabled={!file || isPreviewing || isCommitting}
-                                onClick={handlePreview}
-                            >
-                                {isPreviewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
-                                Analisis File
-                            </Button>
-                            <Button
-                                className="h-11 rounded-xl bg-red-700 text-white hover:bg-red-800"
-                                disabled={!file || !preview || isPreviewing || isCommitting || selectedExecutableRows.length === 0}
-                                onClick={handleCommit}
-                            >
-                                {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                Proses Migrasi
-                            </Button>
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+                            <div className="grid gap-3 lg:grid-cols-2">
+                                <label className="space-y-2">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">File DATA FORM / table migrasi</span>
+                                    <Input
+                                        type="file"
+                                        accept=".xlsx,.xls"
+                                        className="h-11 rounded-xl bg-white"
+                                        onChange={(event) => {
+                                            setFile(event.target.files?.[0] ?? null);
+                                            resetPreviewState();
+                                        }}
+                                    />
+                                </label>
+                                <label className="space-y-2">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">File MATERAI opsional</span>
+                                    <Input
+                                        type="file"
+                                        accept=".xlsx,.xls"
+                                        className="h-11 rounded-xl bg-white"
+                                        onChange={(event) => {
+                                            setMateraiFile(event.target.files?.[0] ?? null);
+                                            resetPreviewState();
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                            <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
+                                <Button
+                                    variant="outline"
+                                    className="h-11 rounded-xl"
+                                    disabled={!file || isPreviewing || isCommitting}
+                                    onClick={handlePreview}
+                                >
+                                    {isPreviewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
+                                    Analisis File
+                                </Button>
+                                <Button
+                                    className="h-11 rounded-xl bg-red-700 text-white hover:bg-red-800"
+                                    disabled={!file || !preview || isPreviewing || isCommitting || selectedExecutableRows.length === 0}
+                                    onClick={handleCommit}
+                                >
+                                    {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                    Proses Migrasi
+                                </Button>
+                            </div>
                         </div>
 
                         {message && (
