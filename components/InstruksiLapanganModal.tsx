@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Trash2, Save, Loader2, Upload, X, FileText } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail } from '@/lib/api';
+import { BRANCH_GROUPS, canViewAllBranches } from '@/lib/constants';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -104,7 +105,10 @@ export default function InstruksiLapanganModal({
         setCabang(userCabang);
 
         fetchTokoList().then(res => {
-            const filtered = res.data.filter((t: any) => normalizeBranch(t.cabang) === userCabang);
+            const allowedBranches = new Set((BRANCH_GROUPS[userCabang] || [userCabang]).map(normalizeBranch));
+            const filtered = canViewAllBranches(roles, roles.includes('BUILDING & MAINTENANCE SUPER HUMAN'))
+                ? res.data
+                : res.data.filter((t: any) => allowedBranches.has(normalizeBranch(t.cabang)));
             setTokoList(filtered);
         }).catch(err => {
             console.error(err);
@@ -140,7 +144,7 @@ export default function InstruksiLapanganModal({
                     let scope = toko.lingkup_pekerjaan;
                     if (scope.toUpperCase() === 'SIPIL') scope = 'Sipil';
                     if (scope.toUpperCase() === 'ME') scope = 'ME';
-                    const priceData = await fetchPricesData(cabang || toko.cabang, scope);
+                    const priceData = await fetchPricesData(toko.cabang || cabang, scope);
                     if (isCancelled) return;
                     setPrices(priceData);
 
@@ -202,7 +206,7 @@ export default function InstruksiLapanganModal({
                 let scope = toko.lingkup_pekerjaan;
                 if (scope.toUpperCase() === 'SIPIL') scope = 'Sipil';
                 if (scope.toUpperCase() === 'ME') scope = 'ME';
-                const priceData = await fetchPricesData(cabang || toko.cabang, scope);
+                const priceData = await fetchPricesData(toko.cabang || cabang, scope);
                 setPrices(priceData);
 
                 const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });

@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Trash2, Save, Loader2, Upload, X } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, fetchSPKList } from '@/lib/api';
-import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -87,9 +87,10 @@ export default function InstruksiLapanganPage() {
         const isSH = user.isSuperHuman ?? false;
 
         fetchSPKList({ status: "SPK_APPROVED" }).then(res => {
+            const allowedBranches = new Set((BRANCH_GROUPS[userCabang] || [userCabang]).map(branch => branch.toUpperCase()));
             const filtered = canViewAllBranches(user.roles, isSH)
                 ? res.data
-                : res.data.filter(spk => (spk.toko?.cabang || (spk as any).cabang || "").toUpperCase() === userCabang);
+                : res.data.filter(spk => allowedBranches.has((spk.toko?.cabang || (spk as any).cabang || "").toUpperCase()));
             setSpkList(filtered);
         }).catch(err => {
             console.error(err);
@@ -128,7 +129,7 @@ export default function InstruksiLapanganPage() {
                 let scope = toko.lingkup_pekerjaan;
                 if (scope.toUpperCase() === 'SIPIL') scope = 'Sipil';
                 if (scope.toUpperCase() === 'ME') scope = 'ME';
-                const priceData = await fetchPricesData(cabang, scope);
+                const priceData = await fetchPricesData(toko.cabang || cabang, scope);
                 setPrices(priceData);
 
                 const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
