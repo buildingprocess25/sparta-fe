@@ -237,7 +237,7 @@ export default function RabMigrasiPage() {
                     <div>
                         <h1 className="text-2xl font-extrabold text-slate-950">Upload Excel RAB</h1>
                         <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                            Sumber utama: sheet toko, rab, dan rab_item. ID lama dari Excel hanya dipakai sebagai peta relasi, bukan disimpan sebagai ID baru.
+                            Mendukung format table migrasi v2 dan DATA FORM sheet Form2. ID lama dari Excel hanya dipakai sebagai peta relasi, bukan disimpan sebagai ID baru.
                         </p>
                     </div>
                     <Link href="/rab">
@@ -494,7 +494,7 @@ export default function RabMigrasiPage() {
                                         Menampilkan {formatNumber(filteredRows.length)} dari {formatNumber(rows.length)} RAB. Dipilih {formatNumber(selectedRows.length)} RAB, eksekusi {formatNumber(selectedExecutableRows.length)} RAB.
                                     </span>
                                     <span>
-                                        Target timpa berarti RAB sudah ada di DB tetapi tanggal dibuat kosong. Sheet import lain diabaikan: {preview.ignored_sheets.join(", ")}.
+                                        Format: {preview.source_format === "data_form_form2" ? "DATA FORM / Form2" : "table migrasi v2"}. Target timpa berarti RAB sudah ada di DB tetapi tanggal dibuat kosong.
                                     </span>
                                 </div>
                             </CardContent>

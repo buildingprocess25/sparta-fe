@@ -1229,6 +1229,7 @@ export type RabMigrationPreviewResult = {
     conflict_count: number;
     missing_created_at_count: number;
     invalid_count: number;
+    source_format: "legacy_tables" | "data_form_form2";
     ignored_sheets: string[];
     details: RabMigrationPreviewDetail[];
 };
