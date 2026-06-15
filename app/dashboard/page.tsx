@@ -13,7 +13,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { downloadDashboardExport, fetchDashboardAll, type DashboardExportFormat } from '@/lib/api';
+import { downloadDashboardExport, fetchDashboardAll, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 import {
     EMPTY_APPROVAL_COUNTS,
     fetchApprovalNotificationCounts,
@@ -25,7 +25,7 @@ import {
     Activity, CheckCircle2, ChevronRight, Clock, FileCheck, FileEdit, FileText, 
     HardHat, Layers, Search, Store, Users, MapPin, RefreshCw,
     TrendingUp, AlertCircle, Calendar, Loader2, Home, DollarSign,
-    Tag, UserCheck, Coffee, AlertTriangle, X, LogOut, Download, FileDown, FileSpreadsheet
+    Tag, UserCheck, Coffee, AlertTriangle, X, LogOut, Download, FileDown, FileSpreadsheet, ExternalLink
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -259,6 +259,62 @@ const getUniquePenaltyProjects = (projects: any[]) => {
     });
 
     return Array.from(byStore.values()).map((entry) => entry.project);
+};
+
+const getProjectStage = (project: any) => {
+    const hasRAB = (project.rab || []).length > 0;
+    const rabData = project.rab?.[0];
+    const rabStatus = (rabData?.status || '').toUpperCase();
+    const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
+    const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
+    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+    const hasSPK = spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
+    const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
+    const hasST = (project.berkas_serah_terima || []).length > 0;
+    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
+    const hasOpnamePdf = !!opnameData;
+    const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
+
+    if (hasOpnamePdf && isOpnameDisetujui) return 'Done';
+    if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
+    if (hasST) return 'Kerja Tambah Kurang';
+    if (hasSPK) return 'Ongoing';
+    if (hasApprovalSPK) return 'Approval SPK';
+    if (isRabDisetujui) return 'Proses PJU';
+    if (hasRAB && isRabMenungguGantt) return 'Proses Gantt';
+    return 'Approval RAB';
+};
+
+const getLatestSerahTerima = (project: any) => {
+    const arr = Array.isArray(project?.berkas_serah_terima)
+        ? project.berkas_serah_terima
+        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    return arr
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ?? null;
+};
+
+const getProjectFinancialSummary = (project: any) => {
+    const rab = project?.rab?.[0];
+    const spkArr = Array.isArray(project?.spk) ? project.spk : (project?.spk ? [project.spk] : []);
+    const opname = getLatestProjectOpnameFinal(project);
+    const spkTotal = spkArr
+        .filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(String(s.status).toUpperCase()))
+        .reduce((sum: number, s: any) => sum + parseCurrency(s.grand_total || s.total_harga), 0);
+    return {
+        penawaran: parseCurrency(rab?.grand_total_final),
+        spk: spkTotal,
+        opname: parseCurrency(opname?.grand_total_opname),
+    };
+};
+
+const getStoreQualityScore = (items: any[]) => {
+    if (!items.length) return { desain: 0, kualitas: 0, spesifikasi: 0, total: 0 };
+    const desain = (items.filter((i: any) => i.desain === 'Sesuai').length / items.length) * 30;
+    const kualitas = (items.filter((i: any) => i.kualitas === 'Baik').length / items.length) * 35;
+    const spesifikasi = (items.filter((i: any) => i.spesifikasi === 'Sesuai').length / items.length) * 35;
+    return { desain, kualitas, spesifikasi, total: desain + kualitas + spesifikasi };
 };
 
 export default function DashboardPage() {
@@ -513,6 +569,18 @@ export default function DashboardPage() {
         });
         router.push(`/list?${query.toString()}`);
     }, [router]);
+
+    const handleOpenSerahTerima = useCallback(async (project: any) => {
+        const serahTerima = getLatestSerahTerima(project);
+        if (!serahTerima) return;
+        if (serahTerima.link_pdf) {
+            window.open(serahTerima.link_pdf, '_blank', 'noopener,noreferrer');
+            return;
+        }
+        if (serahTerima.id) {
+            await viewGeneratedPdfOnline(serahTerima.id, 'BERKAS_SERAH_TERIMA');
+        }
+    }, []);
 
     // Summary Stats
     const stats = useMemo(() => {
@@ -887,6 +955,28 @@ export default function DashboardPage() {
     const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
     const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
     const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
+    const pipelineSteps = ['Approval RAB', 'Proses Gantt', 'Proses PJU', 'Approval SPK', 'Ongoing', 'Kerja Tambah Kurang', 'Done'];
+    const priorityProjects = useMemo(() => {
+        return filteredProjects
+            .map((project) => {
+                const lateDays = calculateProjectLateDays(project);
+                const penalty = getProjectPenaltyInfo(project, lateDays);
+                const stage = getProjectStage(project);
+                const hasST = Boolean(getLatestSerahTerima(project));
+                const priorityScore = (penalty.amount > 0 ? 3 : 0) + (lateDays > 0 ? 2 : 0) + (stage !== 'Done' ? 1 : 0) + (!hasST && stage === 'Kerja Tambah Kurang' ? 1 : 0);
+                return { project, stage, lateDays, penalty, hasST, priorityScore };
+            })
+            .filter(item => item.priorityScore > 0)
+            .sort((a, b) => b.priorityScore - a.priorityScore || b.lateDays - a.lateDays || b.penalty.amount - a.penalty.amount)
+            .slice(0, 6);
+    }, [filteredProjects]);
+
+    const financialHighlights = [
+        { label: 'Penawaran', value: formatRupiah(stats.penawaran), icon: <FileText className="w-4 h-4" />, context: 'PENAWARAN', color: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+        { label: 'SPK', value: formatRupiah(stats.spk), icon: <DollarSign className="w-4 h-4" />, context: 'SPK', color: 'text-orange-700 bg-orange-50 border-orange-100' },
+        { label: 'Denda', value: formatRupiah(stats.totalDenda), icon: <AlertCircle className="w-4 h-4" />, context: 'DENDA', color: 'text-red-700 bg-red-50 border-red-100' },
+        { label: 'Nilai Toko', value: `${stats.avgNilaiToko} Poin`, icon: <Tag className="w-4 h-4" />, context: 'NILAI_TOKO', color: 'text-amber-700 bg-amber-50 border-amber-100' },
+    ];
 
     // =========================================================================
     // LOADING STATE
@@ -1156,10 +1246,176 @@ export default function DashboardPage() {
                     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 rounded-xl border border-slate-200">
                         
                         {/* 1. SCROLLABLE CONTENT */}
-                        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-2 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5 space-y-5 custom-scrollbar">
+                            <section className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.9fr] gap-5">
+                                <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-sm">
+                                    <div className="absolute inset-y-0 right-0 w-1/2 bg-linear-to-l from-red-700/25 to-transparent" />
+                                    <div className="relative p-5 md:p-6">
+                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-red-200">Command Center</p>
+                                                <h1 className="mt-2 text-2xl md:text-3xl font-black tracking-tight">Monitoring Toko</h1>
+                                                <p className="mt-2 text-sm text-slate-300 max-w-2xl">
+                                                    {canSeeAllMonitoringBranches ? 'Pantau seluruh cabang, temukan bottleneck, dan buka dokumen penting tanpa bolak-balik halaman.' : `Fokus toko cabang ${userInfo.cabang || '-'}, prioritas tindakan, dan dokumen yang perlu dicek hari ini.`}
+                                                </p>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 min-w-58">
+                                                {[
+                                                    { label: 'Toko Aktif', value: stats.total, tone: 'bg-white/10 text-white', context: 'PROJECT' },
+                                                    { label: 'Perlu Tindakan', value: stats.attention, tone: 'bg-red-500/20 text-red-100', context: 'ATTENTION' },
+                                                    { label: 'Ongoing', value: stats.miniStats.Ongoing, tone: 'bg-blue-500/20 text-blue-100', context: 'PROJECT', subContext: 'Ongoing' },
+                                                    { label: 'Done/ST', value: stats.miniStats.Done, tone: 'bg-emerald-500/20 text-emerald-100', context: 'PROJECT', subContext: 'Done' },
+                                                ].map(item => (
+                                                    <button
+                                                        key={item.label}
+                                                        className={`rounded-2xl border border-white/10 ${item.tone} px-3 py-3 text-left hover:bg-white/15 transition-colors`}
+                                                        onClick={() => setDetailModal({ open: true, title: item.label, context: item.context, subContext: item.subContext || '' })}
+                                                    >
+                                                        <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">{item.label}</p>
+                                                        <p className="mt-1 text-2xl font-black">{item.value}</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                        <div>
+                                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Kesehatan Project</p>
+                                            <h2 className="text-lg font-black text-slate-900">Tindakan Cepat</h2>
+                                        </div>
+                                        <Badge className="bg-red-50 text-red-700 border-red-100 font-bold">{stats.attention} prioritas</Badge>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button className="rounded-2xl border border-red-100 bg-red-50 p-4 text-left hover:border-red-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rincian Denda', context: 'DENDA', subContext: '' })}>
+                                            <AlertCircle className="w-5 h-5 text-red-600 mb-3" />
+                                            <p className="text-[10px] font-bold uppercase text-red-500">Total Denda</p>
+                                            <p className="text-lg font-black text-red-700">{formatRupiah(stats.totalDenda)}</p>
+                                        </button>
+                                        <button className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-left hover:border-amber-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Nilai Toko', context: 'NILAI_TOKO', subContext: '' })}>
+                                            <Tag className="w-5 h-5 text-amber-600 mb-3" />
+                                            <p className="text-[10px] font-bold uppercase text-amber-500">Nilai Toko</p>
+                                            <p className="text-lg font-black text-amber-700">{stats.avgNilaiToko} Poin</p>
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+                                <div className="flex items-center justify-between gap-3 mb-4">
+                                    <div>
+                                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Pipeline</p>
+                                        <h2 className="text-lg font-black text-slate-900">Tahapan Dokumen & Pekerjaan</h2>
+                                    </div>
+                                    <Button variant="outline" className="h-9 rounded-xl text-xs font-bold" onClick={() => setDetailModal({ open: true, title: 'Detail Status Proyek', context: 'PROJECT', subContext: '' })}>
+                                        Semua Tahap
+                                    </Button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
+                                    {pipelineSteps.map((label, idx) => {
+                                        const value = stats.miniStats[label as keyof typeof stats.miniStats] ?? 0;
+                                        const pct = stats.total > 0 ? Math.round((value / stats.total) * 100) : 0;
+                                        return (
+                                            <button key={label} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-red-200 hover:bg-white hover:shadow-sm transition-all" onClick={() => setDetailModal({ open: true, title: `Tahap ${label}`, context: 'PROJECT', subContext: label })}>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="w-6 h-6 rounded-full bg-white border border-slate-200 text-[10px] font-black text-slate-500 flex items-center justify-center">{idx + 1}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400">{pct}%</span>
+                                                </div>
+                                                <p className="mt-3 min-h-8 text-xs font-black text-slate-800 leading-tight">{label}</p>
+                                                <p className="mt-2 text-2xl font-black text-red-600">{value}</p>
+                                                <div className="mt-3 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                                    <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.max(4, pct)}%` }} />
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+
+                            <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-5">
+                                <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Prioritas Hari Ini</p>
+                                            <h2 className="text-lg font-black text-slate-900">Toko yang Perlu Dicek</h2>
+                                        </div>
+                                        <Button variant="outline" className="h-9 rounded-xl text-xs font-bold" onClick={() => setDetailModal({ open: true, title: 'Detail SLA (Perlu Perhatian)', context: 'ATTENTION', subContext: '' })}>
+                                            Lihat Semua
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {priorityProjects.length === 0 ? (
+                                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-sm font-semibold text-emerald-700">Tidak ada prioritas berat pada filter ini.</div>
+                                        ) : priorityProjects.map(({ project, stage, lateDays, penalty, hasST }) => {
+                                            const st = getLatestSerahTerima(project);
+                                            return (
+                                                <div key={project.toko?.id || project.toko?.nomor_ulok} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <p className="font-black text-slate-900 truncate">{project.toko?.nama_toko || '-'}</p>
+                                                                <Badge className="bg-slate-100 text-slate-700 border-slate-200 font-bold">{project.toko?.nomor_ulok || '-'}</Badge>
+                                                                <Badge className="bg-blue-50 text-blue-700 border-blue-100 font-bold">{stage}</Badge>
+                                                            </div>
+                                                            <p className="text-xs text-slate-500 mt-1">{project.toko?.cabang || '-'} - {project.toko?.lingkup_pekerjaan || '-'}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                                                            {lateDays > 0 && <Badge className="bg-red-50 text-red-700 border-red-100 font-bold">{lateDays} hari terlambat</Badge>}
+                                                            {penalty.amount > 0 && <Badge className="bg-rose-50 text-rose-700 border-rose-100 font-bold">{formatRupiah(penalty.amount)}</Badge>}
+                                                            {hasST ? (
+                                                                <Button variant="outline" className="h-8 rounded-lg text-xs font-bold bg-white" onClick={() => handleOpenSerahTerima(project)}>
+                                                                    <ExternalLink className="w-3.5 h-3.5 mr-1" /> Lihat ST
+                                                                </Button>
+                                                            ) : (
+                                                                <Badge className="bg-slate-100 text-slate-500 border-slate-200 font-bold">Belum ST</Badge>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {st?.created_at && <p className="mt-2 text-[11px] text-slate-400">ST terakhir: {new Date(st.created_at).toLocaleDateString('id-ID')}</p>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
+                                    <div className="mb-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Nilai & Kualitas</p>
+                                        <h2 className="text-lg font-black text-slate-900">Ringkasan Keuangan</h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {financialHighlights.map(item => (
+                                            <button key={item.label} className={`rounded-2xl border p-4 text-left hover:shadow-sm transition-all ${item.color}`} onClick={() => setDetailModal({ open: true, title: item.label, context: item.context, subContext: '' })}>
+                                                <div className="flex items-center justify-between">
+                                                    {item.icon}
+                                                    <ChevronRight className="w-4 h-4 opacity-50" />
+                                                </div>
+                                                <p className="mt-4 text-[10px] font-bold uppercase tracking-wide opacity-80">{item.label}</p>
+                                                <p className="mt-1 text-lg font-black">{item.value}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {shouldShowFinancialBenchmarkCards && (
+                                        <button className="mt-3 w-full rounded-2xl border border-purple-100 bg-purple-50 p-4 text-left hover:border-purple-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/m²', context: 'COST_M2', subContext: '' })}>
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div>
+                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-purple-500">Cost/m²</p>
+                                                    <p className="mt-1 text-sm font-black text-purple-900">Terbangun {formatRupiah(stats.avgCostTerbangun)}</p>
+                                                </div>
+                                                <div className="text-right text-[11px] font-bold text-purple-700">
+                                                    <p>Bangunan {formatRupiah(stats.avgCostBangunan)}</p>
+                                                    <p>Terbuka {formatRupiah(stats.avgCostTerbuka)}</p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    )}
+                                </div>
+                            </section>
                             
                             {/* 1.1 SUMMARY CARDS - GRID BARU */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 auto-rows-min">
+                                <div className="hidden">
                                 <StatCard 
                                     title="Total Proyek" 
                                     value={stats.total} 
@@ -1846,6 +2102,7 @@ export default function DashboardPage() {
 
                                                     if (detailModal.context === 'NILAI_TOKO') {
                                                         const opnameItems = opnameItemsMap[p.toko?.id] || [];
+                                                        const serahTerima = getLatestSerahTerima(p);
                                                         let p_nilaiDesain = 0, p_nilaiKualitas = 0, p_nilaiSpesifikasi = 0, p_total = 0;
                                                         if (opnameItems.length > 0) {
                                                             const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
@@ -1874,13 +2131,29 @@ export default function DashboardPage() {
                                                                             {p_total.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
                                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
                                                                         </div>
-                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
+                                                                        <div className="mt-2 flex items-center justify-end gap-2">
+                                                                            <span className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</span>
+                                                                            {serahTerima ? (
+                                                                                <Button
+                                                                                    variant="outline"
+                                                                                    className="h-7 rounded-md px-2 text-[10px] font-bold bg-white"
+                                                                                    onClick={(event) => {
+                                                                                        event.stopPropagation();
+                                                                                        handleOpenSerahTerima(p);
+                                                                                    }}
+                                                                                >
+                                                                                    <ExternalLink className="w-3 h-3 mr-1" /> Lihat ST
+                                                                                </Button>
+                                                                            ) : (
+                                                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-400">Belum ST</span>
+                                                                            )}
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                                 {expandedRow === i && (
                                                                     <tr className="bg-slate-50 border-t border-slate-300">
                                                                         <td colSpan={3} className="px-4 py-4">
-                                                                            <div className="grid grid-cols-3 gap-3">
+                                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Desain</p>
                                                                                     <p className="text-sm font-black text-slate-800">{p_nilaiDesain.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 30</span></p>
@@ -1892,6 +2165,11 @@ export default function DashboardPage() {
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
                                                                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Spesifikasi</p>
                                                                                     <p className="text-sm font-black text-slate-800">{p_nilaiSpesifikasi.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-amber-200 text-center shadow-sm">
+                                                                                    <p className="text-[10px] text-amber-600 uppercase tracking-wider mb-1">Serah Terima</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{serahTerima ? 'Tersedia' : 'Belum Ada'}</p>
+                                                                                    {serahTerima?.created_at && <p className="text-[9px] text-slate-400 mt-0.5">{new Date(serahTerima.created_at).toLocaleDateString('id-ID')}</p>}
                                                                                 </div>
                                                                             </div>
                                                                         </td>

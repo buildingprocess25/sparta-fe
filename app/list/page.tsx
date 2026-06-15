@@ -84,6 +84,10 @@ interface NormalizedDoc {
     nilai_denda?: string;
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
+    nilai_penawaran?: string | null;
+    nilai_spk?: string | null;
+    nilai_opname?: string | null;
+    nomor_spk_st?: string | null;
 }
 
 interface PengawasanDocGroup {
@@ -179,6 +183,10 @@ interface NormalizedDetail {
     nilai_denda?: string;
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
+    nilai_penawaran?: string | null;
+    nilai_spk?: string | null;
+    nilai_opname?: string | null;
+    nomor_spk_st?: string | null;
     // Pengawasan specific
     id_gantt?: number;
     id_pengawasan_gantt?: number;
@@ -835,9 +843,18 @@ const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] =>
         proyek:        b.toko?.proyek     ?? '-',
         status:        'SELESAI',
         email_pembuat: '-',
-        total_nilai:   0,
+        total_nilai:   parseCurrency(b.nilai_opname ?? b.nilai_spk ?? b.nilai_penawaran),
         created_at:    b.created_at,
         link_pdf:      b.link_pdf ?? null,
+        lingkup_pekerjaan: b.toko?.lingkup_pekerjaan ?? b.lingkup_pekerjaan,
+        nilai_penawaran: b.nilai_penawaran ?? null,
+        nilai_spk: b.nilai_spk ?? null,
+        nilai_opname: b.nilai_opname ?? null,
+        hari_denda: Number(b.hari_denda ?? 0),
+        nilai_denda: b.nilai_denda ?? null,
+        tanggal_akhir_spk_denda: b.tanggal_akhir_spk_denda ?? null,
+        tanggal_serah_terima_denda: b.tanggal_serah_terima_denda ?? null,
+        nomor_spk_st: b.nomor_spk ?? null,
     }));
 
 const normalizeInstruksiLapanganDocs = (items: any[]): NormalizedDoc[] =>
@@ -1344,9 +1361,18 @@ export default function DaftarDokumenPage() {
                     proyek:            doc.proyek,
                     status:            doc.status,
                     email_pembuat:     doc.email_pembuat,
-                    total_nilai:       0,
+                    total_nilai:       parseCurrency(doc.nilai_opname ?? doc.nilai_spk ?? doc.nilai_penawaran),
                     created_at:        doc.created_at,
                     link_pdf:          doc.link_pdf,
+                    lingkup_pekerjaan: doc.lingkup_pekerjaan,
+                    nilai_penawaran:   doc.nilai_penawaran,
+                    nilai_spk:         doc.nilai_spk,
+                    nilai_opname:      doc.nilai_opname,
+                    hari_denda:        doc.hari_denda,
+                    nilai_denda:       doc.nilai_denda,
+                    tanggal_akhir_spk_denda: doc.tanggal_akhir_spk_denda,
+                    tanggal_serah_terima_denda: doc.tanggal_serah_terima_denda,
+                    nomor_spk_st:      doc.nomor_spk_st,
                 };
             } else if (doc.tipe === 'INSTRUKSI_LAPANGAN') {
                 const res = await fetchInstruksiLapanganDetail(doc.id);
@@ -2401,6 +2427,13 @@ export default function DaftarDokumenPage() {
                                                         {selectedKategori === 'SPK' && doc.nomor_spk && (
                                                             <p className="text-[11px] text-slate-400 mt-0.5">SPK: {doc.nomor_spk}</p>
                                                         )}
+                                                        {selectedKategori === 'BERKAS_SERAH_TERIMA' && (
+                                                            <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-500">
+                                                                <p>Penawaran: <span className="font-bold text-slate-700">{formatRupiah(parseCurrency(doc.nilai_penawaran))}</span></p>
+                                                                <p>SPK: <span className="font-bold text-slate-700">{formatRupiah(parseCurrency(doc.nilai_spk))}</span></p>
+                                                                <p>Denda: <span className="font-bold text-red-600">{formatRupiah(parseCurrency(doc.nilai_denda))}</span>{doc.hari_denda ? ` (${doc.hari_denda} hari)` : ''}</p>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors" />
                                                 </div>
@@ -2640,6 +2673,27 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                     {selectedDetail.tanggal_pengawasan && (
                                                         <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Pengawasan" value={selectedDetail.tanggal_pengawasan} />
+                                                    )}
+                                                </>
+                                            )}
+                                            {selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' && (
+                                                <>
+                                                    <InfoRow icon={<FileText className="w-4 h-4" />} label="Nilai Penawaran" value={formatRupiah(parseCurrency(selectedDetail.nilai_penawaran))} />
+                                                    <InfoRow icon={<FileSignature className="w-4 h-4" />} label="Nilai SPK" value={formatRupiah(parseCurrency(selectedDetail.nilai_spk))} />
+                                                    <InfoRow icon={<CheckSquare className="w-4 h-4" />} label="Nilai Opname/ST" value={formatRupiah(parseCurrency(selectedDetail.nilai_opname))} />
+                                                    {selectedDetail.nomor_spk_st && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_spk_st} />
+                                                    )}
+                                                    <InfoRow icon={<Clock className="w-4 h-4" />} label="Keterlambatan" value={`${selectedDetail.hari_denda ?? 0} hari`} />
+                                                    <InfoRow icon={<AlertTriangle className="w-4 h-4" />} label="Denda" value={formatRupiah(parseCurrency(selectedDetail.nilai_denda))} />
+                                                    {(selectedDetail.tanggal_akhir_spk_denda || selectedDetail.tanggal_serah_terima_denda) && (
+                                                        <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                            <InfoRow
+                                                                icon={<CalendarDays className="w-4 h-4" />}
+                                                                label="Periode Denda"
+                                                                value={`Akhir SPK: ${formatDateFull(selectedDetail.tanggal_akhir_spk_denda || '')} | ST: ${formatDateFull(selectedDetail.tanggal_serah_terima_denda || selectedDetail.created_at)}`}
+                                                            />
+                                                        </div>
                                                     )}
                                                 </>
                                             )}
