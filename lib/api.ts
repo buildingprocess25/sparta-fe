@@ -2421,6 +2421,60 @@ export type SPKInterventionPayload = {
     alasan_intervensi?: string;
 };
 
+export type SpkMigrationAction = "insert" | "skip" | "replace_spk" | "update_status_pdf";
+
+export type SpkMigrationPreviewDetail = {
+    source_spk_id: number;
+    nomor_spk: string;
+    par: string;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string;
+    cabang: string;
+    nama_kontraktor: string;
+    status_spk: string;
+    grand_total: number;
+    waktu_mulai: string;
+    waktu_selesai: string;
+    db_state: "ready" | "conflict" | "invalid";
+    existing_toko_id: number | null;
+    existing_spk_id: number | null;
+    existing_spk_status: string | null;
+    existing_spk_created_at: string | null;
+    existing_toko_match_count: number;
+    existing_spk_match_count: number;
+    issues: string[];
+    warnings: string[];
+};
+
+export type SpkMigrationPreviewResult = {
+    total_spk: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    missing_toko_count: number;
+    details: SpkMigrationPreviewDetail[];
+};
+
+export type SpkMigrationCommitSelection = {
+    source_spk_id: number;
+    action: SpkMigrationAction;
+};
+
+export type SpkMigrationCommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    updated_status_pdf: number;
+    skipped: number;
+    details: Array<{
+        action: SpkMigrationAction;
+        source_spk_id: number;
+        target_spk_id: number | null;
+        status: string;
+    }>;
+};
+
 // --- Fungsi ---
 
 /** Submit SPK baru. (Backend akan otomatis handle revisi jika ada status REJECTED sebelumnya) */
@@ -2436,6 +2490,40 @@ export const submitSPK = async (payload: SPKSubmitPayload) => {
     }
     return result;
 };
+
+const postSpkMigration = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: SpkMigrationCommitSelection[]
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/migration/${endpoint}`, {
+        method: "POST",
+        body: form
+    });
+
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Hanya Super Human yang dapat melakukan migrasi SPK.");
+    if (!res.ok) throw new Error(result.message || "Gagal memproses migrasi SPK.");
+    return result;
+};
+
+export const previewSpkMigration = (file: File, actorRole: string, actorEmail?: string) =>
+    postSpkMigration<SpkMigrationPreviewResult>("preview", file, actorRole, actorEmail);
+
+export const commitSpkMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: SpkMigrationCommitSelection[]
+) => postSpkMigration<SpkMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
 /** Ambil daftar SPK dengan filter opsional (Status, Nomor ULOK). */
 export const fetchSPKList = async (filters?: {

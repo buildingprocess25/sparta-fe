@@ -61,6 +61,13 @@ export const ALL_MENUS = [
         icon: FileSignature,
     },
     {
+        id: "menu-migrasi-spk",
+        title: "Migrasi SPK",
+        desc: "Upload DATA FORM dan pilih SPK untuk migrasi.",
+        href: "/spk/migrasi",
+        icon: Upload,
+    },
+    {
         id: "menu-inputpic",
         title: "PIC Pengawasan",
         desc: "Form input PIC pengawasan pekerjaan proyek.",
@@ -278,7 +285,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-dc-development",
-        "menu-rab", "menu-ubah-rab-item", "menu-migrasi-rab", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-rab", "menu-ubah-rab-item", "menu-migrasi-rab", "menu-spk", "menu-migrasi-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
         "menu-gantt", "menu-migrasi-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
