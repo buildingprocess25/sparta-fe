@@ -685,6 +685,26 @@ export default function RABPage() {
       showAlert("Akses Ditolak", "Role ini hanya memiliki akses view.", "warning");
       return;
     }
+    if (!isFormModified) {
+      showAlert("Belum ada perubahan", "Silakan buat perubahan pada form atau item pekerjaan terlebih dahulu.", "warning");
+      return;
+    }
+    if (hasUnchangedRevisionItems) {
+      showAlert(
+        "Item revisi belum diubah",
+        "Setiap item yang diminta revisi wajib memiliki minimal 1 perubahan sebelum bisa lanjut.",
+        "warning"
+      );
+      return;
+    }
+    if (!isFormComplete) {
+      showAlert(
+        "Data belum lengkap",
+        submitDisabledReason || "Lengkapi data wajib proyek, dimensi, asuransi, dan item pekerjaan terlebih dahulu.",
+        "warning"
+      );
+      return;
+    }
     if (luasTerbangun <= 0) return showAlert("Peringatan", "Luas Terbangun tidak boleh kosong.", "error");
     if (formData.lokasiCabang.length < 4 || formData.lokasiTanggal.length !== 4 || formData.lokasiManual.length !== 4) return showAlert("Peringatan", "Format Nomor Ulok belum lengkap.", "error");
 
@@ -837,6 +857,7 @@ export default function RABPage() {
     formData.berlakuPolis.trim() !== '' &&
     (formData.fileAsuransi !== '' || asuransiFile !== null)
   );
+  const hasValidWorkItem = tableRows.some(row => row.jenisPekerjaan && Number(row.volume) > 0);
 
   const isFormComplete = 
     formData.namaToko.trim() !== '' &&
@@ -852,14 +873,15 @@ export default function RABPage() {
     formData.luasAreaTerbuka !== '' &&
     formData.luasAreaSales !== '' &&
     formData.luasGudang !== '' &&
-    formData.luasAreaParkir !== '';
+    formData.luasAreaParkir !== '' &&
+    hasValidWorkItem;
 
   const submitDisabledReason = hasUnchangedRevisionItems
     ? "Setiap item revisi wajib diubah minimal 1 field."
     : !isFormModified
       ? "Silakan buat perubahan pada form terlebih dahulu."
       : !isFormComplete
-        ? "Lengkapi data wajib proyek, dimensi, dan item pekerjaan terlebih dahulu."
+        ? "Lengkapi data wajib proyek, dimensi, asuransi, dan minimal 1 item pekerjaan bervolume."
         : "";
 
   return (
@@ -1267,7 +1289,7 @@ export default function RABPage() {
                 <p className="mb-3 text-center text-xs font-semibold text-amber-700">{submitDisabledReason}</p>
               )}
               <div className="flex flex-col md:flex-row gap-4">
-                <Button type="submit" disabled={isLoading || !isFormComplete || !isFormModified || hasUnchangedRevisionItems} title={submitDisabledReason} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500 shadow-md transition-all">
+                <Button type="submit" disabled={isLoading || isReadOnly} title={submitDisabledReason} className="w-full md:flex-1 h-14 text-lg font-bold bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:text-slate-500 shadow-md transition-all">
                   {isLoading ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sedang Mengirim Data...</> : <><Save className="w-5 h-5 mr-2" /> Simpan & Lanjut ke Gantt Chart</>}
                 </Button>
               <Button type="button" variant="outline" className="w-full md:w-1/3 h-14 text-lg font-semibold bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-red-600" onClick={() => setResetDialogOpen(true)}>

@@ -1093,7 +1093,7 @@ export const submitRABData = async (
 
     const result = await res.json();
     if (res.status === 409) throw new Error(result.message || "RAB aktif untuk ULOK ini sudah ada.");
-    if (res.status === 422) throw new Error("Validasi gagal. Pastikan seluruh form dan tabel terisi.");
+    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan seluruh form dan tabel terisi.");
     if (!res.ok || result.status !== "success") throw new Error(result.message || "Server error saat menyimpan.");
     return result;
 };

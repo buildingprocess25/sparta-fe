@@ -136,7 +136,7 @@ export default function LoginPage() {
         const realJabatan = selectedUser.jabatan;
         sessionStorage.setItem("nama_lengkap", realName);
 
-        let realMappedRole = normalizeJabatanRole(realJabatan);
+        const realMappedRole = normalizeJabatanRole(realJabatan);
 
         sessionStorage.setItem("userRole", realMappedRole);
         mappedRole = realMappedRole;
@@ -442,11 +442,11 @@ export default function LoginPage() {
           <div className="space-y-3 mt-4">
             {availableRoles.map((role, idx) => (
               <Button 
-                key={idx}
+                key={role.id ?? `${role.email_sat}-${role.cabang}-${idx}`}
                 variant="outline"
                 className="w-full justify-start h-auto py-3 px-4 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
                 onClick={() => {
-                  let realMappedRole = normalizeJabatanRole(role.jabatan);
+                  const realMappedRole = normalizeJabatanRole(role.jabatan);
 
                   sessionStorage.setItem("authenticated", "true");
                   sessionStorage.setItem("loggedInUserEmail", role.email_sat || pendingLoginData.emailFromAPI);
@@ -467,9 +467,17 @@ export default function LoginPage() {
               >
                 <div className="text-left flex-col items-start gap-1">
                   <div className="font-bold text-slate-800">{role.nama_lengkap}</div>
-                  <div className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded inline-block mt-1">
-                    {role.jabatan}
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                      {role.cabang || "Cabang belum terisi"}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">
+                      {role.jabatan}
+                    </span>
                   </div>
+                  {role.nama_pt && (
+                    <div className="mt-1 text-xs font-medium text-slate-500">{role.nama_pt}</div>
+                  )}
                 </div>
               </Button>
             ))}
