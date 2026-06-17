@@ -2444,16 +2444,18 @@ export default function DaftarDokumenPage() {
                                             <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Lihat ULOK</span>
                                         </div>
                                     </div>
-                                )}) : visibleList.map(doc => (
+                                )}) : visibleList.map(doc => {
+                                    const contextBadges = getDocumentContextBadges(doc).slice(0, 4);
+                                    return (
                                     <div
                                         key={doc.id}
                                         className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200 cursor-pointer group"
                                         onClick={() => loadDetail(doc)}
                                     >
                                         <div className="p-4 md:p-5">
-                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                                 {/* Left info */}
-                                                <div className="flex items-start gap-3 min-w-0 flex-1">
+                                                <div className="flex items-start gap-3 min-w-0 md:flex-[1.2]">
                                                     <div className={`w-10 h-10 rounded-xl ${KATEGORI_CONFIG[selectedKategori].bgColor} flex items-center justify-center shrink-0 mt-0.5`}>
                                                         <div className={`${KATEGORI_CONFIG[selectedKategori].color}`}>
                                                             {selectedKategori === 'RAB'
@@ -2478,11 +2480,6 @@ export default function DaftarDokumenPage() {
                                                                     {getStatusLabel(doc.status)}
                                                                 </Badge>
                                                             )}
-                                                            {getDocumentContextBadges(doc).slice(0, 4).map((badge) => (
-                                                                <Badge key={`${doc.id}-${badge.label}`} className={`${badge.className} text-[10px] font-semibold border px-2 py-0`}>
-                                                                    {badge.label}
-                                                                </Badge>
-                                                            ))}
                                                         </div>
                                                         <p className="text-sm text-slate-600 truncate mt-0.5">
                                                             {selectedKategori === 'RAB' 
@@ -2508,8 +2505,26 @@ export default function DaftarDokumenPage() {
                                                     </div>
                                                 </div>
 
+                                                {contextBadges.length > 0 && (
+                                                    <div className="md:flex-1 md:max-w-[420px] md:px-4 md:border-x md:border-slate-100">
+                                                        <p className="hidden md:block text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+                                                            Keterangan
+                                                        </p>
+                                                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                                                            {contextBadges.map((badge) => (
+                                                                <Badge
+                                                                    key={`${doc.id}-${badge.label}`}
+                                                                    className={`${badge.className} text-[10px] font-semibold border px-2.5 py-0.5 rounded-full`}
+                                                                >
+                                                                    {badge.label}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {/* Right info */}
-                                                <div className="flex items-center gap-3 shrink-0 md:pl-4">
+                                                <div className="flex items-center justify-between gap-3 shrink-0 md:pl-2">
                                                     <div className="text-right">
                                                         {selectedKategori === 'PERTAMBAHAN_SPK' ? (
                                                             <p className="text-sm font-bold text-slate-800">+{doc.pertambahan_hari || '-'} Hari</p>
@@ -2539,7 +2554,7 @@ export default function DaftarDokumenPage() {
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                )})}
                             </div>
                             </>
                         )}
