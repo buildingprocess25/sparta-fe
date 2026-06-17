@@ -2528,6 +2528,97 @@ export const commitSpkMigration = (
     selections: SpkMigrationCommitSelection[]
 ) => postSpkMigration<SpkMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
+export type PengawasanMigrationAction = "insert" | "skip" | "replace_pengawasan" | "update_pdf";
+
+export type PengawasanMigrationPreviewDetail = {
+    source_pengawasan_id: number;
+    sheet_name: string;
+    row_number: number;
+    h_day: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string;
+    cabang: string;
+    tanggal_mulai_spk: string;
+    tanggal_pengawasan: string;
+    pic_building_support: string;
+    status_lokasi: string;
+    link_pdf: string;
+    mapped_item_count: number;
+    existing_pic_id: number | null;
+    existing_pengawasan_gantt_id: number | null;
+    existing_pengawasan_count: number;
+    existing_pdf_link: string | null;
+    db_state: "ready" | "conflict" | "invalid";
+    issues: string[];
+    warnings: string[];
+};
+
+export type PengawasanMigrationPreviewResult = {
+    total_pengawasan: number;
+    total_item_pengawasan: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    missing_target_count: number;
+    details: PengawasanMigrationPreviewDetail[];
+};
+
+export type PengawasanMigrationCommitSelection = {
+    source_pengawasan_id: number;
+    action: PengawasanMigrationAction;
+};
+
+export type PengawasanMigrationCommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    updated_pdf: number;
+    skipped: number;
+    inserted_items: number;
+    details: Array<{
+        action: PengawasanMigrationAction;
+        source_pengawasan_id: number;
+        target_pengawasan_gantt_id: number | null;
+        inserted_items: number;
+        status: string;
+    }>;
+};
+
+const postPengawasanMigration = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: PengawasanMigrationCommitSelection[]
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/migration/${endpoint}`, {
+        method: "POST",
+        body: form
+    });
+
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Hanya Super Human yang dapat melakukan migrasi Pengawasan.");
+    if (!res.ok) throw new Error(result.message || "Gagal memproses migrasi Pengawasan.");
+    return result;
+};
+
+export const previewPengawasanMigration = (file: File, actorRole: string, actorEmail?: string) =>
+    postPengawasanMigration<PengawasanMigrationPreviewResult>("preview", file, actorRole, actorEmail);
+
+export const commitPengawasanMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: PengawasanMigrationCommitSelection[]
+) => postPengawasanMigration<PengawasanMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
+
 /** Ambil daftar SPK dengan filter opsional (Status, Nomor ULOK). */
 export const fetchSPKList = async (filters?: {
     status?: string;
