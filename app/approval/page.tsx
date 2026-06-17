@@ -2128,13 +2128,76 @@ export default function ApprovalPage() {
                                                         </tr>
                                                     ))}
                                                 </tbody>
-                                                <tfoot className="bg-slate-100 border-t border-slate-300">
-                                                    <tr>
+                                                <tfoot className="border-t border-slate-300">
+                                                    {/* Baris GRAND TOTAL item mentah */}
+                                                    <tr className="bg-slate-100">
                                                         <td colSpan={selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 6 : selectedDetail.tipe === 'RAB' ? 7 : 8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
                                                         <td className="p-3 font-extrabold text-slate-800 text-right whitespace-nowrap">
                                                             {formatRupiah(selectedDetail.items.reduce((s, r) => s + Number(r.total ?? 0), 0))}
                                                         </td>
                                                     </tr>
+                                                    {/* Breakdown transparan kalkulasi hanya untuk RAB */}
+                                                    {selectedDetail.tipe === 'RAB' && (() => {
+                                                        const rawTotal = selectedDetail.items.reduce((s, r) => s + Number(r.total ?? 0), 0);
+                                                        const pembulatan = Math.floor(rawTotal / 10000) * 10000;
+                                                        const isNoPpn = ['BATAM', 'BINTAN'].includes((selectedDetail.cabang ?? '').toUpperCase());
+                                                        const ppn = isNoPpn ? 0 : Math.round(pembulatan * 0.11);
+                                                        const grandTotalFinal = pembulatan + ppn;
+                                                        const selisihPembulatan = pembulatan - rawTotal;
+                                                        return (
+                                                            <>
+                                                                <tr className="bg-amber-50 border-t border-amber-200">
+                                                                    <td colSpan={8} className="px-4 pt-3 pb-0">
+                                                                        <div className="flex items-center gap-2 mb-2">
+                                                                            <div className="w-4 h-0.5 bg-amber-400 rounded-full"></div>
+                                                                            <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">Rincian Kalkulasi Total Nilai</span>
+                                                                            <div className="flex-1 h-0.5 bg-amber-200 rounded-full"></div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                                <tr className="bg-amber-50">
+                                                                    <td colSpan={7} className="px-6 py-1.5 text-right text-sm text-slate-600">Total Estimasi Pekerjaan :</td>
+                                                                    <td className="px-4 py-1.5 text-right text-sm font-semibold text-slate-700 whitespace-nowrap">{formatRupiah(rawTotal)}</td>
+                                                                </tr>
+                                                                <tr className="bg-amber-50">
+                                                                    <td colSpan={7} className="px-6 py-1.5 text-right text-sm text-slate-600">
+                                                                        Pembulatan ke kelipatan Rp10.000 :
+                                                                        <span className="ml-1 text-xs text-slate-400">(dibulatkan ke bawah)</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-1.5 text-right text-sm font-semibold whitespace-nowrap">
+                                                                        <span className={selisihPembulatan < 0 ? 'text-red-600' : 'text-slate-700'}>{formatRupiah(pembulatan)}</span>
+                                                                        {selisihPembulatan !== 0 && (
+                                                                            <span className="block text-xs text-slate-400 font-normal">
+                                                                                ({formatRupiah(selisihPembulatan)} dari estimasi)
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                                {isNoPpn ? (
+                                                                    <tr className="bg-amber-50">
+                                                                        <td colSpan={7} className="px-6 py-1.5 text-right text-sm text-slate-500 italic">PPN : <span className="text-emerald-600 font-semibold not-italic">Bebas PPN (Batam/Bintan)</span></td>
+                                                                        <td className="px-4 py-1.5 text-right text-sm font-semibold text-emerald-600">Rp 0</td>
+                                                                    </tr>
+                                                                ) : (
+                                                                    <tr className="bg-amber-50">
+                                                                        <td colSpan={7} className="px-6 py-1.5 text-right text-sm text-slate-600">PPN 11% :</td>
+                                                                        <td className="px-4 py-1.5 text-right text-sm font-semibold text-slate-700 whitespace-nowrap">{formatRupiah(ppn)}</td>
+                                                                    </tr>
+                                                                )}
+                                                                <tr className="bg-amber-100 border-t-2 border-amber-300">
+                                                                    <td colSpan={7} className="px-6 py-3 text-right font-extrabold text-amber-900 text-base">TOTAL NILAI AKHIR</td>
+                                                                    <td className="px-4 py-3 text-right font-extrabold text-amber-900 text-base whitespace-nowrap">
+                                                                        {formatRupiah(grandTotalFinal)}
+                                                                        {grandTotalFinal !== selectedDetail.total_nilai && (
+                                                                            <span className="block text-xs font-normal text-slate-500 mt-0.5">
+                                                                                (DB: {formatRupiah(selectedDetail.total_nilai)})
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </tfoot>
                                             </table>
                                         </div>
