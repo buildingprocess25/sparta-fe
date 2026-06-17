@@ -331,7 +331,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             // Check for existing opname data
             let existingData: OpnameItem[] = [];
             try {
-                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko, tipe_opname: 'OPNAME' });
+                const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
                 existingData = opnameRes.data || [];
                 const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []);
                 workingItems = [...workingItems, ...instruksiItems];
@@ -364,7 +364,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             // Check locked opname status
             let lockedOpnameFinal = false;
             try {
-                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci', tipe_opname: 'OPNAME' });
+                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci' });
                 const finalData = finalRes.data as unknown;
                 let finalItems: OpnameFinalSummary[] = [];
                 if (Array.isArray(finalData)) {
@@ -693,7 +693,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: `Item "${rabItem.jenis_pekerjaan}" berhasil disubmit!`, type: "success" });
             // Refresh existing opname data so the item disappears from form
             try {
-                const opnameRes = await fetchOpnameList({ id_toko: selectedRab.id_toko, tipe_opname: 'OPNAME' });
+                const opnameRes = await fetchOpnameList({ id_toko: selectedRab.id_toko });
                 setExistingOpname(opnameRes.data || []);
             } catch { /* ignore */ }
         } catch (err: any) {
@@ -708,10 +708,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const handleSubmitAll = async () => {
         if (!selectedRab || rabItems.length === 0) return;
 
-        // Collect items that are NOT approved
+        // Collect only items that are still editable in the form.
+        const blockedStatuses = new Set(['pending', 'disetujui', 'selesai', 'progress']);
         const itemsToSubmit = rabItems.filter(item => {
             const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
-            return existing?.status?.toLowerCase() !== 'disetujui';
+            const status = existing?.status?.toLowerCase() || '';
+            return !blockedStatuses.has(status);
         });
 
         if (itemsToSubmit.length === 0) {
