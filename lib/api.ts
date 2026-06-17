@@ -2379,6 +2379,9 @@ export type SPKListItem = {
     waktu_mulai: string;
     durasi: number;
     waktu_selesai: string;
+    effective_waktu_selesai?: string | null;
+    effective_durasi?: number | null;
+    pertambahan_spk_approved_until?: string | null;
     grand_total: number;
     terbilang: string;
     nomor_spk: string;

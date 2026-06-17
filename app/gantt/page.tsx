@@ -625,8 +625,9 @@ function GanttBoard() {
                     approvedSpks.find((s: any) => Number(s.id_toko) === Number(toko.id)) ||
                     approvedSpks.find((s: any) => String(s.lingkup_pekerjaan || '').trim().toUpperCase() === currentLingkup) ||
                     approvedSpks[0];
-                if (approvedSpk && approvedSpk.waktu_mulai && approvedSpk.durasi) {
-                    setSpkInfo({ startDate: approvedSpk.waktu_mulai, duration: approvedSpk.durasi });
+                const effectiveDuration = Number(approvedSpk?.effective_durasi ?? approvedSpk?.durasi ?? 0);
+                if (approvedSpk && approvedSpk.waktu_mulai && effectiveDuration > 0) {
+                    setSpkInfo({ startDate: approvedSpk.waktu_mulai, duration: effectiveDuration });
                 } else {
                     setSpkInfo(null);
                 }
