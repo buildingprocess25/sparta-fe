@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle } from "lucide-react";
-import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList } from "@/lib/api";
+import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
 import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
 
@@ -55,6 +55,11 @@ const normalizeRevisionFasilitas = (items: any[] = []) =>
   }));
 
 const normalizeRevisionTexts = (items: string[] = []) => items.map(item => item.trim());
+
+const formatDecimalInput = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return Number(value.toFixed(2)).toString();
+};
 
 function FormProjekPlanningInner() {
   const router = useRouter();
@@ -110,13 +115,27 @@ function FormProjekPlanningInner() {
     if (finalUlok.length >= 8) {
        const timer = setTimeout(() => {
          fetchRABList({ nomor_ulok: finalUlok, status: "Disetujui" }, { suppressGlobalError: true })
-           .then(res => {
-             if (res.data && res.data.length > 0) {
-               const hasSipil = res.data.some((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("SIPIL"));
-               const hasMe = res.data.some((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("ME"));
-               setIsRabApproved(hasSipil && hasMe);
-             } else {
-               setIsRabApproved(false);
+           .then(async res => {
+             const rows = res.data || [];
+             const sipilRab = rows.find((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("SIPIL"));
+             const meRab = rows.find((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("ME"));
+             setIsRabApproved(!!sipilRab && !!meRab);
+
+             if (sipilRab?.id) {
+               try {
+                 const detail = await fetchRABDetail(Number(sipilRab.id));
+                 const rab = detail.data.rab as any;
+                 setF(prev => ({
+                   ...prev,
+                   luas_bangunan: rab?.luas_bangunan != null ? String(rab.luas_bangunan) : prev.luas_bangunan,
+                   luas_area_terbuka: rab?.luas_area_terbuka != null ? String(rab.luas_area_terbuka) : prev.luas_area_terbuka,
+                   luas_gudang: rab?.luas_gudang != null ? String(rab.luas_gudang) : prev.luas_gudang,
+                   luas_area_parkir: rab?.luas_area_parkir != null ? String(rab.luas_area_parkir) : prev.luas_area_parkir,
+                   luas_area_sales: rab?.luas_area_sales != null ? String(rab.luas_area_sales) : prev.luas_area_sales,
+                 }));
+               } catch {
+                 // Detail RAB hanya dipakai untuk auto-fill luasan; submit tahap 1 tidak diblokir.
+               }
              }
            })
            .catch(() => setIsRabApproved(false));
@@ -211,6 +230,13 @@ function FormProjekPlanningInner() {
   const [originalRevisionSnapshot, setOriginalRevisionSnapshot] = useState<string>("");
 
   const set = (key: string, val: any) => setF(p => ({ ...p, [key]: val }));
+
+  useEffect(() => {
+    const luasBangunan = Number(f.luas_bangunan) || 0;
+    const luasAreaTerbuka = Number(f.luas_area_terbuka) || 0;
+    const next = formatDecimalInput(luasBangunan + (luasAreaTerbuka / 2));
+    setF(prev => prev.luas_area_terbangun === next ? prev : { ...prev, luas_area_terbangun: next });
+  }, [f.luas_bangunan, f.luas_area_terbuka]);
 
   const getRevisionSnapshot = (base: any = f, extras?: {
     manualCabang?: string;
@@ -391,11 +417,6 @@ function FormProjekPlanningInner() {
     if (!manualCabang || !manualTanggal || !manualUrutan) { setAlertMsg({ title: "Error", desc: "Harap lengkapi semua field Nomor ULOK (Kode Cabang, Tanggal, dan Urutan)", type: "error" }); setAlertOpen(true); return; }
     if (!isManualUlok && !f.jenis_proyek) { setAlertMsg({ title: "Error", desc: "Pilih proyek", type: "error" }); setAlertOpen(true); return; }
     if (jenisSelected.length === 0) { setAlertMsg({ title: "Error", desc: "Pilih minimal satu jenis pengajuan", type: "error" }); setAlertOpen(true); return; }
-    if (isRabApproved === false) {
-      setAlertMsg({ title: "RAB Belum Disetujui", desc: "RAB Sparta belum di-Approve untuk ULOK ini. Form tidak dapat disubmit.", type: "error" });
-      setAlertOpen(true);
-      return;
-    }
     if (resubmitId && originalF) {
       // Cek apakah ada perubahan
       const hasChanges =
@@ -610,18 +631,6 @@ function FormProjekPlanningInner() {
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700">Link Google Maps</Label>
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" />
-                      {isRabApproved === false && (
-                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg md:col-span-2">
-                          <AlertTriangle className="w-4 h-4 inline mr-1" />
-                          RAB Sparta belum lengkap. Pastikan RAB Sipil DAN RAB ME telah disubmit dan berstatus Approved sebelum mengajukan FPD.
-                        </div>
-                      )}
-                      {isRabApproved === true && (
-                        <div className="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg md:col-span-2">
-                          <CheckCircle className="w-4 h-4 inline mr-1" />
-                          RAB Sparta telah lengkap (Sipil & ME Approved).
-                        </div>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -655,18 +664,6 @@ function FormProjekPlanningInner() {
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700">Link Google Maps</Label>
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
-                      {isRabApproved === false && (
-                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg md:col-span-2">
-                          <AlertTriangle className="w-4 h-4 inline mr-1" />
-                          RAB Sparta belum lengkap. Pastikan RAB Sipil DAN RAB ME telah disubmit dan berstatus Approved sebelum mengajukan FPD.
-                        </div>
-                      )}
-                      {isRabApproved === true && (
-                        <div className="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg md:col-span-2">
-                          <CheckCircle className="w-4 h-4 inline mr-1" />
-                          RAB Sparta telah lengkap (Sipil & ME Approved).
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -680,6 +677,65 @@ function FormProjekPlanningInner() {
 
               {/* === SECTION: Luasan === */}
               <SectionTitle icon={<Building2 className="w-4 h-4" />} title="Data Luasan & Dimensi" />
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    ["luas_bangunan", "Luas Bangunan (m²)"],
+                    ["luas_area_terbuka", "Luas Area Terbuka (m²)"],
+                    ["luas_area_terbangun", "Luas Area Terbangun (m²)", "Auto"],
+                    ["luas_gudang", "Luas Gudang (m²)"],
+                    ["luas_area_parkir", "Luas Area Parkir (m²)"],
+                    ["luas_area_sales", "Luas Area Sales (m²)", isRabApproved === true ? "Auto RAB" : ""],
+                  ].map(([key, label, badge]) => {
+                    const isAuto = key === "luas_area_terbangun" || (key === "luas_area_sales" && isRabApproved === true);
+                    return (
+                      <div key={key}>
+                        <Label className="text-xs font-semibold text-slate-600">
+                          {label} {badge && <span className="text-[10px] font-bold text-blue-600">({badge})</span>}
+                        </Label>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={(f as any)[key]} onChange={e => set(key, e.target.value)}
+                          readOnly={isAuto}
+                          tabIndex={key === "luas_area_terbangun" ? -1 : undefined}
+                          placeholder="0.00"
+                          className={`mt-1 ${isAuto ? "bg-blue-50 border-blue-200 font-semibold text-blue-800 cursor-not-allowed" : ""}`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">Dimensi Bangunan</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-600">P Bangunan</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).p_bangunan} onChange={e => set("p_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-600">L Bangunan</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).l_bangunan} onChange={e => set("l_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">Dimensi Area Parkir</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-600">P Area Parkir</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).p_area_parkir} onChange={e => set("p_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-600">L Area Parkir</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).l_area_parkir} onChange={e => set("l_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {false && (
+              <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   ["luas_bangunan", "Luas Bangunan (m²)"],
@@ -759,6 +815,8 @@ function FormProjekPlanningInner() {
                   </div>
                 </div>
               </div>
+              </>
+              )}
 
               {/* === SECTION: Jenis Pengajuan === */}
               <SectionTitle icon={<FileText className="w-4 h-4" />} title="Form Permintaan Desain Dengan Fasilitas" />

@@ -73,6 +73,19 @@ const parseFacilityMeasurement = (text: string | undefined, defaultUnit: string)
   return { amount: match[1], unit: match[2] };
 };
 
+const isOtherFacilityValue = (value?: string) => {
+  const text = String(value || "").trim();
+  return text === "Lainnya" || text.startsWith("Lainnya:");
+};
+
+const getOtherFacilityNote = (value?: string) =>
+  isOtherFacilityValue(value) ? String(value || "").replace(/^Lainnya:?\s*/, "") : "";
+
+const formatOtherFacilityNote = (value: string) => {
+  const note = value.trim();
+  return note ? `Lainnya: ${note}` : "Lainnya";
+};
+
 const formatRabItemOption = (item?: RabReviewItemOption) => {
   if (!item) return "";
   const scope = item.rabScope ? `${item.rabScope} - ` : "";
@@ -90,6 +103,9 @@ const formatCurrency = (value: unknown) => {
   if (!Number.isFinite(number) || number <= 0) return "-";
   return `Rp ${number.toLocaleString("id-ID")}`;
 };
+
+const getRabScope = (rab: any) =>
+  String(rab?.toko?.lingkup_pekerjaan || rab?.lingkup_pekerjaan || "").toUpperCase();
 
 const FPD_STEPS = [
   { id: "WAITING_BM_APPROVAL", label: "B&M Manager" },
@@ -748,8 +764,8 @@ export default function DetailProjekPlanning() {
   };
 
   const handleUploadRab = async () => {
-    const selectedRabSipil = approvedRabs.find(r => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("SIPIL"));
-    const selectedRabMe = approvedRabs.find(r => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("ME"));
+    const selectedRabSipil = approvedRabs.find(r => getRabScope(r).includes("SIPIL"));
+    const selectedRabMe = approvedRabs.find(r => getRabScope(r).includes("ME"));
     if (approvedRabs.length === 0) {
       showAlert("RAB Belum Tersedia", "RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.");
       return;
@@ -873,7 +889,10 @@ export default function DetailProjekPlanning() {
     : [...coordinatorFields, ...ppSpecialistFields, ...rabFinalFields];
   const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
   const isRabReupload = !!(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan);
-  const hasRabUploadInput = approvedRabs.length > 0 && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
+  const selectedApprovedRabSipil = approvedRabs.find(r => getRabScope(r).includes("SIPIL"));
+  const selectedApprovedRabMe = approvedRabs.find(r => getRabScope(r).includes("ME"));
+  const hasCompleteApprovedRab = !!selectedApprovedRabSipil && !!selectedApprovedRabMe;
+  const hasRabUploadInput = hasCompleteApprovedRab && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
   const hasRabUploadChange = !!(
     fileGambarSipil.length > 0 ||
     fileGambarMe.length > 0 ||
@@ -1239,9 +1258,9 @@ export default function DetailProjekPlanning() {
                 </div>
               )}
 
-              <div className={`text-sm p-3 rounded-lg border ${approvedRabs.length > 0 ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+              <div className={`text-sm p-3 rounded-lg border ${hasCompleteApprovedRab ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
                 <span className="font-semibold block mb-1">RAB Sparta Approved</span>
-                {approvedRabs.length > 0 ? (
+                {hasCompleteApprovedRab ? (
                   <div className="space-y-1">
                     {approvedRabs.map((rab: any) => (
                       <div key={rab.id} className="flex items-center justify-between gap-2">
@@ -1251,12 +1270,12 @@ export default function DetailProjekPlanning() {
                     ))}
                   </div>
                 ) : (
-                  <span>RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.</span>
+                  <span>RAB Sparta belum lengkap. Pastikan RAB Sipil DAN RAB ME telah disubmit dan berstatus Approved sebelum mengajukan FPD.</span>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-orange-800">Fasilitas Yang Disediakan</Label>
+                <Label className="text-xs font-semibold text-orange-800">Fasilitas Tambahan</Label>
                 <div className="grid grid-cols-1 gap-3">
                   {fasilitasTahap2.map((fac, idx) => {
                     const meta = FACILITY_META[fac.jenis_fasilitas];
@@ -1307,13 +1326,23 @@ export default function DetailProjekPlanning() {
                             <span className="flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5" /> Sumber Air Bersih</span>
                           </label>
                           {fac.is_tersedia && (
-                            <select value={fac.keterangan || ""} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))} className="w-full text-sm h-10 rounded-md border border-slate-200 bg-white px-3">
-                              <option value="">Pilih Sumber Air...</option>
-                              <option value="PAM">PAM</option>
-                              <option value="Sumur Eksisting">Sumur Eksisting</option>
-                              <option value="Sumur Bor">Sumur Bor</option>
-                              <option value="Lainnya">Lainnya</option>
-                            </select>
+                            <div className="space-y-2">
+                              <select value={isOtherFacilityValue(fac.keterangan) ? "Lainnya" : (fac.keterangan || "")} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))} className="w-full text-sm h-10 rounded-md border border-slate-200 bg-white px-3">
+                                <option value="">Pilih Sumber Air...</option>
+                                <option value="PAM">PAM</option>
+                                <option value="Sumur Eksisting">Sumur Eksisting</option>
+                                <option value="Sumur Bor">Sumur Bor</option>
+                                <option value="Lainnya">Lainnya</option>
+                              </select>
+                              {isOtherFacilityValue(fac.keterangan) && (
+                                <Input
+                                  value={getOtherFacilityNote(fac.keterangan)}
+                                  onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: formatOtherFacilityNote(e.target.value) } : item))}
+                                  placeholder="Keterangan lainnya..."
+                                  className="bg-white"
+                                />
+                              )}
+                            </div>
                           )}
                         </div>
                       );
@@ -1327,12 +1356,22 @@ export default function DetailProjekPlanning() {
                             <span className="flex items-center gap-1.5"><Wind className="w-3.5 h-3.5" /> Drain Pembuangan Air Kotor</span>
                           </label>
                           {fac.is_tersedia && (
-                            <select value={fac.keterangan || ""} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))} className="w-full text-sm h-10 rounded-md border border-slate-200 bg-white px-3">
-                              <option value="">Pilih Drainase...</option>
-                              <option value="Septictank">Septictank</option>
-                              <option value="Toilet Eksisting">Toilet Eksisting</option>
-                              <option value="Lainnya">Lainnya</option>
-                            </select>
+                            <div className="space-y-2">
+                              <select value={isOtherFacilityValue(fac.keterangan) ? "Lainnya" : (fac.keterangan || "")} onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: e.target.value } : item))} className="w-full text-sm h-10 rounded-md border border-slate-200 bg-white px-3">
+                                <option value="">Pilih Drainase...</option>
+                                <option value="Septictank">Septictank</option>
+                                <option value="Toilet Eksisting">Toilet Eksisting</option>
+                                <option value="Lainnya">Lainnya</option>
+                              </select>
+                              {isOtherFacilityValue(fac.keterangan) && (
+                                <Input
+                                  value={getOtherFacilityNote(fac.keterangan)}
+                                  onChange={e => setFasilitasTahap2(prev => prev.map((item, i) => i === idx ? { ...item, keterangan: formatOtherFacilityNote(e.target.value) } : item))}
+                                  placeholder="Keterangan lainnya..."
+                                  className="bg-white"
+                                />
+                              )}
+                            </div>
                           )}
                         </div>
                       );
