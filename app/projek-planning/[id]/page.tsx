@@ -521,6 +521,7 @@ export default function DetailProjekPlanning() {
   const [fileGambarMe, setFileGambarMe] = useState<File[]>([]);
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
+  const [allRabsForUlok, setAllRabsForUlok] = useState<any[]>([]);
   const [fasilitasTahap2, setFasilitasTahap2] = useState<FacilityInput[]>(DEFAULT_FASILITAS_TAHAP2);
   const [approvalNote, setApprovalNote] = useState("");
   const [rabReviewAction, setRabReviewAction] = useState<ReviewDecision>("");
@@ -607,13 +608,19 @@ export default function DetailProjekPlanning() {
       }
       if (projek.status === "WAITING_RAB_UPLOAD") {
         try {
-          const rabRes = await fetchRABList({ nomor_ulok: projek.nomor_ulok, status: "Disetujui" }, { suppressGlobalError: true });
-          setApprovedRabs(rabRes.data || []);
+          const [rabApprovedRes, rabAllRes] = await Promise.all([
+            fetchRABList({ nomor_ulok: projek.nomor_ulok, status: "Disetujui" }, { suppressGlobalError: true }),
+            fetchRABList({ nomor_ulok: projek.nomor_ulok }, { suppressGlobalError: true }),
+          ]);
+          setApprovedRabs(rabApprovedRes.data || []);
+          setAllRabsForUlok(rabAllRes.data || []);
         } catch {
           setApprovedRabs([]);
+          setAllRabsForUlok([]);
         }
       } else {
         setApprovedRabs([]);
+        setAllRabsForUlok([]);
       }
       if (projek.fasilitas && projek.fasilitas.length > 0) {
         setFasilitasTahap2(() => {
@@ -1258,21 +1265,69 @@ export default function DetailProjekPlanning() {
                 </div>
               )}
 
-              <div className={`text-sm p-3 rounded-lg border ${hasCompleteApprovedRab ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>
-                <span className="font-semibold block mb-1">RAB Sparta Approved</span>
-                {hasCompleteApprovedRab ? (
-                  <div className="space-y-1">
-                    {approvedRabs.map((rab: any) => (
-                      <div key={rab.id} className="flex items-center justify-between gap-2">
-                        <span>#{rab.id} - {rab.toko?.lingkup_pekerjaan || rab.lingkup_pekerjaan || "RAB"} - {rab.nama_pt || "Kontraktor"}</span>
-                        <span className="text-xs font-bold">{rab.grand_total_final ? `Rp ${Number(rab.grand_total_final).toLocaleString("id-ID")}` : "Approved"}</span>
+              {/* RAB Sparta Status — tampil per scope Sipil / ME */}
+              {(() => {
+                const RAB_STATUS_LABEL: Record<string, { label: string; emoji: string; color: string }> = {
+                  'DISETUJUI': { label: 'Approved', emoji: '✅', color: 'text-green-700 font-bold' },
+                  'MENUNGGU PERSETUJUAN KOORDINATOR': { label: 'Menunggu persetujuan Koord.', emoji: '⏳', color: 'text-yellow-700' },
+                  'MENUNGGU PERSETUJUAN MANAJER': { label: 'Menunggu persetujuan Manager', emoji: '⏳', color: 'text-orange-700' },
+                  'MENUNGGU PERSETUJUAN DIREKTUR KONTRAKTOR': { label: 'Menunggu persetujuan Direktur', emoji: '⏳', color: 'text-red-600' },
+                  'MENUNGGU PERSETUJUAN DIREKTUR': { label: 'Menunggu persetujuan Direktur', emoji: '⏳', color: 'text-red-600' },
+                  'MENUNGGU PERSETUJUAN': { label: 'Menunggu persetujuan', emoji: '⏳', color: 'text-yellow-700' },
+                  'DITOLAK': { label: 'Ditolak', emoji: '❌', color: 'text-red-700 font-semibold' },
+                };
+                const getRabStatusDisplay = (scope: string) => {
+                  const rab = allRabsForUlok.find(r => getRabScope(r).includes(scope.toUpperCase()));
+                  if (!rab) return { label: 'Belum disubmit', emoji: '⬜', color: 'text-slate-400' };
+                  const key = (rab.status || '').toUpperCase().trim();
+                  return RAB_STATUS_LABEL[key] || { label: rab.status || 'Tidak diketahui', emoji: '❓', color: 'text-slate-500' };
+                };
+                const sipilStatus = getRabStatusDisplay('SIPIL');
+                const meStatus = getRabStatusDisplay('ME');
+                const sipilApproved = !!selectedApprovedRabSipil;
+                const meApproved = !!selectedApprovedRabMe;
+
+                return (
+                  <div className={`text-sm p-3 rounded-lg border ${hasCompleteApprovedRab ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <span className={`font-semibold block mb-2 ${hasCompleteApprovedRab ? 'text-green-800' : 'text-red-800'}`}>RAB Sparta Approved</span>
+                    <div className="space-y-2">
+                      {/* Penawaran Sipil */}
+                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${
+                        sipilApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
+                      }`}>
+                        <span className="text-xs font-semibold text-slate-600">Penawaran Sipil</span>
+                        <div className="flex items-center gap-2">
+                          {sipilApproved && selectedApprovedRabSipil?.grand_total_final && (
+                            <span className="text-xs text-slate-500">{formatCurrency(selectedApprovedRabSipil.grand_total_final)}</span>
+                          )}
+                          <span className={`text-xs ${sipilStatus.color}`}>
+                            {sipilStatus.emoji} {sipilStatus.label}
+                          </span>
+                        </div>
                       </div>
-                    ))}
+                      {/* Penawaran ME */}
+                      <div className={`flex items-center justify-between rounded-md px-3 py-2 border ${
+                        meApproved ? 'bg-green-100/60 border-green-200' : 'bg-white border-slate-200'
+                      }`}>
+                        <span className="text-xs font-semibold text-slate-600">Penawaran ME</span>
+                        <div className="flex items-center gap-2">
+                          {meApproved && selectedApprovedRabMe?.grand_total_final && (
+                            <span className="text-xs text-slate-500">{formatCurrency(selectedApprovedRabMe.grand_total_final)}</span>
+                          )}
+                          <span className={`text-xs ${meStatus.color}`}>
+                            {meStatus.emoji} {meStatus.label}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {!hasCompleteApprovedRab && (
+                      <p className="text-xs text-red-600 mt-2 pt-2 border-t border-red-100">
+                        Pastikan RAB Sipil DAN RAB ME sudah berstatus <b>Approved</b> sebelum dapat mengajukan FPD.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <span>RAB Sparta belum lengkap. Pastikan RAB Sipil DAN RAB ME telah disubmit dan berstatus Approved sebelum mengajukan FPD.</span>
-                )}
-              </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-orange-800">Fasilitas Tambahan</Label>
