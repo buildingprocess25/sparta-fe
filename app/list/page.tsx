@@ -534,28 +534,16 @@ const getDocumentContextBadges = (doc: Pick<NormalizedDoc, 'proyek' | 'lingkup_p
 
 const DOCUMENT_GROUP_CONFIG: Array<Omit<DocumentContextGroup, 'docs'>> = [
     {
-        key: 'NON_RUKO',
-        label: 'Non-Ruko',
-        description: 'Dokumen toko dengan klasifikasi Non-Ruko.',
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    },
-    {
-        key: 'RUKO',
-        label: 'Ruko',
-        description: 'Dokumen toko dengan klasifikasi Ruko.',
-        className: 'bg-amber-50 text-amber-700 border-amber-200',
+        key: 'REGULER',
+        label: 'Reguler',
+        description: 'Dokumen pekerjaan reguler.',
+        className: 'bg-slate-50 text-slate-700 border-slate-200',
     },
     {
         key: 'RENOVASI',
         label: 'Renovasi',
         description: 'Dokumen pekerjaan renovasi.',
         className: 'bg-blue-50 text-blue-700 border-blue-200',
-    },
-    {
-        key: 'REGULER',
-        label: 'Reguler',
-        description: 'Dokumen pekerjaan reguler.',
-        className: 'bg-slate-50 text-slate-700 border-slate-200',
     },
     {
         key: 'LAINNYA',
@@ -565,29 +553,53 @@ const DOCUMENT_GROUP_CONFIG: Array<Omit<DocumentContextGroup, 'docs'>> = [
     },
 ];
 
-const getDocumentGroupKeys = (doc: NormalizedDoc) => {
-    const keys = new Set<string>();
+const BUILDING_GROUP_CONFIG: Array<Omit<DocumentContextGroup, 'docs'>> = [
+    {
+        key: 'RUKO',
+        label: 'Ruko',
+        description: 'Dokumen toko dengan klasifikasi Ruko.',
+        className: 'bg-amber-50 text-amber-700 border-amber-200',
+    },
+    {
+        key: 'NON_RUKO',
+        label: 'Non-Ruko',
+        description: 'Dokumen toko dengan klasifikasi Non-Ruko.',
+        className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    },
+    {
+        key: 'LAINNYA',
+        label: 'Lainnya',
+        description: 'Dokumen yang belum memiliki klasifikasi bangunan.',
+        className: 'bg-zinc-50 text-zinc-700 border-zinc-200',
+    },
+];
+
+const getProjectGroupKey = (doc: NormalizedDoc) => {
     const proyek = String(doc.proyek ?? doc.jenis_proyek ?? '').toUpperCase();
     const jenisPengajuan = String(doc.jenis_pengajuan ?? '').toUpperCase();
+    const source = `${proyek} ${jenisPengajuan}`;
+
+    if (
+        source.includes('RENOVASI') ||
+        source.includes('PERLUAS') ||
+        source.includes('PERPANJANGAN') ||
+        source.includes('TOKO TUTUP') ||
+        source.includes('PEREMAJAAN') ||
+        source.includes('PERBAIKAN')
+    ) return 'RENOVASI';
+
+    if (source.includes('REGULER')) return 'REGULER';
+
+    return 'LAINNYA';
+};
+
+const getBuildingGroupKey = (doc: NormalizedDoc) => {
     const kategoriLokasi = String(doc.kategori_lokasi ?? '').toUpperCase();
     const klasifikasi = String(doc.klasifikasi_bangunan || getBuildingClassification(doc.is_ruko, doc.kategori_lokasi)).toUpperCase();
 
-    if (klasifikasi.includes('NON') || kategoriLokasi.includes('NON')) {
-        keys.add('NON_RUKO');
-    } else if (klasifikasi.includes('RUKO') || kategoriLokasi.includes('RUKO')) {
-        keys.add('RUKO');
-    }
-
-    if (
-        proyek.includes('RENOVASI') ||
-        jenisPengajuan.includes('RENOVASI') ||
-        proyek.includes('PERLUAS') ||
-        jenisPengajuan.includes('PERLUAS')
-    ) keys.add('RENOVASI');
-    if (proyek.includes('REGULER') || jenisPengajuan.includes('REGULER')) keys.add('REGULER');
-
-    if (keys.size === 0) keys.add('LAINNYA');
-    return Array.from(keys);
+    if (klasifikasi.includes('NON') || kategoriLokasi.includes('NON')) return 'NON_RUKO';
+    if (klasifikasi.includes('RUKO') || kategoriLokasi.includes('RUKO')) return 'RUKO';
+    return 'LAINNYA';
 };
 
 const getDocumentGroupVisual = (key: string): { icon: React.ReactNode; panel: string; iconBox: string; text: string; meter: string } => {
@@ -915,6 +927,7 @@ export default function DaftarDokumenPage() {
     const [activeView, setActiveView] = useState<ActiveView>('menu');
     const [selectedKategori, setSelectedKategori] = useState<DokumenKategori | null>(null);
     const [selectedPengawasanGroupKey, setSelectedPengawasanGroupKey] = useState<string | null>(null);
+    const [selectedProjectGroupKey, setSelectedProjectGroupKey] = useState<string | null>(null);
     const [selectedDocumentGroupKey, setSelectedDocumentGroupKey] = useState<string | null>(null);
 
     // --- Data ---
@@ -988,6 +1001,7 @@ export default function DaftarDokumenPage() {
         const sessionIsSuperHuman = hasSuperHumanRole(sessionRoles);
         const sessionCanViewAllBranches = canViewAllBranches(sessionRoles, sessionIsSuperHuman);
         setSelectedPengawasanGroupKey(null);
+        setSelectedProjectGroupKey(null);
         setSelectedDocumentGroupKey(null);
         if (kategori === 'PROJECT_PLANNING' && !sessionCanViewAllBranches && !canAccessProjectPlanningByCabang(sessionStorage.getItem('loggedInUserCabang') || '')) {
             showToast('Project Planning sementara hanya dapat diakses oleh user cabang HEAD OFFICE.', 'error');
@@ -1146,6 +1160,7 @@ export default function DaftarDokumenPage() {
         setSelectedKategori(kategori);
         setSelectedDetail(null);
         setSelectedPengawasanGroupKey(null);
+        setSelectedProjectGroupKey(null);
         setSelectedDocumentGroupKey(null);
         setActiveView('list');
         loadList(kategori, query);
@@ -1606,6 +1621,7 @@ export default function DaftarDokumenPage() {
         setSelectedKategori(kat);
         setSelectedDetail(null);
         setSelectedPengawasanGroupKey(null);
+        setSelectedProjectGroupKey(null);
         setSelectedDocumentGroupKey(null);
         setActiveView('list');
         loadList(kat);
@@ -1617,6 +1633,7 @@ export default function DaftarDokumenPage() {
         setListData([]);
         setSelectedDetail(null);
         setSelectedPengawasanGroupKey(null);
+        setSelectedProjectGroupKey(null);
         setSelectedDocumentGroupKey(null);
         setSearchQuery('');
         setStatusFilter('');
@@ -1849,15 +1866,14 @@ export default function DaftarDokumenPage() {
         [pengawasanGroups, selectedPengawasanGroupKey]
     );
 
-    const documentGroups = useMemo<DocumentContextGroup[]>(() => {
+    const projectGroups = useMemo<DocumentContextGroup[]>(() => {
         if (!selectedKategori || selectedKategori === 'PENGAWASAN') return [];
 
         const groupDocs = new Map<string, NormalizedDoc[]>();
         filteredList.forEach((doc) => {
-            getDocumentGroupKeys(doc).forEach((key) => {
-                if (!groupDocs.has(key)) groupDocs.set(key, []);
-                groupDocs.get(key)!.push(doc);
-            });
+            const key = getProjectGroupKey(doc);
+            if (!groupDocs.has(key)) groupDocs.set(key, []);
+            groupDocs.get(key)!.push(doc);
         });
 
         return DOCUMENT_GROUP_CONFIG
@@ -1871,6 +1887,33 @@ export default function DaftarDokumenPage() {
             }))
             .filter(group => group.docs.length > 0);
     }, [filteredList, selectedKategori]);
+
+    const selectedProjectGroup = useMemo(
+        () => projectGroups.find(group => group.key === selectedProjectGroupKey) ?? null,
+        [projectGroups, selectedProjectGroupKey]
+    );
+
+    const documentGroups = useMemo<DocumentContextGroup[]>(() => {
+        if (!selectedKategori || selectedKategori === 'PENGAWASAN' || !selectedProjectGroup) return [];
+
+        const groupDocs = new Map<string, NormalizedDoc[]>();
+        selectedProjectGroup.docs.forEach((doc) => {
+            const key = getBuildingGroupKey(doc);
+            if (!groupDocs.has(key)) groupDocs.set(key, []);
+            groupDocs.get(key)!.push(doc);
+        });
+
+        return BUILDING_GROUP_CONFIG
+            .map((group) => ({
+                ...group,
+                docs: (groupDocs.get(group.key) ?? []).sort((a, b) => {
+                    const da = parseDateValue(a.created_at)?.getTime() ?? 0;
+                    const db = parseDateValue(b.created_at)?.getTime() ?? 0;
+                    return db - da;
+                }),
+            }))
+            .filter(group => group.docs.length > 0);
+    }, [selectedKategori, selectedProjectGroup]);
 
     const selectedDocumentGroup = useMemo(
         () => documentGroups.find(group => group.key === selectedDocumentGroupKey) ?? null,
@@ -2129,8 +2172,10 @@ export default function DaftarDokumenPage() {
                                             : selectedKategori === 'PENGAWASAN'
                                                 ? `Menampilkan ${pengawasanGroups.length} ULOK dari ${filteredList.length} dokumen`
                                                 : selectedDocumentGroup
-                                                    ? `Menampilkan ${visibleList.length} dokumen dalam kelompok ${selectedDocumentGroup.label}`
-                                                    : `Menampilkan ${documentGroups.length} kelompok dari ${filteredList.length} dokumen`}
+                                                    ? `Menampilkan ${visibleList.length} dokumen ${selectedProjectGroup?.label ?? ''} - ${selectedDocumentGroup.label}`
+                                                    : selectedProjectGroup
+                                                        ? `Pilih klasifikasi bangunan untuk ${selectedProjectGroup.label} (${selectedProjectGroup.docs.length} dokumen)`
+                                                        : `Pilih jenis proyek dari ${filteredList.length} dokumen`}
                                     </p>
                                 </div>
                             </div>
@@ -2197,8 +2242,10 @@ export default function DaftarDokumenPage() {
                             </div>
                         ) : (selectedKategori === 'PENGAWASAN' && !selectedPengawasanGroup
                             ? pengawasanGroups.length === 0
-                            : isGroupedDocumentCategory && !selectedDocumentGroup
-                                ? documentGroups.length === 0
+                            : isGroupedDocumentCategory && !selectedProjectGroup
+                                ? projectGroups.length === 0
+                                : isGroupedDocumentCategory && selectedProjectGroup && !selectedDocumentGroup
+                                    ? documentGroups.length === 0
                                 : visibleList.length === 0) ? (
                             <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200">
                                 <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
@@ -2227,11 +2274,22 @@ export default function DaftarDokumenPage() {
                                         className="h-9"
                                         onClick={() => setSelectedDocumentGroupKey(null)}
                                     >
-                                        <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Kelompok
+                                        <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Ruko / Non-Ruko
                                     </Button>
                                 </div>
                             )}
-                            <div className={isGroupedDocumentCategory && !selectedDocumentGroup ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "grid gap-3"}>
+                            {isGroupedDocumentCategory && selectedProjectGroup && !selectedDocumentGroup && (
+                                <div className="mb-3">
+                                    <Button
+                                        variant="outline"
+                                        className="h-9"
+                                        onClick={() => setSelectedProjectGroupKey(null)}
+                                    >
+                                        <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Reguler / Renovasi
+                                    </Button>
+                                </div>
+                            )}
+                            <div className={isGroupedDocumentCategory && (!selectedProjectGroup || !selectedDocumentGroup) ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "grid gap-3"}>
                                 {selectedKategori === 'PENGAWASAN' && !selectedPengawasanGroup ? pengawasanGroups.map(group => (
                                     <div
                                         key={group.key}
@@ -2285,11 +2343,63 @@ export default function DaftarDokumenPage() {
                                             </div>
                                         </div>
                                     </div>
-                                )) : isGroupedDocumentCategory && !selectedDocumentGroup ? documentGroups.map(group => {
+                                )) : isGroupedDocumentCategory && !selectedProjectGroup ? projectGroups.map(group => {
                                     const latestDoc = group.docs[0];
                                     const branchCount = new Set(group.docs.map(doc => doc.cabang).filter(Boolean)).size;
                                     const visual = getDocumentGroupVisual(group.key);
                                     const totalCount = Math.max(filteredList.length, 1);
+                                    const ratio = Math.max(8, Math.min(100, Math.round((group.docs.length / totalCount) * 100)));
+                                    return (
+                                    <div
+                                        key={group.key}
+                                        className={`relative overflow-hidden rounded-2xl border ${visual.panel} p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 cursor-pointer group`}
+                                        onClick={() => {
+                                            setSelectedProjectGroupKey(group.key);
+                                            setSelectedDocumentGroupKey(null);
+                                        }}
+                                    >
+                                        <div className="absolute inset-x-0 top-0 h-1 bg-slate-100">
+                                            <div className={`h-full ${visual.meter}`} style={{ width: `${ratio}%` }} />
+                                        </div>
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className={`w-11 h-11 rounded-2xl ${visual.iconBox} flex items-center justify-center shrink-0`}>
+                                                {visual.icon}
+                                            </div>
+                                            <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors mt-2" />
+                                        </div>
+
+                                        <div className="mt-5">
+                                            <div className="flex items-baseline justify-between gap-3">
+                                                <h3 className="font-extrabold text-slate-900 text-lg">{group.label}</h3>
+                                                <div className="text-right shrink-0">
+                                                    <p className={`text-2xl font-extrabold leading-none ${visual.text}`}>{group.docs.length}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">Dokumen</p>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-slate-600 mt-2 min-h-10 leading-5">{group.description}</p>
+                                        </div>
+
+                                        <div className="mt-5 pt-4 border-t border-white/80 flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 flex-wrap min-w-0">
+                                                {latestDoc?.created_at && (
+                                                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                        <CalendarDays className="w-3 h-3" /> {formatDate(latestDoc.created_at)}
+                                                    </span>
+                                                )}
+                                                {branchCount > 0 && (
+                                                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                        <Building2 className="w-3 h-3" /> {branchCount} cabang
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Lihat Klasifikasi</span>
+                                        </div>
+                                    </div>
+                                )}) : isGroupedDocumentCategory && selectedProjectGroup && !selectedDocumentGroup ? documentGroups.map(group => {
+                                    const latestDoc = group.docs[0];
+                                    const branchCount = new Set(group.docs.map(doc => doc.cabang).filter(Boolean)).size;
+                                    const visual = getDocumentGroupVisual(group.key);
+                                    const totalCount = Math.max(selectedProjectGroup.docs.length, 1);
                                     const ratio = Math.max(8, Math.min(100, Math.round((group.docs.length / totalCount) * 100)));
                                     return (
                                     <div
