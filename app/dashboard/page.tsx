@@ -130,6 +130,19 @@ const getSpkEffectiveEndDate = (spk: any) => {
     return latestPertambahanDate || parseDashboardDate(spk?.waktu_selesai);
 };
 
+const getSpkAllowedDays = (spk: any) => {
+    const durasi = Number(spk?.durasi || 0);
+    const pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    const totalPertambahan = pertambahanArr
+        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
+        .reduce((sum: number, pt: any) => sum + Number(pt?.pertambahan_hari || 0), 0);
+    return durasi + totalPertambahan;
+};
+
+const getProjectAllowedDays = (project: any) => {
+    return Math.max(0, ...getApprovedDashboardSpks(project).map(getSpkAllowedDays));
+};
+
 const getLatestProjectSpkEndDate = (project: any) => {
     const candidateDates: Array<Date | null> = getApprovedDashboardSpks(project)
         .map(getSpkEffectiveEndDate);
@@ -645,19 +658,13 @@ export default function DashboardPage() {
             
             let isPerhatian = false;
             if (cat === 'Ongoing') {
-                const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                const approvedSpk = spkArr.find((s: any) => {
-                    const st = (s.status || '').toUpperCase();
-                    return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(st);
-                });
-                if (approvedSpk) {
-                    const waktuMulai = new Date(approvedSpk.waktu_mulai || approvedSpk.created_at || Date.now());
-                    const durasiSPK = Number(approvedSpk.durasi || 0);
-                    const pertambahanArr = Array.isArray(approvedSpk.pertambahan_spk) ? approvedSpk.pertambahan_spk : [];
-                    const totalPertambahan = pertambahanArr
-                        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase()))
-                        .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                    const totalAllowedDays = durasiSPK + totalPertambahan;
+                const approvedSpks = getApprovedDashboardSpks(p);
+                if (approvedSpks.length > 0) {
+                    const waktuMulai = approvedSpks
+                        .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
+                        .filter((date: Date | null): date is Date => Boolean(date))
+                        .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || new Date();
+                    const totalAllowedDays = getProjectAllowedDays(p);
                     const elapsedDays = Math.floor((Date.now() - waktuMulai.getTime()) / (1000 * 60 * 60 * 24));
                     if (elapsedDays > totalAllowedDays) {
                         isPerhatian = true;
@@ -745,21 +752,10 @@ export default function DashboardPage() {
             });
 
             let projectJHK = 0;
-            const spkArrJHK = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-            const validSpkJHK = spkArrJHK.find((s: any) => {
-                const st = (s.status || '').toUpperCase();
-                return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(st);
-            }) || spkArrJHK[0];
+            const totalAllowedDays = getProjectAllowedDays(p);
 
-            if (validSpkJHK) {
+            if (totalAllowedDays > 0) {
                 jhkProjectCount++;
-                const durasi = Number(validSpkJHK.durasi || 0);
-                const pertambahanArr = Array.isArray(validSpkJHK.pertambahan_spk) ? validSpkJHK.pertambahan_spk : [];
-                const totalPertambahan = pertambahanArr
-                    .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase()))
-                    .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                
-                const totalAllowedDays = durasi + totalPertambahan;
                 const keterlambatan = calculateProjectLateDays(p);
                 if (keterlambatan > 0) delayProjectCount++;
                 const penaltyKey = getProjectStorePenaltyKey(p);
@@ -1954,9 +1950,7 @@ export default function DashboardPage() {
                                         return opnameItems.length > 0;
                                     }
                                     if (detailModal.context === 'JHK' || detailModal.context === 'DELAY' || detailModal.context === 'DENDA') {
-                                        const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                        const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
-                                        if (!validSpk) return false;
+                                        if (getApprovedDashboardSpks(p).length === 0) return false;
                                         if (detailModal.context === 'JHK') return true;
 
                                         return detailModal.context === 'DENDA'
@@ -2000,19 +1994,13 @@ export default function DashboardPage() {
                                     
                                     let isPerhatian = false;
                                     if (cat === 'Ongoing') {
-                                        const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                        const approvedSpk = spkArr.find((s: any) => {
-                                            const st = (s.status || '').toUpperCase();
-                                            return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(st);
-                                        });
-                                        if (approvedSpk) {
-                                            const waktuMulai = new Date(approvedSpk.waktu_mulai || approvedSpk.created_at || Date.now());
-                                            const durasiSPK = Number(approvedSpk.durasi || 0);
-                                            const pertambahanArr = Array.isArray(approvedSpk.pertambahan_spk) ? approvedSpk.pertambahan_spk : [];
-                                            const totalPertambahan = pertambahanArr
-                                                .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase()))
-                                                .reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                                            const totalAllowedDays = durasiSPK + totalPertambahan;
+                                        const approvedSpks = getApprovedDashboardSpks(p);
+                                        if (approvedSpks.length > 0) {
+                                            const waktuMulai = approvedSpks
+                                                .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
+                                                .filter(Boolean)
+                                                .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || new Date();
+                                            const totalAllowedDays = getProjectAllowedDays(p);
                                             const elapsedDays = Math.floor((Date.now() - waktuMulai.getTime()) / (1000 * 60 * 60 * 24));
                                             if (elapsedDays > totalAllowedDays) {
                                                 isPerhatian = true;
@@ -2490,15 +2478,12 @@ export default function DashboardPage() {
                                                     }
                                                     
                                                     if (detailModal.context === 'JHK') {
-                                                        const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                                        const validSpk = spkArr.find((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase())) || spkArr[0];
-                                                        
                                                         let jhkTotal = 0, durasi = 0, totalPertambahan = 0, keterlambatan = 0;
-                                                        if (validSpk) {
-                                                            durasi = Number(validSpk.durasi || 0);
-                                                            const pertambahanArr = Array.isArray(validSpk.pertambahan_spk) ? validSpk.pertambahan_spk : [];
-                                                            totalPertambahan = pertambahanArr.filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes((pt.status_persetujuan || '').toUpperCase())).reduce((sum: number, pt: any) => sum + Number(pt.pertambahan_hari || 0), 0);
-                                                            const totalAllowedDays = durasi + totalPertambahan;
+                                                        const approvedSpks = getApprovedDashboardSpks(p);
+                                                        const totalAllowedDays = getProjectAllowedDays(p);
+                                                        if (approvedSpks.length > 0 && totalAllowedDays > 0) {
+                                                            durasi = Math.max(0, ...approvedSpks.map((spk: any) => Number(spk?.durasi || 0)));
+                                                            totalPertambahan = Math.max(0, totalAllowedDays - durasi);
                                                             keterlambatan = calculateProjectLateDays(p);
                                                             jhkTotal = totalAllowedDays + keterlambatan;
                                                         }
