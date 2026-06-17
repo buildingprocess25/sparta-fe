@@ -1632,17 +1632,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             return null;
         };
 
-        const pengawasanDateNumbers: number[] = Array.from(new Set<number>(
-            (pengawasanHistory || [])
-                .map((p: any) => parseDateNumeric(p.tanggal_pengawasan))
-                .filter((dateNum: number | null): dateNum is number => !!dateNum)
-        )).sort((a, b) => a - b);
-
-        const isNextPengawasanAfter = (sourceDate: any): boolean => {
+        const isPreviousPengawasanBeforeCurrent = (sourceDate: any): boolean => {
             const sourceNumeric = parseDateNumeric(sourceDate);
             if (!sourceNumeric) return false;
-            const nextPengawasan = pengawasanDateNumbers.find((dateNum) => dateNum > sourceNumeric);
-            return nextPengawasan === currentDateNumeric;
+            return sourceNumeric < currentDateNumeric;
         };
 
         const getPengawasanDateById = (idPengawasanGantt: any): any => {
@@ -1726,8 +1719,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         // tetap masukkan ke form tanggal pengawasan berikutnya agar bisa diupdate.
                         if (
                             !initial[key] &&
+                            map.get(key) === normalizedStatus &&
                             p.status.toLowerCase() !== 'selesai' &&
-                            isNextPengawasanAfter(getPengawasanDateById(p.id_pengawasan_gantt))
+                            isPreviousPengawasanBeforeCurrent(getPengawasanDateById(p.id_pengawasan_gantt))
                         ) {
                             initial[key] = {
                                 status: '',
@@ -1760,7 +1754,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
     const [latestIdMapState, setLatestIdMapState] = useState<Map<string, number>>(new Map());
 
-    const hasSelesaiItems = Array.from(latestStatusMapState.values()).some((s: string) => s.toLowerCase() === 'selesai');
+    const hasCurrentDateSelesaiItems = liveHistory.some((p: any) => String(p.status || '').toLowerCase() === 'selesai');
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
@@ -2214,7 +2208,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             <p className="font-medium text-slate-500">Memuat data pengawasan terakhir...</p>
                         </div>
                     ) : memoConfig.length === 0 ? (
-                        hasSelesaiItems ? (
+                        hasCurrentDateSelesaiItems ? (
                             <div className="flex flex-col items-center justify-center text-slate-500 py-12 text-center">
                                 <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
                                     <CheckCircle className="w-7 h-7" />
@@ -2397,7 +2391,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                 <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
                     <div>
-                        {hasSelesaiItems && (
+                        {hasCurrentDateSelesaiItems && (
                             <Button variant="outline" onClick={onSuccess} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
                                 Lanjut ke Opname &rarr;
                             </Button>
