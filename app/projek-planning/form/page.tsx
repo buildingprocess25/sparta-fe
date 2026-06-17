@@ -449,8 +449,18 @@ function FormProjekPlanningInner() {
         finalJenisProyek = "Reguler";
       }
 
+      const {
+        jumlah_ac,
+        pk_ac,
+        listrik_va,
+        listrik_phase,
+        sumber_air_bersih,
+        drainase_air_kotor,
+        ...stageOneForm
+      } = f;
+
         const payload = {
-        ...f,
+        ...stageOneForm,
         id_toko: finalIdToko,
         nomor_ulok: finalUlok,
         cabang: finalCabang,
