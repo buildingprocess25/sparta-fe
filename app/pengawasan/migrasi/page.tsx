@@ -61,7 +61,7 @@ export default function PengawasanMigrasiPage() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [actions, setActions] = useState<Record<number, PengawasanMigrationAction>>({});
     const [searchQuery, setSearchQuery] = useState("");
-    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid">("all");
+    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid" | "missing_gantt">("all");
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isCommitting, setIsCommitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
@@ -72,7 +72,8 @@ export default function PengawasanMigrasiPage() {
     const filteredRows = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         return rows.filter((row) => {
-            const matchesState = stateFilter === "all" || row.db_state === stateFilter;
+            const matchesState = stateFilter === "all"
+                || (stateFilter === "missing_gantt" ? row.gantt_id === null : row.db_state === stateFilter);
             if (!matchesState) return false;
             if (!query) return true;
             return [
@@ -289,13 +290,14 @@ export default function PengawasanMigrasiPage() {
 
                 {preview && (
                     <>
-                        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
                             {[
                                 ["Total Target", preview.total_pengawasan, "text-slate-950"],
                                 ["Item Termapping", preview.total_item_pengawasan, "text-slate-950"],
                                 ["Siap Insert", preview.ready_count, "text-emerald-700"],
                                 ["Konflik DB", preview.conflict_count, "text-amber-700"],
                                 ["Target Hilang", preview.missing_target_count, "text-orange-700"],
+                                ["Tanpa Gantt", preview.missing_gantt_count, "text-orange-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
                                 <Card key={String(label)} className="border-slate-200 shadow-sm">
@@ -328,6 +330,7 @@ export default function PengawasanMigrasiPage() {
                                             <SelectItem value="all">Semua status</SelectItem>
                                             <SelectItem value="ready">Siap insert</SelectItem>
                                             <SelectItem value="conflict">Konflik DB</SelectItem>
+                                            <SelectItem value="missing_gantt">Tanpa Gantt Chart</SelectItem>
                                             <SelectItem value="invalid">Invalid</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -398,6 +401,9 @@ export default function PengawasanMigrasiPage() {
                                                             </Badge>
                                                             {row.existing_pengawasan_count > 0 && (
                                                                 <p className="mt-2 text-xs text-slate-500">{row.existing_pengawasan_count} item existing</p>
+                                                            )}
+                                                            {!row.gantt_id && (
+                                                                <p className="mt-2 text-xs font-semibold text-orange-600">Gantt belum ada</p>
                                                             )}
                                                         </td>
                                                         <td className="px-4 py-4 align-top">

@@ -2545,6 +2545,7 @@ export type PengawasanMigrationPreviewDetail = {
     status_lokasi: string;
     link_pdf: string;
     mapped_item_count: number;
+    gantt_id: number | null;
     existing_pic_id: number | null;
     existing_pengawasan_gantt_id: number | null;
     existing_pengawasan_count: number;
@@ -2561,6 +2562,7 @@ export type PengawasanMigrationPreviewResult = {
     conflict_count: number;
     invalid_count: number;
     missing_target_count: number;
+    missing_gantt_count: number;
     details: PengawasanMigrationPreviewDetail[];
 };
 
