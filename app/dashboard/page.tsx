@@ -13,7 +13,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { downloadDashboardExport, fetchDashboardAll, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
+import { downloadDashboardExport, fetchDashboardAll, fetchRabProjectPlanningRequests, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 import {
     EMPTY_APPROVAL_COUNTS,
     fetchApprovalNotificationCounts,
@@ -346,6 +346,7 @@ export default function DashboardPage() {
     const [canViewMonitoringDashboard, setCanViewMonitoringDashboard] = useState(false);
     const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts>(EMPTY_APPROVAL_COUNTS);
     const [rabRevisionCount, setRabRevisionCount] = useState(0);
+    const [rabPlanningRequestCount, setRabPlanningRequestCount] = useState(0);
 
     // Data State
     const [projects, setProjects] = useState<any[]>([]);
@@ -450,6 +451,13 @@ export default function DashboardPage() {
         fetchApprovalNotificationCounts(user)
             .then(setApprovalCounts)
             .catch(() => setApprovalCounts(EMPTY_APPROVAL_COUNTS));
+        if (contractorFlag) {
+            fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
+                .then((result) => setRabPlanningRequestCount(result.count || 0))
+                .catch(() => setRabPlanningRequestCount(0));
+        } else {
+            setRabPlanningRequestCount(0);
+        }
         setIsLoading(false);
     }, [user]);
 
@@ -1051,7 +1059,9 @@ export default function DashboardPage() {
                             const approvalCount = menu.id === "menu-approval" && user
                                 ? getApprovalNotificationTotal(approvalCounts, getAccessibleApprovalTypes(user))
                                 : 0;
-                            const menuCount = menu.id === "menu-rab" ? rabRevisionCount : approvalCount;
+                            const menuCount = menu.id === "menu-rab"
+                                ? rabRevisionCount + rabPlanningRequestCount
+                                : approvalCount;
                             const menuCountClass = menu.id === "menu-rab"
                                 ? "bg-amber-500 text-white"
                                 : "bg-red-600 text-white";

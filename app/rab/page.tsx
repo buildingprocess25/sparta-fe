@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 // Import AppNavbar
 import AppNavbar from '@/components/AppNavbar';
@@ -18,11 +18,22 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download, ClipboardList, ArrowRight } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
-import { checkRevisionStatus, fetchPricesData, submitRABData, fetchRABDetail, fetchTokoDetail, getRABLogoDownloadUrl, getRABInsuranceDownloadUrl } from '@/lib/api';
+import {
+  checkRevisionStatus,
+  fetchPricesData,
+  submitRABData,
+  fetchRABDetail,
+  fetchTokoDetail,
+  getRABLogoDownloadUrl,
+  getRABInsuranceDownloadUrl,
+  fetchRabProjectPlanningPrefill,
+  fetchRabProjectPlanningRequests,
+  type RabProjectPlanningRequest,
+} from '@/lib/api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -194,8 +205,14 @@ const getPriceDirectiveForRow = (priceData: PriceMaster, row: Partial<RabTableRo
   };
 };
 
-export default function RABPage() {
+function RABPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedPlanningId = Number(searchParams.get('projek_planning_id') || 0);
+  const requestedScope = searchParams.get('lingkup')?.toUpperCase();
+  const hasProjectPlanningRequest = Number.isInteger(requestedPlanningId)
+    && requestedPlanningId > 0
+    && (requestedScope === 'SIPIL' || requestedScope === 'ME');
   
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
@@ -218,6 +235,9 @@ export default function RABPage() {
   const [tableRows, setTableRows] = useState<any[]>([]);
   
   const [rejectedList, setRejectedList] = useState<any[]>([]);
+  const [planningRequests, setPlanningRequests] = useState<RabProjectPlanningRequest[]>([]);
+  const [planningRequestsLoading, setPlanningRequestsLoading] = useState(false);
+  const [planningPrefillLoading, setPlanningPrefillLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isRevisionLoading, setIsRevisionLoading] = useState(false);
@@ -270,17 +290,17 @@ export default function RABPage() {
   useEffect(() => {
     // Simpan otomatis jika tidak dalam mode loading, bukan readonly, tidak sedang edit revisi (currentRabId == null),
     // dan jika form atau tabel sudah terisi sebagian
-    if (!isLoading && !isReadOnly && user?.email && !currentRabId) {
+    if (!isLoading && !isReadOnly && user?.email && !currentRabId && !hasProjectPlanningRequest) {
       const draftKey = `rab_draft_${user.email}`;
       const hasData = tableRows.length > 0 || formData.namaToko.trim() !== '' || formData.lokasiTanggal.trim() !== '';
       if (hasData) {
          localStorage.setItem(draftKey, JSON.stringify({ formData, tableRows }));
       }
     }
-  }, [formData, tableRows, isLoading, isReadOnly, user, currentRabId]);
+  }, [formData, tableRows, isLoading, isReadOnly, user, currentRabId, hasProjectPlanningRequest]);
 
   useEffect(() => {
-    if (user?.email && !currentRabId) {
+    if (user?.email && !currentRabId && !hasProjectPlanningRequest) {
       const draftKey = `rab_draft_${user.email}`;
       const savedDraft = localStorage.getItem(draftKey);
       if (savedDraft) {
@@ -295,7 +315,7 @@ export default function RABPage() {
         }
       }
     }
-  }, [user, currentRabId]);
+  }, [user, currentRabId, hasProjectPlanningRequest]);
 
   const loadDraft = () => {
     if (draftData) {
@@ -340,6 +360,84 @@ export default function RABPage() {
         }).catch(err => console.log("Gagal periksa revisi", err));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.email || !isContractor) {
+      setPlanningRequests([]);
+      return;
+    }
+
+    let cancelled = false;
+    setPlanningRequestsLoading(true);
+    fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
+      .then((result) => {
+        if (!cancelled) setPlanningRequests(result.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanningRequests([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPlanningRequestsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [user?.email, isContractor]);
+
+  useEffect(() => {
+    if (!user?.email || !hasProjectPlanningRequest) return;
+
+    let cancelled = false;
+    setPlanningPrefillLoading(true);
+    fetchRabProjectPlanningPrefill(
+      requestedPlanningId,
+      requestedScope as "SIPIL" | "ME",
+      user.email
+    )
+      .then((result) => {
+        if (cancelled) return;
+        const prefill = result.data;
+        const parts = prefill.nomor_ulok.split('-');
+        const isRenovasi = parts.at(-1)?.toUpperCase() === 'R';
+        const rawProject = String(prefill.proyek || '').trim();
+        const normalizedProject = rawProject.toUpperCase();
+        const projectValue = normalizedProject === 'REGULER'
+          ? 'Reguler'
+          : normalizedProject === 'RENOVASI'
+            ? 'Peremajaan/Perbaikan'
+            : rawProject;
+        const nextForm = {
+          ...formData,
+          namaToko: prefill.nama_toko || '',
+          lokasiCabang: parts[0] || '',
+          lokasiTanggal: parts[1] || '',
+          lokasiManual: parts[2] || '',
+          isRenovasi,
+          proyek: projectValue || (isRenovasi ? '' : 'Reguler'),
+          alamat: prefill.alamat || '',
+          cabang: normalizeBranchName(prefill.cabang),
+          lingkupPekerjaan: prefill.lingkup_pekerjaan === 'SIPIL' ? 'Sipil' : 'ME',
+          luasAreaParkir: prefill.luas_area_parkir || '',
+          luasAreaSales: prefill.luas_area_sales || '',
+          luasGudang: prefill.luas_gudang || '',
+          luasBangunan: prefill.luas_bangunan || '',
+          luasAreaTerbuka: prefill.luas_area_terbuka || '',
+        };
+        setFormData(nextForm);
+        setTableRows([]);
+        setInitialFormState(JSON.stringify({ formData: nextForm, tableRows: [] }));
+      })
+      .catch((error: Error) => {
+        showAlert("Permintaan Tidak Tersedia", error.message, "warning");
+        router.replace('/rab');
+      })
+      .finally(() => {
+        if (!cancelled) setPlanningPrefillLoading(false);
+      });
+
+    return () => { cancelled = true; };
+    // Prefill hanya dijalankan ketika identitas request pada URL berubah.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email, hasProjectPlanningRequest, requestedPlanningId, requestedScope, router]);
 
   // --- 2. FETCH HARGA OTOMATIS ---
   useEffect(() => {
@@ -786,6 +884,10 @@ export default function RABPage() {
       is_revisi: String(isRevisionSubmit),
     };
 
+    if (hasProjectPlanningRequest) {
+      textFields.projek_planning_id = String(requestedPlanningId);
+    }
+
     if (isRevisionSubmit && currentRabId) {
       textFields.id_rab_revisi = String(currentRabId);
     }
@@ -909,7 +1011,83 @@ export default function RABPage() {
       />
 
       <main className="max-w-350 mx-auto p-4 md:p-8 mt-4">
-        <LoadingOverlay isVisible={isRevisionLoading} title="Memuat Data Revisi..." subtitle="Mempersiapkan rincian form Anda" />
+        <LoadingOverlay
+          isVisible={isRevisionLoading || planningPrefillLoading}
+          title={planningPrefillLoading ? "Memuat Permintaan Project Planning..." : "Memuat Data Revisi..."}
+          subtitle="Mempersiapkan rincian form Anda"
+        />
+
+        {isContractor && !hasProjectPlanningRequest && (
+          <Card className="mb-8 border-blue-200 shadow-sm">
+            <CardHeader className="border-b border-blue-100 bg-blue-50/70">
+              <CardTitle className="flex items-center gap-2 text-blue-900">
+                <ClipboardList className="h-5 w-5" />
+                Permintaan RAB Project Planning
+                {planningRequests.length > 0 && (
+                  <span className="ml-auto rounded-full bg-blue-600 px-2.5 py-1 text-xs font-bold text-white">
+                    {planningRequests.length}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-5">
+              {planningRequestsLoading ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Memuat permintaan cabang...
+                </div>
+              ) : planningRequests.length === 0 ? (
+                <p className="py-5 text-center text-sm text-slate-500">
+                  Tidak ada ULOK Project Planning yang membutuhkan RAB saat ini.
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {planningRequests.map((request) => (
+                    <div
+                      key={`${request.projek_planning_id}-${request.lingkup_pekerjaan}`}
+                      className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-extrabold text-slate-900">{request.nomor_ulok}</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {request.nama_toko || request.nama_lokasi || 'Nama toko belum tersedia'}
+                          </p>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                          request.lingkup_pekerjaan === 'SIPIL'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-cyan-100 text-cyan-700'
+                        }`}>
+                          {request.lingkup_pekerjaan}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">Cabang {request.cabang || '-'}</p>
+                      <Button
+                        type="button"
+                        className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
+                        onClick={() => router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`)}
+                      >
+                        Buat Penawaran <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {hasProjectPlanningRequest && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <Info className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-bold">Form berasal dari Permintaan RAB Project Planning</p>
+              <p className="mt-1 text-blue-700">
+                ULOK, cabang, dan lingkup dikunci. Lengkapi item pekerjaan, volume, durasi, kategori lokasi, serta data asuransi.
+              </p>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <Card className="mb-8 shadow-sm">
             <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Data & Identitas Proyek</CardTitle></CardHeader>
@@ -980,15 +1158,15 @@ export default function RABPage() {
                 <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isReadOnly} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className="bg-white" required /></div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" disabled={isReadOnly} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
+                    <Checkbox id="isRenovasi" disabled={isReadOnly || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
                   </div>
                   <div className="flex gap-2 items-center">
                     <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
                     <span className="font-bold text-slate-400">-</span>
-                    <Input name="lokasiTanggal" readOnly={isReadOnly} placeholder="YYMM" className="w-[30%] bg-white" maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
+                    <Input name="lokasiTanggal" readOnly={isReadOnly || hasProjectPlanningRequest} placeholder="YYMM" className="w-[30%] bg-white" maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
                     <span className="font-bold text-slate-400">-</span>
-                    <Input name="lokasiManual" readOnly={isReadOnly} placeholder={formData.isRenovasi ? "C0B4" : "0001"} className="w-[40%] bg-white uppercase" maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
+                    <Input name="lokasiManual" readOnly={isReadOnly || hasProjectPlanningRequest} placeholder={formData.isRenovasi ? "C0B4" : "0001"} className="w-[40%] bg-white uppercase" maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
                     {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
                   </div>
                 </div>
@@ -1023,7 +1201,7 @@ export default function RABPage() {
                     <Label>Cabang <span className="text-red-500">*</span></Label>
                     {availableCabang.length > 1 ? (
                       <Select 
-                        disabled={isReadOnly}
+                        disabled={isReadOnly || hasProjectPlanningRequest}
                         value={formData.cabang} 
                         onValueChange={(val) => {
                           const newLokasiCabang = val === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[val] || "KODE");
@@ -1059,7 +1237,7 @@ export default function RABPage() {
                       <Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                     )}
                   </div>
-                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isReadOnly} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isReadOnly || hasProjectPlanningRequest} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select disabled={isReadOnly} onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="number" min="1" step="1" name="durasiPekerjaan" readOnly={isReadOnly} value={formData.durasiPekerjaan} onChange={handleInputChange} placeholder="Masukkan jumlah hari" className="bg-white" required /></div>
                 </div>
@@ -1401,5 +1579,13 @@ export default function RABPage() {
       </AlertDialog>
 
     </div>
+  );
+}
+
+export default function RABPage() {
+  return (
+    <Suspense fallback={<LoadingOverlay isVisible title="Memuat Penawaran..." subtitle="Menyiapkan halaman RAB" />}>
+      <RABPageContent />
+    </Suspense>
   );
 }

@@ -4078,6 +4078,41 @@ export type ProjekPlanningTaskCounts = {
     total: number;
 };
 
+export type RabProjectPlanningRequest = {
+    projek_planning_id: number;
+    id_toko: number | null;
+    nomor_ulok: string;
+    nama_toko: string | null;
+    nama_lokasi: string | null;
+    cabang: string | null;
+    alamat_toko: string | null;
+    proyek: string | null;
+    lingkup_pekerjaan: "SIPIL" | "ME";
+    luas_bangunan: string | null;
+    luas_area_terbuka: string | null;
+    luas_area_terbangun: string | null;
+    luas_area_parkir: string | null;
+    luas_area_sales: string | null;
+    luas_gudang: string | null;
+    created_at: string;
+};
+
+export type RabProjectPlanningPrefill = {
+    projek_planning_id: number;
+    nomor_ulok: string;
+    nama_toko: string | null;
+    cabang: string | null;
+    alamat: string | null;
+    proyek: string | null;
+    lingkup_pekerjaan: "SIPIL" | "ME";
+    luas_bangunan: string | null;
+    luas_area_terbuka: string | null;
+    luas_terbangun: string | null;
+    luas_area_parkir: string | null;
+    luas_area_sales: string | null;
+    luas_gudang: string | null;
+};
+
 export type ProjectPlanningInterventionPayload = {
     actor_email: string;
     actor_role: string;
@@ -4250,6 +4285,29 @@ export const fetchProjekPlanningTaskCounts = async (params: {
     }
 
     return res.json();
+};
+
+export const fetchRabProjectPlanningRequests = async (
+    actorEmail: string,
+    options?: ApiRequestOptions
+): Promise<{ status: string; count: number; data: RabProjectPlanningRequest[] }> => {
+    const params = new URLSearchParams({ actor_email: actorEmail });
+    return safeFetchJSON(
+        `${API_URL.replace(/\/$/, "")}/api/projek-planning/rab-requests?${params}`,
+        options
+    );
+};
+
+export const fetchRabProjectPlanningPrefill = async (
+    id: number,
+    lingkup: "SIPIL" | "ME",
+    actorEmail: string
+): Promise<{ status: string; data: RabProjectPlanningPrefill }> => {
+    const params = new URLSearchParams({ lingkup, actor_email: actorEmail });
+    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/rab-prefill?${params}`);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal memuat data Project Planning untuk RAB.");
+    return result;
 };
 
 /** Ambil detail Project Planning berdasarkan ID. */
