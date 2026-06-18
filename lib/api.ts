@@ -3228,14 +3228,56 @@ export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number })
  */
 export const createPdfSerahTerima = async (id_toko: number, tanggal_aktual?: string): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima`;
-    const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_toko, tanggal_aktual }),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima.");
-    return result;
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id_toko, tanggal_aktual }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima.");
+        return result;
+    } catch (error) {
+        const isNetworkFailure = error instanceof TypeError
+            || (error instanceof Error && /failed to fetch|networkerror|network request failed/i.test(error.message));
+
+        if (!isNetworkFailure) {
+            throw error;
+        }
+
+        // Render dapat memutus koneksi setelah PDF berhasil tersimpan dan browser
+        // melaporkannya sebagai CORS/Failed to fetch. Verifikasi hasil aktual sebelum
+        // menampilkan kegagalan kepada pengguna.
+        const expectedDate = tanggal_aktual?.slice(0, 10);
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+            if (attempt > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            try {
+                const existing = await fetchBerkasSerahTerimaList({ id_toko });
+                const generated = existing.data.find((item) => {
+                    if (!item.link_pdf) return false;
+                    if (!expectedDate) return true;
+                    return String(item.created_at || "").slice(0, 10) === expectedDate;
+                });
+
+                if (generated) {
+                    return {
+                        status: "success",
+                        message: "Berkas serah terima berhasil dibuat",
+                        recovered_after_network_error: true,
+                        data: generated,
+                    };
+                }
+            } catch {
+                // Pertahankan error request awal jika pengecekan hasil juga gagal.
+            }
+        }
+
+        throw error;
+    }
 };
 
 export const downloadSerahTerimaPdf = async (id: number): Promise<boolean> => {
