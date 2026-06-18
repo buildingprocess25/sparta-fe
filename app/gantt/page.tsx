@@ -2046,7 +2046,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const yyyy = dDate.getFullYear();
             const mm = String(dDate.getMonth() + 1).padStart(2, '0');
             const dd = String(dDate.getDate()).padStart(2, '0');
-            const formattedDate = `${yyyy}-${mm}-${dd}`;
+            const formattedDate = String(activeHeaderClick?.dateString || '').trim() || `${dd}/${mm}/${yyyy}`;
 
             entriesToSubmit.forEach(([key, val]) => {
                 const pipeIdx = key.indexOf('|');
@@ -2106,6 +2106,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             // --- A. Eksekusi INSERT (POST) ---
             if (itemsArrayInsert.length > 0) {
+                // Tanggal sibling Sipil/ME ikut ditampilkan pada kedua Gantt.
+                // Pastikan tanggal yang diklik juga benar-benar tersedia pada Gantt aktif
+                // sebelum item pengawasan mereferensikannya.
+                await submitGanttPengawasan(Number(selectedGanttId), [formattedDate]);
+
                 const insertBatches = createPengawasanUploadBatches(itemsArrayInsert, filesMapInsert);
                 let insertedCount = 0;
 
