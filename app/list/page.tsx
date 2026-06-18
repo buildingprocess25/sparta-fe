@@ -793,6 +793,23 @@ const normalizeOpnameDocs = (items: any[], tipe: 'OPNAME' | 'OPNAME_FINAL'): Nor
 
 const normalizeOpnameFinalDocs = (items: any[]): NormalizedDoc[] => normalizeOpnameDocs(items, 'OPNAME_FINAL');
 
+const withTimeout = async <T,>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    message: string
+): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
+};
+
 const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): NormalizedDoc[] => {
     const groups = new Map<number, any[]>();
     items.forEach(p => {
@@ -806,6 +823,7 @@ const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): Nor
     groups.forEach((groupItems, id_pengawasan_gantt) => {
         const first = groupItems[0];
         const g = ganttMap?.get(first.id_gantt);
+        const toko = first.toko ?? first.gantt?.toko ?? {};
         
         let aggStatus = 'SELESAI';
         if (groupItems.some(i => i.status?.toLowerCase() === 'progress')) aggStatus = 'PROGRESS';
@@ -816,10 +834,10 @@ const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): Nor
         docs.push({
             id: id_pengawasan_gantt,
             tipe: 'PENGAWASAN' as DokumenKategori,
-            nomor_ulok:    g?.nomor_ulok ?? '-',
-            nama_toko:     g?.nama_toko ?? '-',
-            cabang:        g?.cabang ?? '-',
-            proyek:        g?.proyek ?? '-',
+            nomor_ulok:    g?.nomor_ulok ?? first.nomor_ulok ?? toko.nomor_ulok ?? '-',
+            nama_toko:     g?.nama_toko ?? first.nama_toko ?? toko.nama_toko ?? '-',
+            cabang:        g?.cabang ?? first.cabang ?? toko.cabang ?? '-',
+            proyek:        g?.proyek ?? first.proyek ?? toko.proyek ?? '-',
             status:        aggStatus,
             email_pembuat: '-',
             total_nilai:   0,
@@ -1075,19 +1093,25 @@ export default function DaftarDokumenPage() {
                 }
             } else if (kategori === 'PENGAWASAN') {
                 const gMap = new Map();
-                const [pengawasanResult, ganttResult] = await Promise.allSettled([
-                    fetchPengawasanList(),
+                const ganttPromise = withTimeout(
                     fetchGanttList(),
-                ]);
-                if (pengawasanResult.status === 'rejected') {
-                    throw pengawasanResult.reason;
+                    8000,
+                    'Permintaan data Gantt melewati batas waktu.'
+                ).catch((ganttError) => {
+                    console.warn('Data Gantt tidak tersedia; daftar Pengawasan tetap ditampilkan:', ganttError);
+                    return null;
+                });
+                const res = await withTimeout(
+                    fetchPengawasanList(),
+                    15000,
+                    'Permintaan data Pengawasan melewati batas waktu. Silakan coba Refresh.'
+                );
+
+                const ganttResult = await ganttPromise;
+                if (ganttResult) {
+                    (ganttResult.data ?? []).forEach((g: any) => gMap.set(g.id, g));
                 }
-                if (ganttResult.status === 'fulfilled') {
-                    (ganttResult.value.data ?? []).forEach((g: any) => gMap.set(g.id, g));
-                } else {
-                    console.warn('Gagal memuat data Gantt untuk konteks Pengawasan:', ganttResult.reason);
-                }
-                const res = pengawasanResult.value;
+
                 docs = normalizePengawasanDocs(res.data ?? [], gMap);
             } else if (kategori === 'BERKAS_SERAH_TERIMA') {
                 const res = await fetchBerkasSerahTerimaList();

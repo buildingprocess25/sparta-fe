@@ -85,6 +85,32 @@ import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
+const PENGAWASAN_UPLOAD_BATCH_SIZE = 20;
+const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+type PengawasanFileMap = {
+    index: number;
+    file: File;
+};
+
+const createPengawasanUploadBatches = <T,>(
+    items: T[],
+    files: PengawasanFileMap[]
+) => {
+    const batches: Array<{ items: T[]; files: PengawasanFileMap[] }> = [];
+
+    for (let start = 0; start < items.length; start += PENGAWASAN_UPLOAD_BATCH_SIZE) {
+        const end = Math.min(start + PENGAWASAN_UPLOAD_BATCH_SIZE, items.length);
+        batches.push({
+            items: items.slice(start, end),
+            files: files
+                .filter(({ index }) => index >= start && index < end)
+                .map(({ index, file }) => ({ index: index - start, file }))
+        });
+    }
+
+    return batches;
+};
 
 const parseDecimalInput = (value: unknown): number => {
     const raw = String(value ?? "").trim();
@@ -1859,15 +1885,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     };
 
     const handleSetField = async (catName: string, itemJenis: string, field: 'catatan' | 'file', value: any) => {
-        setIsDirty(true);
         let finalValue = value;
         
         // Kompresi otomatis untuk foto sebelum dimasukkan ke state
         if (field === 'file' && value instanceof File) {
             const { compressImage } = await import('@/lib/utils');
             finalValue = await compressImage(value);
+
+            if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
+                showAlert({
+                    message: `File "${finalValue.name}" masih lebih besar dari 10MB setelah proses kompresi. Pilih file yang lebih kecil.`,
+                    type: 'warning'
+                });
+                return;
+            }
         }
 
+        setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
         setMemoInputs(prev => ({
             ...prev,
@@ -2068,66 +2102,79 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
 
             const { submitPengawasanBulk, updatePengawasanBulk } = await import('@/lib/api');
-            const { API_URL } = await import('@/lib/constants');
             const { submitGanttPengawasan } = await import('@/lib/api');
 
             // --- A. Eksekusi INSERT (POST) ---
             if (itemsArrayInsert.length > 0) {
-                let insertResult: any;
-                if (filesMapInsert.length > 0) {
-                    const formData = new FormData();
-                    formData.append('items', JSON.stringify(itemsArrayInsert));
-                    filesMapInsert.forEach(f => {
-                        formData.append('file_dokumentasi', f.file);
-                    });
-                    const indexes = filesMapInsert.map(f => f.index);
-                    formData.append('file_dokumentasi_indexes', JSON.stringify(indexes));
-                    
-                    insertResult = await submitPengawasanBulk(formData);
-                } else {
-                    insertResult = await submitPengawasanBulk({ items: itemsArrayInsert });
-                }
+                const insertBatches = createPengawasanUploadBatches(itemsArrayInsert, filesMapInsert);
+                let insertedCount = 0;
 
-                if (!Array.isArray(insertResult?.data) || insertResult.data.length !== itemsArrayInsert.length) {
-                    throw new Error(
-                        `Penyimpanan pengawasan tidak lengkap (${insertResult?.data?.length ?? 0}/${itemsArrayInsert.length} item).`
-                    );
+                for (let batchIndex = 0; batchIndex < insertBatches.length; batchIndex++) {
+                    const batch = insertBatches[batchIndex];
+                    let insertResult: any;
+
+                    try {
+                        if (batch.files.length > 0) {
+                            const formData = new FormData();
+                            formData.append('items', JSON.stringify(batch.items));
+                            batch.files.forEach(({ file }) => formData.append('file_dokumentasi', file));
+                            formData.append(
+                                'file_dokumentasi_indexes',
+                                JSON.stringify(batch.files.map(({ index }) => index))
+                            );
+                            insertResult = await submitPengawasanBulk(formData);
+                        } else {
+                            insertResult = await submitPengawasanBulk({ items: batch.items });
+                        }
+                    } catch (error: any) {
+                        throw new Error(
+                            `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal setelah ${insertedCount} item tersimpan: ${error?.message || 'Upload gagal'}`
+                        );
+                    }
+
+                    if (!Array.isArray(insertResult?.data) || insertResult.data.length !== batch.items.length) {
+                        throw new Error(
+                            `Penyimpanan batch ${batchIndex + 1}/${insertBatches.length} tidak lengkap (${insertResult?.data?.length ?? 0}/${batch.items.length} item).`
+                        );
+                    }
+                    insertedCount += insertResult.data.length;
                 }
             }
 
             // --- B. Eksekusi UPDATE (PUT) ---
             if (itemsArrayUpdate.length > 0) {
-                let updateResult: any;
-                if (filesMapUpdate.length > 0) {
-                    const formData = new FormData();
-                    formData.append('items', JSON.stringify(itemsArrayUpdate));
+                const updateBatches = createPengawasanUploadBatches(itemsArrayUpdate, filesMapUpdate);
+                let updatedCount = 0;
 
-                    filesMapUpdate.forEach(f => {
-                        formData.append('rev_file_dokumentasi', f.file);
-                    });
-                    const indexes = filesMapUpdate.map(f => f.index);
-                    formData.append('rev_file_dokumentasi_indexes', JSON.stringify(indexes));
-                    
-                    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
-                        method: "PUT",
-                        body: formData
-                    });
-                    if (!response.ok) {
-                        const responseText = await response.text();
+                for (let batchIndex = 0; batchIndex < updateBatches.length; batchIndex++) {
+                    const batch = updateBatches[batchIndex];
+                    let updateResult: any;
+
+                    try {
+                        if (batch.files.length > 0) {
+                            const formData = new FormData();
+                            formData.append('items', JSON.stringify(batch.items));
+                            batch.files.forEach(({ file }) => formData.append('rev_file_dokumentasi', file));
+                            formData.append(
+                                'rev_file_dokumentasi_indexes',
+                                JSON.stringify(batch.files.map(({ index }) => index))
+                            );
+                            updateResult = await updatePengawasanBulk(formData);
+                        } else {
+                            updateResult = await updatePengawasanBulk({ items: batch.items });
+                        }
+                    } catch (error: any) {
                         throw new Error(
-                            `Gagal mengupdate pengawasan bulk dengan file (${response.status}). ${responseText.slice(0, 200)}`
+                            `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal setelah ${updatedCount} item diperbarui: ${error?.message || 'Upload gagal'}`
                         );
                     }
-                    updateResult = await response.json();
-                } else {
-                    // JSON request aman berjalan dengan HTTP PUT murni
-                    updateResult = await updatePengawasanBulk({ items: itemsArrayUpdate });
-                }
 
-                if (!Array.isArray(updateResult?.data) || updateResult.data.length !== itemsArrayUpdate.length) {
-                    throw new Error(
-                        `Pembaruan pengawasan tidak lengkap (${updateResult?.data?.length ?? 0}/${itemsArrayUpdate.length} item).`
-                    );
+                    if (!Array.isArray(updateResult?.data) || updateResult.data.length !== batch.items.length) {
+                        throw new Error(
+                            `Pembaruan batch ${batchIndex + 1}/${updateBatches.length} tidak lengkap (${updateResult?.data?.length ?? 0}/${batch.items.length} item).`
+                        );
+                    }
+                    updatedCount += updateResult.data.length;
                 }
             }
 
