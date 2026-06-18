@@ -237,6 +237,7 @@ function RABPageContent() {
   const [rejectedList, setRejectedList] = useState<any[]>([]);
   const [planningRequests, setPlanningRequests] = useState<RabProjectPlanningRequest[]>([]);
   const [planningRequestsLoading, setPlanningRequestsLoading] = useState(false);
+  const [planningRequestDialogOpen, setPlanningRequestDialogOpen] = useState(false);
   const [planningPrefillLoading, setPlanningPrefillLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -246,6 +247,9 @@ function RABPageContent() {
   
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [revisionListDialogOpen, setRevisionListDialogOpen] = useState(false);
+  const [revisionCheckDone, setRevisionCheckDone] = useState(false);
+  const revisionHadItemsRef = useRef(false);
+  const planningAutoOpenDoneRef = useRef(false);
   const [revisionRejectReason, setRevisionRejectReason] = useState('');
   const [revisionItemNotes, setRevisionItemNotes] = useState<Record<number, string>>({});
   const [revisionItemOriginals, setRevisionItemOriginals] = useState<Record<number, RevisionComparableRow>>({});
@@ -336,6 +340,10 @@ function RABPageContent() {
   useEffect(() => {
     if (!user) return;
 
+    setRevisionCheckDone(false);
+    revisionHadItemsRef.current = false;
+    planningAutoOpenDoneRef.current = false;
+
     const userCabang = user.cabang.toUpperCase();
     const userEmail = user.email;
     const userAlamatCabang = user.alamatCabang || '';
@@ -347,17 +355,24 @@ function RABPageContent() {
       setAvailableCabang(BRANCH_GROUPS[userCabang] || [userCabang]);
     }
     
-    let defaultLokasiCabang = userCabang === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[userCabang] || "KODE");
+    const defaultLokasiCabang = userCabang === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[userCabang] || "KODE");
 
     setFormData(prev => ({ ...prev, cabang: userCabang, lokasiCabang: defaultLokasiCabang, alamatCabang: userAlamatCabang }));
 
     if (userEmail && userCabang) {
         checkRevisionStatus(userEmail, userCabang).then(result => {
-            if (result.rejected_submissions && result.rejected_submissions.length > 0) {
-                setRejectedList(result.rejected_submissions);
+            const revisions = result.rejected_submissions || [];
+            setRejectedList(revisions);
+            revisionHadItemsRef.current = revisions.length > 0;
+            if (revisions.length > 0) {
                 setRevisionListDialogOpen(true); // Membuka modal notification lonceng secara otomatis ketika data ditolak terdeteksi
             }
-        }).catch(err => console.log("Gagal periksa revisi", err));
+        }).catch(err => {
+          revisionHadItemsRef.current = false;
+          console.log("Gagal periksa revisi", err);
+        }).finally(() => setRevisionCheckDone(true));
+    } else {
+      setRevisionCheckDone(true);
     }
   }, [user]);
 
@@ -382,6 +397,31 @@ function RABPageContent() {
 
     return () => { cancelled = true; };
   }, [user?.email, isContractor]);
+
+  useEffect(() => {
+    if (
+      hasProjectPlanningRequest ||
+      !isContractor ||
+      planningAutoOpenDoneRef.current ||
+      !revisionCheckDone ||
+      planningRequestsLoading ||
+      planningRequests.length === 0
+    ) {
+      return;
+    }
+
+    if (revisionHadItemsRef.current && revisionListDialogOpen) return;
+
+    planningAutoOpenDoneRef.current = true;
+    setPlanningRequestDialogOpen(true);
+  }, [
+    hasProjectPlanningRequest,
+    isContractor,
+    planningRequests.length,
+    planningRequestsLoading,
+    revisionCheckDone,
+    revisionListDialogOpen,
+  ]);
 
   useEffect(() => {
     if (!user?.email || !hasProjectPlanningRequest) return;
@@ -995,18 +1035,34 @@ function RABPageContent() {
         showBackButton={true}
         backHref="/dashboard"
         rightActions={
-          <button 
-            onClick={() => setRevisionListDialogOpen(true)} 
-            className="relative p-2 rounded-full hover:bg-white/20 transition-colors focus:outline-none" 
-            title="Lihat Daftar Revisi"
-          >
-            <Bell className="w-6 h-6 drop-shadow-md text-white" />
-            {rejectedList.length > 0 && (
-              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-yellow-500 border-2 border-red-700 rounded-full">
-                {rejectedList.length}
-              </span>
+          <div className="flex items-center gap-1">
+            {isContractor && (
+              <button
+                onClick={() => setPlanningRequestDialogOpen(true)}
+                className="relative p-2 rounded-full hover:bg-white/20 transition-colors focus:outline-none"
+                title="Lihat Permintaan RAB Project Planning"
+              >
+                <ClipboardList className="w-6 h-6 drop-shadow-md text-white" />
+                {planningRequests.length > 0 && (
+                  <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-blue-500 border-2 border-red-700 rounded-full">
+                    {planningRequests.length}
+                  </span>
+                )}
+              </button>
             )}
-          </button>
+            <button
+              onClick={() => setRevisionListDialogOpen(true)}
+              className="relative p-2 rounded-full hover:bg-white/20 transition-colors focus:outline-none"
+              title="Lihat Daftar Revisi"
+            >
+              <Bell className="w-6 h-6 drop-shadow-md text-white" />
+              {rejectedList.length > 0 && (
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-yellow-500 border-2 border-red-700 rounded-full">
+                  {rejectedList.length}
+                </span>
+              )}
+            </button>
+          </div>
         }
       />
 
@@ -1016,66 +1072,6 @@ function RABPageContent() {
           title={planningPrefillLoading ? "Memuat Permintaan Project Planning..." : "Memuat Data Revisi..."}
           subtitle="Mempersiapkan rincian form Anda"
         />
-
-        {isContractor && !hasProjectPlanningRequest && (
-          <Card className="mb-8 border-blue-200 shadow-sm">
-            <CardHeader className="border-b border-blue-100 bg-blue-50/70">
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <ClipboardList className="h-5 w-5" />
-                Permintaan RAB Project Planning
-                {planningRequests.length > 0 && (
-                  <span className="ml-auto rounded-full bg-blue-600 px-2.5 py-1 text-xs font-bold text-white">
-                    {planningRequests.length}
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-5">
-              {planningRequestsLoading ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Memuat permintaan cabang...
-                </div>
-              ) : planningRequests.length === 0 ? (
-                <p className="py-5 text-center text-sm text-slate-500">
-                  Tidak ada ULOK Project Planning yang membutuhkan RAB saat ini.
-                </p>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {planningRequests.map((request) => (
-                    <div
-                      key={`${request.projek_planning_id}-${request.lingkup_pekerjaan}`}
-                      className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-extrabold text-slate-900">{request.nomor_ulok}</p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {request.nama_toko || request.nama_lokasi || 'Nama toko belum tersedia'}
-                          </p>
-                        </div>
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                          request.lingkup_pekerjaan === 'SIPIL'
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-cyan-100 text-cyan-700'
-                        }`}>
-                          {request.lingkup_pekerjaan}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-slate-500">Cabang {request.cabang || '-'}</p>
-                      <Button
-                        type="button"
-                        className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
-                        onClick={() => router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`)}
-                      >
-                        Buat Penawaran <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {hasProjectPlanningRequest && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
@@ -1478,6 +1474,81 @@ function RABPageContent() {
           )}
         </form>
       </main>
+
+      <AlertDialog open={planningRequestDialogOpen} onOpenChange={setPlanningRequestDialogOpen}>
+        <AlertDialogContent className="rounded-2xl max-w-4xl max-h-[82vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 border-b pb-3 mb-3">
+              <div className="bg-blue-100 text-blue-600 p-2 rounded-full">
+                <ClipboardList className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <AlertDialogTitle className="text-lg">Permintaan RAB Project Planning</AlertDialogTitle>
+                <AlertDialogDescription className="mt-1 text-left text-slate-500">
+                  ULOK berikut sedang membutuhkan penawaran Sipil/ME untuk melanjutkan Project Planning.
+                </AlertDialogDescription>
+              </div>
+              {planningRequests.length > 0 && (
+                <span className="rounded-full bg-blue-600 px-2.5 py-1 text-xs font-bold text-white">
+                  {planningRequests.length}
+                </span>
+              )}
+            </div>
+          </AlertDialogHeader>
+
+          {planningRequestsLoading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Memuat permintaan cabang...
+            </div>
+          ) : planningRequests.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 py-10 text-center text-sm text-slate-500">
+              Tidak ada ULOK Project Planning yang membutuhkan RAB saat ini.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {planningRequests.map((request) => (
+                <div
+                  key={`${request.projek_planning_id}-${request.lingkup_pekerjaan}`}
+                  className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-extrabold text-slate-900">{request.nomor_ulok}</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {request.nama_toko || request.nama_lokasi || 'Nama toko belum tersedia'}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      request.lingkup_pekerjaan === 'SIPIL'
+                        ? 'bg-orange-100 text-orange-700'
+                        : 'bg-cyan-100 text-cyan-700'
+                    }`}>
+                      {request.lingkup_pekerjaan}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Cabang {request.cabang || '-'}</p>
+                  <Button
+                    type="button"
+                    className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      setPlanningRequestDialogOpen(false);
+                      router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`);
+                    }}
+                  >
+                    Buat Penawaran <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogAction className="w-full bg-slate-800 hover:bg-slate-900" onClick={() => setPlanningRequestDialogOpen(false)}>
+              Tutup Notifikasi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={revisionListDialogOpen} onOpenChange={setRevisionListDialogOpen}>
         <AlertDialogContent className="rounded-2xl max-w-md max-h-[80vh] overflow-y-auto">
