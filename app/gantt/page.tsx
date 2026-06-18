@@ -2522,6 +2522,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     const [hasOpnameFinal, setHasOpnameFinal] = useState(false);
     const [completedPengawasanCount, setCompletedPengawasanCount] = useState(0);
     const isLastDay = spkInfo && activeHeaderClick && (activeHeaderClick.dayIndex + 1 >= spkInfo.duration);
+    const canGenerateSerahTerima = hasOpnameFinal && completedItems.length === 0;
 
     useEffect(() => {
         setIsLoading(true);
@@ -2700,7 +2701,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
     // Tambahan Validasi isSubmitValid
     const isSubmitValid = useMemo(() => {
-        if (completedItems.length === 0) return isLastDay;
+        if (completedItems.length === 0) return canGenerateSerahTerima;
         
         for (const item of completedItems) {
             const input = opnameInputs[item.id];
@@ -2719,11 +2720,11 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         }
         
         return true;
-    }, [completedItems, opnameInputs]);
+    }, [completedItems, opnameInputs, canGenerateSerahTerima]);
 
     // Refactor handleSubmit dengan parsing tipe data untuk menghindari API Rejection
     const handleSubmit = async () => {
-        if (isLastDay && completedItems.length === 0 && !hasOpnameFinal) {
+        if (completedItems.length === 0 && !canGenerateSerahTerima) {
             showAlert({
                 message: "PDF Serah Terima belum dapat dibuat karena data opname final belum tersedia.",
                 type: "warning"
@@ -2786,7 +2787,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
             });
             
             if (itemsArray.length === 0) {
-                if (isLastDay) {
+                if (canGenerateSerahTerima) {
                     try {
                         const { createPdfSerahTerima } = await import('@/lib/api');
                         const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
@@ -2899,13 +2900,13 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         </div>
                     ) : groupedByCategory.length === 0 ? (
                         <div className="py-20 flex flex-col items-center justify-center text-slate-500 bg-white rounded-lg border border-slate-200 p-8 text-center">
-                            {isLastDay && hasOpnameFinal ? (
+                            {canGenerateSerahTerima ? (
                                 <>
                                     <CheckCircle className="w-12 h-12 mb-3 text-green-500" />
                                     <p className="font-semibold text-lg text-slate-800">Semua Opname Selesai</p>
                                     <p className="text-sm mt-2">Seluruh item pekerjaan telah melalui proses opname. Klik <strong>Generate PDF Serah Terima</strong> di bawah untuk menyelesaikan proses Serah Terima.</p>
                                 </>
-                            ) : isLastDay && completedPengawasanCount > 0 ? (
+                            ) : completedPengawasanCount > 0 ? (
                                 <>
                                     <AlertCircle className="w-12 h-12 mb-3 text-amber-500" />
                                     <p className="font-semibold text-lg text-slate-800">Opname Belum Terbentuk</p>
@@ -3069,17 +3070,17 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         disabled={
                             isSubmitting
                             || (groupedByCategory.length > 0 && !isSubmitValid)
-                            || (isLastDay && groupedByCategory.length === 0 && !hasOpnameFinal)
+                            || (groupedByCategory.length === 0 && !canGenerateSerahTerima)
                         }
                         className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSubmitting
                             ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            : (isLastDay && groupedByCategory.length === 0 && hasOpnameFinal
+                            : (groupedByCategory.length === 0 && canGenerateSerahTerima
                                 ? <FileText className="w-4 h-4 mr-2" />
                                 : <Send className="w-4 h-4 mr-2" />)}
-                        {isLastDay && groupedByCategory.length === 0
-                            ? (hasOpnameFinal ? "Generate PDF Serah Terima" : "Opname Belum Tersedia")
+                        {groupedByCategory.length === 0
+                            ? (canGenerateSerahTerima ? "Generate PDF Serah Terima" : "Opname Belum Tersedia")
                             : "Submit Opname"}
                     </Button>
                 </div>
