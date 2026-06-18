@@ -2176,6 +2176,9 @@ export default function DashboardPage() {
                                                 const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
                                                 const activeSpk = spkArr.find((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(String(s.status).toUpperCase())) || spkArr[0];
                                                 const hasST = Boolean(getLatestSerahTerima(p));
+                                                const pendingPengawasanPdfs = Array.isArray(p.pengawasan_pdf_pending)
+                                                    ? p.pengawasan_pdf_pending
+                                                    : [];
                                                 const areaTerbangun = Number(toko.luas_area_terbangun || toko.luas_terbangun || 0);
                                                 const costTerbangun = areaTerbangun > 0 ? Math.round(financial.opname / areaTerbangun) : 0;
 
@@ -2225,6 +2228,11 @@ export default function DashboardPage() {
                                                                     <p className="text-base font-black text-slate-950">{toko.nama_toko || '-'}</p>
                                                                     <Badge className="border-slate-200 bg-white font-black text-slate-700">{toko.nomor_ulok || '-'}</Badge>
                                                                     <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{stage}</Badge>
+                                                                    {pendingPengawasanPdfs.length > 0 && (
+                                                                        <Badge className="border-amber-200 bg-amber-50 font-black text-amber-700">
+                                                                            {pendingPengawasanPdfs.length} PDF belum terhubung Gantt
+                                                                        </Badge>
+                                                                    )}
                                                                     {badges}
                                                                 </div>
                                                                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500">
@@ -2250,6 +2258,24 @@ export default function DashboardPage() {
                                                                             <p className="text-xs font-black text-slate-900">{hasST ? 'Ada' : 'Belum'}</p>
                                                                         </span>
                                                                     </div>
+                                                                    {pendingPengawasanPdfs.length > 0 && (
+                                                                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                                                            <p className="text-[10px] font-black uppercase text-amber-700">PDF Pengawasan Migrasi</p>
+                                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                                {pendingPengawasanPdfs.map((pdf: any) => (
+                                                                                    <Button
+                                                                                        key={pdf.id}
+                                                                                        variant="outline"
+                                                                                        className="h-8 rounded-lg border-amber-200 bg-white px-3 text-[11px] font-black text-amber-800"
+                                                                                        onClick={() => window.open(pdf.link_pdf_pengawasan, '_blank', 'noopener,noreferrer')}
+                                                                                    >
+                                                                                        <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                                                                                        H{pdf.h_day}
+                                                                                    </Button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                             </div>
 
                                                                 <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-white bg-white/90 px-4 py-3 shadow-xs xl:min-w-56 xl:flex-col xl:items-end xl:text-right">

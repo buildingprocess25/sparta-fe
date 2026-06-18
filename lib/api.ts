@@ -1971,6 +1971,28 @@ export const fetchPengawasanList = async (filters?: {
     return safeFetchJSON(url);
 };
 
+export type PengawasanPdfPending = {
+    id: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    h_day: number;
+    tanggal_pengawasan: string | null;
+    link_pdf_pengawasan: string;
+    source_sheet: string;
+    source_row: number;
+    status: "PENDING" | "LINKED";
+    id_pengawasan_gantt: number | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export const fetchPengawasanPendingPdfs = async (nomorUlok?: string) => {
+    const params = new URLSearchParams();
+    if (nomorUlok) params.set("nomor_ulok", nomorUlok);
+    const url = `${API_URL.replace(/\/$/, "")}/api/pengawasan/migration/pending${params.toString() ? `?${params}` : ""}`;
+    return safeFetchJSON(url) as Promise<{ status: string; data: PengawasanPdfPending[] }>;
+};
+
 /** Ambil detail pengawasan berdasarkan ID */
 export const fetchPengawasanDetail = async (id: number): Promise<any> => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/${id}`);

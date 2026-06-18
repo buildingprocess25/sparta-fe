@@ -23,7 +23,7 @@ import {
     fetchPertambahanSPKList, fetchPertambahanSPKDetail, downloadPertambahanSPKPdf,
     type PertambahanSPKListItem,
     fetchOpnameFinalList, fetchOpnameFinalDetail, downloadOpnameFinalPdf,
-    fetchPengawasanList, fetchPengawasanDetail, downloadPengawasanPdf,
+    fetchPengawasanList, fetchPengawasanDetail, fetchPengawasanPendingPdfs, downloadPengawasanPdf,
     fetchGanttList, fetchGanttDetail,
     updateRABStatus, fetchBerkasSerahTerimaList, interveneSPKStatus,
     fetchActivityLogs, type ActivityLog,
@@ -81,6 +81,9 @@ interface NormalizedDoc {
     id_pengawasan_gantt?: number;
     tanggal_pengawasan?: string;
     grouped_items?: any[];
+    is_pdf_pending?: boolean;
+    source_sheet?: string;
+    source_row?: number;
     hari_denda?: number;
     nilai_denda?: string;
     tanggal_akhir_spk_denda?: string;
@@ -199,6 +202,9 @@ interface NormalizedDetail {
     link_pdf_pengawasan?: string | null;
     tanggal_pengawasan?: string;
     pengawasan_items?: any[];
+    is_pdf_pending?: boolean;
+    source_sheet?: string;
+    source_row?: number;
     // Project Planning specific
     jenis_proyek_pp?: string;
     jenis_pengajuan_pp?: string;
@@ -467,6 +473,7 @@ const isRejectedStatus = (status?: string | null) => {
 const getStatusLabel = (status: string) => {
     if (!status) return '-';
     const upper = status.toUpperCase();
+    if (upper === 'PENDING_GANTT') return 'Belum terhubung Gantt';
     
     if (upper.includes('TOLAK') || upper === 'REJECTED' || upper === 'SPK_REJECTED') {
         if (upper.includes('KOORDINATOR')) return 'Ditolak Koord.';
@@ -855,6 +862,26 @@ const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): Nor
     return docs;
 };
 
+const normalizePendingPengawasanDocs = (items: any[]): NormalizedDoc[] =>
+    items.map((item) => ({
+        id: item.id,
+        tipe: 'PENGAWASAN',
+        nomor_ulok: item.nomor_ulok || '-',
+        nama_toko: '-',
+        cabang: '-',
+        proyek: item.lingkup_pekerjaan || '-',
+        status: 'PENDING_GANTT',
+        email_pembuat: '-',
+        total_nilai: 0,
+        created_at: item.created_at,
+        link_pdf: item.link_pdf_pengawasan,
+        lingkup_pekerjaan: item.lingkup_pekerjaan,
+        tanggal_pengawasan: item.tanggal_pengawasan,
+        is_pdf_pending: true,
+        source_sheet: item.source_sheet,
+        source_row: item.source_row,
+    }));
+
 const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] =>
     items.map(b => ({
         id: b.id,
@@ -1104,18 +1131,24 @@ export default function DaftarDokumenPage() {
                     console.warn('Data Gantt tidak tersedia; daftar Pengawasan tetap ditampilkan:', ganttError);
                     return null;
                 });
-                const res = await withTimeout(
-                    fetchPengawasanList(),
-                    15000,
-                    'Permintaan data Pengawasan melewati batas waktu. Silakan coba Refresh.'
-                );
+                const [res, pendingRes] = await Promise.all([
+                    withTimeout(
+                        fetchPengawasanList(),
+                        15000,
+                        'Permintaan data Pengawasan melewati batas waktu. Silakan coba Refresh.'
+                    ),
+                    fetchPengawasanPendingPdfs().catch(() => ({ status: 'error', data: [] }))
+                ]);
 
                 const ganttResult = await ganttPromise;
                 if (ganttResult) {
                     (ganttResult.data ?? []).forEach((g: any) => gMap.set(g.id, g));
                 }
 
-                docs = normalizePengawasanDocs(res.data ?? [], gMap);
+                docs = [
+                    ...normalizePengawasanDocs(res.data ?? [], gMap),
+                    ...normalizePendingPengawasanDocs(pendingRes.data ?? [])
+                ];
             } else if (kategori === 'BERKAS_SERAH_TERIMA') {
                 const res = await fetchBerkasSerahTerimaList();
                 docs = normalizeBerkasSerahTerimaDocs(res.data ?? []);
@@ -1348,6 +1381,30 @@ export default function DaftarDokumenPage() {
                     })),
                 };
             } else if (doc.tipe === 'PENGAWASAN') {
+                if (doc.is_pdf_pending) {
+                    detail = {
+                        id: doc.id,
+                        tipe: 'PENGAWASAN',
+                        nomor_ulok: doc.nomor_ulok,
+                        nama_toko: doc.nama_toko,
+                        cabang: doc.cabang,
+                        proyek: doc.proyek,
+                        status: 'PENDING_GANTT',
+                        email_pembuat: '-',
+                        total_nilai: 0,
+                        created_at: doc.created_at,
+                        tanggal_pengawasan: doc.tanggal_pengawasan,
+                        link_pdf: doc.link_pdf,
+                        link_pdf_pengawasan: doc.link_pdf,
+                        pengawasan_items: [],
+                        is_pdf_pending: true,
+                        source_sheet: doc.source_sheet,
+                        source_row: doc.source_row,
+                    };
+                    setSelectedDetail(detail);
+                    return;
+                }
+
                 let ganttInfo: any = null;
                 let actualTanggal = doc.tanggal_pengawasan;
 
@@ -1577,6 +1634,11 @@ export default function DaftarDokumenPage() {
 
     const handleViewPDFOnline = useCallback(async (detail: NormalizedDetail) => {
         try {
+            if (detail.is_pdf_pending && detail.link_pdf) {
+                window.open(detail.link_pdf, '_blank', 'noopener,noreferrer');
+                return;
+            }
+
             if ((detail.tipe === 'RAB' || detail.tipe === 'SPK') && detail.link_pdf) {
                 window.open(detail.link_pdf, '_blank', 'noopener,noreferrer');
                 return;
@@ -1864,9 +1926,11 @@ export default function DaftarDokumenPage() {
                 const db = parseDateValue(b.created_at)?.getTime() ?? 0;
                 return db - da;
             });
-            const first = sortedDocs[0];
+            const first = sortedDocs.find(doc => doc.nama_toko && doc.nama_toko !== '-') ?? sortedDocs[0];
             const statuses = sortedDocs.map(doc => (doc.status ?? '').toUpperCase());
-            const status = statuses.some(statusValue => statusValue.includes('PROGRESS'))
+            const status = statuses.some(statusValue => statusValue.includes('PENDING_GANTT'))
+                ? 'PENDING_GANTT'
+                : statuses.some(statusValue => statusValue.includes('PROGRESS'))
                 ? 'PROGRESS'
                 : statuses.some(statusValue => statusValue.includes('TERLAMBAT'))
                     ? 'TERLAMBAT'
@@ -2826,6 +2890,9 @@ export default function DaftarDokumenPage() {
                                             {/* Pengawasan-specific fields */}
                                             {selectedDetail.tipe === 'PENGAWASAN' && (
                                                 <>
+                                                    {selectedDetail.is_pdf_pending && (
+                                                        <InfoRow icon={<AlertTriangle className="w-4 h-4" />} label="Relasi Gantt" value="Belum terhubung Gantt" />
+                                                    )}
                                                     {selectedDetail.id_gantt && (
                                                         <InfoRow icon={<Hash className="w-4 h-4" />} label="ID Gantt" value={selectedDetail.id_gantt.toString()} />
                                                     )}
@@ -2834,6 +2901,9 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                     {selectedDetail.tanggal_pengawasan && (
                                                         <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Pengawasan" value={selectedDetail.tanggal_pengawasan} />
+                                                    )}
+                                                    {selectedDetail.source_sheet && (
+                                                        <InfoRow icon={<FileText className="w-4 h-4" />} label="Sumber Migrasi" value={`${selectedDetail.source_sheet} row ${selectedDetail.source_row ?? '-'}`} />
                                                     )}
                                                 </>
                                             )}
@@ -3354,7 +3424,13 @@ export default function DaftarDokumenPage() {
                                             <Button
                                                 className="bg-red-600 hover:bg-red-700 text-white"
                                                 disabled={downloadingId === selectedDetail.id}
-                                                onClick={() => handleDownloadPDF(selectedDetail.id, selectedDetail.tipe)}
+                                                onClick={() => {
+                                                    if (selectedDetail.is_pdf_pending && selectedDetail.link_pdf) {
+                                                        window.open(selectedDetail.link_pdf, '_blank', 'noopener,noreferrer');
+                                                        return;
+                                                    }
+                                                    void handleDownloadPDF(selectedDetail.id, selectedDetail.tipe);
+                                                }}
                                             >
                                                 {downloadingId === selectedDetail.id ? (
                                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
