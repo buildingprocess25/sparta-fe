@@ -1567,6 +1567,7 @@ function GanttBoard() {
                 }}
                 selectedGanttId={selectedGanttId}
                 spkInfo={spkInfo}
+                nomorUlok={projectData?.ulokClean}
                 onSuccess={() => {
                     setShowOpnameModal(false);
                     if (selectedGanttId) loadGanttDetail(selectedGanttId);
@@ -2443,35 +2444,50 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 }
 
 // Komponen OpnameModal
-function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGanttId, onSuccess, spkInfo }: any) {
+function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose, selectedGanttId, onSuccess, spkInfo }: any) {
     const { showAlert } = useGlobalAlert();
     const [completedItems, setCompletedItems] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [opnameInputs, setOpnameInputs] = useState<Record<string, any>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [hasOpnameFinal, setHasOpnameFinal] = useState(false);
+    const [completedPengawasanCount, setCompletedPengawasanCount] = useState(0);
     const isLastDay = spkInfo && activeHeaderClick && (activeHeaderClick.dayIndex + 1 >= spkInfo.duration);
 
     useEffect(() => {
         setIsLoading(true);
-        import('@/lib/api').then(({ fetchPengawasanList, fetchRABDetail, fetchOpnameList }) => {
+        import('@/lib/api').then(({ fetchPengawasanList, fetchRABDetail, fetchRABList, fetchOpnameList, fetchOpnameFinalList }) => {
             fetchPengawasanList({ id_gantt: selectedGanttId })
                 .then(async res => {
                     const allData = res.data || [];
                     // Case-insensitive filtering in frontend to bypass strict backend endpoints
                     const data = allData.filter((p: any) => p.status?.toLowerCase() === 'selesai');
+                    setCompletedPengawasanCount(data.length);
                     
                     let latestRabItems = rabItems;
                     let existingOpnameItems: any[] = [];
+                    let existingFinalFound = false;
 
                     // Ambil daftar opname yg sudah ada untuk toko ini
                     if (id_toko) {
                         try {
-                            const opnames = await fetchOpnameList({ id_toko });
+                            const [opnames, finalRes] = await Promise.all([
+                                fetchOpnameList({ id_toko }),
+                                fetchOpnameFinalList({ id_toko })
+                            ]);
                             existingOpnameItems = opnames.data || [];
+                            const finalData: any = finalRes.data;
+                            const finalRows = Array.isArray(finalData)
+                                ? finalData
+                                : Array.isArray(finalData?.opname_final)
+                                    ? finalData.opname_final
+                                    : [];
+                            existingFinalFound = finalRows.length > 0;
                         } catch (e) {
                             console.warn("Gagal mendapatkan status opname existing:", e);
                         }
                     }
+                    setHasOpnameFinal(existingFinalFound);
 
                     // Build maps from existing opname items
                     // Menggunakan Number() untuk menghindari type mismatch string vs number
@@ -2490,7 +2506,18 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                     });
 
                     // Fetch fresh RAB data directly from GET api/rab/:id to guarantee satuan exists
-                    const idRab = rabItems?.[0]?.id_rab;
+                    let idRab = rabItems?.[0]?.id_rab;
+                    if (!idRab && nomorUlok && id_toko) {
+                        try {
+                            const rabListRes = await fetchRABList({ nomor_ulok: nomorUlok });
+                            const matchingRab = (rabListRes.data || []).find(
+                                (rab: any) => Number(rab.id_toko) === Number(id_toko)
+                            );
+                            idRab = matchingRab?.id;
+                        } catch (e) {
+                            console.warn("Gagal mendapatkan RAB fallback untuk opname:", e);
+                        }
+                    }
                     if (idRab) {
                         try {
                             const rabRes = await fetchRABDetail(idRab);
@@ -2580,7 +2607,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                 })
                 .finally(() => setIsLoading(false));
         });
-    }, [selectedGanttId, rabItems]);
+    }, [selectedGanttId, rabItems, id_toko, nomorUlok]);
 
     const handleSetOpname = (id: number, field: string, value: any) => {
         setOpnameInputs(prev => ({
@@ -2627,6 +2654,14 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
 
     // Refactor handleSubmit dengan parsing tipe data untuk menghindari API Rejection
     const handleSubmit = async () => {
+        if (isLastDay && completedItems.length === 0 && !hasOpnameFinal) {
+            showAlert({
+                message: "PDF Serah Terima belum dapat dibuat karena data opname final belum tersedia.",
+                type: "warning"
+            });
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             const emailPembuat = sessionStorage.getItem('loggedInUserEmail') || '';
@@ -2795,11 +2830,20 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                         </div>
                     ) : groupedByCategory.length === 0 ? (
                         <div className="py-20 flex flex-col items-center justify-center text-slate-500 bg-white rounded-lg border border-slate-200 p-8 text-center">
-                            {isLastDay ? (
+                            {isLastDay && hasOpnameFinal ? (
                                 <>
                                     <CheckCircle className="w-12 h-12 mb-3 text-green-500" />
                                     <p className="font-semibold text-lg text-slate-800">Semua Opname Selesai</p>
                                     <p className="text-sm mt-2">Seluruh item pekerjaan telah melalui proses opname. Klik <strong>Generate PDF Serah Terima</strong> di bawah untuk menyelesaikan proses Serah Terima.</p>
+                                </>
+                            ) : isLastDay && completedPengawasanCount > 0 ? (
+                                <>
+                                    <AlertCircle className="w-12 h-12 mb-3 text-amber-500" />
+                                    <p className="font-semibold text-lg text-slate-800">Opname Belum Terbentuk</p>
+                                    <p className="text-sm mt-2">
+                                        Terdapat {completedPengawasanCount} pekerjaan selesai, tetapi data opname belum berhasil dimuat.
+                                        Muat ulang halaman lalu buka kembali form ini sebelum membuat PDF Serah Terima.
+                                    </p>
                                 </>
                             ) : (
                                 <>
@@ -2953,11 +2997,21 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, onClose, selectedGa
                     <Button variant="outline" className="font-semibold" onClick={onClose}>Kembali</Button>
                     <Button 
                         onClick={handleSubmit} 
-                        disabled={isSubmitting || (groupedByCategory.length > 0 && !isSubmitValid)} 
+                        disabled={
+                            isSubmitting
+                            || (groupedByCategory.length > 0 && !isSubmitValid)
+                            || (isLastDay && groupedByCategory.length === 0 && !hasOpnameFinal)
+                        }
                         className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : (isLastDay && groupedByCategory.length === 0 ? <FileText className="w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />)}
-                        {isLastDay && groupedByCategory.length === 0 ? "Generate PDF Serah Terima" : "Submit Opname"}
+                        {isSubmitting
+                            ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            : (isLastDay && groupedByCategory.length === 0 && hasOpnameFinal
+                                ? <FileText className="w-4 h-4 mr-2" />
+                                : <Send className="w-4 h-4 mr-2" />)}
+                        {isLastDay && groupedByCategory.length === 0
+                            ? (hasOpnameFinal ? "Generate PDF Serah Terima" : "Opname Belum Tersedia")
+                            : "Submit Opname"}
                     </Button>
                 </div>
             </div>
