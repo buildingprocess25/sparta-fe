@@ -2004,6 +2004,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const shouldOpenOpname = entriesToSubmit.some(([, val]) =>
                 String(val.status || '').toLowerCase() === 'selesai'
             );
+            const hasNextHandoverAction = isLastSupervisionDay && hasLateItems && !!nextHandoverDate;
 
             const offset = activeHeaderClick?.dayIndex || 0;
             const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
@@ -2060,12 +2061,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
             });
 
+            if (itemsArrayInsert.length === 0 && itemsArrayUpdate.length === 0 && !hasNextHandoverAction) {
+                throw new Error(
+                    "Tidak ada perubahan pengawasan yang dikirim. Ubah minimal satu status/catatan/foto lalu coba lagi."
+                );
+            }
+
             const { submitPengawasanBulk, updatePengawasanBulk } = await import('@/lib/api');
             const { API_URL } = await import('@/lib/constants');
             const { submitGanttPengawasan } = await import('@/lib/api');
 
             // --- A. Eksekusi INSERT (POST) ---
             if (itemsArrayInsert.length > 0) {
+                let insertResult: any;
                 if (filesMapInsert.length > 0) {
                     const formData = new FormData();
                     formData.append('items', JSON.stringify(itemsArrayInsert));
@@ -2075,14 +2083,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const indexes = filesMapInsert.map(f => f.index);
                     formData.append('file_dokumentasi_indexes', JSON.stringify(indexes));
                     
-                    await submitPengawasanBulk(formData);
+                    insertResult = await submitPengawasanBulk(formData);
                 } else {
-                    await submitPengawasanBulk({ items: itemsArrayInsert });
+                    insertResult = await submitPengawasanBulk({ items: itemsArrayInsert });
+                }
+
+                if (!Array.isArray(insertResult?.data) || insertResult.data.length !== itemsArrayInsert.length) {
+                    throw new Error(
+                        `Penyimpanan pengawasan tidak lengkap (${insertResult?.data?.length ?? 0}/${itemsArrayInsert.length} item).`
+                    );
                 }
             }
 
             // --- B. Eksekusi UPDATE (PUT) ---
             if (itemsArrayUpdate.length > 0) {
+                let updateResult: any;
                 if (filesMapUpdate.length > 0) {
                     const formData = new FormData();
                     formData.append('items', JSON.stringify(itemsArrayUpdate));
@@ -2103,9 +2118,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             `Gagal mengupdate pengawasan bulk dengan file (${response.status}). ${responseText.slice(0, 200)}`
                         );
                     }
+                    updateResult = await response.json();
                 } else {
                     // JSON request aman berjalan dengan HTTP PUT murni
-                    await updatePengawasanBulk({ items: itemsArrayUpdate });
+                    updateResult = await updatePengawasanBulk({ items: itemsArrayUpdate });
+                }
+
+                if (!Array.isArray(updateResult?.data) || updateResult.data.length !== itemsArrayUpdate.length) {
+                    throw new Error(
+                        `Pembaruan pengawasan tidak lengkap (${updateResult?.data?.length ?? 0}/${itemsArrayUpdate.length} item).`
+                    );
                 }
             }
 
@@ -2125,7 +2147,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
 
             // 3. Tambahkan Tanggal Serah Terima Berikutnya jika ada item terlambat di hari terakhir
-            if (isLastSupervisionDay && hasLateItems && nextHandoverDate) {
+            if (hasNextHandoverAction) {
                 try {
                     // Convert YYYY-MM-DD to DD/MM/YYYY
                     const parts = nextHandoverDate.split('-');
