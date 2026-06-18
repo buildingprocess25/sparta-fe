@@ -52,6 +52,7 @@ interface NormalizedDoc {
     email_pembuat: string;
     total_nilai: number;
     created_at: string;
+    tanggal_kerja_tambah_kurang?: string | null;
     link_pdf: string | null;
     // SPK specific
     nomor_spk?: string;
@@ -120,6 +121,7 @@ interface NormalizedDetail {
     email_pembuat: string;
     total_nilai: number;
     created_at: string;
+    tanggal_kerja_tambah_kurang?: string | null;
     id_toko?: number;
     // RAB specific
     alamat?: string;
@@ -300,15 +302,15 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         description: 'Daftar dokumen Opname.',
     },
     OPNAME_FINAL: {
-        label: 'Opname',
-        fullLabel: 'Opname',
+        label: 'Kerja Tambah Kurang',
+        fullLabel: 'Kerja Tambah Kurang',
         icon: <CheckSquare className="w-10 h-10" />,
         color: 'text-orange-600',
         bgColor: 'bg-orange-50',
         borderColor: 'border-orange-200',
         hoverBorder: 'hover:border-orange-400',
         badgeColor: 'bg-orange-100 text-orange-700 border-orange-200',
-        description: 'Daftar dokumen Opname.',
+        description: 'Daftar dokumen Kerja Tambah Kurang.',
     },
     PENGAWASAN: {
         label: 'Pengawasan',
@@ -786,6 +788,7 @@ const normalizeOpnameDocs = (items: any[], tipe: 'OPNAME' | 'OPNAME_FINAL'): Nor
         email_pembuat: o.email_pembuat,
         total_nilai:   Math.max(0, parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda)),
         created_at:    o.created_at,
+        tanggal_kerja_tambah_kurang: o.waktu_persetujuan_direktur ?? null,
         link_pdf:      o.link_pdf_opname ?? null,
         hari_denda:    Number(o.hari_denda ?? 0),
         nilai_denda:   o.nilai_denda,
@@ -1320,6 +1323,7 @@ export default function DaftarDokumenPage() {
                     email_pembuat:       d.opname_final.email_pembuat,
                     total_nilai:         Math.max(0, parseCurrency(d.opname_final.grand_total_opname) - parseCurrency(d.opname_final.nilai_denda)),
                     created_at:          d.opname_final.created_at,
+                    tanggal_kerja_tambah_kurang: d.opname_final.waktu_persetujuan_direktur ?? null,
                     link_pdf:            d.opname_final.link_pdf_opname,
                     grand_total_opname:  d.opname_final.grand_total_opname,
                     grand_total_rab:     d.opname_final.grand_total_rab,
@@ -2407,7 +2411,10 @@ export default function DaftarDokumenPage() {
                                             <div className="flex items-center gap-3 flex-wrap min-w-0">
                                                 {latestDoc?.created_at && (
                                                     <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                                                        <CalendarDays className="w-3 h-3" /> {formatDate(latestDoc.created_at)}
+                                                        <CalendarDays className="w-3 h-3" />
+                                                        {latestDoc.tipe === 'OPNAME_FINAL'
+                                                            ? `Tanggal KTK: ${latestDoc.tanggal_kerja_tambah_kurang ? formatDate(latestDoc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
+                                                            : formatDate(latestDoc.created_at)}
                                                     </span>
                                                 )}
                                                 {branchCount > 0 && (
@@ -2456,7 +2463,10 @@ export default function DaftarDokumenPage() {
                                             <div className="flex items-center gap-3 flex-wrap min-w-0">
                                                 {latestDoc?.created_at && (
                                                     <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                                                        <CalendarDays className="w-3 h-3" /> {formatDate(latestDoc.created_at)}
+                                                        <CalendarDays className="w-3 h-3" />
+                                                        {latestDoc.tipe === 'OPNAME_FINAL'
+                                                            ? `Tanggal KTK: ${latestDoc.tanggal_kerja_tambah_kurang ? formatDate(latestDoc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
+                                                            : formatDate(latestDoc.created_at)}
                                                     </span>
                                                 )}
                                                 {branchCount > 0 && (
@@ -2513,7 +2523,10 @@ export default function DaftarDokumenPage() {
                                                         </p>
                                                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                                                             <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                                                                <CalendarDays className="w-3 h-3" /> {formatDate(doc.created_at)}
+                                                                <CalendarDays className="w-3 h-3" />
+                                                                {doc.tipe === 'OPNAME_FINAL'
+                                                                    ? `Tanggal KTK: ${doc.tanggal_kerja_tambah_kurang ? formatDate(doc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
+                                                                    : formatDate(doc.created_at)}
                                                             </span>
                                                             {doc.email_pembuat !== '-' && (
                                                                 <span className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -2654,7 +2667,7 @@ export default function DaftarDokumenPage() {
                                                         : selectedDetail.tipe === 'SPK' ? 'Detail SPK'
                                                         : selectedDetail.tipe === 'PERTAMBAHAN_SPK' ? 'Detail Pertambahan SPK'
                                                         : selectedDetail.tipe === 'OPNAME' ? 'Detail Opname'
-                                                        : selectedDetail.tipe === 'OPNAME_FINAL' ? 'Detail Opname'
+                                                        : selectedDetail.tipe === 'OPNAME_FINAL' ? 'Detail Kerja Tambah Kurang'
                                                         : selectedDetail.tipe === 'PENGAWASAN' ? 'Detail Pengawasan'
                                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'Detail Serah Terima'
                                                         : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'Detail Instruksi Lapangan'
@@ -2719,7 +2732,17 @@ export default function DaftarDokumenPage() {
                                             <InfoRow icon={<Building2 className="w-4 h-4" />} label="Cabang" value={selectedDetail.cabang} />
                                             <InfoRow icon={<Building2 className="w-4 h-4" />} label="Proyek" value={selectedDetail.proyek} />
                                             <InfoRow icon={<User className="w-4 h-4" />} label="Email Pembuat" value={selectedDetail.email_pembuat} />
-                                            <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Dibuat" value={formatDateFull(selectedDetail.created_at)} />
+                                            {selectedDetail.tipe === 'OPNAME_FINAL' ? (
+                                                <InfoRow
+                                                    icon={<CalendarDays className="w-4 h-4" />}
+                                                    label="Tanggal Kerja Tambah Kurang"
+                                                    value={selectedDetail.tanggal_kerja_tambah_kurang
+                                                        ? formatDateFull(selectedDetail.tanggal_kerja_tambah_kurang)
+                                                        : 'Belum disetujui Direktur'}
+                                                />
+                                            ) : (
+                                                <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tanggal Dibuat" value={formatDateFull(selectedDetail.created_at)} />
+                                            )}
                                             {selectedDetail.klasifikasi_bangunan && (
                                                 <InfoRow icon={<Building2 className="w-4 h-4" />} label="Ruko / Non-Ruko" value={selectedDetail.klasifikasi_bangunan} />
                                             )}

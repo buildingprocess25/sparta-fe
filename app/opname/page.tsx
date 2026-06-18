@@ -483,7 +483,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             return;
         }
         if (!canLockOpnameFinal) {
-            showAlert({ message: "Opname hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
+            showAlert({ message: "Finalisasi Kerja Tambah Kurang hanya dapat dilakukan oleh Branch Building Support.", type: "warning" });
             return;
         }
         if (!selectedRab || !allApproved) return;
@@ -525,7 +525,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
             const opnameFinalId = Array.from(latestOpnames.values())[0]?.id_opname_final;
             if (!opnameFinalId) {
-                throw new Error('ID Opname tidak ditemukan. Simpan item opname terlebih dahulu sebelum dikunci.');
+                throw new Error('ID Opname tidak ditemukan. Simpan item opname terlebih dahulu sebelum finalisasi Kerja Tambah Kurang.');
             }
 
             // Calculate grand totals
@@ -553,29 +553,29 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 opname_item: opnameItemsData,
             });
 
-            showAlert({ message: 'Opname berhasil dikunci! Data telah dikirim untuk approval Koordinator.', type: "success" });
+            showAlert({ message: 'Proses Kerja Tambah Kurang berhasil difinalisasi dan dikirim untuk approval Koordinator.', type: "success" });
             // Refresh data
             handleSelectRab(selectedRab.id.toString());
         } catch (err: any) {
-            showAlert({ message: `Gagal mengunci opname: ${err.message}`, type: "error" });
+            showAlert({ message: `Gagal finalisasi Kerja Tambah Kurang: ${err.message}`, type: "error" });
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Handle Kunci Opname — shows confirmation via GlobalAlert
+    // Handle finalisasi Kerja Tambah Kurang — shows confirmation via GlobalAlert
     const handleKunciOpnameFinal = () => {
         if (!canLockOpnameFinal) {
-            showAlert({ message: "Opname hanya dapat dikunci oleh Branch Building Support.", type: "warning" });
+            showAlert({ message: "Finalisasi Kerja Tambah Kurang hanya dapat dilakukan oleh Branch Building Support.", type: "warning" });
             return;
         }
         if (!selectedRab || !allApproved) return;
         showAlert({
-            title: 'Kunci Opname',
-            message: 'Kunci Opname untuk proyek ini? Setelah dikunci, data akan masuk proses approval Koordinator.',
+            title: 'Finalisasi Kerja Tambah Kurang',
+            message: 'Finalisasi proses Kerja Tambah Kurang untuk proyek ini? Setelah difinalisasi, data akan masuk proses approval Koordinator.',
             type: 'warning',
             confirmMode: true,
-            confirmText: 'Ya, Kunci',
+            confirmText: 'Ya, Finalisasi',
             cancelText: 'Batal',
             onConfirm: () => executeKunciOpnameFinal(),
         });
@@ -942,9 +942,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                             <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 flex items-start gap-3">
                                 <Lock className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
                                 <div>
-                                    <h4 className="font-bold text-red-800 text-sm">Opname Terkunci</h4>
+                                    <h4 className="font-bold text-red-800 text-sm">Kerja Tambah Kurang Sudah Difinalisasi</h4>
                                     <p className="text-xs text-red-600 mt-1">
-                                        Proyek ini sudah berstatus Opname dan aksi sudah terkunci. Anda tidak dapat mensubmit item opname baru.
+                                        Proses Kerja Tambah Kurang sudah difinalisasi. Anda tidak dapat mensubmit item opname baru.
                                     </p>
                                 </div>
                             </div>
@@ -967,17 +967,17 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Kontraktor" value={tokoDetail.nama_kontraktor || '-'} />
                                 </div>
 
-                                {/* Opname Button */}
+                                {/* Finalisasi Kerja Tambah Kurang */}
                                 {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
                                     <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${allApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div>
                                             <h4 className={`font-bold text-sm ${allApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
                                                 <Lock className="w-4 h-4 inline mr-1.5" />
-                                                Kunci Opname
+                                                Finalisasi Proses Kerja Tambah Kurang
                                             </h4>
                                             <p className={`text-xs mt-0.5 ${allApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
                                                 {allApproved
-                                                    ? 'Semua item telah disetujui oleh Kontraktor. Klik untuk mengunci dan mengirim ke proses approval sebagai Opname.'
+                                                    ? 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.'
                                                     : `Semua item harus berstatus Disetujui (${existingOpname.filter(o => o.status?.toLowerCase() === 'disetujui').length}/${rabItems.length} item disetujui oleh Kontraktor).`
                                                 }
                                             </p>
@@ -988,7 +988,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${allApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
                                         >
                                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-                                            Kunci Opname
+                                            Finalisasi Proses Kerja Tambah Kurang
                                         </Button>
                                     </div>
                                 )}

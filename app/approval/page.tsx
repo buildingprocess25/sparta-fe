@@ -278,13 +278,13 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         emptyMsg: 'Tidak ada pengajuan pertambahan SPK yang menunggu persetujuan.',
     },
     OPNAME: {
-        label: 'Approval Opname',
+        label: 'Approval Kerja Tambah Kurang',
         icon: <CheckCircle className="w-10 h-10" />,
         color: 'text-sky-700',
         hoverBorder: 'hover:border-sky-500',
         badgeColor: 'bg-sky-100 text-sky-700 border-sky-200',
-        description: 'Opname yang menunggu persetujuan.',
-        emptyMsg: 'Tidak ada pengajuan Opname yang menunggu persetujuan.',
+        description: 'Kerja Tambah Kurang yang menunggu persetujuan.',
+        emptyMsg: 'Tidak ada pengajuan Kerja Tambah Kurang yang menunggu persetujuan.',
     },
 
     INSTRUKSI_LAPANGAN: {

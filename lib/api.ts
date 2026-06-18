@@ -2267,17 +2267,17 @@ export const fetchOpnameFinalList = async (filters?: {
     return safeFetchJSON(url, options);
 };
 
-/** Detail Opname */
+/** Detail Kerja Tambah Kurang */
 export const fetchOpnameFinalDetail = async (id: number) => {
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}`);
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Gagal memuat detail opname final (${res.status}): ${text.substring(0, 100)}`);
+        throw new Error(`Gagal memuat detail Kerja Tambah Kurang (${res.status}): ${text.substring(0, 100)}`);
     }
     return res.json();
 };
 
-/** Kunci Opname  POST /api/final_opname/:id/kunci_opname_final */
+/** Finalisasi Kerja Tambah Kurang  POST /api/final_opname/:id/kunci_opname_final */
 export const kunciOpnameFinal = async (id: number, payload: {
     id_toko: number;
     email_pembuat: string;
@@ -2292,11 +2292,11 @@ export const kunciOpnameFinal = async (id: number, payload: {
         body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal mengunci opname final.");
+    if (!res.ok) throw new Error(result.message || "Gagal finalisasi proses Kerja Tambah Kurang.");
     return result;
 };
 
-/** Approval Opname  POST /api/final_opname/:id/approval */
+/** Approval Kerja Tambah Kurang  POST /api/final_opname/:id/approval */
 export const approveOpnameFinal = async (id: number, payload: {
     approver_email: string;
     jabatan: string;
@@ -2310,7 +2310,7 @@ export const approveOpnameFinal = async (id: number, payload: {
         body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal memproses approval opname final.");
+    if (!res.ok) throw new Error(result.message || "Gagal memproses approval Kerja Tambah Kurang.");
     return result;
 };
 
