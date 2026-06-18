@@ -37,6 +37,7 @@ const ACTION_LABELS: Record<PengawasanMigrationAction, string> = {
     skip: "Skip",
     replace_pengawasan: "Replace pengawasan",
     update_pdf: "Update PDF",
+    save_pdf_pending: "Simpan PDF pending",
 };
 
 const formatNumber = (value?: number | string | null) =>
@@ -47,6 +48,7 @@ const getActorRole = (user: ReturnType<typeof useSession>["user"]) =>
 
 const getDefaultAction = (row: PengawasanMigrationPreviewDetail): PengawasanMigrationAction => {
     if (row.db_state === "ready") return "insert";
+    if (row.db_state === "pdf_pending") return "save_pdf_pending";
     return "skip";
 };
 
@@ -61,7 +63,7 @@ export default function PengawasanMigrasiPage() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [actions, setActions] = useState<Record<number, PengawasanMigrationAction>>({});
     const [searchQuery, setSearchQuery] = useState("");
-    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid" | "missing_gantt">("all");
+    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid" | "missing_gantt" | "pdf_pending">("all");
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isCommitting, setIsCommitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
@@ -87,6 +89,21 @@ export default function PengawasanMigrasiPage() {
             ].some((value) => String(value ?? "").toLowerCase().includes(query));
         });
     }, [rows, searchQuery, stateFilter]);
+
+    const filteredGroups = useMemo(() => {
+        const groups = new Map<string, PengawasanMigrationPreviewDetail[]>();
+        for (const row of filteredRows) {
+            const groupRows = groups.get(row.nomor_ulok) ?? [];
+            groupRows.push(row);
+            groups.set(row.nomor_ulok, groupRows);
+        }
+        return [...groups.entries()].map(([nomorUlok, groupRows]) => ({
+            nomorUlok,
+            rows: groupRows,
+            namaToko: groupRows.find((row) => row.nama_toko)?.nama_toko ?? "",
+            cabang: groupRows.find((row) => row.cabang)?.cabang ?? "",
+        }));
+    }, [filteredRows]);
 
     const selectedRows = useMemo(
         () => rows.filter((row) => selectedIds.has(row.source_pengawasan_id)),
@@ -142,7 +159,11 @@ export default function PengawasanMigrasiPage() {
             const result = await previewPengawasanMigration(file, actorRole, user?.email);
             const details = result.data.details;
             setPreview(result.data);
-            setSelectedIds(new Set(details.filter((row) => row.db_state === "ready").map((row) => row.source_pengawasan_id)));
+            setSelectedIds(new Set(
+                details
+                    .filter((row) => row.db_state === "ready" || row.db_state === "pdf_pending")
+                    .map((row) => row.source_pengawasan_id)
+            ));
             setActions(Object.fromEntries(details.map((row) => [row.source_pengawasan_id, getDefaultAction(row)])));
             setMessage({ type: "success", text: "Analisis selesai. Konflik DB default Skip, ubah aksi jika ingin menimpa." });
         } catch (error) {
@@ -158,6 +179,18 @@ export default function PengawasanMigrasiPage() {
             const next = new Set(current);
             if (checked) next.add(row.source_pengawasan_id);
             else next.delete(row.source_pengawasan_id);
+            return next;
+        });
+    };
+
+    const toggleGroup = (groupRows: PengawasanMigrationPreviewDetail[], checked: boolean) => {
+        setSelectedIds((current) => {
+            const next = new Set(current);
+            for (const row of groupRows) {
+                if (row.db_state === "invalid") continue;
+                if (checked) next.add(row.source_pengawasan_id);
+                else next.delete(row.source_pengawasan_id);
+            }
             return next;
         });
     };
@@ -290,7 +323,7 @@ export default function PengawasanMigrasiPage() {
 
                 {preview && (
                     <>
-                        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
+                        <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
                             {[
                                 ["Total Target", preview.total_pengawasan, "text-slate-950"],
                                 ["Item Termapping", preview.total_item_pengawasan, "text-slate-950"],
@@ -298,6 +331,7 @@ export default function PengawasanMigrasiPage() {
                                 ["Konflik DB", preview.conflict_count, "text-amber-700"],
                                 ["Target Hilang", preview.missing_target_count, "text-orange-700"],
                                 ["Tanpa Gantt", preview.missing_gantt_count, "text-orange-700"],
+                                ["PDF Pending", preview.pdf_pending_count, "text-sky-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
                                 <Card key={String(label)} className="border-slate-200 shadow-sm">
@@ -331,6 +365,7 @@ export default function PengawasanMigrasiPage() {
                                             <SelectItem value="ready">Siap insert</SelectItem>
                                             <SelectItem value="conflict">Konflik DB</SelectItem>
                                             <SelectItem value="missing_gantt">Tanpa Gantt Chart</SelectItem>
+                                            <SelectItem value="pdf_pending">Bisa simpan PDF pending</SelectItem>
                                             <SelectItem value="invalid">Invalid</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -357,9 +392,35 @@ export default function PengawasanMigrasiPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {filteredRows.map((row) => {
-                                                const action = actions[row.source_pengawasan_id] ?? getDefaultAction(row);
+                                            {filteredGroups.map((group) => {
+                                                const selectableRows = group.rows.filter((row) => row.db_state !== "invalid");
+                                                const groupSelected = selectableRows.length > 0
+                                                    && selectableRows.every((row) => selectedIds.has(row.source_pengawasan_id));
                                                 return (
+                                                    <React.Fragment key={group.nomorUlok}>
+                                                        <tr className="border-y border-slate-200 bg-slate-100">
+                                                            <td className="px-4 py-3">
+                                                                <Checkbox
+                                                                    checked={groupSelected}
+                                                                    disabled={selectableRows.length === 0}
+                                                                    onCheckedChange={(checked) => toggleGroup(group.rows, Boolean(checked))}
+                                                                />
+                                                            </td>
+                                                            <td colSpan={7} className="px-4 py-3">
+                                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                                    <span className="font-extrabold text-slate-950">{group.nomorUlok}</span>
+                                                                    <span className="font-semibold text-slate-700">{group.namaToko || "-"}</span>
+                                                                    <span className="text-xs text-slate-500">{group.cabang || "-"}</span>
+                                                                    <Badge variant="secondary">{group.rows.length} target</Badge>
+                                                                    <span className="text-xs text-slate-500">
+                                                                        {group.rows.filter((row) => row.gantt_id === null).length} tanpa Gantt
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                        {group.rows.map((row) => {
+                                                            const action = actions[row.source_pengawasan_id] ?? getDefaultAction(row);
+                                                            return (
                                                     <tr key={row.source_pengawasan_id} className={row.db_state === "invalid" ? "bg-red-50/30" : "bg-white"}>
                                                         <td className="px-4 py-4 align-top">
                                                             <Checkbox
@@ -394,10 +455,18 @@ export default function PengawasanMigrasiPage() {
                                                                         ? "bg-emerald-100 text-emerald-700"
                                                                         : row.db_state === "conflict"
                                                                             ? "bg-amber-100 text-amber-700"
+                                                                            : row.db_state === "pdf_pending"
+                                                                                ? "bg-sky-100 text-sky-700"
                                                                             : "bg-red-100 text-red-700"
                                                                 }`}
                                                             >
-                                                                {row.db_state === "ready" ? "Siap insert" : row.db_state === "conflict" ? "Konflik DB" : "Invalid"}
+                                                                {row.db_state === "ready"
+                                                                    ? "Siap insert"
+                                                                    : row.db_state === "conflict"
+                                                                        ? "Konflik DB"
+                                                                        : row.db_state === "pdf_pending"
+                                                                            ? "PDF pending"
+                                                                            : "Invalid"}
                                                             </Badge>
                                                             {row.existing_pengawasan_count > 0 && (
                                                                 <p className="mt-2 text-xs text-slate-500">{row.existing_pengawasan_count} item existing</p>
@@ -421,7 +490,9 @@ export default function PengawasanMigrasiPage() {
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    {Object.entries(ACTION_LABELS).map(([value, label]) => (
+                                                                    {Object.entries(ACTION_LABELS)
+                                                                        .filter(([value]) => value !== "save_pdf_pending" || row.can_save_pdf_pending)
+                                                                        .map(([value, label]) => (
                                                                         <SelectItem key={value} value={value}>{label}</SelectItem>
                                                                     ))}
                                                                 </SelectContent>
@@ -441,6 +512,9 @@ export default function PengawasanMigrasiPage() {
                                                             </div>
                                                         </td>
                                                     </tr>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
                                                 );
                                             })}
                                         </tbody>
@@ -456,7 +530,7 @@ export default function PengawasanMigrasiPage() {
                         <CardContent className="p-5 text-sm text-emerald-800">
                             <p className="font-bold">Hasil migrasi</p>
                             <p className="mt-1">
-                                Insert {formatNumber(commitResult.inserted)}, replace {formatNumber(commitResult.replaced)}, update PDF {formatNumber(commitResult.updated_pdf)}, skip {formatNumber(commitResult.skipped)}, item masuk {formatNumber(commitResult.inserted_items)}.
+                                Insert {formatNumber(commitResult.inserted)}, replace {formatNumber(commitResult.replaced)}, update PDF {formatNumber(commitResult.updated_pdf)}, PDF pending {formatNumber(commitResult.saved_pdf_pending)}, skip {formatNumber(commitResult.skipped)}, item masuk {formatNumber(commitResult.inserted_items)}.
                             </p>
                         </CardContent>
                     </Card>

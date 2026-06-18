@@ -2528,7 +2528,12 @@ export const commitSpkMigration = (
     selections: SpkMigrationCommitSelection[]
 ) => postSpkMigration<SpkMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
-export type PengawasanMigrationAction = "insert" | "skip" | "replace_pengawasan" | "update_pdf";
+export type PengawasanMigrationAction =
+    | "insert"
+    | "skip"
+    | "replace_pengawasan"
+    | "update_pdf"
+    | "save_pdf_pending";
 
 export type PengawasanMigrationPreviewDetail = {
     source_pengawasan_id: number;
@@ -2546,11 +2551,12 @@ export type PengawasanMigrationPreviewDetail = {
     link_pdf: string;
     mapped_item_count: number;
     gantt_id: number | null;
+    can_save_pdf_pending: boolean;
     existing_pic_id: number | null;
     existing_pengawasan_gantt_id: number | null;
     existing_pengawasan_count: number;
     existing_pdf_link: string | null;
-    db_state: "ready" | "conflict" | "invalid";
+    db_state: "ready" | "conflict" | "invalid" | "pdf_pending";
     issues: string[];
     warnings: string[];
 };
@@ -2563,6 +2569,7 @@ export type PengawasanMigrationPreviewResult = {
     invalid_count: number;
     missing_target_count: number;
     missing_gantt_count: number;
+    pdf_pending_count: number;
     details: PengawasanMigrationPreviewDetail[];
 };
 
@@ -2576,6 +2583,7 @@ export type PengawasanMigrationCommitResult = {
     inserted: number;
     replaced: number;
     updated_pdf: number;
+    saved_pdf_pending: number;
     skipped: number;
     inserted_items: number;
     details: Array<{
