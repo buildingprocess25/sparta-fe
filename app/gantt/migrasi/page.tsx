@@ -20,6 +20,7 @@ import { useSession } from "@/context/SessionContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
     Select,
@@ -128,6 +129,7 @@ export default function GanttMigrasiPage() {
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<PreviewResult | null>(null);
     const [actions, setActions] = useState<Record<string, GanttMigrationAction>>({});
+    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
     const [commitResult, setCommitResult] = useState<CommitResult | null>(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isCommitting, setIsCommitting] = useState(false);
@@ -152,10 +154,25 @@ export default function GanttMigrasiPage() {
         });
     }, [preview, searchQuery, statusFilter]);
 
-    const selectedCount = useMemo(
-        () => Object.values(actions).filter((action) => action !== "skip").length,
-        [actions]
+    const selectedDetails = useMemo(
+        () => (preview?.details ?? []).filter((detail) => selectedKeys.has(detailKey(detail))),
+        [preview, selectedKeys]
     );
+
+    const executableCount = useMemo(
+        () => selectedDetails.filter(
+            (detail) => (actions[detailKey(detail)] ?? defaultAction(detail)) !== "skip"
+        ).length,
+        [actions, selectedDetails]
+    );
+
+    const filteredSelectableDetails = useMemo(
+        () => filteredDetails.filter((detail) => detail.db_state !== "invalid"),
+        [filteredDetails]
+    );
+
+    const allFilteredSelectableSelected = filteredSelectableDetails.length > 0
+        && filteredSelectableDetails.every((detail) => selectedKeys.has(detailKey(detail)));
 
     if (user && !user.isSuperHuman) {
         return (
@@ -185,6 +202,7 @@ export default function GanttMigrasiPage() {
         setFile(event.target.files?.[0] ?? null);
         setPreview(null);
         setActions({});
+        setSelectedKeys(new Set());
         setCommitResult(null);
         setMessage(null);
     };
@@ -198,6 +216,7 @@ export default function GanttMigrasiPage() {
         setIsPreviewing(true);
         setPreview(null);
         setActions({});
+        setSelectedKeys(new Set());
         setCommitResult(null);
         setMessage(null);
         try {
@@ -207,9 +226,14 @@ export default function GanttMigrasiPage() {
             setActions(Object.fromEntries(
                 nextPreview.details.map((detail) => [detailKey(detail), defaultAction(detail)])
             ));
+            setSelectedKeys(new Set(
+                nextPreview.details
+                    .filter((detail) => detail.db_state === "ready_insert")
+                    .map(detailKey)
+            ));
             setMessage({
                 type: "info",
-                text: "Analisis selesai. Gantt existing selalu default Skip sampai dipilih secara eksplisit.",
+                text: "Analisis selesai. Gantt siap insert dicentang otomatis; existing tetap Skip sampai aksinya dipilih.",
             });
         } catch (error) {
             setMessage({
@@ -226,33 +250,71 @@ export default function GanttMigrasiPage() {
         setCommitResult(null);
     };
 
-    const applyBulkAction = (
-        predicate: (detail: PreviewDetail) => boolean,
-        action: GanttMigrationAction
-    ) => {
-        if (!preview) return;
-        setActions((current) => {
-            const next = { ...current };
-            preview.details.forEach((detail) => {
-                if (predicate(detail) && detail.allowed_actions.includes(action)) {
-                    next[detailKey(detail)] = action;
-                }
+    const toggleRow = (detail: PreviewDetail, checked: boolean) => {
+        if (detail.db_state === "invalid") return;
+        setSelectedKeys((current) => {
+            const next = new Set(current);
+            const key = detailKey(detail);
+            if (checked) next.add(key);
+            else next.delete(key);
+            return next;
+        });
+        setCommitResult(null);
+    };
+
+    const toggleAllFiltered = (checked: boolean) => {
+        setSelectedKeys((current) => {
+            const next = new Set(current);
+            filteredSelectableDetails.forEach((detail) => {
+                const key = detailKey(detail);
+                if (checked) next.add(key);
+                else next.delete(key);
             });
             return next;
         });
         setCommitResult(null);
     };
 
+    const applyBulkAction = (
+        predicate: (detail: PreviewDetail) => boolean,
+        action: GanttMigrationAction
+    ) => {
+        if (!preview) return;
+        const matchingDetails = preview.details.filter(
+            (detail) => predicate(detail) && detail.allowed_actions.includes(action)
+        );
+        const matchingKeys = matchingDetails.map(detailKey);
+        setActions((current) => {
+            const next = { ...current };
+            matchingDetails.forEach((detail) => {
+                next[detailKey(detail)] = action;
+            });
+            return next;
+        });
+        setSelectedKeys((current) => new Set([...current, ...matchingKeys]));
+        setCommitResult(null);
+    };
+
     const handleCommit = async () => {
-        if (!file || !preview || selectedCount === 0) return;
-        const selections: GanttMigrationSelection[] = preview.details.map((detail) => ({
+        if (!file || !preview) return;
+        const selections: GanttMigrationSelection[] = selectedDetails.map((detail) => ({
             nomor_ulok: detail.nomor_ulok,
             lingkup_pekerjaan: detail.lingkup_pekerjaan,
-            action: actions[detailKey(detail)] ?? "skip",
+            action: actions[detailKey(detail)] ?? defaultAction(detail),
         }));
 
+        if (selections.length === 0) {
+            setMessage({ type: "warning", text: "Pilih minimal satu Gantt untuk diproses." });
+            return;
+        }
+
+        if (executableCount === 0) {
+            setMessage({ type: "warning", text: "Semua Gantt yang dicentang masih Skip. Pilih minimal satu aksi migrasi." });
+            return;
+        }
+
         if (!window.confirm(
-            `Proses ${formatNumber(selectedCount)} Gantt terpilih? Pengawasan existing akan dipertahankan.`
+            `Proses ${formatNumber(executableCount)} dari ${formatNumber(selections.length)} Gantt yang dicentang? Pengawasan existing akan dipertahankan.`
         )) return;
 
         setIsCommitting(true);
@@ -326,13 +388,13 @@ export default function GanttMigrasiPage() {
                             </Button>
                             <Button
                                 className="h-11 rounded-lg bg-red-700 font-bold text-white hover:bg-red-800"
-                                disabled={!file || !preview || selectedCount === 0 || isPreviewing || isCommitting}
+                                disabled={!file || !preview || executableCount === 0 || isPreviewing || isCommitting}
                                 onClick={handleCommit}
                             >
                                 {isCommitting
                                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     : <Upload className="mr-2 h-4 w-4" />}
-                                Proses {selectedCount > 0 ? formatNumber(selectedCount) : ""} Gantt
+                                Proses {executableCount > 0 ? formatNumber(executableCount) : ""} Gantt
                             </Button>
                         </div>
 
@@ -398,14 +460,18 @@ export default function GanttMigrasiPage() {
                             <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => setActions(Object.fromEntries(
-                                    preview.details.map((detail) => [detailKey(detail), "skip"])
-                                ))}
+                                onClick={() => {
+                                    setSelectedKeys(new Set());
+                                    setCommitResult(null);
+                                }}
                             >
-                                Reset Semua ke Skip
+                                Kosongkan Pilihan
                             </Button>
                             <span className="ml-auto text-sm font-semibold text-slate-600">
-                                {formatNumber(selectedCount)} dipilih
+                                {formatNumber(selectedKeys.size)} dicentang
+                                {selectedKeys.size > 0
+                                    ? ` · ${formatNumber(executableCount)} akan diproses`
+                                    : ""}
                             </span>
                         </div>
 
@@ -463,9 +529,16 @@ export default function GanttMigrasiPage() {
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[1250px] text-left text-sm">
+                                    <table className="w-full min-w-[1300px] text-left text-sm">
                                         <thead className="border-y bg-slate-50 text-xs uppercase text-slate-500">
                                             <tr>
+                                                <th className="px-4 py-3">
+                                                    <Checkbox
+                                                        checked={allFilteredSelectableSelected}
+                                                        onCheckedChange={(value) => toggleAllFiltered(Boolean(value))}
+                                                        aria-label="Pilih semua hasil filter"
+                                                    />
+                                                </th>
                                                 <th className="px-4 py-3">ULOK / Toko</th>
                                                 <th className="px-4 py-3">Lingkup</th>
                                                 <th className="px-4 py-3 text-center">H Sumber</th>
@@ -479,12 +552,23 @@ export default function GanttMigrasiPage() {
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {filteredDetails.map((detail) => {
+                                                const key = detailKey(detail);
+                                                const selected = selectedKeys.has(key);
+                                                const isInvalid = detail.db_state === "invalid";
                                                 const currentAction = actions[detailKey(detail)] ?? "skip";
                                                 return (
                                                     <tr
-                                                        key={detailKey(detail)}
-                                                        className={currentAction === "skip" ? "bg-white" : "bg-red-50/30"}
+                                                        key={key}
+                                                        className={selected ? "bg-red-50/30" : "bg-white hover:bg-slate-50"}
                                                     >
+                                                        <td className="px-4 py-3 align-top">
+                                                            <Checkbox
+                                                                checked={selected}
+                                                                disabled={isInvalid}
+                                                                onCheckedChange={(value) => toggleRow(detail, Boolean(value))}
+                                                                aria-label={`Pilih Gantt ${detail.nomor_ulok} ${detail.lingkup_pekerjaan}`}
+                                                            />
+                                                        </td>
                                                         <td className="px-4 py-3">
                                                             <div className="font-bold text-slate-900">{detail.nomor_ulok}</div>
                                                             <div className="max-w-64 truncate text-xs text-slate-500">
@@ -530,6 +614,7 @@ export default function GanttMigrasiPage() {
                                                         <td className="px-4 py-3">
                                                             <Select
                                                                 value={currentAction}
+                                                                disabled={isInvalid || !selected}
                                                                 onValueChange={(value) =>
                                                                     setAction(detail, value as GanttMigrationAction)}
                                                             >
@@ -569,7 +654,7 @@ export default function GanttMigrasiPage() {
                                             })}
                                             {filteredDetails.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                                                    <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
                                                         Tidak ada kandidat yang cocok dengan filter.
                                                     </td>
                                                 </tr>
