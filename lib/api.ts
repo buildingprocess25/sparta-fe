@@ -3248,13 +3248,13 @@ export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number })
 /**
  * Trigger pemuatan/pembuatan PDF Berita Acara Serah Terima.
  */
-export const createPdfSerahTerima = async (id_toko: number, tanggal_aktual?: string): Promise<any> => {
+export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima`;
     try {
         const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id_toko, tanggal_aktual }),
+            body: JSON.stringify({ id_toko }),
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima.");
@@ -3270,8 +3270,6 @@ export const createPdfSerahTerima = async (id_toko: number, tanggal_aktual?: str
         // Render dapat memutus koneksi setelah PDF berhasil tersimpan dan browser
         // melaporkannya sebagai CORS/Failed to fetch. Verifikasi hasil aktual sebelum
         // menampilkan kegagalan kepada pengguna.
-        const expectedDate = tanggal_aktual?.slice(0, 10);
-
         for (let attempt = 0; attempt < 3; attempt++) {
             if (attempt > 0) {
                 await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -3280,9 +3278,7 @@ export const createPdfSerahTerima = async (id_toko: number, tanggal_aktual?: str
             try {
                 const existing = await fetchBerkasSerahTerimaList({ id_toko });
                 const generated = existing.data.find((item) => {
-                    if (!item.link_pdf) return false;
-                    if (!expectedDate) return true;
-                    return String(item.created_at || "").slice(0, 10) === expectedDate;
+                    return Boolean(item.link_pdf);
                 });
 
                 if (generated) {

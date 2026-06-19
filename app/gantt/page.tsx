@@ -2760,10 +2760,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                 if (canGenerateSerahTerima) {
                     try {
                         const { createPdfSerahTerima } = await import('@/lib/api');
-                        const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
-                        dDate.setDate(dDate.getDate() + activeHeaderClick.dayIndex);
-                        const formattedDate = `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, '0')}-${String(dDate.getDate()).padStart(2, '0')}`;
-                        await createPdfSerahTerima(Number(id_toko), formattedDate);
+                        await createPdfSerahTerima(Number(id_toko));
                         showAlert({ 
                             message: 'Berita Acara Serah Terima berhasil digenerate!', 
                             type: 'success',
@@ -2825,10 +2822,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
             if (isLastDay) {
                 try {
                     const { createPdfSerahTerima } = await import('@/lib/api');
-                    const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
-                    dDate.setDate(dDate.getDate() + activeHeaderClick.dayIndex);
-                    const formattedDate = `${dDate.getFullYear()}-${String(dDate.getMonth() + 1).padStart(2, '0')}-${String(dDate.getDate()).padStart(2, '0')}`;
-                    await createPdfSerahTerima(Number(id_toko), formattedDate);
+                    await createPdfSerahTerima(Number(id_toko));
                 } catch (pdfErr) {
                     console.error("Error trigger PDF serah terima:", pdfErr);
                 }
