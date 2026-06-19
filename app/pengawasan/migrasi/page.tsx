@@ -165,7 +165,10 @@ export default function PengawasanMigrasiPage() {
                     .map((row) => row.source_pengawasan_id)
             ));
             setActions(Object.fromEntries(details.map((row) => [row.source_pengawasan_id, getDefaultAction(row)])));
-            setMessage({ type: "success", text: "Analisis selesai. Konflik DB default Skip, ubah aksi jika ingin menimpa." });
+            setMessage({
+                type: "success",
+                text: "Analisis selesai. Pekerjaan Progress/Terlambat dibawa ke checkpoint berikutnya; konflik DB tetap default Skip.",
+            });
         } catch (error) {
             setMessage({ type: "error", text: getErrorMessage(error, "Gagal menganalisis file.") });
         } finally {
@@ -264,7 +267,8 @@ export default function PengawasanMigrasiPage() {
                     <div>
                         <h1 className="text-2xl font-extrabold text-slate-950">Upload Excel Pengawasan</h1>
                         <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                            Membaca sheet InputPIC dan DataH*. SerahTerima dan summary_serahterima tidak diproses pada migrasi ini.
+                            Membaca sheet InputPIC dan DataH* secara kronologis. Progress/Terlambat dibawa ke checkpoint berikutnya;
+                            SerahTerima dan summary_serahterima belum diproses.
                         </p>
                     </div>
                     <Link href="/gantt">
@@ -333,6 +337,7 @@ export default function PengawasanMigrasiPage() {
                                 ["Tanpa Gantt", preview.missing_gantt_count, "text-orange-700"],
                                 ["PDF Pending", preview.pdf_pending_count, "text-sky-700"],
                                 ["PDF Sudah Tersimpan", preview.existing_pdf_pending_count, "text-blue-700"],
+                                ["Hasil Rekonstruksi", preview.reconstructed_count, "text-violet-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
                                 <Card key={String(label)} className="border-slate-200 shadow-sm">
@@ -449,6 +454,11 @@ export default function PengawasanMigrasiPage() {
                                                         <td className="px-4 py-4 align-top">
                                                             <p className="font-bold text-slate-950">{formatNumber(row.mapped_item_count)}</p>
                                                             <p className="mt-1 text-xs text-slate-400">item pengawasan</p>
+                                                            {row.mapping_mode === "reconstructed" && (
+                                                                <Badge className="mt-2 border-none bg-violet-100 text-violet-700">
+                                                                    Rekonstruksi
+                                                                </Badge>
+                                                            )}
                                                         </td>
                                                         <td className="px-4 py-4 align-top">
                                                             <Badge
@@ -514,6 +524,21 @@ export default function PengawasanMigrasiPage() {
                                                                 {row.warnings.map((warning) => (
                                                                     <p key={warning} className="text-amber-600">{warning}</p>
                                                                 ))}
+                                                                {row.mapping_mode === "reconstructed" && (
+                                                                    <p className="font-semibold text-violet-700">
+                                                                        {row.carried_from_h
+                                                                            ? `Carry-forward dari H${row.carried_from_h}`
+                                                                            : "Mapping berdasarkan urutan Gantt"}
+                                                                    </p>
+                                                                )}
+                                                                {row.reconstructed_categories.map((category) => (
+                                                                    <p
+                                                                        key={`${category.kategori_pekerjaan}-${category.keterlambatan}`}
+                                                                        className="text-red-600"
+                                                                    >
+                                                                        {category.kategori_pekerjaan}: +{category.keterlambatan} hari
+                                                                    </p>
+                                                                ))}
                                                                 {row.link_pdf && <p className="text-emerald-700">PDF tersedia</p>}
                                                                 {row.existing_pending_pdf_id && (
                                                                     <p className="font-semibold text-blue-700">Sudah ada di DB pending #{row.existing_pending_pdf_id}</p>
@@ -539,7 +564,7 @@ export default function PengawasanMigrasiPage() {
                         <CardContent className="p-5 text-sm text-emerald-800">
                             <p className="font-bold">Hasil migrasi</p>
                             <p className="mt-1">
-                                Insert {formatNumber(commitResult.inserted)}, replace {formatNumber(commitResult.replaced)}, update PDF {formatNumber(commitResult.updated_pdf)}, PDF pending {formatNumber(commitResult.saved_pdf_pending)}, skip {formatNumber(commitResult.skipped)}, item masuk {formatNumber(commitResult.inserted_items)}.
+                                Insert {formatNumber(commitResult.inserted)}, replace {formatNumber(commitResult.replaced)}, update PDF {formatNumber(commitResult.updated_pdf)}, PDF pending {formatNumber(commitResult.saved_pdf_pending)}, skip {formatNumber(commitResult.skipped)}, item masuk {formatNumber(commitResult.inserted_items)}, bar keterlambatan diperbarui {formatNumber(commitResult.updated_delay_rows)} baris.
                             </p>
                         </CardContent>
                     </Card>

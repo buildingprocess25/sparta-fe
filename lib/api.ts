@@ -2589,6 +2589,13 @@ export type PengawasanMigrationPreviewDetail = {
     status_lokasi: string;
     link_pdf: string;
     mapped_item_count: number;
+    mapping_mode: "scheduled" | "reconstructed";
+    carried_from_h: number | null;
+    reconstructed_delay_days: number;
+    reconstructed_categories: Array<{
+        kategori_pekerjaan: string;
+        keterlambatan: number;
+    }>;
     gantt_id: number | null;
     can_save_pdf_pending: boolean;
     existing_pending_pdf_id: number | null;
@@ -2612,6 +2619,7 @@ export type PengawasanMigrationPreviewResult = {
     missing_gantt_count: number;
     pdf_pending_count: number;
     existing_pdf_pending_count: number;
+    reconstructed_count: number;
     details: PengawasanMigrationPreviewDetail[];
 };
 
@@ -2628,6 +2636,7 @@ export type PengawasanMigrationCommitResult = {
     saved_pdf_pending: number;
     skipped: number;
     inserted_items: number;
+    updated_delay_rows: number;
     details: Array<{
         action: PengawasanMigrationAction;
         source_pengawasan_id: number;
