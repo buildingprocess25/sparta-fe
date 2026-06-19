@@ -45,6 +45,8 @@ const PUBLIC_PATHS = ['/', '/auth', '/about', '/manual'];
 const OPERATING_START_MINUTES = 6 * 60;
 const GENERAL_OPERATING_END_MINUTES = 18 * 60;
 const CONTRACTOR_OPERATING_END_MINUTES = 20 * 60;
+const TEMPORARY_ALL_ROLE_ACCESS_START = new Date('2026-06-19T00:00:00+07:00').getTime();
+const TEMPORARY_ALL_ROLE_ACCESS_END = new Date('2026-06-21T00:00:00+07:00').getTime();
 
 const isContractorRole = (roles: string[]): boolean =>
   roles.some((role) => role.includes('KONTRAKTOR'));
@@ -62,6 +64,16 @@ const formatMinutesAsTime = (minutes: number): string => {
 
 function isWithinOperatingHours(roles: string[]): boolean {
   const now = new Date();
+
+  // Temporary overtime access for every role through Saturday, 20 June 2026
+  // at 24:00 WIB. Normal operating-hour rules resume automatically afterward.
+  if (
+    now.getTime() >= TEMPORARY_ALL_ROLE_ACCESS_START
+    && now.getTime() < TEMPORARY_ALL_ROLE_ACCESS_END
+  ) {
+    return true;
+  }
+
   const dayOfWeek = now.getDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
   const totalMinutes = now.getHours() * 60 + now.getMinutes();
   const operatingEndMinutes = getOperatingEndMinutes(roles);
