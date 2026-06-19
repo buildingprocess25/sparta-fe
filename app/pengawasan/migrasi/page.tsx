@@ -63,7 +63,7 @@ export default function PengawasanMigrasiPage() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [actions, setActions] = useState<Record<number, PengawasanMigrationAction>>({});
     const [searchQuery, setSearchQuery] = useState("");
-    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid" | "missing_gantt" | "pdf_pending">("all");
+    const [stateFilter, setStateFilter] = useState<"all" | "ready" | "conflict" | "invalid" | "missing_gantt" | "pdf_pending" | "pdf_saved">("all");
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isCommitting, setIsCommitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
@@ -323,7 +323,7 @@ export default function PengawasanMigrasiPage() {
 
                 {preview && (
                     <>
-                        <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
+                        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
                             {[
                                 ["Total Target", preview.total_pengawasan, "text-slate-950"],
                                 ["Item Termapping", preview.total_item_pengawasan, "text-slate-950"],
@@ -332,6 +332,7 @@ export default function PengawasanMigrasiPage() {
                                 ["Target Hilang", preview.missing_target_count, "text-orange-700"],
                                 ["Tanpa Gantt", preview.missing_gantt_count, "text-orange-700"],
                                 ["PDF Pending", preview.pdf_pending_count, "text-sky-700"],
+                                ["PDF Sudah Tersimpan", preview.existing_pdf_pending_count, "text-blue-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
                                 <Card key={String(label)} className="border-slate-200 shadow-sm">
@@ -366,6 +367,7 @@ export default function PengawasanMigrasiPage() {
                                             <SelectItem value="conflict">Konflik DB</SelectItem>
                                             <SelectItem value="missing_gantt">Tanpa Gantt Chart</SelectItem>
                                             <SelectItem value="pdf_pending">Bisa simpan PDF pending</SelectItem>
+                                            <SelectItem value="pdf_saved">PDF sudah tersimpan</SelectItem>
                                             <SelectItem value="invalid">Invalid</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -455,6 +457,8 @@ export default function PengawasanMigrasiPage() {
                                                                         ? "bg-emerald-100 text-emerald-700"
                                                                         : row.db_state === "conflict"
                                                                             ? "bg-amber-100 text-amber-700"
+                                                                            : row.db_state === "pdf_saved"
+                                                                                ? "bg-blue-100 text-blue-700"
                                                                             : row.db_state === "pdf_pending"
                                                                                 ? "bg-sky-100 text-sky-700"
                                                                             : "bg-red-100 text-red-700"
@@ -464,6 +468,8 @@ export default function PengawasanMigrasiPage() {
                                                                     ? "Siap insert"
                                                                     : row.db_state === "conflict"
                                                                         ? "Konflik DB"
+                                                                        : row.db_state === "pdf_saved"
+                                                                            ? "Sudah tersimpan"
                                                                         : row.db_state === "pdf_pending"
                                                                             ? "PDF pending"
                                                                             : "Invalid"}
@@ -509,6 +515,9 @@ export default function PengawasanMigrasiPage() {
                                                                     <p key={warning} className="text-amber-600">{warning}</p>
                                                                 ))}
                                                                 {row.link_pdf && <p className="text-emerald-700">PDF tersedia</p>}
+                                                                {row.existing_pending_pdf_id && (
+                                                                    <p className="font-semibold text-blue-700">Sudah ada di DB pending #{row.existing_pending_pdf_id}</p>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>

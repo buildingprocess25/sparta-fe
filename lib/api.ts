@@ -2574,11 +2574,13 @@ export type PengawasanMigrationPreviewDetail = {
     mapped_item_count: number;
     gantt_id: number | null;
     can_save_pdf_pending: boolean;
+    existing_pending_pdf_id: number | null;
+    existing_pending_pdf_link: string | null;
     existing_pic_id: number | null;
     existing_pengawasan_gantt_id: number | null;
     existing_pengawasan_count: number;
     existing_pdf_link: string | null;
-    db_state: "ready" | "conflict" | "invalid" | "pdf_pending";
+    db_state: "ready" | "conflict" | "invalid" | "pdf_pending" | "pdf_saved";
     issues: string[];
     warnings: string[];
 };
@@ -2592,6 +2594,7 @@ export type PengawasanMigrationPreviewResult = {
     missing_target_count: number;
     missing_gantt_count: number;
     pdf_pending_count: number;
+    existing_pdf_pending_count: number;
     details: PengawasanMigrationPreviewDetail[];
 };
 
