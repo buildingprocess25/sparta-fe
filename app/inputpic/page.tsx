@@ -61,6 +61,20 @@ function formatDateDDMMYYYY(date: Date): string {
     return `${day}/${month}/${date.getFullYear()}`;
 }
 
+function normalizeScope(value: string | null | undefined): string {
+    return String(value || '').trim().toUpperCase();
+}
+
+function scopesMatch(left: string | null | undefined, right: string | null | undefined): boolean {
+    const leftScope = normalizeScope(left);
+    const rightScope = normalizeScope(right);
+    return Boolean(leftScope && rightScope && (
+        leftScope === rightScope ||
+        leftScope.includes(rightScope) ||
+        rightScope.includes(leftScope)
+    ));
+}
+
 // =============================================================================
 // SUB-COMPONENTS
 // =============================================================================
@@ -597,7 +611,14 @@ function ScopePicForm({
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
     const ganttDuration = sharedTimeline.duration;
     const autoSelectedLastDayRef = useRef<number | null>(null);
-    const [ganttTargets, setGanttTargets] = useState<Array<{ id: number; spk: SPKListItem; lingkup: string }>>([]);
+    const [ganttTargets, setGanttTargets] = useState<Array<{
+        id: number;
+        spk: SPKListItem;
+        lingkup: string;
+        pengawasanDates: string[];
+    }>>([]);
+    const [existingScopeKeys, setExistingScopeKeys] = useState<Set<string>>(() => new Set());
+    const [existingScheduleDates, setExistingScheduleDates] = useState<string[]>([]);
     const [isLocked, setIsLocked] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMsg, setStatusMsg] = useState({ text: '', type: '' as '' | 'info' | 'success' | 'warning' | 'error' });
@@ -610,10 +631,24 @@ function ScopePicForm({
             return 0;
         }), 0);
     }, [groups, rabDetailsByKey]);
+    const missingGroups = useMemo(
+        () => groups.filter(group => !existingScopeKeys.has(group.key)),
+        [groups, existingScopeKeys]
+    );
+    const isPartialCompletion = existingScopeKeys.size > 0 && missingGroups.length > 0;
+    const displayTarget = useMemo(() => {
+        if (!isPartialCompletion) return ganttTargets[0];
+        const completedGroups = groups.filter(group => existingScopeKeys.has(group.key));
+        return ganttTargets.find(target =>
+            completedGroups.some(group => scopesMatch(target.lingkup, group.lingkup_pekerjaan))
+        ) ?? ganttTargets[0];
+    }, [isPartialCompletion, ganttTargets, groups, existingScopeKeys]);
 
     useEffect(() => {
         if (groups.length === 0) return;
         setIsLocked(false);
+        setExistingScopeKeys(new Set());
+        setExistingScheduleDates([]);
         setStatusMsg({ text: '', type: '' });
 
         Promise.all(groups.map(group => {
@@ -624,7 +659,13 @@ function ScopePicForm({
         }))
             .then(results => {
                 const existingPics = results.flatMap(result => result.data || []);
-                const completedScopes = results.filter(result => (result.data || []).length > 0).length;
+                const completedKeys = new Set(
+                    groups
+                        .filter((_, index) => (results[index]?.data || []).length > 0)
+                        .map(group => group.key)
+                );
+                setExistingScopeKeys(completedKeys);
+                const completedScopes = completedKeys.size;
                 if (completedScopes === groups.length) {
                     setIsLocked(true);
                     setPicName(existingPics[0]?.plc_building_support || '');
@@ -633,10 +674,10 @@ function ScopePicForm({
                         type: 'success'
                     });
                 } else if (completedScopes > 0) {
-                    setIsLocked(true);
+                    setIsLocked(false);
                     setPicName(existingPics[0]?.plc_building_support || '');
                     setStatusMsg({
-                        text: "Data lama ULOK ini baru tersimpan pada sebagian lingkup. Jadwal tidak dapat ditimpa otomatis agar laporan pengawasan yang sudah berjalan tetap aman.",
+                        text: `Data lama baru tersimpan pada ${completedScopes} lingkup. Sistem akan mempertahankan jadwal existing dan hanya melengkapi ${groups.length - completedScopes} lingkup yang belum ada.`,
                         type: 'warning'
                     });
                 }
@@ -661,16 +702,21 @@ function ScopePicForm({
                             const ganttId = d.data?.gantt?.id;
                             if (!ganttScope || !ganttId) return [];
 
-                            const matchedSpk = allSpks.find(spk => {
-                                const gScope = ganttScope.toUpperCase();
-                                const sScope = spk.lingkup_pekerjaan.toUpperCase();
-                                return gScope.includes(sScope) || sScope.includes(gScope);
-                            });
+                            const matchedSpk = allSpks.find(spk =>
+                                scopesMatch(ganttScope, spk.lingkup_pekerjaan)
+                            );
 
                             if (!matchedSpk) return [];
 
                             const gScope = d.data.toko.lingkup_pekerjaan.toUpperCase();
-                            return [{ id: ganttId, spk: matchedSpk, lingkup: gScope }];
+                            return [{
+                                id: ganttId,
+                                spk: matchedSpk,
+                                lingkup: gScope,
+                                pengawasanDates: (d.data?.pengawasan || [])
+                                    .map((item: any) => item.tanggal_pengawasan)
+                                    .filter(Boolean)
+                            }];
                         });
 
                         setGanttTargets(targets.sort((a, b) => {
@@ -685,7 +731,31 @@ function ScopePicForm({
     }, [groups, allSpks]);
 
     useEffect(() => {
-        if (ganttDuration <= 0 || isLocked) return;
+        if (!isPartialCompletion || ganttTargets.length === 0) return;
+
+        const completedGroups = groups.filter(group => existingScopeKeys.has(group.key));
+        const sourceTarget = ganttTargets.find(target =>
+            completedGroups.some(group => scopesMatch(target.lingkup, group.lingkup_pekerjaan))
+        );
+        const sourceDates = Array.from(new Set(sourceTarget?.pengawasanDates || []));
+        setExistingScheduleDates(sourceDates);
+
+        const sharedStart = parseDateOnly(sharedTimeline.startDate);
+        if (!sharedStart) {
+            setSelectedDays([]);
+            return;
+        }
+        const days = sourceDates
+            .map(dateString => parseDateDDMMYYYY(dateString))
+            .filter((date): date is Date => date !== null)
+            .map(date => Math.round((date.getTime() - sharedStart.getTime()) / 86_400_000) + 1)
+            .filter(day => day > 0)
+            .sort((a, b) => a - b);
+        setSelectedDays(days);
+    }, [isPartialCompletion, ganttTargets, groups, existingScopeKeys, sharedTimeline.startDate]);
+
+    useEffect(() => {
+        if (ganttDuration <= 0 || isLocked || isPartialCompletion) return;
         setSelectedDays(prev => {
             const previousAutoDay = autoSelectedLastDayRef.current;
             const withoutPreviousAutoDay = previousAutoDay
@@ -695,9 +765,13 @@ function ScopePicForm({
             if (withoutPreviousAutoDay.includes(ganttDuration)) return withoutPreviousAutoDay;
             return [...withoutPreviousAutoDay, ganttDuration].sort((a, b) => a - b);
         });
-    }, [ganttDuration, isLocked]);
+    }, [ganttDuration, isLocked, isPartialCompletion]);
 
     const handleToggleDay = useCallback((day: number) => {
+        if (isPartialCompletion) {
+            showAlert({ message: "Jadwal SIPIL existing dipertahankan dan tidak dapat diubah saat melengkapi ME.", type: "warning" });
+            return;
+        }
         if (ganttDuration > 0 && day === ganttDuration) {
             showAlert({ message: "Hari terakhir pekerjaan wajib dipilih dan tidak dapat dibatalkan.", type: "warning" });
             return;
@@ -716,7 +790,7 @@ function ScopePicForm({
             }
             return [...prev, day].sort((a, b) => a - b);
         });
-    }, [ganttDuration, requiredDays, showAlert]);
+    }, [ganttDuration, requiredDays, showAlert, isPartialCompletion]);
 
     const handleSubmit = async () => {
         if (isReadOnly) {
@@ -740,18 +814,22 @@ function ScopePicForm({
             return;
         }
 
-        if (!selectedDays.includes(1) && !selectedDays.includes(2)) {
+        if (!isPartialCompletion && !selectedDays.includes(1) && !selectedDays.includes(2)) {
             showAlert({ message: "Wajib memilih H1 atau H2.", type: "warning" });
             return;
         }
 
-        if (ganttDuration > 0 && !selectedDays.includes(ganttDuration)) {
+        if (!isPartialCompletion && ganttDuration > 0 && !selectedDays.includes(ganttDuration)) {
             showAlert({ message: `Wajib memilih H${ganttDuration}.`, type: "warning" });
             return;
         }
 
-        if (requiredDays > 0 && selectedDays.length !== requiredDays) {
+        if (!isPartialCompletion && requiredDays > 0 && selectedDays.length !== requiredDays) {
             showAlert({ message: `Wajib tepat ${requiredDays} hari.`, type: "warning" });
+            return;
+        }
+        if (isPartialCompletion && existingScheduleDates.length === 0) {
+            showAlert({ message: "Jadwal pengawasan lingkup existing tidak ditemukan dan tidak dapat disalin.", type: "warning" });
             return;
         }
 
@@ -765,17 +843,27 @@ function ScopePicForm({
             if (!sharedStartDate) {
                 throw new Error("Tanggal mulai bersama SIPIL/ME tidak valid.");
             }
-            const tglPengawasan = selectedDays.map(day => {
-                const date = new Date(sharedStartDate);
-                date.setDate(date.getDate() + day - 1);
-                return formatDateDDMMYYYY(date);
-            });
+            const tglPengawasan = isPartialCompletion
+                ? existingScheduleDates
+                : selectedDays.map(day => {
+                    const date = new Date(sharedStartDate);
+                    date.setDate(date.getDate() + day - 1);
+                    return formatDateDDMMYYYY(date);
+                });
 
-            for (const target of ganttTargets) {
+            const targetGroups = isPartialCompletion ? missingGroups : groups;
+            const targetsToUpdate = ganttTargets.filter(target =>
+                targetGroups.some(group => scopesMatch(target.lingkup, group.lingkup_pekerjaan))
+            );
+            if (targetsToUpdate.length !== targetGroups.length) {
+                throw new Error("Gantt lingkup yang akan dilengkapi belum ditemukan secara lengkap.");
+            }
+
+            for (const target of targetsToUpdate) {
                 await submitGanttPengawasan(target.id, tglPengawasan);
             }
 
-            for (const group of groups) {
+            for (const group of targetGroups) {
                 const scopeSpk = group.spks[0];
                 const scopeRabDetail = rabDetailsByKey[group.key];
                 const scopeTokoId = group.toko?.id ?? scopeSpk?.toko?.id ?? scopeSpk?.id_toko;
@@ -798,7 +886,9 @@ function ScopePicForm({
 
             setIsLocked(true);
             setStatusMsg({
-                text: `Berhasil disimpan sekaligus untuk ${groups.map(group => group.lingkup_pekerjaan).join(' & ')}. PIC yang ditunjuk: ${picName}`,
+                text: isPartialCompletion
+                    ? `Lingkup ${missingGroups.map(group => group.lingkup_pekerjaan).join(' & ')} berhasil dilengkapi menggunakan jadwal existing. PIC: ${picName}`
+                    : `Berhasil disimpan sekaligus untuk ${groups.map(group => group.lingkup_pekerjaan).join(' & ')}. PIC yang ditunjuk: ${picName}`,
                 type: 'success'
             });
             onSuccess(groups[0], picName);
@@ -839,14 +929,14 @@ function ScopePicForm({
                     <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Selesai Terakhir" value={sharedTimeline.endDate ? formatDateDDMMYYYY(sharedTimeline.endDate) : '-'} />
                 </div>
 
-                {!isLocked && ganttTargets.length > 0 && (
+                {!isLocked && displayTarget && (
                     <div className="space-y-4">
                         <div className="text-sm font-bold text-slate-700">
                             Timeline bersama: {ganttTargets.map(target => target.lingkup).join(' & ')}
                         </div>
                         <InteractiveGanttChart
-                            ganttId={ganttTargets[0].id}
-                            readonlyDays={isReadOnly}
+                            ganttId={displayTarget.id}
+                            readonlyDays={isReadOnly || isPartialCompletion}
                             selectedDays={selectedDays}
                             onToggleDay={handleToggleDay}
                             spkStartDate={sharedTimeline.startDate}
@@ -854,7 +944,7 @@ function ScopePicForm({
                             requiredDays={requiredDays}
                         />
 
-                        {requiredDays > 0 && (
+                        {requiredDays > 0 && !isPartialCompletion && (
                             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
                                 <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
                                     <Info className="w-4 h-4 text-indigo-500" />
@@ -891,7 +981,7 @@ function ScopePicForm({
                             <label className="text-sm font-bold text-slate-700">Nama PIC (Branch Building Support) *</label>
                             <select
                                 required
-                                disabled={isReadOnly}
+                                disabled={isReadOnly || isPartialCompletion}
                                 className="w-full p-3 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold cursor-pointer"
                                 value={picName}
                                 onChange={(e) => setPicName(e.target.value)}
@@ -916,15 +1006,18 @@ function ScopePicForm({
                                 isSubmitting || 
                                 !picName.trim() || 
                                 selectedDays.length === 0 ||
-                                (!selectedDays.includes(1) && !selectedDays.includes(2)) ||
-                                (ganttDuration > 0 && !selectedDays.includes(ganttDuration)) ||
-                                (requiredDays > 0 && selectedDays.length !== requiredDays)
+                                (!isPartialCompletion && !selectedDays.includes(1) && !selectedDays.includes(2)) ||
+                                (!isPartialCompletion && ganttDuration > 0 && !selectedDays.includes(ganttDuration)) ||
+                                (!isPartialCompletion && requiredDays > 0 && selectedDays.length !== requiredDays)
                             }
                             className="w-full h-12 text-base font-bold shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-slate-400 disabled:cursor-not-allowed"
                         >
                             {isSubmitting
                                 ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Menyimpan...</>
-                                : <><Save className="w-5 h-5 mr-2" /> Simpan PIC SIPIL &amp; ME</>
+                                : <><Save className="w-5 h-5 mr-2" /> {isPartialCompletion
+                                    ? `Lengkapi ${missingGroups.map(group => group.lingkup_pekerjaan).join(' & ')}`
+                                    : "Simpan PIC SIPIL & ME"
+                                }</>
                             }
                         </Button>
                     </div>
