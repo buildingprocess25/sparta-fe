@@ -1903,7 +1903,6 @@ export const previewGanttMigration = async (file: File) => {
 export type GanttMigrationAction =
     | "insert_source"
     | "replace_source"
-    | "scale_to_spk"
     | "skip";
 
 export type GanttMigrationSelection = {

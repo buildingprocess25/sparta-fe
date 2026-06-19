@@ -99,7 +99,6 @@ const defaultAction = (detail: PreviewDetail): GanttMigrationAction =>
 const actionLabel: Record<GanttMigrationAction, string> = {
     insert_source: "Insert sesuai sumber",
     replace_source: "Replace sesuai sumber",
-    scale_to_spk: "Skalakan ke durasi SPK",
     skip: "Skip",
 };
 
@@ -118,7 +117,7 @@ const stateClass: Record<DbState, string> = {
 };
 
 const durationLabel: Record<DurationStatus, string> = {
-    short: "Lebih pendek",
+    short: "Jadwal lebih pendek",
     exact: "Sesuai",
     exceeds: "Melewati SPK",
     spk_missing: "SPK tidak ada",
@@ -355,8 +354,8 @@ export default function GanttMigrasiPage() {
                 <div>
                     <h1 className="text-2xl font-extrabold text-slate-950">Rekonsiliasi Gantt Chart</h1>
                     <p className="mt-1 max-w-4xl text-sm text-slate-500">
-                        Bandingkan file sumber dengan Gantt DB dan durasi SPK. Existing yang pernah berubah
-                        tidak akan dipilih otomatis.
+                        Bandingkan file sumber dengan Gantt DB dan durasi SPK. Durasi SPK mengatur panjang
+                        timeline, sedangkan rentang setiap pekerjaan tetap mengikuti day_gantt_chart.
                     </p>
                 </div>
 
@@ -423,7 +422,7 @@ export default function GanttMigrasiPage() {
                                 ["Siap Insert", preview.ready_insert_count, "text-emerald-700"],
                                 ["Existing Cocok", preview.existing_source_match_count, "text-sky-700"],
                                 ["Existing Berubah", preview.existing_changed_count, "text-amber-700"],
-                                ["H Terlalu Pendek", preview.short_count, "text-orange-700"],
+                                ["Jadwal < Durasi SPK", preview.short_count, "text-orange-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
                                 <div key={String(label)} className="border-y border-slate-200 bg-white px-4 py-4">
@@ -445,17 +444,6 @@ export default function GanttMigrasiPage() {
                                 )}
                             >
                                 Pilih Semua Insert Baru
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => applyBulkAction(
-                                    (detail) => detail.duration_status === "short"
-                                        && detail.db_state !== "existing_changed",
-                                    "scale_to_spk"
-                                )}
-                            >
-                                Skalakan Kandidat Aman
                             </Button>
                             <Button
                                 size="sm"
@@ -520,7 +508,7 @@ export default function GanttMigrasiPage() {
                                                 <SelectItem value="ready_insert">Siap insert</SelectItem>
                                                 <SelectItem value="existing_source_match">Existing cocok</SelectItem>
                                                 <SelectItem value="existing_changed">Existing berubah</SelectItem>
-                                                <SelectItem value="short">H terlalu pendek</SelectItem>
+                                                <SelectItem value="short">Jadwal lebih pendek dari SPK</SelectItem>
                                                 <SelectItem value="invalid">Invalid</SelectItem>
                                             </SelectContent>
                                         </Select>
