@@ -1900,11 +1900,29 @@ export const previewGanttMigration = async (file: File) => {
     return result;
 };
 
-export const commitGanttMigration = async (file: File, emailPembuat: string, limit?: number) => {
+export type GanttMigrationAction =
+    | "insert_source"
+    | "replace_source"
+    | "scale_to_spk"
+    | "skip";
+
+export type GanttMigrationSelection = {
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    action: GanttMigrationAction;
+};
+
+export const commitGanttMigration = async (
+    file: File,
+    actorEmail: string,
+    actorRole: string,
+    selections: GanttMigrationSelection[]
+) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("email_pembuat", emailPembuat);
-    if (limit !== undefined) formData.append("limit", String(limit));
+    formData.append("actor_email", actorEmail);
+    formData.append("actor_role", actorRole);
+    formData.append("selections", JSON.stringify(selections));
 
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/commit`, {
         method: 'POST',

@@ -1,16 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
-import { useSession } from "@/context/SessionContext";
-import AppNavbar from "@/components/AppNavbar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import {
     AlertTriangle,
     ArrowLeft,
     CheckCircle2,
+    Database,
     FileSpreadsheet,
     Info,
     Loader2,
@@ -19,61 +15,163 @@ import {
     Upload,
     XCircle,
 } from "lucide-react";
-import Link from "next/link";
-import { previewGanttMigration, commitGanttMigration } from "@/lib/api";
+import AppNavbar from "@/components/AppNavbar";
+import { useSession } from "@/context/SessionContext";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    commitGanttMigration,
+    previewGanttMigration,
+    type GanttMigrationAction,
+    type GanttMigrationSelection,
+} from "@/lib/api";
+
+type DbState =
+    | "ready_insert"
+    | "existing_source_match"
+    | "existing_changed"
+    | "invalid";
+
+type DurationStatus = "short" | "exact" | "exceeds" | "spk_missing";
 
 type PreviewDetail = {
     nomor_ulok: string;
     lingkup_pekerjaan: string;
-    status: string;
-    sheet_count?: number;
+    nama_toko: string;
+    cabang: string;
+    sheet_count: number;
+    source_max_h: number;
+    spk_duration: number | null;
+    duration_status: DurationStatus;
+    db_state: DbState;
+    existing_gantt_id: number | null;
+    existing_gantt_status: string | null;
+    existing_matches_source: boolean;
+    pengawasan_count: number;
+    issues: string[];
+    allowed_actions: GanttMigrationAction[];
 };
 
 type PreviewResult = {
     total_rows: number;
     total_groups: number;
-    ready_count: number;
-    skipped_count: number;
+    ready_insert_count: number;
+    existing_source_match_count: number;
+    existing_changed_count: number;
+    invalid_count: number;
+    short_count: number;
     details: PreviewDetail[];
 };
 
 type CommitResult = {
-    inserted_count: number;
-    skipped_count: number;
-    total_groups: number;
-    limit_applied?: number;
+    total_selected: number;
+    inserted: number;
+    inserted_scaled: number;
+    replaced: number;
+    scaled: number;
+    skipped: number;
 };
 
-const formatNumber = (v?: number) => new Intl.NumberFormat("id-ID").format(v ?? 0);
+type Message = {
+    type: "success" | "error" | "info" | "warning";
+    text: string;
+};
+
+const formatNumber = (value?: number | null) =>
+    new Intl.NumberFormat("id-ID").format(value ?? 0);
+
+const detailKey = (detail: Pick<PreviewDetail, "nomor_ulok" | "lingkup_pekerjaan">) =>
+    `${detail.nomor_ulok}\u0000${detail.lingkup_pekerjaan}`;
+
+const defaultAction = (detail: PreviewDetail): GanttMigrationAction =>
+    detail.db_state === "ready_insert" ? "insert_source" : "skip";
+
+const actionLabel: Record<GanttMigrationAction, string> = {
+    insert_source: "Insert sesuai sumber",
+    replace_source: "Replace sesuai sumber",
+    scale_to_spk: "Skalakan ke durasi SPK",
+    skip: "Skip",
+};
+
+const stateLabel: Record<DbState, string> = {
+    ready_insert: "Siap insert",
+    existing_source_match: "Existing cocok sumber",
+    existing_changed: "Existing sudah berubah",
+    invalid: "Invalid",
+};
+
+const stateClass: Record<DbState, string> = {
+    ready_insert: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    existing_source_match: "border-sky-200 bg-sky-50 text-sky-700",
+    existing_changed: "border-amber-200 bg-amber-50 text-amber-800",
+    invalid: "border-red-200 bg-red-50 text-red-700",
+};
+
+const durationLabel: Record<DurationStatus, string> = {
+    short: "Lebih pendek",
+    exact: "Sesuai",
+    exceeds: "Melewati SPK",
+    spk_missing: "SPK tidak ada",
+};
 
 export default function GanttMigrasiPage() {
     const { user } = useSession();
-
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<PreviewResult | null>(null);
+    const [actions, setActions] = useState<Record<string, GanttMigrationAction>>({});
     const [commitResult, setCommitResult] = useState<CommitResult | null>(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isCommitting, setIsCommitting] = useState(false);
-    const [limitInput, setLimitInput] = useState<string>("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [message, setMessage] = useState<{ type: "success" | "error" | "info" | "warning"; text: string } | null>(null);
+    const [statusFilter, setStatusFilter] = useState<"all" | DbState | "short">("all");
+    const [message, setMessage] = useState<Message | null>(null);
 
-    // --- Super Human Guard ---
+    const filteredDetails = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return (preview?.details ?? []).filter((detail) => {
+            const matchesQuery = !query || [
+                detail.nomor_ulok,
+                detail.lingkup_pekerjaan,
+                detail.nama_toko,
+                detail.cabang,
+            ].some((value) => value.toLowerCase().includes(query));
+            const matchesStatus = statusFilter === "all"
+                || (statusFilter === "short"
+                    ? detail.duration_status === "short"
+                    : detail.db_state === statusFilter);
+            return matchesQuery && matchesStatus;
+        });
+    }, [preview, searchQuery, statusFilter]);
+
+    const selectedCount = useMemo(
+        () => Object.values(actions).filter((action) => action !== "skip").length,
+        [actions]
+    );
+
     if (user && !user.isSuperHuman) {
         return (
             <div className="min-h-screen bg-slate-50">
                 <AppNavbar title="Migrasi Gantt Chart" showBackButton backHref="/gantt" />
                 <main className="mx-auto max-w-xl p-8">
-                    <Card className="border-red-200 shadow-md">
-                        <CardContent className="p-10 text-center flex flex-col items-center gap-4">
-                            <ShieldAlert className="w-14 h-14 text-red-400" />
+                    <Card className="border-red-200 shadow-sm">
+                        <CardContent className="flex flex-col items-center gap-4 p-10 text-center">
+                            <ShieldAlert className="h-14 w-14 text-red-400" />
                             <h1 className="text-xl font-bold text-slate-900">Akses Ditolak</h1>
                             <p className="text-sm text-slate-500">
-                                Fitur <strong>Migrasi Gantt Chart</strong> hanya dapat diakses oleh <span className="font-semibold text-red-600">Super Human</span>.
+                                Fitur Migrasi Gantt Chart hanya dapat diakses oleh Super Human.
                             </p>
                             <Link href="/gantt">
                                 <Button variant="outline" className="mt-2 gap-2">
-                                    <ArrowLeft className="w-4 h-4" /> Kembali ke Gantt
+                                    <ArrowLeft className="h-4 w-4" /> Kembali ke Gantt
                                 </Button>
                             </Link>
                         </CardContent>
@@ -83,10 +181,10 @@ export default function GanttMigrasiPage() {
         );
     }
 
-    // --- Handlers ---
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFile(e.target.files?.[0] ?? null);
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setFile(event.target.files?.[0] ?? null);
         setPreview(null);
+        setActions({});
         setCommitResult(null);
         setMessage(null);
     };
@@ -96,61 +194,87 @@ export default function GanttMigrasiPage() {
             setMessage({ type: "error", text: "Pilih file Excel terlebih dahulu." });
             return;
         }
+
         setIsPreviewing(true);
         setPreview(null);
+        setActions({});
         setCommitResult(null);
         setMessage(null);
         try {
-            const res = await previewGanttMigration(file);
-            setPreview(res.data);
-            setMessage({ type: "info", text: "Preview berhasil. Periksa hasil analisis sebelum melakukan migrasi." });
-        } catch (err: any) {
-            setMessage({ type: "error", text: err.message || "Gagal membuat preview." });
+            const response = await previewGanttMigration(file);
+            const nextPreview = response.data as PreviewResult;
+            setPreview(nextPreview);
+            setActions(Object.fromEntries(
+                nextPreview.details.map((detail) => [detailKey(detail), defaultAction(detail)])
+            ));
+            setMessage({
+                type: "info",
+                text: "Analisis selesai. Gantt existing selalu default Skip sampai dipilih secara eksplisit.",
+            });
+        } catch (error) {
+            setMessage({
+                type: "error",
+                text: error instanceof Error ? error.message : "Gagal membuat analisis.",
+            });
         } finally {
             setIsPreviewing(false);
         }
     };
 
+    const setAction = (detail: PreviewDetail, action: GanttMigrationAction) => {
+        setActions((current) => ({ ...current, [detailKey(detail)]: action }));
+        setCommitResult(null);
+    };
+
+    const applyBulkAction = (
+        predicate: (detail: PreviewDetail) => boolean,
+        action: GanttMigrationAction
+    ) => {
+        if (!preview) return;
+        setActions((current) => {
+            const next = { ...current };
+            preview.details.forEach((detail) => {
+                if (predicate(detail) && detail.allowed_actions.includes(action)) {
+                    next[detailKey(detail)] = action;
+                }
+            });
+            return next;
+        });
+        setCommitResult(null);
+    };
+
     const handleCommit = async () => {
-        if (!file || !preview) return;
+        if (!file || !preview || selectedCount === 0) return;
+        const selections: GanttMigrationSelection[] = preview.details.map((detail) => ({
+            nomor_ulok: detail.nomor_ulok,
+            lingkup_pekerjaan: detail.lingkup_pekerjaan,
+            action: actions[detailKey(detail)] ?? "skip",
+        }));
 
-        const limit = limitInput.trim() !== "" ? Number(limitInput) : undefined;
-        if (limit !== undefined && (isNaN(limit) || limit <= 0)) {
-            setMessage({ type: "warning", text: "Jumlah insert harus berupa angka positif." });
-            return;
-        }
-
-        const confirmMsg = limit
-            ? `Akan memasukkan ${limit} Gantt Chart pertama yang siap insert. Lanjutkan?`
-            : `Akan memasukkan SEMUA ${formatNumber(preview.ready_count)} Gantt Chart yang siap insert. Lanjutkan?`;
-
-        if (!window.confirm(confirmMsg)) return;
+        if (!window.confirm(
+            `Proses ${formatNumber(selectedCount)} Gantt terpilih? Pengawasan existing akan dipertahankan.`
+        )) return;
 
         setIsCommitting(true);
         setMessage(null);
         try {
-            const emailPembuat = user?.email || "system@migrasi.com";
-            const res = await commitGanttMigration(file, emailPembuat, limit);
-            setCommitResult(res.data);
-            setMessage({ type: "success", text: "Migrasi berhasil diproses." });
-        } catch (err: any) {
-            setMessage({ type: "error", text: err.message || "Gagal memproses migrasi." });
+            const response = await commitGanttMigration(
+                file,
+                user?.email || "system@migrasi.com",
+                user?.roles?.join(", ") || "SUPER HUMAN",
+                selections
+            );
+            setCommitResult(response.data as CommitResult);
+            setMessage({ type: "success", text: "Migrasi Gantt berhasil diproses." });
+        } catch (error) {
+            setMessage({
+                type: "error",
+                text: error instanceof Error ? error.message : "Gagal memproses migrasi.",
+            });
         } finally {
             setIsCommitting(false);
         }
     };
-
-    // --- Filtered Details ---
-    const filteredDetails = (preview?.details ?? []).filter(
-        (d) =>
-            d.nomor_ulok.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            d.lingkup_pekerjaan.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            d.status.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const readyCount = preview?.ready_count ?? 0;
-    const effectiveLimit = limitInput.trim() !== "" && !isNaN(Number(limitInput)) ? Number(limitInput) : undefined;
-    const willInsert = effectiveLimit !== undefined ? Math.min(effectiveLimit, readyCount) : readyCount;
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -159,242 +283,304 @@ export default function GanttMigrasiPage() {
                 showBackButton
                 backHref="/gantt"
                 rightActions={
-                    <Badge className="bg-violet-600 text-white border-none px-3 py-1 text-xs font-bold tracking-wider shadow">
+                    <Badge className="border-none bg-red-700 px-3 py-1 text-xs font-bold text-white">
                         SUPER HUMAN ONLY
                     </Badge>
                 }
             />
 
-            <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
-                {/* Header */}
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-extrabold text-slate-900">Upload Excel Gantt Chart DB</h1>
-                    <p className="text-sm text-slate-500">
-                        Data yang sudah memiliki Gantt Chart aktif akan di-skip secara otomatis. Data yang siap masuk akan terhubung dengan RAB yang sesuai.
+            <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-8">
+                <div>
+                    <h1 className="text-2xl font-extrabold text-slate-950">Rekonsiliasi Gantt Chart</h1>
+                    <p className="mt-1 max-w-4xl text-sm text-slate-500">
+                        Bandingkan file sumber dengan Gantt DB dan durasi SPK. Existing yang pernah berubah
+                        tidak akan dipilih otomatis.
                     </p>
                 </div>
 
-                {/* Upload Card */}
                 <Card className="border-slate-200 shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <FileSpreadsheet className="h-5 w-5 text-violet-600" />
+                    <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <FileSpreadsheet className="h-5 w-5 text-red-700" />
                             File Migrasi
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
                             <Input
                                 type="file"
                                 accept=".xlsx,.xls"
                                 onChange={handleFileChange}
-                                className="h-11 rounded-xl bg-white"
+                                className="h-11 rounded-lg bg-white"
                             />
                             <Button
                                 variant="outline"
-                                className="h-11 rounded-xl border-violet-300 text-violet-700 hover:bg-violet-50"
+                                className="h-11 rounded-lg"
                                 disabled={!file || isPreviewing || isCommitting}
                                 onClick={handlePreview}
                             >
-                                {isPreviewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                                {isPreviewing
+                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    : <Database className="mr-2 h-4 w-4" />}
                                 Analisis File
                             </Button>
                             <Button
-                                className="h-11 rounded-xl bg-violet-700 text-white hover:bg-violet-800 font-bold shadow-md"
-                                disabled={!file || !preview || isCommitting || isPreviewing || preview.ready_count === 0}
+                                className="h-11 rounded-lg bg-red-700 font-bold text-white hover:bg-red-800"
+                                disabled={!file || !preview || selectedCount === 0 || isPreviewing || isCommitting}
                                 onClick={handleCommit}
                             >
-                                {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                Proses Migrasi
+                                {isCommitting
+                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    : <Upload className="mr-2 h-4 w-4" />}
+                                Proses {selectedCount > 0 ? formatNumber(selectedCount) : ""} Gantt
                             </Button>
                         </div>
 
-                        {/* Limit Input */}
-                        {preview && preview.ready_count > 0 && !commitResult && (
-                            <div className="flex items-center gap-3 pt-1">
-                                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 flex-1">
-                                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                                    <span>
-                                        <strong>{formatNumber(preview.ready_count)}</strong> Gantt Chart siap masuk.
-                                        Atur jumlah insert di bawah ini (kosongkan = masukkan semua).
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Batasi Insert:</label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        max={preview.ready_count}
-                                        placeholder={`Max ${preview.ready_count}`}
-                                        value={limitInput}
-                                        onChange={(e) => setLimitInput(e.target.value)}
-                                        className="w-32 h-9 text-sm rounded-lg text-center font-bold"
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Message */}
-                        {message && (
-                            <div className={`rounded-xl border px-4 py-3 text-sm font-medium flex items-center gap-2 ${
-                                message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
-                                message.type === "error" ? "border-red-200 bg-red-50 text-red-700" :
-                                message.type === "warning" ? "border-amber-200 bg-amber-50 text-amber-800" :
-                                "border-blue-200 bg-blue-50 text-blue-700"
+                        {message ? (
+                            <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium ${
+                                message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : message.type === "error" ? "border-red-200 bg-red-50 text-red-700"
+                                        : message.type === "warning" ? "border-amber-200 bg-amber-50 text-amber-800"
+                                            : "border-blue-200 bg-blue-50 text-blue-700"
                             }`}>
-                                {message.type === "success" && <CheckCircle2 className="h-4 w-4 shrink-0" />}
-                                {message.type === "error" && <XCircle className="h-4 w-4 shrink-0" />}
-                                {message.type === "info" && <Info className="h-4 w-4 shrink-0" />}
-                                {message.type === "warning" && <AlertTriangle className="h-4 w-4 shrink-0" />}
+                                {message.type === "success" ? <CheckCircle2 className="h-4 w-4" />
+                                    : message.type === "error" ? <XCircle className="h-4 w-4" />
+                                        : message.type === "warning" ? <AlertTriangle className="h-4 w-4" />
+                                            : <Info className="h-4 w-4" />}
                                 {message.text}
                             </div>
-                        )}
+                        ) : null}
                     </CardContent>
                 </Card>
 
-                {/* Commit Result */}
-                {commitResult && (
-                    <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
-                        <CardContent className="p-5">
-                            <div className="flex items-center gap-3 mb-4">
-                                <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
-                                <h2 className="font-bold text-emerald-800 text-base">Migrasi Selesai</h2>
-                                {commitResult.limit_applied && (
-                                    <Badge className="bg-amber-100 text-amber-700 border-none text-xs">
-                                        Limit: {formatNumber(commitResult.limit_applied)}
-                                    </Badge>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                {[
-                                    ["Total Group", commitResult.total_groups, "text-slate-800"],
-                                    ["Berhasil Masuk", commitResult.inserted_count, "text-emerald-700"],
-                                    ["Di-skip", commitResult.skipped_count, "text-slate-500"],
-                                ].map(([label, value, cls]) => (
-                                    <div key={String(label)} className="bg-white rounded-xl border border-emerald-100 p-4 text-center shadow-sm">
-                                        <div className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">{label}</div>
-                                        <div className={`text-3xl font-extrabold ${cls}`}>{formatNumber(Number(value ?? 0))}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Preview Summary Cards */}
-                {preview && (
+                {preview ? (
                     <>
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                             {[
-                                { label: "Total Baris Day", value: preview.total_rows, color: "border-slate-200", textColor: "text-slate-900", icon: <FileSpreadsheet className="h-5 w-5 text-slate-400" /> },
-                                { label: "Total Proyek (Header)", value: preview.total_groups, color: "border-blue-200 bg-blue-50", textColor: "text-blue-700", icon: <Info className="h-5 w-5 text-blue-400" /> },
-                                { label: "Siap Insert", value: preview.ready_count, color: "border-emerald-200 bg-emerald-50", textColor: "text-emerald-700", icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" /> },
-                                { label: "Di-skip (Sudah Ada)", value: preview.skipped_count, color: "border-amber-200 bg-amber-50", textColor: "text-amber-700", icon: <AlertTriangle className="h-5 w-5 text-amber-400" /> },
-                            ].map(({ label, value, color, textColor, icon }) => (
-                                <Card key={label} className={`${color} shadow-sm`}>
-                                    <CardContent className="p-5 flex items-center gap-4">
-                                        <div className="shrink-0">{icon}</div>
-                                        <div>
-                                            <div className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</div>
-                                            <div className={`text-2xl font-extrabold ${textColor}`}>{formatNumber(value)}</div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                ["Total Gantt", preview.total_groups, "text-slate-950"],
+                                ["Siap Insert", preview.ready_insert_count, "text-emerald-700"],
+                                ["Existing Cocok", preview.existing_source_match_count, "text-sky-700"],
+                                ["Existing Berubah", preview.existing_changed_count, "text-amber-700"],
+                                ["H Terlalu Pendek", preview.short_count, "text-orange-700"],
+                                ["Invalid", preview.invalid_count, "text-red-700"],
+                            ].map(([label, value, color]) => (
+                                <div key={String(label)} className="border-y border-slate-200 bg-white px-4 py-4">
+                                    <div className="text-xs font-bold uppercase text-slate-400">{label}</div>
+                                    <div className={`mt-1 text-2xl font-extrabold ${color}`}>
+                                        {formatNumber(Number(value))}
+                                    </div>
+                                </div>
                             ))}
                         </div>
 
-                        {/* Will Insert Info */}
-                        {preview.ready_count > 0 && !commitResult && (
-                            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-violet-50 border border-violet-200 text-sm text-violet-800">
-                                <Info className="h-4 w-4 shrink-0" />
-                                <span>
-                                    Dengan pengaturan saat ini, tombol <strong>Proses Migrasi</strong> akan memasukkan{" "}
-                                    <strong>{formatNumber(willInsert)}</strong> Gantt Chart ke dalam database.
-                                </span>
-                            </div>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2 border-y border-slate-200 bg-white px-4 py-3">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => applyBulkAction(
+                                    (detail) => detail.db_state === "ready_insert",
+                                    "insert_source"
+                                )}
+                            >
+                                Pilih Semua Insert Baru
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => applyBulkAction(
+                                    (detail) => detail.duration_status === "short"
+                                        && detail.db_state !== "existing_changed",
+                                    "scale_to_spk"
+                                )}
+                            >
+                                Skalakan Kandidat Aman
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setActions(Object.fromEntries(
+                                    preview.details.map((detail) => [detailKey(detail), "skip"])
+                                ))}
+                            >
+                                Reset Semua ke Skip
+                            </Button>
+                            <span className="ml-auto text-sm font-semibold text-slate-600">
+                                {formatNumber(selectedCount)} dipilih
+                            </span>
+                        </div>
 
-                        {/* Detail Table */}
+                        {commitResult ? (
+                            <div className="grid gap-3 border border-emerald-200 bg-emerald-50 p-4 sm:grid-cols-5">
+                                {[
+                                    ["Insert", commitResult.inserted],
+                                    ["Insert + Skala", commitResult.inserted_scaled],
+                                    ["Replace", commitResult.replaced],
+                                    ["Skala Existing", commitResult.scaled],
+                                    ["Skip", commitResult.skipped],
+                                ].map(([label, value]) => (
+                                    <div key={String(label)}>
+                                        <div className="text-xs font-bold uppercase text-emerald-600">{label}</div>
+                                        <div className="text-xl font-extrabold text-emerald-900">
+                                            {formatNumber(Number(value))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : null}
+
                         <Card className="border-slate-200 shadow-sm">
                             <CardHeader className="pb-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                    <CardTitle className="text-base">Detail Analisis Per Nomor Ulok</CardTitle>
-                                    <div className="relative w-full sm:w-64">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                        <Input
-                                            placeholder="Cari nomor ulok / lingkup..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="pl-9 h-9 text-sm rounded-xl"
-                                        />
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <CardTitle className="text-base">Kandidat Gantt</CardTitle>
+                                    <div className="flex flex-col gap-2 sm:flex-row">
+                                        <div className="relative sm:w-80">
+                                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                            <Input
+                                                value={searchQuery}
+                                                onChange={(event) => setSearchQuery(event.target.value)}
+                                                placeholder="Cari ULOK, toko, cabang..."
+                                                className="h-9 rounded-lg pl-9"
+                                            />
+                                        </div>
+                                        <Select
+                                            value={statusFilter}
+                                            onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
+                                        >
+                                            <SelectTrigger className="h-9 w-full rounded-lg sm:w-52">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Semua status</SelectItem>
+                                                <SelectItem value="ready_insert">Siap insert</SelectItem>
+                                                <SelectItem value="existing_source_match">Existing cocok</SelectItem>
+                                                <SelectItem value="existing_changed">Existing berubah</SelectItem>
+                                                <SelectItem value="short">H terlalu pendek</SelectItem>
+                                                <SelectItem value="invalid">Invalid</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
                             </CardHeader>
-                            <CardContent className="px-0 pb-0">
+                            <CardContent className="p-0">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="border-b border-t bg-slate-50 text-xs uppercase text-slate-500">
+                                    <table className="w-full min-w-[1250px] text-left text-sm">
+                                        <thead className="border-y bg-slate-50 text-xs uppercase text-slate-500">
                                             <tr>
-                                                <th className="px-5 py-3 w-10">#</th>
-                                                <th className="px-5 py-3">Nomor Ulok</th>
-                                                <th className="px-5 py-3">Lingkup Pekerjaan</th>
-                                                <th className="px-5 py-3 text-right">Baris Day</th>
-                                                <th className="px-5 py-3">Status</th>
+                                                <th className="px-4 py-3">ULOK / Toko</th>
+                                                <th className="px-4 py-3">Lingkup</th>
+                                                <th className="px-4 py-3 text-center">H Sumber</th>
+                                                <th className="px-4 py-3 text-center">Durasi SPK</th>
+                                                <th className="px-4 py-3">Rentang</th>
+                                                <th className="px-4 py-3">Status DB</th>
+                                                <th className="px-4 py-3 text-center">Pengawasan</th>
+                                                <th className="px-4 py-3">Aksi</th>
+                                                <th className="px-4 py-3">Catatan</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
+                                            {filteredDetails.map((detail) => {
+                                                const currentAction = actions[detailKey(detail)] ?? "skip";
+                                                return (
+                                                    <tr
+                                                        key={detailKey(detail)}
+                                                        className={currentAction === "skip" ? "bg-white" : "bg-red-50/30"}
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-bold text-slate-900">{detail.nomor_ulok}</div>
+                                                            <div className="max-w-64 truncate text-xs text-slate-500">
+                                                                {detail.nama_toko || "-"} · {detail.cabang || "-"}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium text-slate-700">
+                                                            {detail.lingkup_pekerjaan || "-"}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center font-mono font-bold">
+                                                            H{detail.source_max_h || 0}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center font-mono font-bold">
+                                                            {detail.spk_duration ? `H${detail.spk_duration}` : "-"}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={detail.duration_status === "exact"
+                                                                    ? "border-emerald-200 text-emerald-700"
+                                                                    : detail.duration_status === "short"
+                                                                        ? "border-orange-200 text-orange-700"
+                                                                        : "border-slate-200 text-slate-600"}
+                                                            >
+                                                                {durationLabel[detail.duration_status]}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={stateClass[detail.db_state]}
+                                                            >
+                                                                {stateLabel[detail.db_state]}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={detail.pengawasan_count > 0
+                                                                ? "font-bold text-sky-700"
+                                                                : "text-slate-400"}>
+                                                                {formatNumber(detail.pengawasan_count)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <Select
+                                                                value={currentAction}
+                                                                onValueChange={(value) =>
+                                                                    setAction(detail, value as GanttMigrationAction)}
+                                                            >
+                                                                <SelectTrigger className="h-9 w-56 rounded-lg">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {detail.allowed_actions.map((action) => (
+                                                                        <SelectItem key={action} value={action}>
+                                                                            {actionLabel[action]}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-xs">
+                                                            {detail.issues.length > 0 ? (
+                                                                <div className="max-w-72 text-red-600">
+                                                                    {detail.issues.join("; ")}
+                                                                </div>
+                                                            ) : detail.db_state === "existing_changed" ? (
+                                                                <div className="max-w-72 text-amber-700">
+                                                                    Kategori/periode DB berbeda dari hasil migrasi lama. Review manual.
+                                                                </div>
+                                                            ) : detail.pengawasan_count > 0 ? (
+                                                                <div className="max-w-72 text-sky-700">
+                                                                    Pengawasan existing dipertahankan saat replace/skala.
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-400">
+                                                                    {formatNumber(detail.sheet_count)} periode sumber
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                             {filteredDetails.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-5 py-10 text-center text-slate-400">
-                                                        Tidak ada data yang cocok dengan pencarian.
+                                                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                                                        Tidak ada kandidat yang cocok dengan filter.
                                                     </td>
                                                 </tr>
-                                            ) : (
-                                                filteredDetails.map((item, idx) => {
-                                                    const isReady = item.status === "Siap Insert";
-                                                    return (
-                                                        <tr key={`${item.nomor_ulok}-${item.lingkup_pekerjaan}`} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="px-5 py-3 text-slate-400 text-xs font-mono">{idx + 1}</td>
-                                                            <td className="px-5 py-3">
-                                                                <span className="font-bold text-slate-800 font-mono text-xs bg-slate-100 px-2 py-1 rounded">
-                                                                    {item.nomor_ulok}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-5 py-3 text-slate-600">{item.lingkup_pekerjaan || <span className="text-slate-300 italic">—</span>}</td>
-                                                            <td className="px-5 py-3 text-right">
-                                                                <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                                                                    {item.sheet_count ?? 0}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-5 py-3">
-                                                                <Badge className={isReady
-                                                                    ? "bg-emerald-100 text-emerald-700 border-none text-xs font-semibold"
-                                                                    : "bg-amber-100 text-amber-700 border-none text-xs font-semibold"
-                                                                }>
-                                                                    {isReady ? <CheckCircle2 className="h-3 w-3 mr-1 inline" /> : <AlertTriangle className="h-3 w-3 mr-1 inline" />}
-                                                                    {item.status}
-                                                                </Badge>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
+                                            ) : null}
                                         </tbody>
-                                        {filteredDetails.length > 0 && (
-                                            <tfoot className="border-t bg-slate-50">
-                                                <tr>
-                                                    <td colSpan={5} className="px-5 py-3 text-xs text-slate-400">
-                                                        Menampilkan <strong>{filteredDetails.length}</strong> dari <strong>{preview.details.length}</strong> data
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        )}
                                     </table>
                                 </div>
                             </CardContent>
                         </Card>
                     </>
-                )}
+                ) : null}
             </main>
         </div>
     );
