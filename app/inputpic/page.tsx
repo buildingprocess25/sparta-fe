@@ -62,17 +62,16 @@ function formatDateDDMMYYYY(date: Date): string {
 }
 
 function normalizeScope(value: string | null | undefined): string {
-    return String(value || '').trim().toUpperCase();
+    const scope = String(value || '').trim().toUpperCase();
+    if (scope.includes('SIPIL')) return 'SIPIL';
+    if (scope === 'ME' || scope.includes('M&E') || /\bME\b/.test(scope)) return 'ME';
+    return scope;
 }
 
 function scopesMatch(left: string | null | undefined, right: string | null | undefined): boolean {
     const leftScope = normalizeScope(left);
     const rightScope = normalizeScope(right);
-    return Boolean(leftScope && rightScope && (
-        leftScope === rightScope ||
-        leftScope.includes(rightScope) ||
-        rightScope.includes(leftScope)
-    ));
+    return Boolean(leftScope && rightScope && leftScope === rightScope);
 }
 
 // =============================================================================
@@ -652,9 +651,10 @@ function ScopePicForm({
         setStatusMsg({ text: '', type: '' });
 
         Promise.all(groups.map(group => {
-            const rabDetail = rabDetailsByKey[group.key];
-            return rabDetail
-                ? fetchPICPengawasanList({ id_rab: rabDetail.id })
+            const scopeSpk = group.spks[0];
+            const scopeTokoId = group.toko?.id ?? scopeSpk?.toko?.id ?? scopeSpk?.id_toko;
+            return scopeTokoId
+                ? fetchPICPengawasanList({ id_toko: Number(scopeTokoId) })
                 : Promise.resolve({ status: 'success', data: [] });
         }))
             .then(results => {

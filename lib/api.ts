@@ -3108,6 +3108,7 @@ export type PICPengawasanListItem = {
 };
 
 export type PICPengawasanListFilters = {
+    id_toko?: number;
     nomor_ulok?: string;
     id_rab?: number;
     id_spk?: number;
@@ -3136,6 +3137,7 @@ export const fetchPICPengawasanList = async (
 ): Promise<{ status: string; data: PICPengawasanListItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
+    if (filters?.id_toko)    params.append("id_toko", filters.id_toko.toString());
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     if (filters?.id_rab)     params.append("id_rab", filters.id_rab.toString());
     if (filters?.id_spk)     params.append("id_spk", filters.id_spk.toString());
