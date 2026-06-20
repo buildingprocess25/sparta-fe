@@ -38,8 +38,9 @@ import {
 
 type DbState =
     | "ready_insert"
+    | "ready_reconcile"
     | "existing_source_match"
-    | "existing_changed"
+    | "protected_changed"
     | "invalid";
 
 type DurationStatus = "short" | "exact" | "exceeds" | "spk_missing";
@@ -67,7 +68,9 @@ type PreviewResult = {
     total_rows: number;
     total_groups: number;
     ready_insert_count: number;
+    ready_reconcile_count: number;
     existing_source_match_count: number;
+    protected_changed_count: number;
     existing_changed_count: number;
     invalid_count: number;
     short_count: number;
@@ -95,7 +98,11 @@ const detailKey = (detail: Pick<PreviewDetail, "nomor_ulok" | "lingkup_pekerjaan
     `${detail.nomor_ulok}\u0000${detail.lingkup_pekerjaan}`;
 
 const defaultAction = (detail: PreviewDetail): GanttMigrationAction =>
-    detail.db_state === "ready_insert" ? "insert_source" : "skip";
+    detail.db_state === "ready_insert"
+        ? "insert_source"
+        : detail.db_state === "ready_reconcile"
+            ? "replace_source"
+            : "skip";
 
 const actionLabel: Record<GanttMigrationAction, string> = {
     insert_source: "Insert sesuai sumber",
@@ -105,15 +112,17 @@ const actionLabel: Record<GanttMigrationAction, string> = {
 
 const stateLabel: Record<DbState, string> = {
     ready_insert: "Siap insert",
+    ready_reconcile: "Siap sinkron",
     existing_source_match: "Existing cocok sumber",
-    existing_changed: "Existing sudah berubah",
+    protected_changed: "Dilindungi: ada pengawasan",
     invalid: "Invalid",
 };
 
 const stateClass: Record<DbState, string> = {
     ready_insert: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    ready_reconcile: "border-teal-200 bg-teal-50 text-teal-700",
     existing_source_match: "border-sky-200 bg-sky-50 text-sky-700",
-    existing_changed: "border-amber-200 bg-amber-50 text-amber-800",
+    protected_changed: "border-amber-200 bg-amber-50 text-amber-800",
     invalid: "border-red-200 bg-red-50 text-red-700",
 };
 
@@ -228,12 +237,14 @@ export default function GanttMigrasiPage() {
             ));
             setSelectedKeys(new Set(
                 nextPreview.details
-                    .filter((detail) => detail.db_state === "ready_insert")
+                    .filter((detail) =>
+                        detail.db_state === "ready_insert" || detail.db_state === "ready_reconcile"
+                    )
                     .map(detailKey)
             ));
             setMessage({
                 type: "info",
-                text: "Analisis selesai. Gantt siap insert dicentang otomatis; existing tetap Skip sampai aksinya dipilih.",
+                text: "Analisis selesai. Gantt baru dan existing yang aman disinkronkan sudah dicentang otomatis.",
             });
         } catch (error) {
             setMessage({
@@ -414,8 +425,8 @@ export default function GanttMigrasiPage() {
                         ) : null}
                         {preview ? (
                             <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                                Rekomendasi: proses hanya <strong>Siap insert</strong>. Biarkan <strong>Existing cocok sumber</strong> tetap Skip.
-                                Data <strong>Existing berubah</strong> hanya di-replace setelah diperiksa karena dapat memiliki jadwal atau pengawasan existing.
+                                <strong>Siap insert</strong> adalah Gantt baru. <strong>Siap sinkron</strong> adalah Gantt existing yang berbeda dari sumber dan belum mempunyai pengawasan.
+                                Data yang sudah memiliki pengawasan dilindungi dan tidak dapat di-replace dari halaman ini.
                             </div>
                         ) : null}
                     </CardContent>
@@ -423,12 +434,13 @@ export default function GanttMigrasiPage() {
 
                 {preview ? (
                     <>
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
                             {[
                                 ["Total Gantt", preview.total_groups, "text-slate-950"],
                                 ["Siap Insert", preview.ready_insert_count, "text-emerald-700"],
+                                ["Siap Sinkron", preview.ready_reconcile_count, "text-teal-700"],
                                 ["Existing Cocok", preview.existing_source_match_count, "text-sky-700"],
-                                ["Existing Berubah", preview.existing_changed_count, "text-amber-700"],
+                                ["Dilindungi", preview.protected_changed_count, "text-amber-700"],
                                 ["Jadwal < Durasi SPK", preview.short_count, "text-orange-700"],
                                 ["Invalid", preview.invalid_count, "text-red-700"],
                             ].map(([label, value, color]) => (
@@ -450,7 +462,17 @@ export default function GanttMigrasiPage() {
                                     "insert_source"
                                 )}
                             >
-                                Pilih Semua Insert Baru
+                                Pilih Insert Baru
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => applyBulkAction(
+                                    (detail) => detail.db_state === "ready_reconcile",
+                                    "replace_source"
+                                )}
+                            >
+                                Pilih Semua Siap Sinkron
                             </Button>
                             <Button
                                 size="sm"
@@ -513,8 +535,9 @@ export default function GanttMigrasiPage() {
                                             <SelectContent>
                                                 <SelectItem value="all">Semua status</SelectItem>
                                                 <SelectItem value="ready_insert">Siap insert</SelectItem>
+                                                <SelectItem value="ready_reconcile">Siap sinkron</SelectItem>
                                                 <SelectItem value="existing_source_match">Existing cocok</SelectItem>
-                                                <SelectItem value="existing_changed">Existing berubah</SelectItem>
+                                                <SelectItem value="protected_changed">Dilindungi</SelectItem>
                                                 <SelectItem value="short">Jadwal lebih pendek dari SPK</SelectItem>
                                                 <SelectItem value="invalid">Invalid</SelectItem>
                                             </SelectContent>
@@ -634,9 +657,9 @@ export default function GanttMigrasiPage() {
                                                                 <div className="max-w-72 text-amber-700">
                                                                     {detail.warnings.join("; ")}
                                                                 </div>
-                                                            ) : detail.db_state === "existing_changed" ? (
+                                                            ) : detail.db_state === "protected_changed" ? (
                                                                 <div className="max-w-72 text-amber-700">
-                                                                    Kategori/periode DB berbeda dari hasil migrasi lama. Review manual.
+                                                                    Gantt berbeda dari sumber tetapi sudah memiliki pengawasan, sehingga tidak ditimpa otomatis.
                                                                 </div>
                                                             ) : detail.pengawasan_count > 0 ? (
                                                                 <div className="max-w-72 text-sky-700">
