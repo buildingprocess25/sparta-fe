@@ -1221,6 +1221,9 @@ export type RabMigrationPreviewDetail = {
     existing_item_count: number;
     existing_match_count: number;
     has_materai_pdf: boolean;
+    duplicate_group_key: string | null;
+    duplicate_count: number;
+    duplicate_recommended: boolean;
     issues: string[];
     warnings: string[];
 };

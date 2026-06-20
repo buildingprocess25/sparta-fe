@@ -59,6 +59,7 @@ type PreviewDetail = {
     existing_matches_source: boolean;
     pengawasan_count: number;
     issues: string[];
+    warnings: string[];
     allowed_actions: GanttMigrationAction[];
 };
 
@@ -622,6 +623,10 @@ export default function GanttMigrasiPage() {
                                                             {detail.issues.length > 0 ? (
                                                                 <div className="max-w-72 text-red-600">
                                                                     {detail.issues.join("; ")}
+                                                                </div>
+                                                            ) : detail.warnings.length > 0 ? (
+                                                                <div className="max-w-72 text-amber-700">
+                                                                    {detail.warnings.join("; ")}
                                                                 </div>
                                                             ) : detail.db_state === "existing_changed" ? (
                                                                 <div className="max-w-72 text-amber-700">

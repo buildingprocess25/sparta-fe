@@ -148,7 +148,11 @@ export default function RabMigrasiPage() {
             const result = await previewRabMigration(file, actorRole, user?.email, materaiFile);
             const details = result.data.details;
             setPreview(result.data);
-            setSelectedIds(new Set(details.filter((row) => row.db_state === "ready").map((row) => row.source_rab_id)));
+            setSelectedIds(new Set(
+                details
+                    .filter((row) => row.db_state === "ready" && (row.duplicate_count <= 1 || row.duplicate_recommended))
+                    .map((row) => row.source_rab_id)
+            ));
             setActions(Object.fromEntries(details.map((row) => [row.source_rab_id, getDefaultAction(row)])));
             setMessage({ type: "success", text: "Analisis selesai. Pilih RAB dan mode migrasi sebelum commit." });
         } catch (error) {
@@ -162,7 +166,19 @@ export default function RabMigrasiPage() {
         if (row.db_state === "invalid") return;
         setSelectedIds((current) => {
             const next = new Set(current);
-            if (checked) next.add(row.source_rab_id);
+            if (checked) {
+                if (row.duplicate_group_key) {
+                    for (const sibling of rows) {
+                        if (
+                            sibling.duplicate_group_key === row.duplicate_group_key
+                            && sibling.source_rab_id !== row.source_rab_id
+                        ) {
+                            next.delete(sibling.source_rab_id);
+                        }
+                    }
+                }
+                next.add(row.source_rab_id);
+            }
             else next.delete(row.source_rab_id);
             return next;
         });
@@ -173,6 +189,7 @@ export default function RabMigrasiPage() {
             const next = new Set(current);
             for (const row of filteredRows) {
                 if (row.db_state === "invalid") continue;
+                if (checked && row.duplicate_count > 1 && !row.duplicate_recommended) continue;
                 if (checked) next.add(row.source_rab_id);
                 else next.delete(row.source_rab_id);
             }
@@ -470,6 +487,15 @@ export default function RabMigrasiPage() {
                                                                 {row.has_materai_pdf && (
                                                                     <Badge className="mt-2 border-none bg-blue-100 text-blue-700">
                                                                         Ada materai
+                                                                    </Badge>
+                                                                )}
+                                                                {row.duplicate_count > 1 && (
+                                                                    <Badge className={`mt-2 border-none ${
+                                                                        row.duplicate_recommended
+                                                                            ? "bg-blue-100 text-blue-700"
+                                                                            : "bg-slate-200 text-slate-700"
+                                                                    }`}>
+                                                                        {row.duplicate_recommended ? "Duplicate rekomendasi" : "Duplicate alternatif"}
                                                                     </Badge>
                                                                 )}
                                                             </td>
