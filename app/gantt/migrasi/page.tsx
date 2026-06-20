@@ -412,6 +412,12 @@ export default function GanttMigrasiPage() {
                                 {message.text}
                             </div>
                         ) : null}
+                        {preview ? (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                                Rekomendasi: proses hanya <strong>Siap insert</strong>. Biarkan <strong>Existing cocok sumber</strong> tetap Skip.
+                                Data <strong>Existing berubah</strong> hanya di-replace setelah diperiksa karena dapat memiliki jadwal atau pengawasan existing.
+                            </div>
+                        ) : null}
                     </CardContent>
                 </Card>
 
