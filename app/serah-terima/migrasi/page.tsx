@@ -80,8 +80,8 @@ export default function SerahTerimaMigrationPage() {
             setMessage({
                 type: response.data.sync_warnings.length > 0 ? "warning" : "success",
                 text: response.data.sync_warnings.length > 0
-                    ? `Dokumen tersimpan, dengan ${response.data.sync_warnings.length} peringatan sinkronisasi denda.`
-                    : "Migrasi Serah Terima berhasil."
+                    ? `Dokumen tersimpan, dengan ${response.data.sync_warnings.length} peringatan sinkronisasi.`
+                    : `Migrasi berhasil. ${response.data.reconciled_items} item pengawasan ditutup pada ${response.data.reconciled_checkpoints} checkpoint ST.`
             });
             await analyze();
         } catch (error) {
@@ -115,7 +115,7 @@ export default function SerahTerimaMigrationPage() {
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{[
                     ["Total Target", preview.total_candidates], ["Total ULOK", preview.total_ulok], ["Siap Insert", preview.ready_count], ["Sudah Ada", preview.conflict_count], ["Invalid", preview.invalid_count]
                 ].map(([label, value]) => <Card key={String(label)}><CardContent className="p-4"><div className="text-xs font-bold uppercase text-slate-400">{label}</div><div className="mt-1 text-2xl font-extrabold">{formatNumber(Number(value))}</div></CardContent></Card>)}</div>
-                {commitResult && <div className="text-sm font-medium text-emerald-700">Hasil: {commitResult.inserted} insert, {commitResult.replaced} replace, {commitResult.skipped} skip.</div>}
+                {commitResult && <div className="text-sm font-medium text-emerald-700">Hasil: {commitResult.inserted} insert, {commitResult.replaced} replace, {commitResult.skipped} skip, {commitResult.reconciled_items} item pengawasan selesai.</div>}
                 <Card><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-base">Daftar Kandidat Serah Terima</CardTitle><div className="flex gap-2">
                     <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Cari ULOK, toko..." value={search} onChange={(event) => setSearch(event.target.value)} /></div>
                     <Select value={filter} onValueChange={setFilter}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem><SelectItem value="ready">Siap insert</SelectItem><SelectItem value="conflict">Sudah ada</SelectItem><SelectItem value="invalid">Invalid</SelectItem></SelectContent></Select>

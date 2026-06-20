@@ -2780,6 +2780,8 @@ export type SerahTerimaMigrationCommitResult = {
     inserted: number;
     replaced: number;
     skipped: number;
+    reconciled_checkpoints: number;
+    reconciled_items: number;
     sync_warnings: string[];
 };
 
