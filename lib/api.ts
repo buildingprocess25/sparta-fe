@@ -2683,6 +2683,72 @@ export const commitPengawasanMigration = (
     selections: PengawasanMigrationCommitSelection[]
 ) => postPengawasanMigration<PengawasanMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
+export type InstruksiLapanganMigrationAction = "insert" | "replace" | "skip";
+export type InstruksiLapanganMigrationPreviewDetail = {
+    source_candidate_id: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string | null;
+    cabang: string | null;
+    email_pembuat: string;
+    status: string;
+    tanggal_mulai: string | null;
+    tanggal_selesai: string | null;
+    item_count: number;
+    source_item_count: number;
+    metadata_item_count: number;
+    grand_total: number;
+    existing_id: number | null;
+    db_state: "ready" | "conflict" | "invalid";
+    issues: string[];
+    warnings: string[];
+};
+export type InstruksiLapanganMigrationPreviewResult = {
+    total_candidates: number;
+    total_items: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    details: InstruksiLapanganMigrationPreviewDetail[];
+};
+export type InstruksiLapanganMigrationCommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    skipped: number;
+};
+
+const postInstruksiLapanganMigration = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/migration/${endpoint}`, {
+        method: "POST",
+        body: form
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Gagal memproses migrasi Instruksi Lapangan");
+    return result;
+};
+
+export const previewInstruksiLapanganMigration = (file: File, actorRole: string, actorEmail?: string) =>
+    postInstruksiLapanganMigration<InstruksiLapanganMigrationPreviewResult>("preview", file, actorRole, actorEmail);
+
+export const commitInstruksiLapanganMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
+) => postInstruksiLapanganMigration<InstruksiLapanganMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
+
 /** Ambil daftar SPK dengan filter opsional (Status, Nomor ULOK). */
 export const fetchSPKList = async (filters?: {
     status?: string;

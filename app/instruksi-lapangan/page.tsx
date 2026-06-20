@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import AppNavbar from '@/components/AppNavbar';
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Save, Loader2, Upload, X } from 'lucide-react';
+import { Database, Plus, Trash2, Save, Loader2, Upload, X } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, fetchSPKList } from '@/lib/api';
 import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
@@ -334,6 +335,14 @@ export default function InstruksiLapanganPage() {
                 title="Instruksi Lapangan"
                 showBackButton={true}
                 backHref="/dashboard"
+                rightActions={isSuperHuman ? (
+                    <Link href="/instruksi-lapangan/migrasi">
+                        <Button variant="outline" className="gap-2 border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white">
+                            <Database className="h-4 w-4" />
+                            Migrasi IL
+                        </Button>
+                    </Link>
+                ) : undefined}
             />
 
             <main className="max-w-7xl mx-auto p-4 md:p-8 mt-4">
