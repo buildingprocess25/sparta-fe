@@ -2749,6 +2749,71 @@ export const commitInstruksiLapanganMigration = (
     selections: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
 ) => postInstruksiLapanganMigration<InstruksiLapanganMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
+export type SerahTerimaMigrationAction = "insert" | "replace" | "skip";
+export type SerahTerimaMigrationPreviewDetail = {
+    source_candidate_id: number;
+    source_row: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string | null;
+    cabang: string;
+    status_serah_terima: string;
+    created_at: string | null;
+    link_pdf: string | null;
+    checklist_count: number;
+    existing_id: number | null;
+    existing_link_pdf: string | null;
+    db_state: "ready" | "conflict" | "invalid";
+    issues: string[];
+    warnings: string[];
+};
+export type SerahTerimaMigrationPreviewResult = {
+    total_candidates: number;
+    total_ulok: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    details: SerahTerimaMigrationPreviewDetail[];
+};
+export type SerahTerimaMigrationCommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    skipped: number;
+    sync_warnings: string[];
+};
+
+const postSerahTerimaMigration = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: Array<{ source_candidate_id: number; action: SerahTerimaMigrationAction }>
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/serah-terima/migration/${endpoint}`, {
+        method: "POST",
+        body: form
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Gagal memproses migrasi Serah Terima");
+    return result;
+};
+
+export const previewSerahTerimaMigration = (file: File, actorRole: string, actorEmail?: string) =>
+    postSerahTerimaMigration<SerahTerimaMigrationPreviewResult>("preview", file, actorRole, actorEmail);
+
+export const commitSerahTerimaMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: Array<{ source_candidate_id: number; action: SerahTerimaMigrationAction }>
+) => postSerahTerimaMigration<SerahTerimaMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
+
 /** Ambil daftar SPK dengan filter opsional (Status, Nomor ULOK). */
 export const fetchSPKList = async (filters?: {
     status?: string;

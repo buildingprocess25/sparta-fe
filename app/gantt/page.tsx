@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
@@ -1043,9 +1043,12 @@ function GanttBoard() {
             showBackButton={true}
             backHref="/dashboard"
             rightActions={
-                <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm whitespace-nowrap">
-                    {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                    {user?.isSuperHuman && <Link href="/serah-terima/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" /><span className="hidden md:inline">Migrasi ST</span></Button></Link>}
+                    <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm whitespace-nowrap">
+                        {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
+                    </Badge>
+                </div>
             }
         />
 
