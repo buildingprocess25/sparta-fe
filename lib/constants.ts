@@ -96,6 +96,13 @@ export const ALL_MENUS = [
         icon: FilePlus,
     },
     {
+        id: "menu-migrasi-tambahspk",
+        title: "Migrasi Pertambahan SPK",
+        desc: "Upload DATA FORM dan migrasikan riwayat pertambahan SPK.",
+        href: "/tambahspk/migrasi",
+        icon: Upload,
+    },
+    {
         id: "menu-svdokumen",
         title: "Penyimpanan Dokumen Toko",
         desc: "Form penyimpanan dokumen.",
@@ -293,7 +300,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-dc-development",
         "menu-rab", "menu-ubah-rab-item", "menu-migrasi-rab", "menu-spk", "menu-migrasi-spk", "menu-inputpic", "menu-opname",
-        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
+        "menu-dokumentasi", "menu-tambahspk", "menu-migrasi-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
         "menu-gantt", "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
     ],

@@ -3101,6 +3101,111 @@ export const deletePertambahanSPK = async (id: number) => {
     return result;
 };
 
+export type PertambahanSpkMigrationAction = "insert" | "replace" | "skip";
+
+export type PertambahanSpkMigrationPreviewDetail = {
+    source_candidate_id: number;
+    source_row: number;
+    nomor_ulok: string;
+    nomor_spk: string;
+    lingkup_pekerjaan: string;
+    pertambahan_hari: string;
+    tanggal_spk_akhir: string;
+    tanggal_spk_akhir_setelah_perpanjangan: string;
+    alasan_perpanjangan: string;
+    dibuat_oleh: string;
+    source_status: string;
+    status_persetujuan: string;
+    disetujui_oleh: string | null;
+    waktu_persetujuan: string | null;
+    alasan_penolakan: string | null;
+    link_pdf: string | null;
+    link_lampiran_pendukung: string | null;
+    created_at: string | null;
+    db_state: "ready" | "conflict" | "invalid";
+    existing_id: number | null;
+    target_spk_id: number | null;
+    issues: string[];
+    warnings: string[];
+};
+
+export type PertambahanSpkMigrationPreviewResult = {
+    total_source_rows: number;
+    total_targets: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    details: PertambahanSpkMigrationPreviewDetail[];
+};
+
+export type PertambahanSpkMigrationCommitSelection = {
+    source_candidate_id: number;
+    action: PertambahanSpkMigrationAction;
+};
+
+export type PertambahanSpkMigrationCommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    skipped: number;
+    sync_warnings: string[];
+    details: Array<{
+        status: string;
+        target_id: number | null;
+        id_spk: number | null;
+        nomor_ulok: string;
+    }>;
+};
+
+const postPertambahanSpkMigration = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: PertambahanSpkMigrationCommitSelection[]
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+
+    const res = await fetch(
+        `${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/migration/${endpoint}`,
+        { method: "POST", body: form }
+    );
+    const result = await res.json();
+    if (res.status === 403) {
+        throw new Error(result.message || "Hanya Super Human yang dapat melakukan migrasi Pertambahan SPK.");
+    }
+    if (!res.ok) throw new Error(result.message || "Gagal memproses migrasi Pertambahan SPK.");
+    return result;
+};
+
+export const previewPertambahanSpkMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail?: string
+) => postPertambahanSpkMigration<PertambahanSpkMigrationPreviewResult>(
+    "preview",
+    file,
+    actorRole,
+    actorEmail
+);
+
+export const commitPertambahanSpkMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: PertambahanSpkMigrationCommitSelection[]
+) => postPertambahanSpkMigration<PertambahanSpkMigrationCommitResult>(
+    "commit",
+    file,
+    actorRole,
+    actorEmail,
+    selections
+);
+
 // =============================================================================
 // 6. PIC PENGAWASAN
 // =============================================================================
