@@ -2816,6 +2816,80 @@ export const commitSerahTerimaMigration = (
     selections: Array<{ source_candidate_id: number; action: SerahTerimaMigrationAction }>
 ) => postSerahTerimaMigration<SerahTerimaMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
+export type OpnameFinalMigrationAction = "insert" | "replace" | "skip";
+export type OpnameFinalMigrationPreviewDetail = {
+    source_candidate_id: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string | null;
+    cabang: string | null;
+    email_pembuat: string;
+    created_at: string | null;
+    item_count: number;
+    mapped_item_count: number;
+    expected_item_count: number;
+    ignored_pending_count: number;
+    ignored_rejected_count: number;
+    grand_total_rab: number;
+    grand_total_opname: number;
+    kerja_tambah: number;
+    kerja_kurang: number;
+    existing_id: number | null;
+    existing_status: string | null;
+    db_state: "ready" | "conflict" | "invalid";
+    issues: string[];
+    warnings: string[];
+    unmapped_items: Array<{ source_row: number; jenis_pekerjaan: string; issue: string | null }>;
+};
+export type OpnameFinalMigrationPreviewResult = {
+    total_candidates: number;
+    approved_candidates: number;
+    total_items: number;
+    mapped_items: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    details: OpnameFinalMigrationPreviewDetail[];
+};
+export type OpnameFinalMigrationCommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    skipped: number;
+    pdf_queued: number;
+};
+
+const postOpnameFinalMigration = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: Array<{ source_candidate_id: number; action: OpnameFinalMigrationAction }>
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/migration/${endpoint}`, {
+        method: "POST",
+        body: form
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Gagal memproses migrasi Opname Final");
+    return result;
+};
+
+export const previewOpnameFinalMigration = (file: File, actorRole: string, actorEmail?: string) =>
+    postOpnameFinalMigration<OpnameFinalMigrationPreviewResult>("preview", file, actorRole, actorEmail);
+
+export const commitOpnameFinalMigration = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: Array<{ source_candidate_id: number; action: OpnameFinalMigrationAction }>
+) => postOpnameFinalMigration<OpnameFinalMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
+
 /** Ambil daftar SPK dengan filter opsional (Status, Nomor ULOK). */
 export const fetchSPKList = async (filters?: {
     status?: string;

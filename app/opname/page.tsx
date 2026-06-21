@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import {
     Loader2, Search, CheckSquare, AlertCircle, CheckCircle,
     Info, Hash, Send, X, Eye, ChevronDown, ChevronRight,
     Camera, FileText, ThumbsUp, ThumbsDown, Clock, Filter,
-    Building2, ClipboardList, ArrowLeft, ExternalLink, RefreshCw, Lock
+    Building2, ClipboardList, ArrowLeft, ExternalLink, RefreshCw, Lock, Database
 } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
@@ -2079,6 +2080,7 @@ export default function OpnamePage() {
                 title={appMode === 'pic' ? 'OPNAME' : 'REVIEW OPNAME'}
                 showBackButton
                 backHref="/dashboard"
+                rightActions={user?.isSuperHuman ? <Link href="/opname/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" />Migrasi Opname Final</Button></Link> : undefined}
             />
 
             {appMode === 'pic' ? (

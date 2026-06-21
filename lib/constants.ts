@@ -138,6 +138,13 @@ export const ALL_MENUS = [
         icon: Upload,
     },
     {
+        id: "menu-migrasi-opname-final",
+        title: "Migrasi Opname Final",
+        desc: "Upload OPNAME_v1 dan rekonsiliasi KTK.",
+        href: "/opname/migrasi",
+        icon: Upload,
+    },
+    {
         id: "menu-sp",
         title: "Surat Peringatan",
         desc: "Form surat peringatan.",
@@ -301,7 +308,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-dc-development",
         "menu-rab", "menu-ubah-rab-item", "menu-migrasi-rab", "menu-spk", "menu-migrasi-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-migrasi-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
-        "menu-gantt", "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-gantt", "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
     ],
 };
