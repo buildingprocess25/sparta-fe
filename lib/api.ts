@@ -2825,16 +2825,19 @@ export type OpnameFinalMigrationPreviewDetail = {
     cabang: string | null;
     email_pembuat: string;
     created_at: string | null;
+    migration_type: "PARTIAL" | "FINAL";
     item_count: number;
     mapped_item_count: number;
     expected_item_count: number;
-    ignored_pending_count: number;
-    ignored_rejected_count: number;
+    approved_count: number;
+    pending_count: number;
+    rejected_count: number;
     grand_total_rab: number;
     grand_total_opname: number;
     kerja_tambah: number;
     kerja_kurang: number;
     existing_id: number | null;
+    existing_type: string | null;
     existing_status: string | null;
     db_state: "ready" | "conflict" | "invalid";
     issues: string[];
@@ -2843,7 +2846,8 @@ export type OpnameFinalMigrationPreviewDetail = {
 };
 export type OpnameFinalMigrationPreviewResult = {
     total_candidates: number;
-    approved_candidates: number;
+    partial_count: number;
+    final_count: number;
     total_items: number;
     mapped_items: number;
     ready_count: number;
@@ -2856,6 +2860,8 @@ export type OpnameFinalMigrationCommitResult = {
     inserted: number;
     replaced: number;
     skipped: number;
+    partial_processed: number;
+    final_processed: number;
     pdf_queued: number;
 };
 

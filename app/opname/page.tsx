@@ -2080,7 +2080,7 @@ export default function OpnamePage() {
                 title={appMode === 'pic' ? 'OPNAME' : 'REVIEW OPNAME'}
                 showBackButton
                 backHref="/dashboard"
-                rightActions={user?.isSuperHuman ? <Link href="/opname/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" />Migrasi Opname Final</Button></Link> : undefined}
+                rightActions={user?.isSuperHuman ? <Link href="/opname/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" />Migrasi Opname</Button></Link> : undefined}
             />
 
             {appMode === 'pic' ? (

@@ -39,16 +39,18 @@ export default function OpnameFinalMigrationPage() {
     const [actions, setActions] = useState<Record<number, OpnameFinalMigrationAction>>({});
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState("all");
+    const [typeFilter, setTypeFilter] = useState("all");
     const [loading, setLoading] = useState<"preview" | "commit" | null>(null);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const actorRole = user?.roles?.length ? user.roles.join(",") : user?.role ?? "";
     const rows = preview?.details ?? [];
     const filtered = useMemo(() => rows.filter((row) => {
         if (filter !== "all" && row.db_state !== filter) return false;
+        if (typeFilter !== "all" && row.migration_type !== typeFilter) return false;
         const query = search.trim().toLowerCase();
         return !query || [row.nomor_ulok, row.nama_toko, row.cabang, row.lingkup_pekerjaan]
             .some((value) => String(value ?? "").toLowerCase().includes(query));
-    }), [rows, search, filter]);
+    }), [rows, search, filter, typeFilter]);
     const selectedRows = rows.filter((row) => selected.has(row.source_candidate_id));
     const executable = selectedRows.filter((row) => (actions[row.source_candidate_id] ?? defaultAction(row)) !== "skip");
 
@@ -62,7 +64,7 @@ export default function OpnameFinalMigrationPage() {
             setCommitResult(null);
             setSelected(new Set(response.data.details.filter((row) => row.db_state === "ready").map((row) => row.source_candidate_id)));
             setActions(Object.fromEntries(response.data.details.map((row) => [row.source_candidate_id, defaultAction(row)])));
-            setMessage({ type: "success", text: "Analisis selesai. Snapshot APPROVED sudah dibandingkan dengan RAB, IL, dan database." });
+            setMessage({ type: "success", text: "Analisis selesai. Kandidat dipisahkan menjadi Opname Parsial dan Opname Final/KTK." });
         } catch (error) {
             setMessage({ type: "error", text: error instanceof Error ? error.message : "Analisis gagal" });
         } finally {
@@ -71,7 +73,7 @@ export default function OpnameFinalMigrationPage() {
     };
 
     const commit = async () => {
-        if (!file || executable.length === 0 || !window.confirm(`Proses ${formatNumber(executable.length)} Opname Final/KTK?`)) return;
+        if (!file || executable.length === 0 || !window.confirm(`Proses ${formatNumber(executable.length)} kandidat Opname?`)) return;
         setLoading("commit");
         setMessage(null);
         try {
@@ -80,7 +82,7 @@ export default function OpnameFinalMigrationPage() {
                 action: actions[row.source_candidate_id] ?? defaultAction(row)
             })));
             setCommitResult(response.data);
-            setMessage({ type: "success", text: `Migrasi tersimpan. ${response.data.inserted} insert, ${response.data.replaced} replace; ${response.data.pdf_queued} PDF masuk antrean.` });
+            setMessage({ type: "success", text: `Migrasi tersimpan: ${response.data.partial_processed} parsial, ${response.data.final_processed} final; ${response.data.pdf_queued} PDF final masuk antrean.` });
             await analyze();
         } catch (error) {
             setMessage({ type: "error", text: error instanceof Error ? error.message : "Migrasi gagal" });
@@ -90,13 +92,13 @@ export default function OpnameFinalMigrationPage() {
     };
 
     return <div className="min-h-screen bg-slate-50">
-        <AppNavbar title="Migrasi Opname Final / KTK" showBackButton backHref="/opname"
+        <AppNavbar title="Migrasi Opname" showBackButton backHref="/opname"
             rightActions={<Badge className="border-none bg-red-700 text-white">SUPER HUMAN ONLY</Badge>} />
         <main className="mx-auto max-w-[1500px] space-y-5 p-4 md:p-8">
             <div className="flex items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-extrabold">Upload OPNAME_v1.xlsx</h1>
-                    <p className="mt-1 max-w-3xl text-sm text-slate-500">Snapshot APPROVED terbaru per ULOK dan lingkup dipetakan ke item RAB atau Instruksi Lapangan. Riwayat Pending/Rejected tidak dimigrasikan.</p>
+                    <h1 className="text-2xl font-extrabold">Opname Parsial dan Opname Final / KTK</h1>
+                    <p className="mt-1 max-w-3xl text-sm text-slate-500">Snapshot item terbaru dipetakan ke RAB atau IL. Kandidat yang masih memiliki Pending/Rejected masuk sebagai Parsial; seluruh item Approved masuk sebagai Final/KTK.</p>
                 </div>
                 <Link href="/opname"><Button variant="outline" className="gap-2"><ArrowLeft className="h-4 w-4" />Kembali ke Opname</Button></Link>
             </div>
@@ -114,25 +116,27 @@ export default function OpnameFinalMigrationPage() {
                 </CardContent>
             </Card>
             {preview ? <>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">{[
-                    ["Total Kandidat", preview.total_candidates], ["Snapshot Approved", preview.approved_candidates],
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">{[
+                    ["Total Kandidat", preview.total_candidates], ["Opname Parsial", preview.partial_count], ["Final / KTK", preview.final_count],
                     ["Total Item", preview.total_items], ["Item Terpetakan", preview.mapped_items],
                     ["Siap Insert", preview.ready_count], ["Konflik DB", preview.conflict_count], ["Invalid", preview.invalid_count]
                 ].map(([label, value]) => <Card key={String(label)}><CardContent className="p-4"><div className="text-xs font-bold uppercase text-slate-400">{label}</div><div className="mt-1 text-2xl font-extrabold">{formatNumber(Number(value))}</div></CardContent></Card>)}</div>
-                {commitResult ? <div className="text-sm font-medium text-emerald-700">Hasil: {commitResult.inserted} insert, {commitResult.replaced} replace, {commitResult.skipped} skip, {commitResult.pdf_queued} PDF diantrikan.</div> : null}
+                {commitResult ? <div className="text-sm font-medium text-emerald-700">Hasil: {commitResult.partial_processed} parsial, {commitResult.final_processed} final, {commitResult.skipped} skip, {commitResult.pdf_queued} PDF final diantrikan.</div> : null}
                 <Card>
-                    <CardHeader className="flex-row items-center justify-between gap-4"><CardTitle className="text-base">Daftar Kandidat Opname Final / KTK</CardTitle><div className="flex gap-2">
+                    <CardHeader className="flex-row items-center justify-between gap-4"><CardTitle className="text-base">Daftar Kandidat Opname</CardTitle><div className="flex gap-2">
                         <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Cari ULOK, toko, cabang..." value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+                        <Select value={typeFilter} onValueChange={setTypeFilter}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua tipe</SelectItem><SelectItem value="PARTIAL">Opname parsial</SelectItem><SelectItem value="FINAL">Final / KTK</SelectItem></SelectContent></Select>
                         <Select value={filter} onValueChange={setFilter}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem><SelectItem value="ready">Siap insert</SelectItem><SelectItem value="conflict">Konflik DB</SelectItem><SelectItem value="invalid">Invalid</SelectItem></SelectContent></Select>
                     </div></CardHeader>
                     <CardContent className="overflow-x-auto p-0"><table className="w-full min-w-[1450px] text-sm">
                         <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr>
                             <th className="p-3"><Checkbox checked={filtered.length > 0 && filtered.filter((row) => row.db_state !== "invalid").every((row) => selected.has(row.source_candidate_id))} onCheckedChange={(checked) => setSelected((current) => { const next = new Set(current); filtered.forEach((row) => { if (row.db_state !== "invalid") checked ? next.add(row.source_candidate_id) : next.delete(row.source_candidate_id); }); return next; })} /></th>
-                            <th>ULOK / Toko</th><th>Lingkup</th><th>Tanggal</th><th>Item</th><th>Nilai</th><th>KTK</th><th>Status DB</th><th>Aksi</th><th>Catatan</th>
+                            <th>ULOK / Toko</th><th>Tipe</th><th>Lingkup</th><th>Tanggal</th><th>Item</th><th>Nilai</th><th>KTK</th><th>Status DB</th><th>Aksi</th><th>Catatan</th>
                         </tr></thead>
                         <tbody>{filtered.map((row) => <tr key={row.source_candidate_id} className="border-t align-top">
                             <td className="p-3"><Checkbox disabled={row.db_state === "invalid"} checked={selected.has(row.source_candidate_id)} onCheckedChange={(checked) => setSelected((current) => { const next = new Set(current); checked ? next.add(row.source_candidate_id) : next.delete(row.source_candidate_id); return next; })} /></td>
                             <td className="py-3 font-semibold">{row.nomor_ulok}<div className="font-normal text-slate-500">{row.nama_toko ?? "-"}</div></td>
+                            <td className="py-3"><Badge className={row.migration_type === "FINAL" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}>{row.migration_type === "FINAL" ? "Final / KTK" : "Parsial"}</Badge><div className="mt-1 text-xs text-slate-500">{row.approved_count} approved · {row.pending_count} pending · {row.rejected_count} rejected</div></td>
                             <td className="py-3">{row.lingkup_pekerjaan}<div className="text-slate-500">{row.cabang ?? "-"}</div></td>
                             <td className="py-3">{formatDate(row.created_at)}<div className="text-xs text-slate-500">{row.email_pembuat}</div></td>
                             <td className="py-3 font-semibold">{row.mapped_item_count}/{row.item_count}<div className="text-xs font-normal text-slate-500">DB aktif {row.expected_item_count}</div></td>

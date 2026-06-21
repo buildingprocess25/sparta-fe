@@ -139,8 +139,8 @@ export const ALL_MENUS = [
     },
     {
         id: "menu-migrasi-opname-final",
-        title: "Migrasi Opname Final",
-        desc: "Upload OPNAME_v1 dan rekonsiliasi KTK.",
+        title: "Migrasi Opname",
+        desc: "Migrasi Opname Parsial dan Final/KTK.",
         href: "/opname/migrasi",
         icon: Upload,
     },
