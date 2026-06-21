@@ -941,15 +941,9 @@ function GanttBoard() {
                 });
             }
         });
-        const baseDuration = (spkInfo ? spkInfo.duration : projectData.duration) || 0;
-        let totalDaysToRender = Math.max(baseDuration, maxTaskEndDay) || 0;
-        if (totalDaysToRender > 2000) totalDaysToRender = 2000; // SAFETY CAP to prevent browser crash
-        if (totalDaysToRender < 0) totalDaysToRender = 0;
-        const totalChartWidth = totalDaysToRender * DAY_WIDTH;
-        const svgHeight = processedTasks.length * ROW_HEIGHT;
         const supervisionDays: Record<number, boolean> = {};
-        
         const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
+        let maxSupervisionDay = 0;
         if (effectiveStartDate && pengawasanDates.length > 0) {
             const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
             pengawasanDates.forEach(pd => {
@@ -958,9 +952,16 @@ function GanttBoard() {
                 const diffDays = Math.round(diffTime / (1000 * 3600 * 24)) + 1;
                 if (diffDays > 0) {
                     supervisionDays[diffDays] = true;
+                    if (diffDays > maxSupervisionDay) maxSupervisionDay = diffDays;
                 }
             });
         }
+        const baseDuration = (spkInfo ? spkInfo.duration : projectData.duration) || 0;
+        let totalDaysToRender = Math.max(baseDuration, maxTaskEndDay, maxSupervisionDay) || 0;
+        if (totalDaysToRender > 2000) totalDaysToRender = 2000; // SAFETY CAP to prevent browser crash
+        if (totalDaysToRender < 0) totalDaysToRender = 0;
+        const totalChartWidth = totalDaysToRender * DAY_WIDTH;
+        const svgHeight = processedTasks.length * ROW_HEIGHT;
         
         let taskCoordinates: Record<number, any> = {};
         processedTasks.forEach((task, idx) => {
@@ -2832,17 +2833,10 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
             // Trigger API Berkas Serah Terima — HANYA jika ini hari terakhir (serah terima)
             
-            if (isLastDay) {
-                try {
-                    const { createPdfSerahTerima } = await import('@/lib/api');
-                    await createPdfSerahTerima(Number(id_toko));
-                } catch (pdfErr) {
-                    console.error("Error trigger PDF serah terima:", pdfErr);
-                }
-            }
-            
             showAlert({ 
-                message: 'Data Opname berhasil disimpan!', 
+                message: isLastDay
+                    ? 'Data Opname berhasil disimpan. PDF Serah Terima akan dibuat otomatis.'
+                    : 'Data Opname berhasil disimpan!', 
                 type: 'success',
                 onConfirm: () => onSuccess()
             });
