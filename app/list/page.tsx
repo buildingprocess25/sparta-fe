@@ -136,7 +136,9 @@ interface NormalizedDetail {
     luas_area_terbangun?: string | null;
     grand_total?: string;
     grand_total_non_sbo?: string;
+    grand_total_opname?: string;
     grand_total_final?: string;
+    nilai_denda?: string | null;
     link_pdf?: string | null;
     link_pdf_gabungan?: string | null;
     link_pdf_non_sbo?: string | null;
@@ -793,7 +795,7 @@ const normalizeOpnameDocs = (items: any[], tipe: 'OPNAME' | 'OPNAME_FINAL'): Nor
         proyek:        o.proyek        ?? o.toko?.proyek     ?? '-',
         status:        o.status_opname_final,
         email_pembuat: o.email_pembuat,
-        total_nilai:   parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda),
+        total_nilai:   parseCurrency(o.grand_total_final ?? o.grand_total_opname),
         created_at:    o.created_at,
         tanggal_kerja_tambah_kurang: o.waktu_persetujuan_direktur ?? null,
         link_pdf:      o.link_pdf_opname ?? null,
@@ -1354,7 +1356,7 @@ export default function DaftarDokumenPage() {
                     proyek:              d.toko?.proyek || doc.proyek,
                     status:              d.opname_final.status_opname_final,
                     email_pembuat:       d.opname_final.email_pembuat,
-                    total_nilai:         Math.max(0, parseCurrency(d.opname_final.grand_total_opname) - parseCurrency(d.opname_final.nilai_denda)),
+                    total_nilai:         parseCurrency(d.opname_final.grand_total_final ?? d.opname_final.grand_total_opname),
                     created_at:          d.opname_final.created_at,
                     tanggal_kerja_tambah_kurang: d.opname_final.waktu_persetujuan_direktur ?? null,
                     link_pdf:            d.opname_final.link_pdf_opname,
@@ -3035,7 +3037,7 @@ export default function DaftarDokumenPage() {
                                             <div className="flex flex-wrap gap-4 mt-3 text-sm">
                                                 <div>
                                                     <span className="text-slate-400">Subtotal Opname: </span>
-                                                    <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total_opname))}</span>
+                                                    <span className="font-semibold text-slate-700">{formatRupiah(parseCurrency(selectedDetail.grand_total_final ?? selectedDetail.grand_total_opname))}</span>
                                                 </div>
                                                 <div>
                                                     <span className="text-slate-400">Denda: </span>

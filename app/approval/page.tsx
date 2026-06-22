@@ -443,7 +443,7 @@ const normalizeOpnameList = (items: any[]): NormalizedListItem[] =>
         nama_toko:     o.nama_toko  || o.toko?.nama_toko  || '-',
         cabang:        o.cabang     || o.toko?.cabang     || '-',
         status:        o.status_opname_final,
-        total_nilai:   parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda),
+        total_nilai:   parseCurrency(o.grand_total_final ?? o.grand_total_opname),
         email_pembuat: o.email_pembuat,
         created_at:    o.created_at,
         hari_denda:    Number(o.hari_denda ?? 0),
@@ -961,7 +961,7 @@ export default function ApprovalPage() {
                     cabang:            toko.cabang || item.cabang || '',
                     lingkup_pekerjaan: toko.lingkup_pekerjaan,
                     status:            header.status_opname_final,
-                    total_nilai:       parseCurrency(header.grand_total_opname) - parseCurrency(header.nilai_denda),
+                    total_nilai:       parseCurrency(header.grand_total_final ?? header.grand_total_opname),
                     email_pembuat:     header.email_pembuat,
                     created_at:        header.created_at,
                     alasan_penolakan:  header.alasan_penolakan,
@@ -1022,6 +1022,7 @@ export default function ApprovalPage() {
                         harga_material:  it.harga_material,
                         harga_upah:      it.harga_upah,
                         total:           it.total_harga || ((Number(it.volume) || 0) * ((Number(it.harga_material) || 0) + (Number(it.harga_upah) || 0))),
+                        catatan:         it.catatan,
                     })),
                 };
             }
