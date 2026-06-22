@@ -89,9 +89,9 @@ interface NormalizedDetail {
     alasan_penolakan?: string | null;
     // Approval trail (RAB & IL)
     // Approval trail (RAB & IL)
-    approval_koordinator?: { pemberi: string | null; waktu: string | null };
-    approval_manager?: { pemberi: string | null; waktu: string | null };
-    approval_direktur?: { pemberi: string | null; waktu: string | null };
+    approval_koordinator?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    approval_manager?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    approval_direktur?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
     // SPK specific
     nama_kontraktor?: string;
     durasi?: number;
@@ -493,16 +493,23 @@ const ApprovalBadge = ({ status }: { status: string }) => {
     );
 };
 
-const ApprovalHistoryRow = ({ label, pemberi, waktu }: {
-    label: string; pemberi?: string | null; waktu?: string | null;
+const ApprovalHistoryRow = ({ label, pemberi, waktu, catatan }: {
+    label: string; pemberi?: string | null; waktu?: string | null; catatan?: string | null;
 }) => {
     if (!pemberi) return null;
     return (
-        <div className="flex items-center gap-3 text-sm">
-            <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-            <span className="text-slate-600 font-medium w-28">{label}</span>
-            <span className="text-slate-800 font-semibold">{pemberi}</span>
-            {waktu && <span className="text-slate-400 text-xs ml-1">{formatDate(waktu)}</span>}
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3 text-sm">
+                <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                <span className="text-slate-600 font-medium w-28">{label}</span>
+                <span className="text-slate-800 font-semibold">{pemberi}</span>
+                {waktu && <span className="text-slate-400 text-xs ml-1">{formatDate(waktu)}</span>}
+            </div>
+            {catatan && (
+                <div className="ml-[140px]">
+                    <p className="text-xs text-slate-500 italic break-words">"{catatan}"</p>
+                </div>
+            )}
         </div>
     );
 };
@@ -868,9 +875,9 @@ export default function ApprovalPage() {
                     created_at:        d.rab.created_at,
                     alasan_penolakan:  d.rab.alasan_penolakan,
                     link_pdf_gabungan: d.rab.link_pdf_gabungan,
-                    approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator },
-                    approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager },
-                    approval_direktur:    { pemberi: d.rab.pemberi_persetujuan_direktur,    waktu: d.rab.waktu_persetujuan_direktur },
+                    approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator, catatan: d.rab.catatan_persetujuan_koordinator },
+                    approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager, catatan: d.rab.catatan_persetujuan_manager },
+                    approval_direktur:    { pemberi: d.rab.pemberi_persetujuan_direktur,    waktu: d.rab.waktu_persetujuan_direktur, catatan: d.rab.catatan_persetujuan_direktur },
                     items: (d.items ?? []).map((it: RABDetailItem) => {
                         console.log("RAB ITEM:", it);
                         return {
@@ -1011,8 +1018,8 @@ export default function ApprovalPage() {
                     alasan_penolakan:  d.alasan_penolakan,
                     link_pdf_gabungan: d.link_pdf_gabungan,
                     link_lampiran_pendukung: d.link_lampiran,
-                    approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator },
-                    approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager },
+                    approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator, catatan: d.catatan_persetujuan_koordinator },
+                    approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager, catatan: d.catatan_persetujuan_manager },
                     items: (d.items ?? []).map((it: any) => ({
                         id: it.id,
                         kategori:        it.kategori_pekerjaan,
@@ -1940,9 +1947,9 @@ export default function ApprovalPage() {
                                                 {!isRejected(selectedDetail.status) && (selectedDetail.approval_koordinator?.pemberi || selectedDetail.approval_manager?.pemberi || selectedDetail.approval_direktur?.pemberi) && (
                                                     <div className="mt-4 pt-4 border-t border-slate-200 space-y-2">
                                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Riwayat Persetujuan</p>
-                                                        <ApprovalHistoryRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} />
-                                                        <ApprovalHistoryRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} />
-                                                        <ApprovalHistoryRow label="Direktur Kontraktor" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} />
+                                                        <ApprovalHistoryRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} catatan={selectedDetail.approval_koordinator?.catatan} />
+                                                        <ApprovalHistoryRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} catatan={selectedDetail.approval_manager?.catatan} />
+                                                        <ApprovalHistoryRow label="Direktur Kontraktor" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} catatan={selectedDetail.approval_direktur?.catatan} />
                                                     </div>
                                                 )}
                                             </div>
@@ -2078,14 +2085,10 @@ export default function ApprovalPage() {
                                                     <tr>
                                                         <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Kategori</th>
                                                         <th className="p-3 border-r font-semibold min-w-62.5 text-center whitespace-nowrap">Jenis Pekerjaan</th>
-                                                        {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
-                                                            <>
-                                                                {selectedDetail.tipe !== 'RAB' && (
-                                                                    <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Dokumentasi</th>
-                                                                )}
-                                                                <th className="p-3 border-r font-semibold min-w-48 text-center">Catatan</th>
-                                                            </>
+                                                        {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && selectedDetail.tipe !== 'RAB' && (
+                                                            <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Dokumentasi</th>
                                                         )}
+                                                        <th className="p-3 border-r font-semibold min-w-48 text-center">Catatan</th>
                                                         <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Volume</th>
                                                         <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Satuan</th>
                                                         <th className="p-3 border-r font-semibold text-center whitespace-nowrap">Harga Material</th>
@@ -2098,29 +2101,25 @@ export default function ApprovalPage() {
                                                         <tr key={row.id} className="hover:bg-slate-50">
                                                             <td className="p-3 font-semibold text-slate-600 border-r text-xs whitespace-nowrap">{row.kategori}</td>
                                                             <td className="p-3 text-slate-700 border-r whitespace-normal min-w-62.5">{row.jenis_pekerjaan}</td>
-                                                            {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && (
-                                                                <>
-                                                                    {selectedDetail.tipe !== 'RAB' && (
-                                                                        <td className="p-3 text-center border-r">
-                                                                            {row.foto ? (
-                                                                                <a href={row.foto} target="_blank" rel="noopener noreferrer">
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="outline"
-                                                                                        className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                                                                    >
-                                                                                        <Eye className="w-3.5 h-3.5 mr-1" />
-                                                                                        Lihat Foto
-                                                                                    </Button>
-                                                                                </a>
-                                                                            ) : (
-                                                                                <span className="text-xs text-slate-400">Tidak ada foto</span>
-                                                                            )}
-                                                                        </td>
+                                                            {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && selectedDetail.tipe !== 'RAB' && (
+                                                                <td className="p-3 text-center border-r">
+                                                                    {row.foto ? (
+                                                                        <a href={row.foto} target="_blank" rel="noopener noreferrer">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                                                            >
+                                                                                <Eye className="w-3.5 h-3.5 mr-1" />
+                                                                                Lihat Foto
+                                                                            </Button>
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span className="text-xs text-slate-400">Tidak ada foto</span>
                                                                     )}
-                                                                    <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
-                                                                </>
+                                                                </td>
                                                             )}
+                                                            <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
                                                             <td className="p-3 text-center font-bold border-r whitespace-nowrap">{row.volume}</td>
                                                             <td className="p-3 text-center text-slate-500 border-r whitespace-nowrap">{row.satuan}</td>
                                                             <td className="p-3 text-right font-medium text-slate-700 border-r whitespace-nowrap">{formatRupiah(row.harga_material || 0)}</td>
@@ -2132,7 +2131,7 @@ export default function ApprovalPage() {
                                                 <tfoot className="border-t border-slate-300">
                                                     {/* Baris GRAND TOTAL item mentah */}
                                                     <tr className="bg-slate-100">
-                                                        <td colSpan={selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 6 : selectedDetail.tipe === 'RAB' ? 7 : 8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
+                                                        <td colSpan={selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 7 : selectedDetail.tipe === 'RAB' ? 7 : 8} className="p-3 font-bold text-slate-700 text-right">GRAND TOTAL</td>
                                                         <td className="p-3 font-extrabold text-slate-800 text-right whitespace-nowrap">
                                                             {formatRupiah(selectedDetail.items.reduce((s, r) => s + Number(r.total ?? 0), 0))}
                                                         </td>
