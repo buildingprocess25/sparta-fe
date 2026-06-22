@@ -853,10 +853,13 @@ export type RABDetailData = {
     link_pdf_materai:                string | null;
     pemberi_persetujuan_koordinator: string | null;
     waktu_persetujuan_koordinator:   string | null;
+    catatan_persetujuan_koordinator?: string | null;
     pemberi_persetujuan_manager:     string | null;
     waktu_persetujuan_manager:       string | null;
+    catatan_persetujuan_manager?:     string | null;
     pemberi_persetujuan_direktur:    string | null;
     waktu_persetujuan_direktur:      string | null;
+    catatan_persetujuan_direktur?:    string | null;
     alasan_penolakan:                string | null;
     durasi_pekerjaan:                string;
     kategori_lokasi:                 string;
@@ -2146,7 +2149,7 @@ export const submitOpnameSingle = async (payload: FormData | Record<string, any>
         body: isFormData ? payload : JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal menyimpan opname.");
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan opname."));
     return result;
 };
 
@@ -2265,8 +2268,7 @@ export const updateOpname = async (
 
     const result = await res.json();
     if (res.status === 404) throw new Error("Data opname tidak ditemukan.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal.");
-    if (!res.ok) throw new Error(result.message || `Gagal memperbarui opname (${res.status}).`);
+    if (!res.ok) throw new Error(buildApiErrorMessage(result, `Gagal memperbarui opname (${res.status}).`));
     return result;
 };
 
@@ -3575,6 +3577,7 @@ export type BerkasSerahTerimaItem = {
     id: number;
     id_toko: number;
     link_pdf: string;
+    tanggal_serah_terima: string;
     created_at: string;
     toko: {
         id: number;

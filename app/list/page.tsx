@@ -184,10 +184,8 @@ interface NormalizedDetail {
     disetujui_oleh?: string;
     waktu_persetujuan_detail?: string;
     // Opname Final specific
-    grand_total_opname?: string;
     grand_total_rab?: string;
     hari_denda?: number;
-    nilai_denda?: string;
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
     nilai_penawaran?: string | null;
@@ -896,6 +894,7 @@ const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] =>
         email_pembuat: '-',
         total_nilai:   parseCurrency(b.nilai_opname ?? b.nilai_spk ?? b.nilai_penawaran),
         created_at:    b.created_at,
+        tanggal_serah_terima: b.tanggal_serah_terima ?? b.created_at,
         link_pdf:      b.link_pdf ?? null,
         lingkup_pekerjaan: b.toko?.lingkup_pekerjaan ?? b.lingkup_pekerjaan,
         nilai_penawaran: b.nilai_penawaran ?? null,
