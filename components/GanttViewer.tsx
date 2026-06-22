@@ -216,7 +216,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
             }
         });
 
-        const totalDaysToRender = projectData.duration;
+        let totalDaysToRender = Math.max(projectData.duration, maxTaskEndDay);
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
         const svgHeight = processedTasks.length * ROW_HEIGHT;
         

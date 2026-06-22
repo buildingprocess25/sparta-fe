@@ -1147,6 +1147,7 @@ export default function DashboardPage() {
                                     {inner}
                                 </div>
                             );
+
                             if (menu.isAlert) return (
                                 <div
                                     key={menu.id}
