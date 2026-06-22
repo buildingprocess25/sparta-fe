@@ -3577,7 +3577,6 @@ export type BerkasSerahTerimaItem = {
     id: number;
     id_toko: number;
     link_pdf: string;
-    tanggal_serah_terima: string;
     created_at: string;
     toko: {
         id: number;
