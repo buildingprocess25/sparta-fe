@@ -1639,6 +1639,52 @@ export type GanttDetailData = {
     instruksi_lapangan_items?: any[];
 };
 
+export type SupervisionCheckpoint = {
+    id_pengawasan_gantt: number;
+    tanggal_pengawasan: string;
+    total_items: number;
+    selesai_items: number;
+    ready_opname_items: number;
+    opname_items: number;
+};
+
+export type SupervisionScope = {
+    id_toko: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string | null;
+    kode_toko: string | null;
+    cabang: string | null;
+    gantt_id: number | null;
+    gantt_status: string | null;
+    pic_id: number | null;
+    plc_building_support: string | null;
+    opname_final_id: number | null;
+    status_opname_final: string | null;
+    opname_aksi: string | null;
+    berkas_serah_terima_id: number | null;
+    link_pdf_serah_terima: string | null;
+    checkpoints: SupervisionCheckpoint[];
+};
+
+export type SupervisionWorkspace = {
+    nomor_ulok: string;
+    nama_toko: string | null;
+    kode_toko: string | null;
+    cabang: string | null;
+    pic_bersama: string | null;
+    scopes: SupervisionScope[];
+    serah_terima_ready: boolean;
+    serah_terima_generated: boolean;
+};
+
+export const fetchSupervisionWorkspace = async (
+    nomorUlok: string
+): Promise<{ status: string; data: SupervisionWorkspace }> =>
+    safeFetchJSON(
+        `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`
+    );
+
 export type GanttNoteItem = {
     id:           number;
     id_gantt:     number;

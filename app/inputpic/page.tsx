@@ -635,14 +635,6 @@ function ScopePicForm({
         [groups, existingScopeKeys]
     );
     const isPartialCompletion = existingScopeKeys.size > 0 && missingGroups.length > 0;
-    const displayTarget = useMemo(() => {
-        if (!isPartialCompletion) return ganttTargets[0];
-        const completedGroups = groups.filter(group => existingScopeKeys.has(group.key));
-        return ganttTargets.find(target =>
-            completedGroups.some(group => scopesMatch(target.lingkup, group.lingkup_pekerjaan))
-        ) ?? ganttTargets[0];
-    }, [isPartialCompletion, ganttTargets, groups, existingScopeKeys]);
-
     useEffect(() => {
         if (groups.length === 0) return;
         setIsLocked(false);
@@ -731,12 +723,12 @@ function ScopePicForm({
     }, [groups, allSpks]);
 
     useEffect(() => {
-        if (!isPartialCompletion || ganttTargets.length === 0) return;
+        if ((!isPartialCompletion && !isLocked) || ganttTargets.length === 0) return;
 
         const completedGroups = groups.filter(group => existingScopeKeys.has(group.key));
         const sourceTarget = ganttTargets.find(target =>
             completedGroups.some(group => scopesMatch(target.lingkup, group.lingkup_pekerjaan))
-        );
+        ) ?? ganttTargets[0];
         const sourceDates = Array.from(new Set(sourceTarget?.pengawasanDates || []));
         setExistingScheduleDates(sourceDates);
 
@@ -752,7 +744,7 @@ function ScopePicForm({
             .filter(day => day > 0)
             .sort((a, b) => a - b);
         setSelectedDays(days);
-    }, [isPartialCompletion, ganttTargets, groups, existingScopeKeys, sharedTimeline.startDate]);
+    }, [isPartialCompletion, isLocked, ganttTargets, groups, existingScopeKeys, sharedTimeline.startDate]);
 
     useEffect(() => {
         if (ganttDuration <= 0 || isLocked || isPartialCompletion) return;
@@ -929,20 +921,52 @@ function ScopePicForm({
                     <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Selesai Terakhir" value={sharedTimeline.endDate ? formatDateDDMMYYYY(sharedTimeline.endDate) : '-'} />
                 </div>
 
-                {!isLocked && displayTarget && (
+                {ganttTargets.length > 0 && (
                     <div className="space-y-4">
-                        <div className="text-sm font-bold text-slate-700">
-                            Timeline bersama: {ganttTargets.map(target => target.lingkup).join(' & ')}
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                            <p className="text-sm font-extrabold text-indigo-900">
+                                {isLocked ? 'Jadwal pengawasan bersama tersimpan' : 'Pilih jadwal sekali untuk seluruh lingkup'}
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-indigo-700">
+                                {isLocked
+                                    ? 'Timeline SIPIL dan ME ditampilkan bersama dalam mode baca.'
+                                    : 'Klik tanggal pada salah satu timeline. Pilihan yang sama otomatis diterapkan ke SIPIL dan ME.'}
+                            </p>
                         </div>
-                        <InteractiveGanttChart
-                            ganttId={displayTarget.id}
-                            readonlyDays={isReadOnly || isPartialCompletion}
-                            selectedDays={selectedDays}
-                            onToggleDay={handleToggleDay}
-                            spkStartDate={sharedTimeline.startDate}
-                            spkDuration={sharedTimeline.duration}
-                            requiredDays={requiredDays}
-                        />
+
+                        <div className="space-y-5">
+                            {ganttTargets
+                                .slice()
+                                .sort((a, b) => a.lingkup === 'SIPIL' ? -1 : b.lingkup === 'SIPIL' ? 1 : a.lingkup.localeCompare(b.lingkup))
+                                .map((target) => (
+                                    <div key={target.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                        <div className={`flex items-center justify-between border-b px-4 py-3 ${
+                                            target.lingkup === 'SIPIL'
+                                                ? 'border-slate-800 bg-slate-900 text-white'
+                                                : 'border-blue-900 bg-blue-950 text-white'
+                                        }`}>
+                                            <div>
+                                                <p className="text-xs font-bold uppercase tracking-widest text-white/60">Timeline Lingkup</p>
+                                                <h4 className="text-lg font-black">{target.lingkup}</h4>
+                                            </div>
+                                            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold">
+                                                {selectedDays.length} hari dipilih
+                                            </span>
+                                        </div>
+                                        <div className="p-3">
+                                            <InteractiveGanttChart
+                                                ganttId={target.id}
+                                                readonlyDays={isReadOnly || isPartialCompletion || isLocked}
+                                                selectedDays={selectedDays}
+                                                onToggleDay={handleToggleDay}
+                                                spkStartDate={sharedTimeline.startDate}
+                                                spkDuration={sharedTimeline.duration}
+                                                requiredDays={requiredDays}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
 
                         {requiredDays > 0 && !isPartialCompletion && (
                             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">

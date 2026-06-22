@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchGanttList, fetchGanttDetail, fetchGanttDetailByToko } from '@/lib/api';
-import { Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import type { SupervisionCheckpoint } from '@/lib/api';
 
 const SUPERVISION_RULES: Record<number, number[]> = {
     10: [2, 5, 8, 10], 14: [2, 7, 10, 14], 20: [2, 12, 16, 20],
@@ -28,16 +29,24 @@ function formatHeaderDate(date: Date): string {
     return `${d}/${m}`;
 }
 
-export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration }: {
+export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, title, checkpoints = [], onCheckpointClick }: {
     nomorUlok: string;
     idToko?: number;
     spkStartDate?: string;  // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
     spkDuration?: number;   // SPK duration in days
+    title?: string;
+    checkpoints?: SupervisionCheckpoint[];
+    onCheckpointClick?: (checkpoint: SupervisionCheckpoint, dayIndex: number) => void;
 }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
     const [projectData, setProjectData] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
+    const viewerId = useMemo(() => `gantt-viewer-${idToko || nomorUlok}`.replace(/[^a-zA-Z0-9_-]/g, '-'), [idToko, nomorUlok]);
+    const checkpointByDate = useMemo(
+        () => new Map(checkpoints.map((checkpoint) => [checkpoint.tanggal_pengawasan, checkpoint])),
+        [checkpoints]
+    );
 
     useEffect(() => {
         if (!nomorUlok && !idToko) return;
@@ -306,7 +315,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden text-xs">
             <div className="p-4 bg-slate-100 border-b flex justify-between items-center text-sm">
                 <div>
-                    <h3 className="font-bold text-slate-800">Visualisasi Gantt Chart</h3>
+                    <h3 className="font-bold text-slate-800">{title || 'Visualisasi Gantt Chart'}</h3>
                     <p className="text-xs text-slate-500">Jadwal yang telah direncanakan oleh Kontraktor.</p>
                 </div>
             </div>
@@ -315,8 +324,8 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     <div className="h-10 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
                         Tahapan Pekerjaan
                     </div>
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar" id="left-pane" onScroll={(e) => {
-                        const rightPane = document.getElementById('right-pane');
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar" id={`${viewerId}-left`} onScroll={(e) => {
+                        const rightPane = document.getElementById(`${viewerId}-right`);
                         if (rightPane) rightPane.scrollTop = e.currentTarget.scrollTop;
                     }}>
                         {processedTasks.map((task) => (
@@ -327,8 +336,8 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     </div>
                 </div>
 
-                <div className="w-2/3 flex-1 overflow-auto bg-grid-pattern relative pb-6" id="right-pane" onScroll={(e) => {
-                    const leftPane = document.getElementById('left-pane');
+                <div className="w-2/3 flex-1 overflow-auto bg-grid-pattern relative pb-6" id={`${viewerId}-right`} onScroll={(e) => {
+                    const leftPane = document.getElementById(`${viewerId}-left`);
                     if (leftPane) leftPane.scrollTop = e.currentTarget.scrollTop;
                 }}>
                     <div className="h-10 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
@@ -336,6 +345,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             let label: string = String(i + 1);
                             let isPengawasan = false;
                             let isLiveDay = false;
+                            let fullDateString = '';
                             
                             if (projectData?.useSpkDates && projectData?.spkStartDateObj) {
                                 const d = new Date(projectData.spkStartDateObj);
@@ -345,7 +355,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                 const dd = String(d.getDate()).padStart(2, '0');
                                 const mm = String(d.getMonth() + 1).padStart(2, '0');
                                 const yyyy = d.getFullYear();
-                                const fullDateString = `${dd}/${mm}/${yyyy}`;
+                                fullDateString = `${dd}/${mm}/${yyyy}`;
                                 
                                 const today = new Date();
                                 const td = String(today.getDate()).padStart(2, '0');
@@ -360,12 +370,51 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     isPengawasan = true;
                                 }
                             }
+                            const checkpoint = checkpointByDate.get(fullDateString);
+                            const readyCount = Number(checkpoint?.ready_opname_items || 0);
+                            const opnameCount = Number(checkpoint?.opname_items || 0);
+                            const isReadyOpname = readyCount > 0;
+                            const isAlreadyOpname = !isReadyOpname && opnameCount > 0;
+                            const isClickable = Boolean(checkpoint && onCheckpointClick);
                             return (
-                                <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 font-bold py-0.75 ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'}`} style={{ width: DAY_WIDTH, fontSize: projectData?.useSpkDates ? '9px' : undefined }}>
+                                <button
+                                    type="button"
+                                    key={i}
+                                    disabled={!isClickable}
+                                    onClick={() => checkpoint && onCheckpointClick?.(checkpoint, i)}
+                                    className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 font-bold py-0.75 ${
+                                        isReadyOpname
+                                            ? 'relative bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 cursor-pointer hover:bg-red-100'
+                                            : isAlreadyOpname
+                                                ? 'bg-emerald-50 text-emerald-700 cursor-pointer'
+                                                : isLiveDay
+                                                    ? 'bg-green-50 text-green-700'
+                                                    : isPengawasan
+                                                        ? 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100'
+                                                        : 'bg-slate-50 text-slate-500'
+                                    }`}
+                                    style={{ width: DAY_WIDTH, fontSize: projectData?.useSpkDates ? '9px' : undefined }}
+                                    title={isReadyOpname
+                                        ? `${readyCount} pekerjaan siap Opname`
+                                        : isAlreadyOpname
+                                            ? 'Pekerjaan sudah masuk Opname'
+                                            : isPengawasan
+                                                ? 'Buka checkpoint pengawasan'
+                                                : undefined}
+                                >
                                     <span>{label}</span>
-                                    {isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />}
+                                    {isReadyOpname ? (
+                                        <span className="mt-0.5 flex items-center">
+                                            <span className="h-2.5 w-2.5 animate-ping rounded-full bg-red-500 absolute" />
+                                            <AlertCircle className="relative h-3 w-3 text-red-600" />
+                                        </span>
+                                    ) : isAlreadyOpname ? (
+                                        <CheckCircle2 className="mt-0.5 h-3 w-3 text-emerald-600" />
+                                    ) : isPengawasan ? (
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />
+                                    ) : null}
                                     {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
-                                </div>
+                                </button>
                             );
                         })}
                     </div>

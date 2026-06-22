@@ -10,14 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
     fetchRABList, fetchRABDetail, fetchSPKList,
-    fetchGanttNotes, createGanttNote, fetchInstruksiLapanganList
+    fetchGanttNotes, createGanttNote, fetchInstruksiLapanganList,
+    fetchSupervisionWorkspace, createPdfSerahTerima
 } from '@/lib/api';
+import type { SupervisionCheckpoint, SupervisionScope, SupervisionWorkspace } from '@/lib/api';
+import GanttViewer from '@/components/GanttViewer';
 
 const mapInstruksiLapanganToWorkItems = (items: any[] = []) =>
     items.map((item) => ({
@@ -235,10 +238,77 @@ function GanttBoard() {
     const [showMemoModal, setShowMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
+    const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
+    const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+    const [isGeneratingHandover, setIsGeneratingHandover] = useState(false);
 
     const { user } = useSession();
     const isReadOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
     const canWriteGanttCommunication = appMode === 'pic' && !!selectedGanttId && !isReadOnly;
+
+    const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
+        if (!nomorUlok) return;
+        setIsWorkspaceLoading(true);
+        try {
+            const response = await fetchSupervisionWorkspace(nomorUlok);
+            setSupervisionWorkspace(response.data);
+            setSelectedUlok(formatUlokWithDash(nomorUlok));
+        } catch (error: any) {
+            setSupervisionWorkspace(null);
+            showAlert({ message: error?.message || "Gagal memuat workspace pengawasan.", type: "error" });
+        } finally {
+            setIsWorkspaceLoading(false);
+        }
+    }, [showAlert]);
+
+    const openScopeCheckpoint = useCallback(async (
+        scope: SupervisionScope,
+        checkpoint: SupervisionCheckpoint,
+        dayIndex: number
+    ) => {
+        if (!scope.gantt_id) return;
+        await loadDataByToko(scope.id_toko);
+        setActiveHeaderClick({
+            dayIndex,
+            dateString: checkpoint.tanggal_pengawasan,
+            label: checkpoint.tanggal_pengawasan.slice(0, 5),
+        });
+
+        if (checkpoint.total_items === 0) {
+            showAlert({
+                title: "Tidak ada pekerjaan tersisa",
+                message: "Checkpoint ini tidak memiliki pekerjaan yang perlu diisi. Proses berikutnya dilanjutkan melalui Opname pada checkpoint bertanda merah.",
+                type: "info",
+            });
+            return;
+        }
+
+        if (checkpoint.total_items > 0 && checkpoint.ready_opname_items === 0 && checkpoint.opname_items > 0) {
+            showAlert({
+                title: "Sudah masuk Opname",
+                message: "Pekerjaan selesai pada checkpoint ini sudah diproses ke Opname dan dikunci. Tidak ada pekerjaan baru untuk diajukan.",
+                type: "info",
+            });
+            return;
+        }
+
+        setShowMemoModal(true);
+    }, [showAlert]);
+
+    const handleGenerateUnifiedHandover = useCallback(async () => {
+        const target = supervisionWorkspace?.scopes.find((scope) => scope.gantt_id);
+        if (!target || (!supervisionWorkspace?.serah_terima_ready && !supervisionWorkspace?.serah_terima_generated)) return;
+        setIsGeneratingHandover(true);
+        try {
+            await createPdfSerahTerima(target.id_toko);
+            await loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+            showAlert({ message: "PDF Serah Terima SIPIL/ME berhasil diproses.", type: "success" });
+        } catch (error: any) {
+            showAlert({ message: error?.message || "Gagal generate Serah Terima.", type: "error" });
+        } finally {
+            setIsGeneratingHandover(false);
+        }
+    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
 
     const loadGanttNotes = async (ganttId: number) => {
         setIsGanttNoteLoading(true);
@@ -304,7 +374,9 @@ function GanttBoard() {
             return;
         }
 
-        if (urlIdToko) {
+        if (currentAppMode === 'pic' && urlUlok) {
+            loadSupervisionWorkspace(urlUlok);
+        } else if (urlIdToko) {
             loadDataByToko(parseInt(urlIdToko), urlIdRab ? parseInt(urlIdRab) : undefined);
         } else if (urlIdRab) {
             loadDataByRab(parseInt(urlIdRab));
@@ -1066,6 +1138,9 @@ function GanttBoard() {
                             ) : (
                                 <Select
                                     value={(() => {
+                                        if (appMode === 'pic' && supervisionWorkspace?.nomor_ulok) {
+                                            return `ulok-${encodeURIComponent(supervisionWorkspace.nomor_ulok)}`;
+                                        }
                                         const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko) : null);
                                         if (!targetTokoId) return '';
                                         
@@ -1079,7 +1154,14 @@ function GanttBoard() {
                                     onValueChange={(val) => {
                                         if (!val) return;
 
-                                        if (val.startsWith('gantt-')) {
+                                        if (val.startsWith('ulok-')) {
+                                            const nomorUlok = decodeURIComponent(val.slice(5));
+                                            const newUrl = new URL(window.location.href);
+                                            newUrl.searchParams.set('ulok', nomorUlok);
+                                            newUrl.searchParams.delete('id_toko');
+                                            window.history.pushState({}, '', newUrl.toString());
+                                            loadSupervisionWorkspace(nomorUlok);
+                                        } else if (val.startsWith('gantt-')) {
                                             const gId = parseInt(val.replace('gantt-', ''));
                                             const proj = availableProjects.find(p => p.id === gId);
                                             if (proj?.id_toko) {
@@ -1107,6 +1189,18 @@ function GanttBoard() {
                                             const uniqueMap = new Map();
                                             filteredTokoList.forEach((toko) => {
                                                 const tID = toko.id_toko || toko.id;
+                                                if (appMode === 'pic') {
+                                                    const val = `ulok-${encodeURIComponent(toko.nomor_ulok)}`;
+                                                    const existing = uniqueMap.get(val);
+                                                    const scopes = new Set<string>(existing?.scopes || []);
+                                                    if (toko.lingkup_pekerjaan) scopes.add(String(toko.lingkup_pekerjaan).toUpperCase());
+                                                    uniqueMap.set(val, {
+                                                        toko: existing?.toko || toko,
+                                                        val,
+                                                        scopes: Array.from(scopes),
+                                                    });
+                                                    return;
+                                                }
                                                 const ganttMatch = availableProjects.find((p: any) => {
                                                     if (p.id_toko && tID) return p.id_toko === tID;
                                                     const matchUlok = p.nomor_ulok === toko.nomor_ulok;
@@ -1130,9 +1224,12 @@ function GanttBoard() {
                                                 );
                                             }
 
-                                            return dedupedList.map(({ toko, ganttMatch, val }) => {
+                                            return dedupedList.map(({ toko, ganttMatch, val, scopes }) => {
                                                 const ulok = formatUlokWithDash(toko.nomor_ulok);
-                                                const label = [ulok, toko.nama_toko, toko.cabang, toko.lingkup_pekerjaan]
+                                                const scopeLabel = appMode === 'pic'
+                                                    ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
+                                                    : toko.lingkup_pekerjaan;
+                                                const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
                                                     .filter(Boolean).join(' · ');
                                                 const statusBadge = ganttMatch?.status === 'terkunci' ? ' (Terkunci)' : (ganttMatch?.status === 'active' ? ' (Aktif)' : '');
                                                 
@@ -1248,6 +1345,158 @@ function GanttBoard() {
                 )}
             </div>
 
+            {appMode === 'pic' && (isWorkspaceLoading || supervisionWorkspace) && (
+                <section className="mb-8 space-y-5">
+                    {isWorkspaceLoading ? (
+                        <Card className="border-slate-200 bg-white shadow-sm">
+                            <CardContent className="flex min-h-52 items-center justify-center">
+                                <Loader2 className="mr-3 h-7 w-7 animate-spin text-red-600" />
+                                <span className="font-semibold text-slate-600">Menyiapkan workspace SIPIL &amp; ME...</span>
+                            </CardContent>
+                        </Card>
+                    ) : supervisionWorkspace ? (
+                        <>
+                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 text-white shadow-xl">
+                                <div className="relative p-6 md:p-7">
+                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.28),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.22),transparent_38%)]" />
+                                    <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                                        <div>
+                                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                <Badge className="border border-white/20 bg-white/10 text-white">WORKSPACE PENGAWASAN</Badge>
+                                                <Badge className="border border-red-400/40 bg-red-500/20 text-red-100">
+                                                    {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
+                                                </Badge>
+                                            </div>
+                                            <h2 className="text-2xl font-black tracking-tight md:text-3xl">
+                                                {formatUlokWithDash(supervisionWorkspace.nomor_ulok)}
+                                            </h2>
+                                            <p className="mt-1 text-sm text-slate-300">
+                                                {supervisionWorkspace.nama_toko || '-'} · {supervisionWorkspace.cabang || '-'}
+                                            </p>
+                                            <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold">
+                                                <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5">
+                                                    PIC: {supervisionWorkspace.pic_bersama || 'Belum ditentukan'}
+                                                </span>
+                                                <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5">
+                                                    SIPIL di atas · ME di bawah
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur lg:w-auto lg:min-w-96">
+                                            <div className="mb-3 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Serah Terima</p>
+                                                    <p className="mt-1 text-sm font-semibold">
+                                                        {supervisionWorkspace.serah_terima_generated
+                                                            ? 'PDF sudah tersedia'
+                                                            : supervisionWorkspace.serah_terima_ready
+                                                                ? 'Semua lingkup siap diproses'
+                                                                : 'Menunggu Opname Final seluruh lingkup'}
+                                                    </p>
+                                                </div>
+                                                {supervisionWorkspace.serah_terima_generated
+                                                    ? <CheckCircle className="h-7 w-7 text-emerald-400" />
+                                                    : <ClipboardCheck className="h-7 w-7 text-red-300" />}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                onClick={handleGenerateUnifiedHandover}
+                                                disabled={(!supervisionWorkspace.serah_terima_ready && !supervisionWorkspace.serah_terima_generated) || isGeneratingHandover}
+                                                className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-400"
+                                            >
+                                                {isGeneratingHandover
+                                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    : <FileText className="mr-2 h-4 w-4" />}
+                                                {supervisionWorkspace.serah_terima_generated ? 'Regenerate Serah Terima' : 'Generate Serah Terima'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
+                                <div className="flex items-start gap-3">
+                                    <span className="relative mt-1 flex h-3 w-3 shrink-0">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                                        <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
+                                    </span>
+                                    <div>
+                                        <p className="font-extrabold">Petunjuk Opname</p>
+                                        <p className="mt-0.5 text-xs leading-relaxed text-red-700">
+                                            Titik merah berkedip hanya muncul ketika ada pekerjaan selesai yang belum masuk Opname.
+                                            Checkpoint sesudahnya tidak akan memunculkan form kosong.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-5">
+                                {supervisionWorkspace.scopes.map((scope, index) => {
+                                    const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+                                    const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+                                    const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
+                                    return (
+                                        <div key={scope.id_toko} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
+                                            <div className={`flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${
+                                                scopeName === 'SIPIL' ? 'bg-slate-900 text-white' : 'bg-blue-950 text-white'
+                                            }`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                                                        scopeName === 'SIPIL' ? 'bg-red-500/20 text-red-300' : 'bg-blue-400/20 text-blue-200'
+                                                    }`}>
+                                                        <Building2 className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-lg font-black">{scopeName}</h3>
+                                                        <p className="text-xs text-white/65">
+                                                            Gantt #{scope.gantt_id || '-'} · {scope.gantt_status || 'Belum tersedia'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {readyCount > 0 && (
+                                                        <Badge className="border border-red-300/40 bg-red-500 text-white">
+                                                            <Sparkles className="mr-1 h-3 w-3" /> {readyCount} siap Opname
+                                                        </Badge>
+                                                    )}
+                                                    {opnameCount > 0 && (
+                                                        <Badge className="border border-emerald-300/30 bg-emerald-500/20 text-emerald-100">
+                                                            {opnameCount} sudah Opname
+                                                        </Badge>
+                                                    )}
+                                                    <Badge className="border border-white/20 bg-white/10 text-white">
+                                                        {scope.status_opname_final || 'Opname belum dibuat'}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+
+                                            {scope.gantt_id ? (
+                                                <div className="p-4">
+                                                    <GanttViewer
+                                                        nomorUlok={scope.nomor_ulok}
+                                                        idToko={scope.id_toko}
+                                                        title={`Timeline ${scopeName}`}
+                                                        checkpoints={scope.checkpoints}
+                                                        onCheckpointClick={(checkpoint, dayIndex) => openScopeCheckpoint(scope, checkpoint, dayIndex)}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="m-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-8 text-center">
+                                                    <AlertCircle className="mx-auto mb-2 h-7 w-7 text-amber-500" />
+                                                    <p className="font-bold text-amber-800">Gantt {scopeName} belum tersedia</p>
+                                                    <p className="mt-1 text-xs text-amber-700">Lingkup lain tetap dapat digunakan.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    ) : null}
+                </section>
+            )}
+
             {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
                     <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
@@ -1346,9 +1595,7 @@ function GanttBoard() {
                     )}
                 </div>
             )}
-
-
-
+            {!(appMode === 'pic' && supervisionWorkspace) && (
             <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                 <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
                     <div className="flex justify-center gap-6">
@@ -1503,6 +1750,7 @@ function GanttBoard() {
                     )}
                 </div>
             </Card>
+            )}
 
             {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
                 <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
@@ -1541,6 +1789,9 @@ function GanttBoard() {
                     setShowMemoModal(false);
                     // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
                     if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                    if (supervisionWorkspace?.nomor_ulok) {
+                        loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+                    }
                     
                     if (options?.openOpname === false) {
                         return;
@@ -1566,6 +1817,9 @@ function GanttBoard() {
                 onSuccess={() => {
                     setShowOpnameModal(false);
                     if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                    if (supervisionWorkspace?.nomor_ulok) {
+                        loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+                    }
                 }}
             />
         )}
@@ -2685,7 +2939,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
     // Tambahan Validasi isSubmitValid
     const isSubmitValid = useMemo(() => {
-        if (completedItems.length === 0) return canGenerateSerahTerima;
+        if (completedItems.length === 0) return false;
         
         for (const item of completedItems) {
             const input = opnameInputs[item.id];
@@ -2704,14 +2958,16 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         }
         
         return true;
-    }, [completedItems, opnameInputs, canGenerateSerahTerima]);
+    }, [completedItems, opnameInputs]);
 
     // Refactor handleSubmit dengan parsing tipe data untuk menghindari API Rejection
     const handleSubmit = async () => {
-        if (completedItems.length === 0 && !canGenerateSerahTerima) {
+        if (completedItems.length === 0) {
             showAlert({
-                message: "PDF Serah Terima belum dapat dibuat karena data opname final belum tersedia.",
-                type: "warning"
+                message: canGenerateSerahTerima
+                    ? "Semua Opname sudah selesai. Gunakan tombol Generate Serah Terima pada panel utama ULOK."
+                    : "Tidak ada pekerjaan baru yang siap diajukan ke Opname.",
+                type: "info"
             });
             return;
         }
@@ -2771,27 +3027,9 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
             });
             
             if (itemsArray.length === 0) {
-                if (canGenerateSerahTerima) {
-                    try {
-                        const { createPdfSerahTerima } = await import('@/lib/api');
-                        await createPdfSerahTerima(Number(id_toko));
-                        showAlert({ 
-                            message: 'Berita Acara Serah Terima berhasil digenerate!', 
-                            type: 'success',
-                            onConfirm: () => onSuccess()
-                        });
-                    } catch (pdfErr: any) {
-                        console.error("Error trigger PDF serah terima:", pdfErr);
-                        showAlert({ message: `Gagal generate PDF: ${pdfErr.message}`, type: "error" });
-                    } finally {
-                        setIsSubmitting(false);
-                    }
-                    return;
-                } else {
-                    showAlert({ message: "Tidak ada item untuk di-opname.", type: "warning" });
-                    setIsSubmitting(false);
-                    return;
-                }
+                showAlert({ message: "Tidak ada item baru untuk di-opname.", type: "info" });
+                setIsSubmitting(false);
+                return;
             }
 
             const grandTotalOpname = itemsArray.reduce((acc, item) => {
@@ -2875,7 +3113,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                 <>
                                     <CheckCircle className="w-12 h-12 mb-3 text-green-500" />
                                     <p className="font-semibold text-lg text-slate-800">Semua Opname Selesai</p>
-                                    <p className="text-sm mt-2">Seluruh item pekerjaan telah melalui proses opname. Klik <strong>Generate PDF Serah Terima</strong> di bawah untuk menyelesaikan proses Serah Terima.</p>
+                                    <p className="text-sm mt-2">Seluruh item pekerjaan telah melalui proses opname. Tutup modal ini dan gunakan tombol <strong>Generate Serah Terima</strong> pada panel utama ULOK.</p>
                                 </>
                             ) : completedPengawasanCount > 0 ? (
                                 <>
@@ -3041,17 +3279,15 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         disabled={
                             isSubmitting
                             || (groupedByCategory.length > 0 && !isSubmitValid)
-                            || (groupedByCategory.length === 0 && !canGenerateSerahTerima)
+                            || groupedByCategory.length === 0
                         }
                         className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSubmitting
                             ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                            : (groupedByCategory.length === 0 && canGenerateSerahTerima
-                                ? <FileText className="w-4 h-4 mr-2" />
-                                : <Send className="w-4 h-4 mr-2" />)}
+                            : <Send className="w-4 h-4 mr-2" />}
                         {groupedByCategory.length === 0
-                            ? (canGenerateSerahTerima ? "Generate PDF Serah Terima" : "Opname Belum Tersedia")
+                            ? "Tidak Ada Item Opname"
                             : "Submit Opname"}
                     </Button>
                 </div>
