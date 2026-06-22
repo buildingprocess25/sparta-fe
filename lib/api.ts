@@ -1664,6 +1664,8 @@ export type SupervisionScope = {
     opname_aksi: string | null;
     berkas_serah_terima_id: number | null;
     link_pdf_serah_terima: string | null;
+    spk_start_date: string | null;
+    spk_duration: number | null;
     checkpoints: SupervisionCheckpoint[];
 };
 
