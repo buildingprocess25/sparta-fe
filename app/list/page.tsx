@@ -143,9 +143,9 @@ interface NormalizedDetail {
     link_pdf_rekapitulasi?: string | null;
     link_pdf_materai?: string | null;
     link_lampiran_pendukung?: string | null;
-    approval_koordinator?: { pemberi: string | null; waktu: string | null };
-    approval_manager?: { pemberi: string | null; waktu: string | null };
-    approval_direktur?: { pemberi: string | null; waktu: string | null };
+    approval_koordinator?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    approval_manager?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    approval_direktur?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
     items?: Array<{
         id: number;
         kategori: string;
@@ -1484,8 +1484,8 @@ export default function DaftarDokumenPage() {
                     link_pdf_non_sbo:  d.link_pdf_non_sbo,
                     link_pdf_rekapitulasi: d.link_pdf_rekapitulasi,
                     link_lampiran_pendukung: d.link_lampiran,
-                    approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator },
-                    approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager },
+                    approval_koordinator: { pemberi: d.pemberi_persetujuan_koordinator, waktu: d.waktu_persetujuan_koordinator, catatan: d.catatan_persetujuan_koordinator },
+                    approval_manager:     { pemberi: d.pemberi_persetujuan_manager,     waktu: d.waktu_persetujuan_manager, catatan: d.catatan_persetujuan_manager },
                     alasan_penolakan:    d.alasan_penolakan,
                     items: (d.items ?? []).map((it: any) => ({
                         id: it.id,
@@ -3059,10 +3059,10 @@ export default function DaftarDokumenPage() {
                                             Riwayat Persetujuan
                                         </h4>
                                         <div className="space-y-3">
-                                            <ApprovalRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} />
-                                            <ApprovalRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} />
+                                            <ApprovalRow label="Koordinator" pemberi={selectedDetail.approval_koordinator?.pemberi} waktu={selectedDetail.approval_koordinator?.waktu} catatan={selectedDetail.approval_koordinator?.catatan} />
+                                            <ApprovalRow label="Manager" pemberi={selectedDetail.approval_manager?.pemberi} waktu={selectedDetail.approval_manager?.waktu} catatan={selectedDetail.approval_manager?.catatan} />
                                             {selectedDetail.tipe === 'RAB' && (
-                                                <ApprovalRow label="Direktur Kontraktor" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} />
+                                                <ApprovalRow label="Direktur Kontraktor" pemberi={selectedDetail.approval_direktur?.pemberi} waktu={selectedDetail.approval_direktur?.waktu} catatan={selectedDetail.approval_direktur?.catatan} />
                                             )}
                                             {selectedDetail.alasan_penolakan && (
                                                 <div className="flex items-start gap-3 text-sm mt-2 bg-red-50 rounded-lg p-3 border border-red-100">
@@ -3618,22 +3618,29 @@ function ProjectPlanningAttachmentGroup({
     );
 }
 
-function ApprovalRow({ label, pemberi, waktu }: { label: string; pemberi?: string | null; waktu?: string | null }) {
+function ApprovalRow({ label, pemberi, waktu, catatan }: { label: string; pemberi?: string | null; waktu?: string | null; catatan?: string | null }) {
     return (
-        <div className="flex items-center gap-3 text-sm">
-            {pemberi ? (
-                <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-            ) : (
-                <div className="w-4 h-4 rounded-full border-2 border-slate-200 shrink-0" />
-            )}
-            <span className="text-slate-500 font-medium w-24 shrink-0">{label}</span>
-            {pemberi ? (
-                <>
-                    <span className="text-slate-800 font-semibold truncate">{pemberi}</span>
-                    {waktu && <span className="text-slate-400 text-xs ml-1 shrink-0">{formatDateFull(waktu)}</span>}
-                </>
-            ) : (
-                <span className="text-slate-300 italic text-xs">Belum diproses</span>
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3 text-sm">
+                {pemberi ? (
+                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-slate-200 shrink-0" />
+                )}
+                <span className="text-slate-500 font-medium w-24 shrink-0">{label}</span>
+                {pemberi ? (
+                    <>
+                        <span className="text-slate-800 font-semibold truncate">{pemberi}</span>
+                        {waktu && <span className="text-slate-400 text-xs ml-1 shrink-0">{formatDateFull(waktu)}</span>}
+                    </>
+                ) : (
+                    <span className="text-slate-300 italic text-xs">Belum diproses</span>
+                )}
+            </div>
+            {catatan && (
+                <div className="ml-7 pl-4 border-l-2 border-slate-200 py-1">
+                    <p className="text-xs text-slate-500 italic break-words">"{catatan}"</p>
+                </div>
             )}
         </div>
     );
