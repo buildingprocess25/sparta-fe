@@ -111,15 +111,40 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
 
                 const duration = maxDay;
 
-                // If SPK data is provided, use SPK start date and duration
-                const effectiveStartDate = spkStartDate
-                    ? new Date(spkStartDate.split('T')[0] + 'T00:00:00')
-                    : projectStart;
-                const effectiveDuration = spkDuration && spkDuration > 0
-                    ? spkDuration
-                    : duration;
-
                 const pengawasanDates = (pengawasan || []).map((p: any) => p.tanggal_pengawasan).filter(Boolean);
+
+                let effectiveStartDate = projectStart;
+                let effectiveDuration = duration;
+                
+                if (spkStartDate) {
+                    effectiveStartDate = new Date(spkStartDate.split('T')[0] + 'T00:00:00');
+                    if (spkDuration && spkDuration > 0) {
+                        effectiveDuration = spkDuration;
+                    }
+                } else if (pengawasanDates.length > 0) {
+                    // Fallback to earliest pengawasan date if SPK is missing, to avoid missing dots
+                    const pDates = pengawasanDates.map((d: string) => {
+                        const [dd, mm, yyyy] = d.split('/');
+                        const fixedYyyy = yyyy.length === 2 ? `20${yyyy}` : yyyy;
+                        return new Date(`${fixedYyyy}-${mm}-${dd}T00:00:00`);
+                    }).filter((d: Date) => !isNaN(d.getTime()));
+                    
+                    if (pDates.length > 0) {
+                        const minDate = new Date(Math.min(...pDates.map((d: Date) => d.getTime())));
+                        const maxDate = new Date(Math.max(...pDates.map((d: Date) => d.getTime())));
+                        
+                        if (minDate < effectiveStartDate) {
+                            effectiveStartDate = minDate;
+                        }
+                        
+                        // Recalculate duration based on max pengawasan date if it exceeds current duration
+                        const diffTime = Math.abs(maxDate.getTime() - effectiveStartDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        if (diffDays > effectiveDuration) {
+                            effectiveDuration = diffDays;
+                        }
+                    }
+                }
 
                 setProjectData({
                     duration: effectiveDuration,
