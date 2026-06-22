@@ -793,7 +793,7 @@ const normalizeOpnameDocs = (items: any[], tipe: 'OPNAME' | 'OPNAME_FINAL'): Nor
         proyek:        o.proyek        ?? o.toko?.proyek     ?? '-',
         status:        o.status_opname_final,
         email_pembuat: o.email_pembuat,
-        total_nilai:   Math.max(0, parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda)),
+        total_nilai:   parseCurrency(o.grand_total_opname) - parseCurrency(o.nilai_denda),
         created_at:    o.created_at,
         tanggal_kerja_tambah_kurang: o.waktu_persetujuan_direktur ?? null,
         link_pdf:      o.link_pdf_opname ?? null,
