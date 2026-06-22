@@ -273,7 +273,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
         }
 
         let liveDayIndex = -1;
-        if (projectData?.useSpkDates && projectData?.spkStartDateObj) {
+        if (projectData?.spkStartDateObj) {
             const today = new Date();
             const td = String(today.getDate()).padStart(2, '0');
             const tm = String(today.getMonth() + 1).padStart(2, '0');
@@ -347,7 +347,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             let isLiveDay = false;
                             let fullDateString = '';
                             
-                            if (projectData?.useSpkDates && projectData?.spkStartDateObj) {
+                            if (projectData?.spkStartDateObj) {
                                 const d = new Date(projectData.spkStartDateObj);
                                 d.setDate(d.getDate() + i);
                                 label = formatHeaderDate(d);
@@ -393,7 +393,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                                         ? 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100'
                                                         : 'bg-slate-50 text-slate-500'
                                     }`}
-                                    style={{ width: DAY_WIDTH, fontSize: projectData?.useSpkDates ? '9px' : undefined }}
+                                    style={{ width: DAY_WIDTH, fontSize: projectData?.spkStartDateObj ? '9px' : undefined }}
                                     title={isReadyOpname
                                         ? `${readyCount} pekerjaan siap Opname`
                                         : isAlreadyOpname

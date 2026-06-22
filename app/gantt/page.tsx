@@ -1356,34 +1356,33 @@ function GanttBoard() {
                         </Card>
                     ) : supervisionWorkspace ? (
                         <>
-                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 text-white shadow-xl">
-                                <div className="relative p-6 md:p-7">
-                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.28),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.22),transparent_38%)]" />
+                            <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
+                                <div className="relative p-6 md:p-7 text-slate-900">
                                     <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                                         <div>
                                             <div className="mb-2 flex flex-wrap items-center gap-2">
-                                                <Badge className="border border-white/20 bg-white/10 text-white">WORKSPACE PENGAWASAN</Badge>
-                                                <Badge className="border border-red-400/40 bg-red-500/20 text-red-100">
+                                                <Badge className="border border-red-200 bg-red-50 text-red-700">WORKSPACE PENGAWASAN</Badge>
+                                                <Badge className="border border-red-200 bg-red-600 text-white">
                                                     {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
                                                 </Badge>
                                             </div>
                                             <h2 className="text-2xl font-black tracking-tight md:text-3xl">
                                                 {formatUlokWithDash(supervisionWorkspace.nomor_ulok)}
                                             </h2>
-                                            <p className="mt-1 text-sm text-slate-300">
+                                            <p className="mt-1 text-sm text-slate-500">
                                                 {supervisionWorkspace.nama_toko || '-'} · {supervisionWorkspace.cabang || '-'}
                                             </p>
                                             <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold">
-                                                <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5">
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
                                                     PIC: {supervisionWorkspace.pic_bersama || 'Belum ditentukan'}
                                                 </span>
-                                                <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5">
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
                                                     SIPIL di atas · ME di bawah
                                                 </span>
                                             </div>
                                         </div>
 
-                                        <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur lg:w-auto lg:min-w-96">
+                                        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:w-auto lg:min-w-96">
                                             <div className="mb-3 flex items-center justify-between">
                                                 <div>
                                                     <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Serah Terima</p>
@@ -1403,7 +1402,7 @@ function GanttBoard() {
                                                 type="button"
                                                 onClick={handleGenerateUnifiedHandover}
                                                 disabled={(!supervisionWorkspace.serah_terima_ready && !supervisionWorkspace.serah_terima_generated) || isGeneratingHandover}
-                                                className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-400"
+                                                className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
                                             >
                                                 {isGeneratingHandover
                                                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1442,9 +1441,7 @@ function GanttBoard() {
                                                 scopeName === 'SIPIL' ? 'bg-slate-900 text-white' : 'bg-blue-950 text-white'
                                             }`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                                                        scopeName === 'SIPIL' ? 'bg-red-500/20 text-red-300' : 'bg-blue-400/20 text-blue-200'
-                                                    }`}>
+                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white`}>
                                                         <Building2 className="h-5 w-5" />
                                                     </div>
                                                     <div>
