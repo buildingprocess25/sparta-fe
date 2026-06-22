@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { LogOut, Menu, X, ChevronLeft } from 'lucide-react';
 
@@ -16,6 +17,7 @@ interface AppNavbarProps {
   onLogout?: () => void;
   showBuildingLogo?: boolean;
   rightActions?: React.ReactNode; // <--- Tambahkan ini
+  variant?: "brand" | "clean";
 }
 
 export default function AppNavbar({
@@ -28,13 +30,19 @@ export default function AppNavbar({
   showLogout = false,
   onLogout,
   showBuildingLogo = false,
-  rightActions // <--- Tambahkan ini
+  rightActions, // <--- Tambahkan ini
+  variant = "brand",
 }: AppNavbarProps) {
+  const isClean = variant === "clean";
   return (
-    <header className="flex items-center justify-between p-3 md:px-8 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md border-b border-red-900 sticky top-0 z-50 shrink-0 gap-2">
+    <header className={`flex items-center justify-between p-3 md:px-6 sticky top-0 z-50 shrink-0 gap-2 ${
+      isClean
+        ? "border-b border-slate-200 bg-white text-slate-900"
+        : "border-b border-red-900 bg-linear-to-r from-red-700 via-red-600 to-red-800 text-white shadow-md"
+    }`}>
       <div className="flex items-center gap-2 md:gap-5 min-w-0">
         {showMenuToggle && onMenuToggle && (
-          <button onClick={onMenuToggle} className="p-1.5 md:p-2 rounded-lg bg-white/15 hover:bg-white/30 border border-white/20 transition-all duration-200 shrink-0" aria-label="Toggle sidebar">
+          <button onClick={onMenuToggle} className={`p-1.5 md:p-2 rounded-lg border transition-all duration-200 shrink-0 ${isClean ? "border-slate-200 bg-slate-50 hover:bg-slate-100" : "border-white/20 bg-white/15 hover:bg-white/30"}`} aria-label="Toggle sidebar">
             {isMenuOpen ? <X className="w-4 h-4 md:w-5 md:h-5" /> : <Menu className="w-4 h-4 md:w-5 md:h-5" />}
           </button>
         )}
@@ -43,11 +51,11 @@ export default function AppNavbar({
             <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
           </Link>
         )}
-        <img src="/assets/Alfamart-Emblem.png" alt="Logo" className="h-7 md:h-12 object-contain drop-shadow-md shrink-0" />
-        <div className="h-6 md:h-8 w-px bg-white/30 hidden md:block shrink-0" />
-        <h1 className="text-base sm:text-lg md:text-2xl font-bold md:font-extrabold tracking-widest drop-shadow-md truncate">{title}</h1>
+        <Image src="/assets/Alfamart-Emblem.png" alt="Logo Alfamart" width={118} height={48} priority className="h-7 w-auto md:h-12 object-contain drop-shadow-md shrink-0" />
+        <div className={`h-6 md:h-8 w-px hidden md:block shrink-0 ${isClean ? "bg-slate-200" : "bg-white/30"}`} />
+        <h1 className={`text-base sm:text-lg md:text-xl font-semibold tracking-[0.08em] truncate ${isClean ? "" : "drop-shadow-md"}`}>{title}</h1>
         {showBuildingLogo && (
-          <img src="/assets/Building-Logo.png" alt="BM Logo" className="h-7 md:h-12 hidden sm:block object-contain drop-shadow-md shrink-0" />
+          <Image src="/assets/Building-Logo.png" alt="Building Logo" width={48} height={48} priority className="h-7 w-auto md:h-12 hidden sm:block object-contain drop-shadow-md shrink-0" />
         )}
       </div>
 
@@ -56,7 +64,7 @@ export default function AppNavbar({
         {rightActions}
         
         {showLogout && onLogout && (
-          <Button variant="outline" onClick={onLogout} className="bg-black/10 hover:bg-white hover:text-red-700 text-white border-white/30 transition-all shadow-sm backdrop-blur-sm h-8 md:h-9 px-2.5 md:px-4">
+          <Button variant="outline" onClick={onLogout} className={`transition-all h-8 md:h-9 px-2.5 md:px-4 ${isClean ? "border-slate-200 bg-white text-slate-600 hover:bg-red-50 hover:text-red-700" : "border-white/30 bg-black/10 text-white shadow-sm backdrop-blur-sm hover:bg-white hover:text-red-700"}`}>
             <LogOut className="w-4 h-4 md:mr-2" />
             <span className="hidden md:inline text-xs md:text-sm">Logout</span>
           </Button>

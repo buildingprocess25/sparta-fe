@@ -1,12 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Outfit } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
-const outfit = Outfit({subsets:['latin'],variable:'--font-sans'});
-
 const geistSans = Geist({
-  variable: "--font-geist-sans",
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
@@ -48,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("font-sans", outfit.variable)}>
+    <html lang="id" className={cn("font-sans", geistSans.variable)}>
       <head>
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
       </head>

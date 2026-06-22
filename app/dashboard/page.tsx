@@ -31,6 +31,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
+import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
 
 // =============================================================================
 // MAIN COMPONENT
@@ -601,6 +603,37 @@ export default function DashboardPage() {
         console.warn('Berkas serah terima tidak memiliki ID untuk dibuka lewat viewer aplikasi.', serahTerima);
     }, []);
 
+    const canOpenDashboardSource = useCallback((_project: any, context: string) => {
+        const hasDocumentAccess = allowedMenus.some(menu => menu.id === "menu-daftardokumen");
+        if (context === "PROJECT_PLANNING") {
+            return allowedMenus.some(menu => menu.id === "menu-projek-planning");
+        }
+        return hasDocumentAccess;
+    }, [allowedMenus]);
+
+    const handleOpenDashboardSource = useCallback((project: any, context: string) => {
+        if (!canOpenDashboardSource(project, context)) return;
+        const stage = getProjectStage(project);
+        const hasSerahTerima = Boolean(getLatestSerahTerima(project));
+        let kategori = "RAB";
+
+        if (context === "SPK" || context === "JHK" || context === "DELAY" || ["Approval SPK", "Ongoing"].includes(stage)) {
+            kategori = "SPK";
+        } else if (context === "DENDA" || context === "NILAI_TOKO" || stage === "Kerja Tambah Kurang") {
+            kategori = "OPNAME_FINAL";
+        } else if (stage === "Done" && hasSerahTerima) {
+            kategori = "BERKAS_SERAH_TERIMA";
+        } else if (context === "COST_M2") {
+            kategori = getLatestProjectOpnameFinal(project) ? "OPNAME_FINAL" : "RAB";
+        }
+
+        const query = new URLSearchParams({
+            kategori,
+            q: String(project?.toko?.nomor_ulok || project?.toko?.nama_toko || ""),
+        });
+        router.push(`/list?${query.toString()}`);
+    }, [canOpenDashboardSource, router]);
+
     // Summary Stats
     const stats = useMemo(() => {
         let totalPenawaran = 0;
@@ -990,6 +1023,13 @@ export default function DashboardPage() {
         { label: 'Keterlambatan', value: `${stats.avgDelay} hari`, helper: 'Rata-rata lewat target', context: 'DELAY', icon: <Clock className="w-4 h-4" /> },
         { label: 'Nilai Kontraktor', value: `${stats.avgNilaiKontraktor} poin`, helper: 'Rata-rata hasil ST', context: 'NILAI_KONTRAKTOR', icon: <UserCheck className="w-4 h-4" /> },
     ];
+    const approvalMenuCount = user
+        ? getApprovalNotificationTotal(approvalCounts, getAccessibleApprovalTypes(user))
+        : 0;
+    const dashboardMenuCounts: Record<string, number> = {
+        "menu-rab": rabRevisionCount + rabPlanningRequestCount,
+        "menu-approval": approvalMenuCount,
+    };
 
     // =========================================================================
     // LOADING STATE
@@ -1046,14 +1086,24 @@ export default function DashboardPage() {
                             : 'w-0 -translate-x-full md:translate-x-0 md:w-0'}
                     `}
                 >
+                    <DashboardNavigation
+                        menus={allowedMenus}
+                        menuCounts={dashboardMenuCounts}
+                        userName={userInfo.name}
+                        roleLabel={user?.isSuperHuman ? "SUPER HUMAN" : (userInfo.roles[0] || "USER")}
+                        cabang={userInfo.cabang}
+                        onCloseMobile={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}
+                        onFeatureAlert={showFeatureAlert}
+                        onChangeWorkspace={() => router.push('/workspace')}
+                    />
                     {/* Sidebar header */}
-                    <div className="px-4 pt-4 pb-2.5 border-b border-slate-100 shrink-0">
+                    <div className="hidden px-4 pt-4 pb-2.5 border-b border-slate-100 shrink-0">
                         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Navigasi</p>
                         <h2 className="text-sm font-bold text-slate-700 mt-0.5">Fitur Akses</h2>
                     </div>
 
                     {/* Menu items */}
-                    <nav className="flex-1 overflow-y-auto px-2.5 py-2.5 flex flex-col gap-0.5">
+                    <nav className="hidden flex-1 overflow-y-auto px-2.5 py-2.5 flex-col gap-0.5">
                         {allowedMenus.map((menu) => {
                             const IconComp = menu.icon;
                             const approvalCount = menu.id === "menu-approval" && user
@@ -1124,7 +1174,7 @@ export default function DashboardPage() {
                     </nav>
 
                     {/* Sidebar footer */}
-                    <div className="px-4 py-2.5 border-t border-slate-100 shrink-0 space-y-2">
+                    <div className="hidden px-4 py-2.5 border-t border-slate-100 shrink-0 space-y-2">
                         <Button
                             variant="ghost"
                             className="h-8 w-full justify-start rounded-lg text-xs font-semibold text-slate-500"
@@ -1257,8 +1307,32 @@ export default function DashboardPage() {
                         )}
                     </div>
 
+                    <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                        <DashboardCommandWorkspace
+                            stats={stats}
+                            projects={filteredProjects}
+                            priorityProjects={priorityProjects}
+                            detail={detailModal}
+                            isGlobalView={canSeeAllMonitoringBranches}
+                            isCompanyScoped={isCompanyScopedUser}
+                            userName={userInfo.name}
+                            cabang={userInfo.cabang}
+                            opnameItemsMap={opnameItemsMap}
+                            onOpenDetail={(title, context, subContext = '') => setDetailModal({ open: true, title, context, subContext })}
+                            onCloseDetail={() => setDetailModal(prev => ({ ...prev, open: false, subContext: '' }))}
+                            onOpenPenalty={handleOpenPenaltyProject}
+                            onOpenSerahTerima={handleOpenSerahTerima}
+                            onOpenSource={handleOpenDashboardSource}
+                            canOpenSource={canOpenDashboardSource}
+                            getStage={getProjectStage}
+                            getLateDays={calculateProjectLateDays}
+                            getPenalty={getProjectPenaltyInfo}
+                            getQuality={getStoreQualityScore}
+                        />
+                    </div>
+
                     {canViewMonitoringDashboard ? (
-                    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="hidden flex-1 flex-col overflow-hidden bg-slate-50 rounded-xl border border-slate-200">
                         
                         {/* 1. SCROLLABLE CONTENT */}
                         <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5 space-y-5 custom-scrollbar">
@@ -1786,7 +1860,7 @@ export default function DashboardPage() {
                         </div>
                     </div>
                     ) : (
-                    <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="hidden flex-1 items-center justify-center bg-slate-50 rounded-xl border border-slate-200">
                         <div className="text-center px-6">
                             <Layers className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                             <p className="text-sm font-bold text-slate-700">Pilih fitur dari navigasi</p>
@@ -1829,7 +1903,7 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AlertDialog 
-                open={detailModal.open} 
+                open={false}
                 onOpenChange={(open) => setDetailModal(prev => ({ ...prev, open }))}
             >
                 <AlertDialogContent className="max-w-none! w-[98vw]! max-h-[92vh]! overflow-hidden flex flex-col p-0 rounded-2xl border border-slate-200 shadow-2xl">
