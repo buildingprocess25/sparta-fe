@@ -201,6 +201,8 @@ function GanttBoard() {
     
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
+    const [spkTokoIds, setSpkTokoIds] = useState<Set<number>>(new Set());
+    const [spkFilter, setSpkFilter] = useState<'all' | 'spk' | 'no_spk'>('all');
     const [ganttNotes, setGanttNotes] = useState<GanttNoteItem[]>([]);
     const [ganttNoteInput, setGanttNoteInput] = useState('');
     const [isGanttNoteLoading, setIsGanttNoteLoading] = useState(false);
@@ -215,15 +217,24 @@ function GanttBoard() {
     const [searchUlokInput, setSearchUlokInput] = useState("");
 
     const filteredTokoList = useMemo(() => {
-        if (!searchUlokInput) return allTokoList;
-        const lowerSearch = searchUlokInput.toLowerCase();
-        return allTokoList.filter((toko: any) => {
-            const ulok = formatUlokWithDash(toko.nomor_ulok).toLowerCase();
-            const nama = (toko.nama_toko || "").toLowerCase();
-            const cabang = (toko.cabang || "").toLowerCase();
-            return ulok.includes(lowerSearch) || nama.includes(lowerSearch) || cabang.includes(lowerSearch);
-        });
-    }, [allTokoList, searchUlokInput]);
+        let list = allTokoList;
+        if (searchUlokInput) {
+            const lowerSearch = searchUlokInput.toLowerCase();
+            list = list.filter((toko: any) => {
+                const ulok = formatUlokWithDash(toko.nomor_ulok).toLowerCase();
+                const nama = (toko.nama_toko || "").toLowerCase();
+                const cabang = (toko.cabang || "").toLowerCase();
+                return ulok.includes(lowerSearch) || nama.includes(lowerSearch) || cabang.includes(lowerSearch);
+            });
+        }
+        
+        if (spkFilter === 'spk') {
+            return list.filter((toko: any) => spkTokoIds.has(Number(toko.id_toko || toko.id)));
+        } else if (spkFilter === 'no_spk') {
+            return list.filter((toko: any) => !spkTokoIds.has(Number(toko.id_toko || toko.id)));
+        }
+        return list;
+    }, [allTokoList, searchUlokInput, spkFilter, spkTokoIds]);
 
     const [tasks, setTasks] = useState<any[]>([]);
     const [isApplying, setIsApplying] = useState(false);
@@ -399,9 +410,18 @@ function GanttBoard() {
         if (currentAppMode === 'pic') {
             Promise.all([
                 fetchGanttList(),
-                fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true })
+                fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }),
+                fetchSPKList({ status: 'SPK_APPROVED' }).catch(() => ({ data: [] }))
             ])
-                .then(([res, instruksiRes]) => {
+                .then(([res, instruksiRes, spkRes]) => {
+                    const spkIds = new Set<number>();
+                    if (spkRes && Array.isArray(spkRes.data)) {
+                        spkRes.data.forEach((spk: any) => {
+                            if (spk.id_toko) spkIds.add(Number(spk.id_toko));
+                        });
+                    }
+                    setSpkTokoIds(spkIds);
+
                     const data = res.data || [];
                     const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
                     const merged = mergeProjectOptions(data, ilProjects);
@@ -416,9 +436,18 @@ function GanttBoard() {
         } else {
             Promise.all([
                 fetchRABList(),
-                fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true })
+                fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }),
+                fetchSPKList({ status: 'SPK_APPROVED' }).catch(() => ({ data: [] }))
             ])
-                .then(([res, instruksiRes]) => {
+                .then(([res, instruksiRes, spkRes]) => {
+                    const spkIds = new Set<number>();
+                    if (spkRes && Array.isArray(spkRes.data)) {
+                        spkRes.data.forEach((spk: any) => {
+                            if (spk.id_toko) spkIds.add(Number(spk.id_toko));
+                        });
+                    }
+                    setSpkTokoIds(spkIds);
+
                     const data = res.data || [];
                     const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
                     const merged = mergeProjectOptions(data, ilProjects);
@@ -1222,7 +1251,8 @@ function GanttBoard() {
                                                 const scopeLabel = appMode === 'pic'
                                                     ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
                                                     : toko.lingkup_pekerjaan;
-                                                const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
+                                                const hasSpk = spkTokoIds.has(Number(toko.id_toko || toko.id));
+                                                const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel, hasSpk ? 'SPK' : 'BELUM SPK']
                                                     .filter(Boolean).join(' · ');
                                                 const statusBadge = ganttMatch?.status === 'terkunci' ? ' (Terkunci)' : (ganttMatch?.status === 'active' ? ' (Aktif)' : '');
                                                 
@@ -1237,15 +1267,52 @@ function GanttBoard() {
                                 </Select>
                             )}
                             {!((urlIdToko || urlUlok) && !isDirectAccess) && (
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
-                                    <Input
-                                        placeholder="Cari Nomor / Toko / Cabang..."
-                                        className="pl-9 h-11 text-sm focus-visible:ring-blue-500 bg-white"
-                                        value={searchUlokInput}
-                                        onChange={(e) => setSearchUlokInput(e.target.value)}
-                                    />
-                                </div>
+                                <>
+                                    <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-lg">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpkFilter('all')}
+                                            className={`py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                                                spkFilter === 'all'
+                                                    ? 'bg-white text-slate-900 shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                                            }`}
+                                        >
+                                            Semua ({allTokoList.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpkFilter('spk')}
+                                            className={`py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                                                spkFilter === 'spk'
+                                                    ? 'bg-red-600 text-white shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                                            }`}
+                                        >
+                                            Sudah SPK ({allTokoList.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpkFilter('no_spk')}
+                                            className={`py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                                                spkFilter === 'no_spk'
+                                                    ? 'bg-slate-900 text-white shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                                            }`}
+                                        >
+                                            Belum SPK ({allTokoList.filter(t => !spkTokoIds.has(Number(t.id_toko || t.id))).length})
+                                        </button>
+                                    </div>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                                        <Input
+                                            placeholder="Cari Nomor / Toko / Cabang..."
+                                            className="pl-9 h-11 text-sm focus-visible:ring-blue-500 bg-white"
+                                            value={searchUlokInput}
+                                            onChange={(e) => setSearchUlokInput(e.target.value)}
+                                        />
+                                    </div>
+                                </>
                             )}
                         </div>
                     </CardContent>
@@ -1431,7 +1498,7 @@ function GanttBoard() {
                                     return (
                                         <div key={scope.id_toko} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
                                             <div className={`flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${
-                                                scopeName === 'SIPIL' ? 'bg-slate-900 text-white' : 'bg-blue-950 text-white'
+                                                scopeName === 'SIPIL' ? 'bg-red-700 text-white' : 'bg-red-950 text-white'
                                             }`}>
                                                 <div className="flex items-center gap-3">
                                                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white`}>
@@ -1776,6 +1843,7 @@ function GanttBoard() {
                 onClose={() => setShowMemoModal(false)} 
                 selectedGanttId={selectedGanttId}
                 spkInfo={spkInfo}
+                projectData={projectData}
                 id_toko={projectData?.id_toko}
                 onSuccess={(options?: { openOpname?: boolean }) => {
                     setShowMemoModal(false);
@@ -1820,7 +1888,7 @@ function GanttBoard() {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, id_toko, onSuccess }: any) {
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
     const { user } = useSession();
@@ -1842,13 +1910,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     }, []);
     
     useEffect(() => {
-        if (!selectedGanttId || !spkInfo || !activeHeaderClick) {
+        if (!selectedGanttId || (!spkInfo && !projectData) || !activeHeaderClick) {
             setIsLoadingHistory(false);
             return;
         }
 
         const offset = activeHeaderClick?.dayIndex || 0;
-        const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+        const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         dDate.setDate(dDate.getDate() + offset);
         const yyyy = dDate.getFullYear();
         const mm = String(dDate.getMonth() + 1).padStart(2, '0');
@@ -2139,7 +2208,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     };
 
     const isLastSupervisionDay = useMemo(() => {
-        if (!pengawasanHistory || pengawasanHistory.length === 0 || !spkInfo || !activeHeaderClick) return false;
+        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) return false;
         
         const datesInNumeric = pengawasanHistory
             .map((p: any) => p.tanggal_pengawasan)
@@ -2158,7 +2227,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const maxDate = datesInNumeric[datesInNumeric.length - 1];
         
         const offset = activeHeaderClick.dayIndex || 0;
-        const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+        const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         dDate.setDate(dDate.getDate() + offset);
         const yyyy = dDate.getFullYear();
         const mm = String(dDate.getMonth() + 1).padStart(2, '0');
@@ -2166,7 +2236,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
         
         return maxDate === currentNumeric;
-    }, [pengawasanHistory, spkInfo, activeHeaderClick]);
+    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick]);
 
     const isSubmitValid = useMemo(() => {
         // Kasus khusus: semua pekerjaan sudah Selesai (memoConfig kosong), 
