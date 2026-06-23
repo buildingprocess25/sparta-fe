@@ -274,14 +274,7 @@ function GanttBoard() {
             label: checkpoint.tanggal_pengawasan.slice(0, 5),
         });
 
-        if (checkpoint.total_items === 0) {
-            showAlert({
-                title: "Tidak ada pekerjaan tersisa",
-                message: "Checkpoint ini tidak memiliki pekerjaan yang perlu diisi. Proses berikutnya dilanjutkan melalui Opname pada checkpoint bertanda merah.",
-                type: "info",
-            });
-            return;
-        }
+
 
         if (checkpoint.total_items > 0 && checkpoint.ready_opname_items === 0 && checkpoint.opname_items > 0) {
             showAlert({
