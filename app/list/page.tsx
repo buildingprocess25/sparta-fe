@@ -3002,8 +3002,8 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 </div>
 
-                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN, PROJECT_PLANNING & DOKUMENTASI_BANGUNAN */}
-                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && (
+                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN, PROJECT_PLANNING, DOKUMENTASI_BANGUNAN & BERKAS_SERAH_TERIMA */}
+                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && selectedDetail.tipe !== 'BERKAS_SERAH_TERIMA' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                                         <div className="w-1.5 h-5 bg-red-500 rounded-full" />
