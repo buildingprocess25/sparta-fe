@@ -200,6 +200,32 @@ const firstRab = (project: any) => (Array.isArray(project?.rab) ? project.rab[0]
 const firstSpk = (project: any) => (Array.isArray(project?.spk) ? project.spk[0] : project?.spk) ?? null;
 const firstOpname = (project: any) => (Array.isArray(project?.opname_final) ? project.opname_final[0] : project?.opname_final) ?? null;
 
+const normalizeStorePenaltyKeyPart = (value: unknown) => {
+  return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+};
+
+const getProjectStorePenaltyKey = (project: any) => {
+  const nomorUlok = normalizeStorePenaltyKeyPart(project?.toko?.nomor_ulok);
+  if (nomorUlok) return `ULOK|${nomorUlok}`;
+
+  const kodeToko = normalizeStorePenaltyKeyPart(project?.toko?.kode_toko);
+  if (kodeToko) return `KODE|${kodeToko}`;
+
+  const cabang = normalizeStorePenaltyKeyPart(project?.toko?.cabang);
+  const namaToko = normalizeStorePenaltyKeyPart(project?.toko?.nama_toko);
+  if (namaToko) return `NAMA|${cabang}|${namaToko}`;
+
+  return `TOKO_ID|${project?.toko?.id || "UNKNOWN"}`;
+};
+
+const compareProjectPenaltyInfo = (current: any, next: any) => {
+  if (!current) return next;
+  if (current.source !== next.source) {
+    return next.source === "Resmi" ? next : current;
+  }
+  return next.amount > current.amount ? next : current;
+};
+
 const formatDashboardDate = (value: unknown) => {
   if (!value) return "-";
   const date = new Date(String(value));
@@ -653,6 +679,27 @@ export default function DashboardCommandWorkspace({
     if (detail.context === "BEANSPOT") {
       return stats.beanspotStores.map((item) => ({ ...item, __kind: "beanspot" }));
     }
+    if (detail.context === "DENDA") {
+      const penaltyProjects = projects.filter((project) => getPenalty(project).amount > 0);
+      const byStore = new Map<string, { project: any; penalty: any; createdAt: number }>();
+      penaltyProjects.forEach((project) => {
+        const key = getProjectStorePenaltyKey(project);
+        const latestOpnameFinal = firstOpname(project);
+        const penalty = getPenalty(project);
+        const createdAt = new Date(latestOpnameFinal?.created_at || project?.toko?.created_at || 0).getTime() || 0;
+        const existing = byStore.get(key);
+        const selectedPenalty = compareProjectPenaltyInfo(existing?.penalty, penalty);
+
+        if (
+          !existing ||
+          selectedPenalty !== existing.penalty ||
+          (penalty.amount === existing.penalty.amount && penalty.source === existing.penalty.source && createdAt > existing.createdAt)
+        ) {
+          byStore.set(key, { project, penalty, createdAt });
+        }
+      });
+      return Array.from(byStore.values()).map((entry) => entry.project);
+    }
     return projects.filter((project) => {
       const stage = getStage(project);
       if (detail.subContext && stage !== detail.subContext) return false;
@@ -661,7 +708,6 @@ export default function DashboardCommandWorkspace({
       }
       if (detail.context === "SPK") return projectHasSpk(project);
       if (detail.context === "PENAWARAN" || detail.context === "COST_M2") return Boolean(firstRab(project));
-      if (detail.context === "DENDA") return getPenalty(project).amount > 0;
       if (detail.context === "DELAY") return getLateDays(project) > 0;
       if (detail.context === "JHK") return projectHasSpk(project);
       if (detail.context === "NILAI_TOKO") return (opnameItemsMap[project?.toko?.id] || []).length > 0;
