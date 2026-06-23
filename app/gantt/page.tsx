@@ -660,16 +660,6 @@ function GanttBoard() {
                 setRabItems(instruksiItems);
             }
 
-            const startDaysRaw = day_items
-                .map(entry => parseInt(entry.h_awal))
-                .filter(d => !isNaN(d));
-
-            const endDaysRaw = day_items
-                .map(entry => parseInt(entry.h_akhir))
-                .filter(d => !isNaN(d));
-
-            const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
-
             let projectStart = new Date();
             if (gantt.timestamp) {
                 const parts = gantt.timestamp.split('T')[0].split('-'); 
@@ -677,6 +667,29 @@ function GanttBoard() {
                     projectStart = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
                 }
             }
+
+            const msPerDay = 1000 * 60 * 60 * 24;
+            const toDayNumber = (val: string): number => {
+                if (!val) return NaN;
+                const cleanVal = String(val).trim();
+                if (cleanVal.includes('/')) {
+                    const parsed = parseDateDDMMYYYY(cleanVal);
+                    if (!parsed) return NaN;
+                    const diff = Math.round((parsed.getTime() - projectStart.getTime()) / msPerDay);
+                    return diff + 1;
+                }
+                return parseInt(cleanVal);
+            };
+
+            const startDaysRaw = day_items
+                .map(entry => toDayNumber(entry.h_awal))
+                .filter(d => !isNaN(d));
+
+            const endDaysRaw = day_items
+                .map(entry => toDayNumber(entry.h_akhir))
+                .filter(d => !isNaN(d));
+
+            const maxDay = endDaysRaw.length > 0 ? Math.max(...endDaysRaw) : 0;
 
             const ganttComputedDuration = maxDay;
             const duration = rabDurationFallback > 0 ? rabDurationFallback : ganttComputedDuration;
@@ -742,8 +755,8 @@ function GanttBoard() {
 
             const categoryRangesMap: Record<string, any[]> = {};
             day_items.forEach(entry => {
-                const startDay = parseInt(entry.h_awal);
-                const endDay   = parseInt(entry.h_akhir);
+                const startDay = toDayNumber(entry.h_awal);
+                const endDay   = toDayNumber(entry.h_akhir);
                 
                 if (!isNaN(startDay) && !isNaN(endDay)) {
                     const key = entry.kategori_pekerjaan.toLowerCase().trim();
@@ -1149,8 +1162,14 @@ function GanttBoard() {
             rightActions={
                 <div className="flex items-center gap-2">
                     {user?.isSuperHuman && <Link href="/serah-terima/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" /><span className="hidden md:inline">Migrasi ST</span></Button></Link>}
-                    <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm whitespace-nowrap">
+                    <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm whitespace-nowrap font-bold">
                         {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
+                        {(() => {
+                            const scopeSuffix = supervisionWorkspace 
+                                ? supervisionWorkspace.scopes.map(s => String(s.lingkup_pekerjaan || '').toUpperCase()).sort().join(' + ')
+                                : (projectData?.work ? String(projectData.work).toUpperCase() : '');
+                            return scopeSuffix ? ` · ${scopeSuffix}` : '';
+                        })()}
                     </Badge>
                 </div>
             }
@@ -1359,17 +1378,71 @@ function GanttBoard() {
                 </Card>
 
                 {projectData && (
-                    <Card className="w-full lg:w-2/3 bg-blue-50 border-blue-200 shadow-sm">
+                    <Card className={`w-full lg:w-2/3 border shadow-sm transition-all ${
+                        String(projectData.work).toUpperCase() === 'ME'
+                            ? 'bg-slate-800 border-slate-700 text-white'
+                            : 'bg-red-50 border-red-200/80 text-slate-800'
+                    }`}>
                         <CardContent className="p-6 flex flex-wrap gap-x-10 gap-y-6 items-center">
-                            <div><p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Nama Toko</p><p className="text-xl font-bold text-blue-900">{projectData.store}</p></div>
-                            <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
-                            <div><p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Lingkup</p><p className="text-xl font-bold text-blue-900">{projectData.work}</p></div>
+                            <div>
+                                <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
+                                }`}>Nama Toko</p>
+                                <p className={`text-xl font-bold ${
+                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-white' : 'text-red-950'
+                                }`}>{projectData.store}</p>
+                            </div>
+                            <div className={`h-10 w-px hidden md:block ${
+                                String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
+                            }`}></div>
+                            <div>
+                                <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
+                                }`}>Lingkup</p>
+                                <p className={`text-xl font-bold ${
+                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-white' : 'text-red-950'
+                                }`}>{projectData.work}</p>
+                            </div>
+                            <div className={`h-10 w-px hidden md:block ${
+                                String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
+                            }`}></div>
+                            <div>
+                                <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
+                                }`}>Status SPK</p>
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                                    spkTokoIds.has(Number(projectData.id_toko))
+                                        ? 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30'
+                                        : 'bg-amber-500/20 text-amber-700 border border-amber-500/30'
+                                }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${spkTokoIds.has(Number(projectData.id_toko)) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                    {spkTokoIds.has(Number(projectData.id_toko)) ? 'SUDAH SPK' : 'BELUM SPK'}
+                                </span>
+                            </div>
                             {spkInfo && (
                                 <>
-                                    <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
-                                    <div><p className="text-xs font-semibold text-blue-600/70 uppercase tracking-wider mb-1">Durasi (SPK)</p><p className="text-xl font-bold text-blue-900">{spkInfo.duration} Hari</p></div>
-                                    <div className="h-10 w-px bg-blue-200 hidden md:block"></div>
-                                    <div><p className="text-xs font-semibold text-green-600/70 uppercase tracking-wider mb-1">Tgl Mulai SPK</p><p className="text-xl font-bold text-green-800">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
+                                    <div className={`h-10 w-px hidden md:block ${
+                                        String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
+                                    }`}></div>
+                                    <div>
+                                        <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
+                                        }`}>Durasi (SPK)</p>
+                                        <p className={`text-xl font-bold ${
+                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-white' : 'text-red-950'
+                                        }`}>{spkInfo.duration} Hari</p>
+                                    </div>
+                                    <div className={`h-10 w-px hidden md:block ${
+                                        String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
+                                    }`}></div>
+                                    <div>
+                                        <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-emerald-400/80' : 'text-green-600/70'
+                                        }`}>Tgl Mulai SPK</p>
+                                        <p className={`text-xl font-bold ${
+                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-emerald-300' : 'text-green-800'
+                                        }`}>{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                    </div>
                                 </>
                             )}
                         </CardContent>
@@ -1461,10 +1534,22 @@ function GanttBoard() {
                                     <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                                         <div>
                                             <div className="mb-2 flex flex-wrap items-center gap-2">
-                                                <Badge className="border border-red-200 bg-red-50 text-red-700">WORKSPACE PENGAWASAN</Badge>
-                                                <Badge className="border border-red-200 bg-red-600 text-white">
+                                                <Badge className="border border-red-200 bg-red-50 text-red-700 font-bold">WORKSPACE PENGAWASAN</Badge>
+                                                <Badge className="border border-red-200 bg-red-600 text-white font-bold">
                                                     {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
                                                 </Badge>
+                                                {(() => {
+                                                    const hasSpk = supervisionWorkspace.scopes.some(scope => spkTokoIds.has(Number(scope.id_toko)));
+                                                    return (
+                                                        <Badge className={`border font-bold shadow-xs ${
+                                                            hasSpk 
+                                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700' 
+                                                                : 'border-amber-200 bg-amber-50 text-amber-700'
+                                                        }`}>
+                                                            {hasSpk ? '✓ SUDAH SPK' : '○ BELUM SPK'}
+                                                        </Badge>
+                                                    );
+                                                })()}
                                             </div>
                                             <h2 className="text-2xl font-black tracking-tight md:text-3xl">
                                                 {formatUlokWithDash(supervisionWorkspace.nomor_ulok)}
@@ -1927,6 +2012,19 @@ function GanttBoard() {
     );
 }
 
+function parseDateAny(dateStr: string) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+        return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    }
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+        return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
+    }
+    return new Date(dateStr);
+}
+
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
 function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess }: any) {
     const { showAlert } = useGlobalAlert();
@@ -2115,7 +2213,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
-        const day = activeHeaderClick.dayIndex;
+        const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+        const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        const checkpointDate = parseDateAny(activeHeaderClick.dateString);
+        let day = activeHeaderClick.dayIndex;
+        if (checkpointDate && !isNaN(checkpointDate.getTime())) {
+            const diffTime = checkpointDate.getTime() - startD.getTime();
+            day = Math.round(diffTime / (1000 * 3600 * 24));
+        }
+        
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
         return chartData.processedTasks.map((task: any) => {
             const shift = task.computed.shift || 0;
@@ -2266,8 +2372,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (datesInNumeric.length === 0) return false;
         const maxDate = datesInNumeric[datesInNumeric.length - 1];
         
-        const offset = activeHeaderClick.dayIndex || 0;
         const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+        const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        const checkpointDate = parseDateAny(activeHeaderClick.dateString);
+        let offset = activeHeaderClick.dayIndex || 0;
+        if (checkpointDate && !isNaN(checkpointDate.getTime())) {
+            const diffTime = checkpointDate.getTime() - startD.getTime();
+            offset = Math.round(diffTime / (1000 * 3600 * 24));
+        }
+        
         const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         dDate.setDate(dDate.getDate() + offset);
         const yyyy = dDate.getFullYear();
