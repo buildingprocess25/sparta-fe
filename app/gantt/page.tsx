@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart, 
     updateGanttChart, lockGanttChart, deleteGanttChart, 
@@ -203,6 +203,7 @@ function GanttBoard() {
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
     const [spkTokoIds, setSpkTokoIds] = useState<Set<number>>(new Set());
     const [spkFilter, setSpkFilter] = useState<'all' | 'spk' | 'no_spk'>('all');
+    const [spkFilterOpen, setSpkFilterOpen] = useState(false);
     const [ganttNotes, setGanttNotes] = useState<GanttNoteItem[]>([]);
     const [ganttNoteInput, setGanttNoteInput] = useState('');
     const [isGanttNoteLoading, setIsGanttNoteLoading] = useState(false);
@@ -1041,7 +1042,15 @@ function GanttBoard() {
         if (effectiveStartDate && pengawasanDates.length > 0) {
             const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
             pengawasanDates.forEach(pd => {
-                const pD = new Date(pd.split('T')[0] + 'T00:00:00');
+                // Support both DD/MM/YYYY (from DB) and ISO YYYY-MM-DD formats
+                let pD: Date;
+                const ddmmyyyy = pd.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                if (ddmmyyyy) {
+                    pD = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}T00:00:00`);
+                } else {
+                    pD = new Date(pd.split('T')[0] + 'T00:00:00');
+                }
+                if (isNaN(pD.getTime())) return;
                 const diffTime = pD.getTime() - startD.getTime();
                 const diffDays = Math.round(diffTime / (1000 * 3600 * 24)) + 1;
                 if (diffDays > 0) {
@@ -1252,13 +1261,18 @@ function GanttBoard() {
                                                     ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
                                                     : toko.lingkup_pekerjaan;
                                                 const hasSpk = spkTokoIds.has(Number(toko.id_toko || toko.id));
-                                                const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel, hasSpk ? 'SPK' : 'BELUM SPK']
+                                                const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' · Terkunci' : ganttMatch?.status === 'active' ? ' · Aktif' : '';
+                                                const spkLabel = hasSpk ? ' ✓SPK' : ' ○Belum SPK';
+                                                const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
                                                     .filter(Boolean).join(' · ');
-                                                const statusBadge = ganttMatch?.status === 'terkunci' ? ' (Terkunci)' : (ganttMatch?.status === 'active' ? ' (Aktif)' : '');
                                                 
                                                 return (
                                                     <SelectItem key={val} value={val}>
-                                                        {label || ulok}{statusBadge}
+                                                        <span className="flex items-center gap-1.5">
+                                                            <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${hasSpk ? 'bg-red-500' : 'bg-slate-300'}`} />
+                                                            <span>{label || ulok}{ganttStatusLabel}</span>
+                                                            <span className={`text-[10px] font-bold ${hasSpk ? 'text-red-600' : 'text-slate-400'}`}>{spkLabel}</span>
+                                                        </span>
                                                     </SelectItem>
                                                 );
                                             });
@@ -1268,40 +1282,66 @@ function GanttBoard() {
                             )}
                             {!((urlIdToko || urlUlok) && !isDirectAccess) && (
                                 <>
-                                    <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-lg">
+                                    {/* Filter SPK - Collapsible dropdown */}
+                                    <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
                                         <button
                                             type="button"
-                                            onClick={() => setSpkFilter('all')}
-                                            className={`py-1.5 text-[11px] font-bold rounded-md transition-all ${
-                                                spkFilter === 'all'
-                                                    ? 'bg-white text-slate-900 shadow-sm'
-                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                                            }`}
+                                            onClick={() => setSpkFilterOpen(prev => !prev)}
+                                            className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                                         >
-                                            Semua ({allTokoList.length})
+                                            <div className="flex items-center gap-2">
+                                                <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
+                                                <span>Filter SPK</span>
+                                                {spkFilter !== 'all' && (
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                                        spkFilter === 'spk' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-700'
+                                                    }`}>
+                                                        {spkFilter === 'spk' ? 'Sudah SPK' : 'Belum SPK'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {spkFilterOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSpkFilter('spk')}
-                                            className={`py-1.5 text-[11px] font-bold rounded-md transition-all ${
-                                                spkFilter === 'spk'
-                                                    ? 'bg-red-600 text-white shadow-sm'
-                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                                            }`}
-                                        >
-                                            Sudah SPK ({allTokoList.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length})
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSpkFilter('no_spk')}
-                                            className={`py-1.5 text-[11px] font-bold rounded-md transition-all ${
-                                                spkFilter === 'no_spk'
-                                                    ? 'bg-slate-900 text-white shadow-sm'
-                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                                            }`}
-                                        >
-                                            Belum SPK ({allTokoList.filter(t => !spkTokoIds.has(Number(t.id_toko || t.id))).length})
-                                        </button>
+                                        {spkFilterOpen && (
+                                            <div className="border-t border-slate-100 p-1.5 grid grid-cols-3 gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSpkFilter('all'); setSpkFilterOpen(false); }}
+                                                    className={`py-2 text-[11px] font-bold rounded-md transition-all ${
+                                                        spkFilter === 'all'
+                                                            ? 'bg-slate-900 text-white shadow-sm'
+                                                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                                    }`}
+                                                >
+                                                    Semua<br/>
+                                                    <span className="font-normal text-[10px] opacity-70">{allTokoList.length} proyek</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSpkFilter('spk'); setSpkFilterOpen(false); }}
+                                                    className={`py-2 text-[11px] font-bold rounded-md transition-all ${
+                                                        spkFilter === 'spk'
+                                                            ? 'bg-red-600 text-white shadow-sm'
+                                                            : 'text-slate-600 hover:text-red-700 hover:bg-red-50'
+                                                    }`}
+                                                >
+                                                    Sudah SPK<br/>
+                                                    <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSpkFilter('no_spk'); setSpkFilterOpen(false); }}
+                                                    className={`py-2 text-[11px] font-bold rounded-md transition-all ${
+                                                        spkFilter === 'no_spk'
+                                                            ? 'bg-amber-600 text-white shadow-sm'
+                                                            : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
+                                                    }`}
+                                                >
+                                                    Belum SPK<br/>
+                                                    <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => !spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
@@ -1498,7 +1538,7 @@ function GanttBoard() {
                                     return (
                                         <div key={scope.id_toko} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
                                             <div className={`flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${
-                                                scopeName === 'SIPIL' ? 'bg-red-700 text-white' : 'bg-red-950 text-white'
+                                                scopeName === 'SIPIL' ? 'bg-red-700 text-white' : 'bg-slate-800 text-white'
                                             }`}>
                                                 <div className="flex items-center gap-3">
                                                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white`}>
