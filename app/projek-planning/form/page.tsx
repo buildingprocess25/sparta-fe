@@ -309,11 +309,16 @@ function FormProjekPlanningInner() {
           allowedCabang.push(ulokEntry[0]); // ex: KLATEN
           allowedCabang.push(ulokEntry[1]); // ex: OZ01
           // kode for ULOK display, nama for DB storage
-          setManualCabang(ulokEntry[1] || ulokEntry[0]);
-          setManualCabangNama(ulokEntry[0] || cabang.toUpperCase());
+          // Jangan override cabang saat mode resubmit — cabang harus dari data proyek, bukan dari session user
+          if (!resubmitId) {
+            setManualCabang(ulokEntry[1] || ulokEntry[0]);
+            setManualCabangNama(ulokEntry[0] || cabang.toUpperCase());
+          }
         } else {
-          setManualCabang(cabang.toUpperCase());
-          setManualCabangNama(cabang.toUpperCase());
+          if (!resubmitId) {
+            setManualCabang(cabang.toUpperCase());
+            setManualCabangNama(cabang.toUpperCase());
+          }
         }
 
         data = data.filter(t => t.cabang && allowedCabang.includes(t.cabang.toUpperCase()));
@@ -367,6 +372,10 @@ function FormProjekPlanningInner() {
           if (p.is_dark_store !== undefined) setIsDarkStore(!!p.is_dark_store);
           const nextBeanspotTipe = p.beanspot_tipe === "Basic" ? "RTD ONLY" : (p.beanspot_tipe || "");
           if (nextBeanspotTipe) setBeanspotTipe(nextBeanspotTipe);
+          const resolvedCabangNama = p.cabang || (() => {
+            const entry = Object.entries(BRANCH_TO_ULOK).find(([, kode]) => kode === ulokParts[0]);
+            return entry ? entry[0] : ulokParts[0];
+          })();
           setOriginalRevisionSnapshot(getRevisionSnapshot(merged, {
             manualCabang: ulokParts[0] || manualCabang,
             manualTanggal: ulokParts[1] || "",
@@ -383,6 +392,8 @@ function FormProjekPlanningInner() {
             ketentuan: nextKetentuan,
             catatanDesign: nextCatatan,
           }));
+          // Pastikan manualCabangNama sudah sesuai data proyek (override dari fetchTokoList yang mungkin belum selesai)
+          setManualCabangNama(resolvedCabangNama);
 
           if (p.foto_items && p.foto_items.length > 0) {
             const urls: { [key: number]: string } = {};
