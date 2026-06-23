@@ -2262,10 +2262,49 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             
             const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
             
-            const filteredItems = catItems.filter((item: any) => {
-                 if (blockedOpnameItemKeys.has(getWorkItemKey(item))) return false;
+            // Juga ambil item dari liveHistory yang kategorinya cocok (untuk proyek migrasi)
+            const historyItemsForCat = liveHistory
+                .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase())
+                .filter((lh: any) => !catItems.some((ci: any) => ci.jenis_pekerjaan?.toUpperCase() === lh.jenis_pekerjaan?.toUpperCase()));
+            
+            // Bangun list akhir: gabungkan catItems + item baru dari history
+            const historyDerivedItems = historyItemsForCat.map((lh: any) => ({
+                id: `hist-${lh.id || lh.jenis_pekerjaan}`,
+                id_rab: 0,
+                source_type: 'HISTORY',
+                kategori_pekerjaan: lh.kategori_pekerjaan,
+                jenis_pekerjaan: lh.jenis_pekerjaan || task.name,
+                satuan: lh.satuan || '-',
+                volume: 0,
+                harga_material: 0,
+                harga_upah: 0,
+                total_material: 0,
+                total_upah: 0,
+                total_harga: 0,
+            }));
+            
+            const allCatItems = [...catItems, ...historyDerivedItems];
+            
+            // Fallback: jika masih kosong DAN hari ini dijadwalkan → buat 1 placeholder
+            const effectiveItems = allCatItems.length > 0 ? allCatItems : (isScheduledToday ? [{
+                id: `placeholder-${task.name}`,
+                id_rab: 0,
+                source_type: 'PLACEHOLDER',
+                kategori_pekerjaan: task.name,
+                jenis_pekerjaan: task.name,
+                satuan: '-',
+                volume: 0,
+                harga_material: 0,
+                harga_upah: 0,
+                total_material: 0,
+                total_upah: 0,
+                total_harga: 0,
+            }] : []);
+            
+            const filteredItems = effectiveItems.filter((item: any) => {
+                 if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY' && blockedOpnameItemKeys.has(getWorkItemKey(item))) return false;
 
-                 const key = `${task.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
+                 const key = `${task.name.toUpperCase()}|${(item.jenis_pekerjaan || task.name).toUpperCase()}`;
                  const latestStatus = latestStatusMapState.get(key);
                  const latestStatusLower = String(latestStatus || '').toLowerCase();
                  const memoInput = memoInputs[key] as any;
@@ -2276,7 +2315,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                  if (!isScheduledToday && !isUnfinishedFromPreviousPengawasan) return false;
                  
                  // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
-                 const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && lh.jenis_pekerjaan.toUpperCase() === item.jenis_pekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
+                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
+                 const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
                  if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
                  
                  return true;
@@ -2485,7 +2525,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const hasNextHandoverAction = isLastSupervisionDay && hasLateItems && !!nextHandoverDate;
 
             const offset = activeHeaderClick?.dayIndex || 0;
-            const dDate = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
+            const effectiveStartForSubmit = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+            const dDate = new Date(effectiveStartForSubmit.split('T')[0] + 'T00:00:00');
             dDate.setDate(dDate.getDate() + offset);
             const yyyy = dDate.getFullYear();
             const mm = String(dDate.getMonth() + 1).padStart(2, '0');
@@ -2768,6 +2809,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         <tr key={j} className="border-b last:border-b-0 hover:bg-slate-50/50">
                                                             <td className="p-4 align-middle w-1/3">
                                                                 <p className="font-semibold text-slate-700">{item.jenis_pekerjaan}</p>
+                                                                {item.source_type === 'PLACEHOLDER' && (
+                                                                    <span className="inline-block mt-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Data Migrasi</span>
+                                                                )}
+                                                                {item.source_type === 'HISTORY' && (
+                                                                    <span className="inline-block mt-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Dari Riwayat</span>
+                                                                )}
                                                             </td>
                                                             <td className="p-4 align-middle w-2/3">
                                                                 {latestStatusKey === 'Selesai' ? (
