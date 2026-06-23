@@ -224,10 +224,13 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyI
     if (latestOpnameFinal) {
         const dbAmount = Math.max(0, parseCurrency(latestOpnameFinal.nilai_denda));
         const dbDays = Number(latestOpnameFinal.hari_denda ?? 0);
-        
-        // If the DB has a valid penalty > 0, trust the DB (Opname).
-        // Otherwise (DB is 0), fallback to the live calculation based on SPK + ST to bypass the backend bug.
-        if (dbAmount > 0 || dbDays > 0) {
+
+        // If opname_final has tanggal_akhir_spk_denda set, a real denda calculation has been
+        // persisted (even if the result is 0 – e.g. ME peer delivered on time → minimum = 0).
+        // In that case we MUST use the official stored values and NOT fall through to estimasi.
+        const hasOfficialCalculation = Boolean(latestOpnameFinal.tanggal_akhir_spk_denda);
+
+        if (dbAmount > 0 || dbDays > 0 || hasOfficialCalculation) {
             return {
                 amount: dbAmount,
                 days: dbDays,
@@ -244,6 +247,7 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyI
         targetKategori: 'OPNAME_FINAL',
     };
 };
+
 
 const compareProjectPenaltyInfo = (current: ProjectPenaltyInfo | undefined, next: ProjectPenaltyInfo) => {
     if (!current) return next;
