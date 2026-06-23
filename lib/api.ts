@@ -941,16 +941,20 @@ export type RABApprovalResponse = {
 /** Cek status revisi RAB berdasarkan email pembuat dan cabang. */
 export const checkRevisionStatus = async (email: string, cabang: string) => {
     try {
-        // Ambil dari API List RAB baru
-        const res = await fetchRABList();
+        // Ambil dari API List RAB — filter by email_pembuat dan cabang langsung di server
+        const res = await fetchRABList({
+            email_pembuat: email,
+            cabang: cabang,
+        });
         
-        // Filter RAB yang dimiliki user ini dan ditolak/dikembalikan
+        // Filter RAB yang ditolak/dikembalikan, dan pastikan cabang cocok (double-check client-side)
         const rejected = res.data.filter(rab => {
             if (!rab.status) return false;
             const s = rab.status.toUpperCase();
             const isRejected = s.includes('TOLAK') || s === 'REJECTED';
             const isMine = (rab.email_pembuat || '').toLowerCase() === (email || '').toLowerCase();
-            return isMine && isRejected;
+            const isSameCabang = (rab.cabang || '').toUpperCase() === (cabang || '').toUpperCase();
+            return isMine && isRejected && isSameCabang;
         });
 
         if (rejected.length === 0) return { rejected_submissions: [] };
