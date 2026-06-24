@@ -1067,9 +1067,16 @@ export default function DaftarDokumenPage() {
                 // Read directly from sessionStorage to avoid stale closure
                 const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
                 const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
+                const sessionEmail = sessionStorage.getItem('loggedInUserEmail') || '';
                 const isKontraktorOrDirektur = sessionRole.includes('KONTRAKTOR') || sessionRole.includes('DIREKTUR');
-                if (isKontraktorOrDirektur && sessionNamaPt) {
-                    filters = { nama_pt: sessionNamaPt };
+                if (isKontraktorOrDirektur) {
+                    // Filter by email_pembuat agar lebih reliable daripada nama_pt
+                    // nama_pt bisa berbeda format antara session dan DB
+                    if (sessionEmail) {
+                        filters = { email_pembuat: sessionEmail };
+                    } else if (sessionNamaPt) {
+                        filters = { nama_pt: sessionNamaPt };
+                    }
                 }
                 const res = await fetchRABList(filters);
                 docs = normalizeRABDocs(res.data ?? []);

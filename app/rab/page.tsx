@@ -496,7 +496,7 @@ function RABPageContent() {
   }, [formData.cabang, formData.lingkupPekerjaan]);
 
   // --- 3. DETEKSI OTOMATIS DATA REVISI ---
-  const getUlokString = () => `${formData.lokasiCabang}-${formData.lokasiTanggal}-${formData.lokasiManual}${formData.isRenovasi ? '-R' : ''}`;
+  const getUlokString = () => `${formData.lokasiCabang.toUpperCase()}-${formData.lokasiTanggal.toUpperCase()}-${formData.lokasiManual.toUpperCase()}${formData.isRenovasi ? '-R' : ''}`;
 
   // --- 3. DETEKSI OTOMATIS DATA REVISI (DIHAPUS SESUAI PERMINTAAN) ---
 
