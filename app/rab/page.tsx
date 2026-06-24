@@ -210,7 +210,9 @@ function RABPageContent() {
   const searchParams = useSearchParams();
   const requestedPlanningId = Number(searchParams.get('projek_planning_id') || 0);
   const requestedScope = searchParams.get('lingkup')?.toUpperCase();
-  const hasProjectPlanningRequest = Number.isInteger(requestedPlanningId)
+  const [planningRequestOverridden, setPlanningRequestOverridden] = useState(false);
+  const hasProjectPlanningRequest = !planningRequestOverridden
+    && Number.isInteger(requestedPlanningId)
     && requestedPlanningId > 0
     && (requestedScope === 'SIPIL' || requestedScope === 'ME');
   
@@ -768,6 +770,15 @@ function RABPageContent() {
         finalValue = formData.isRenovasi ? String(finalValue).replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : String(finalValue).replace(/[^0-9]/g, '');
     }
     setFormData(prev => ({ ...prev, [name]: finalValue }));
+    // Jika user mengubah ULOK secara manual, hapus projek_planning_id dari URL
+    // supaya tidak ter-submit sebagai permintaan Project Planning
+    if ((name === 'lokasiTanggal' || name === 'lokasiManual') && hasProjectPlanningRequest) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('projek_planning_id');
+        newUrl.searchParams.delete('lingkup');
+        window.history.replaceState({}, '', newUrl.toString());
+        setPlanningRequestOverridden(true);
+    }
   };
 
   const handleSelectChange = (name: string, value: string) => {
