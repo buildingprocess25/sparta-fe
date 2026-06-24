@@ -214,8 +214,7 @@ function RABPageContent() {
   const hasProjectPlanningRequest = !planningRequestOverridden
     && Number.isInteger(requestedPlanningId)
     && requestedPlanningId > 0
-    && (requestedScope === 'SIPIL' || requestedScope === 'ME');
-  
+    && (requestedScope === 'SIPIL' || requestedScope === 'ME');  
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
@@ -262,6 +261,15 @@ function RABPageContent() {
   // --- 1a. DRAFT (AUTO-SAVE) ---
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftData, setDraftData] = useState<any>(null);
+
+  // Reset state revisi saat component mount (setiap navigasi ke halaman ini)
+  // Mencegah state revisi lama terbawa saat user kembali via browser back button
+  useEffect(() => {
+    setCurrentRabId(null);
+    setRevisionItemNotes({});
+    setRevisionItemOriginals({});
+    setRevisionRejectReason('');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
      if (initialFormState === "TRACKING_PENDING" && !isLoading) {
@@ -342,6 +350,12 @@ function RABPageContent() {
   useEffect(() => {
     if (!user) return;
 
+    // Reset semua state revisi saat user/session berubah
+    // Mencegah state lama terbawa saat user kembali ke halaman ini via browser back
+    setCurrentRabId(null);
+    setRevisionItemNotes({});
+    setRevisionItemOriginals({});
+    setRevisionRejectReason('');
     setRevisionCheckDone(false);
     revisionHadItemsRef.current = false;
     planningAutoOpenDoneRef.current = false;
@@ -984,9 +998,31 @@ function RABPageContent() {
         params.append('locked', 'true');
         
         showAlert("Berhasil", "RAB berhasil disimpan. Lanjut buat Gantt Chart agar RAB masuk proses approval.", "success");
+        // Reset state revisi agar tidak terbawa ke halaman lain
+        setCurrentRabId(null);
+        setRevisionItemNotes({});
+        setRevisionItemOriginals({});
         setTimeout(() => { router.push(`/gantt?${params.toString()}`); }, 1500);
     } catch (err: any) {
         setIsLoading(false);
+        // Jika error terjadi saat mode revisi, reset currentRabId agar user bisa
+        // memulai ulang tanpa terjebak dalam mode revisi yang sudah tidak valid
+        if (currentRabId !== null) {
+            const errMsg: string = err.message || '';
+            // Reset mode revisi jika RAB revisi sudah tidak dalam status rejected
+            // (bisa terjadi jika RAB di-approve/diproses pihak lain saat user sedang mengisi form)
+            if (errMsg.includes('bukan status ditolak') || errMsg.includes('tidak ditemukan') || errMsg.includes('sudah ada')) {
+                setCurrentRabId(null);
+                setRevisionItemNotes({});
+                setRevisionItemOriginals({});
+                showAlert(
+                    "Error",
+                    errMsg + "\n\nForm revisi telah direset. Silakan cek daftar RAB Anda terlebih dahulu sebelum mencoba submit ulang.",
+                    "error"
+                );
+                return;
+            }
+        }
         showAlert("Error", err.message, "error");
     }
   };
