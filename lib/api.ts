@@ -2803,6 +2803,90 @@ export const commitInstruksiLapanganMigration = (
     selections: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
 ) => postInstruksiLapanganMigration<InstruksiLapanganMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
+// ─── Migrasi IL dari rab_kedua.xlsx ──────────────────────────────────────────
+
+export type InstruksiLapanganMigrationRab2PreviewDetail = {
+    source_candidate_id: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    nama_toko: string | null;
+    cabang: string | null;
+    email_pembuat: string;
+    status: string;
+    source_sheet: "Form2" | "Form3";
+    tanggal_mulai: string | null;
+    tanggal_selesai: string | null;
+    item_count: number;
+    source_item_count: number;
+    grand_total: number;
+    grand_total_excel: number;
+    existing_id: number | null;
+    // Conflict detail
+    conflict_reason: "from_v1_migration" | "status_only" | "db_more_complete" | "data_differs" | null;
+    safe_to_replace: boolean;
+    existing_status: string | null;
+    existing_email: string | null;
+    existing_item_count: number;
+    existing_grand_total: number;
+    db_state: "ready" | "conflict" | "invalid";
+    issues: string[];
+    warnings: string[];
+};
+export type InstruksiLapanganMigrationRab2PreviewResult = {
+    total_candidates: number;
+    total_items: number;
+    ready_count: number;
+    conflict_count: number;
+    invalid_count: number;
+    disetujui_count: number;
+    pending_count: number;
+    conflict_summary: {
+        from_v1_migration: number;
+        status_only: number;
+        db_more_complete: number;
+        data_differs: number;
+        safe_to_replace: number;
+    };
+    details: InstruksiLapanganMigrationRab2PreviewDetail[];
+};
+export type InstruksiLapanganMigrationRab2CommitResult = {
+    total_selected: number;
+    inserted: number;
+    replaced: number;
+    skipped: number;
+};
+
+const postInstruksiLapanganMigrationRab2 = async <T>(
+    endpoint: "preview" | "commit",
+    file: File,
+    actorRole: string,
+    actorEmail?: string,
+    selections?: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
+): Promise<{ status: string; message: string; data: T }> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("actor_role", actorRole);
+    if (actorEmail) form.append("actor_email", actorEmail);
+    if (selections) form.append("selections", JSON.stringify(selections));
+    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/migration/rab2/${endpoint}`, {
+        method: "POST",
+        body: form
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Gagal memproses migrasi IL dari rab_kedua");
+    return result;
+};
+
+export const previewInstruksiLapanganMigrationRab2 = (file: File, actorRole: string, actorEmail?: string) =>
+    postInstruksiLapanganMigrationRab2<InstruksiLapanganMigrationRab2PreviewResult>("preview", file, actorRole, actorEmail);
+
+export const commitInstruksiLapanganMigrationRab2 = (
+    file: File,
+    actorRole: string,
+    actorEmail: string | undefined,
+    selections: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
+) => postInstruksiLapanganMigrationRab2<InstruksiLapanganMigrationRab2CommitResult>("commit", file, actorRole, actorEmail, selections);
+
 export type SerahTerimaMigrationAction = "insert" | "replace" | "skip";
 export type SerahTerimaMigrationPreviewDetail = {
     source_candidate_id: number;
