@@ -2840,6 +2840,10 @@ export type InstruksiLapanganMigrationRab2PreviewResult = {
     invalid_count: number;
     disetujui_count: number;
     pending_count: number;
+    source_breakdown?: {
+        from_form3: number;
+        from_form2: number;
+    };
     conflict_summary: {
         from_v1_migration: number;
         status_only: number;

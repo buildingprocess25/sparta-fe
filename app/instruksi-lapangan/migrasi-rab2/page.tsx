@@ -104,8 +104,15 @@ export default function InstruksiLapanganMigrationRab2Page() {
         setLoading("preview");
         setMessage(null);
         try {
+            console.log("[DEBUG FE] Analyzing file:", file.name, "size:", file.size);
             const response = await previewInstruksiLapanganMigrationRab2(file, actorRole, user?.email);
             const data = response.data;
+            console.log("[DEBUG FE] Preview result:", {
+                total_candidates: data.total_candidates,
+                ready_count: data.ready_count,
+                conflict_count: data.conflict_count,
+                invalid_count: data.invalid_count
+            });
             setPreview(data);
             setResult(null);
 
@@ -128,7 +135,10 @@ export default function InstruksiLapanganMigrationRab2Page() {
                 text: `Analisis selesai. ${data.ready_count} baru, ${safeReplace} conflict aman di-replace, ${needReview} conflict perlu review manual.`
             });
         } catch (error) {
-            setMessage({ type: "error", text: error instanceof Error ? error.message : "Analisis gagal" });
+            console.error("[DEBUG FE] Preview error:", error);
+            const errorMsg = error instanceof Error ? error.message : "Analisis gagal";
+            console.error("[DEBUG FE] Error message:", errorMsg);
+            setMessage({ type: "error", text: errorMsg });
         } finally {
             setLoading(null);
         }
@@ -213,15 +223,35 @@ export default function InstruksiLapanganMigrationRab2Page() {
                 </Card>
 
                 {preview && <>
+                    {/* Debug info jika kandidat 0 */}
+                    {preview.total_candidates === 0 && (
+                        <Card className="border-red-200 bg-red-50">
+                            <CardContent className="p-4 text-sm text-red-800">
+                                <div className="font-semibold mb-2">⚠️ Tidak ada data IL yang valid ditemukan</div>
+                                <div className="text-xs text-red-700 space-y-1">
+                                    <div>Kemungkinan penyebab:</div>
+                                    <ul className="list-disc list-inside ml-2">
+                                        <li>Kolom "Nomor Ulok" kosong atau tidak ada</li>
+                                        <li>Kolom "Lingkup_Pekerjaan" kosong atau tidak valid (harus Sipil/ME)</li>
+                                        <li>Kolom "Status" tidak valid (harus Disetujui/Menunggu Persetujuan)</li>
+                                        <li>Format file Excel tidak sesuai (harus memiliki sheet Form2 atau Form3)</li>
+                                    </ul>
+                                    <div className="mt-2">Buka Console Browser (F12) untuk detail debug log.</div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {preview.total_candidates > 0 && <>
                     {/* Stats */}
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
                         {([
                             ["Total IL", preview.total_candidates, "slate"],
                             ["Total Item", preview.total_items, "slate"],
+                            ["Dari Form3", preview.source_breakdown?.from_form3 ?? 0, "blue"],
+                            ["Dari Form2", preview.source_breakdown?.from_form2 ?? 0, "indigo"],
                             ["Siap Insert", preview.ready_count, "emerald"],
                             ["Conflict", preview.conflict_count, "amber"],
-                            ["Invalid", preview.invalid_count, "red"],
-                            ["Disetujui", preview.disetujui_count, "blue"],
                             ["Aman Replace", preview.conflict_summary.safe_to_replace, "teal"],
                             ["Perlu Review", preview.conflict_count - preview.conflict_summary.safe_to_replace, "orange"],
                         ] as [string, number, string][]).map(([label, value, color]) => (
@@ -234,7 +264,8 @@ export default function InstruksiLapanganMigrationRab2Page() {
                                         color === "amber" ? "text-amber-700" :
                                         color === "teal" ? "text-teal-700" :
                                         color === "orange" ? "text-orange-700" :
-                                        color === "blue" ? "text-blue-700" : ""
+                                        color === "blue" ? "text-blue-700" :
+                                        color === "indigo" ? "text-indigo-700" : ""
                                     }`}>{number(value)}</div>
                                 </CardContent>
                             </Card>
@@ -421,6 +452,7 @@ export default function InstruksiLapanganMigrationRab2Page() {
                             </table>
                         </CardContent>
                     </Card>
+                    </>}
                 </>}
             </main>
         </div>
