@@ -117,10 +117,29 @@ export default function OpnameFinalMigrationPage() {
             </Card>
             {preview ? <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">{[
-                    ["Total Kandidat", preview.total_candidates], ["Opname Parsial", preview.partial_count], ["Final / KTK", preview.final_count],
-                    ["Total Item", preview.total_items], ["Item Terpetakan", preview.mapped_items],
-                    ["Siap Insert", preview.ready_count], ["Konflik DB", preview.conflict_count], ["Invalid", preview.invalid_count]
+                    ["Total Kandidat", preview.total_candidates], 
+                    ["Opname Parsial", preview.partial_count], 
+                    ["Final / KTK", preview.final_count],
+                    ["Total Item", preview.total_items], 
+                    ["Item Terpetakan", preview.mapped_items], 
+                    ["Foto (Migrasi)", preview.photos_to_migrate ?? 0],
+                    ["Siap Insert", preview.ready_count],
+                    ["Konflik DB", preview.conflict_count]
                 ].map(([label, value]) => <Card key={String(label)}><CardContent className="p-4"><div className="text-xs font-bold uppercase text-slate-400">{label}</div><div className="mt-1 text-2xl font-extrabold">{formatNumber(Number(value))}</div></CardContent></Card>)}</div>
+                
+                {/* Info box untuk foto migrasi */}
+                {(preview.photos_to_migrate ?? 0) > 0 && (
+                    <Card className="border-blue-200 bg-blue-50">
+                        <CardContent className="p-4 text-sm text-blue-800">
+                            <div className="font-semibold mb-1">📸 Foto akan di-migrasi ke Google Drive</div>
+                            <div className="text-xs text-blue-700">
+                                {formatNumber(preview.photos_to_migrate ?? 0)} foto dari Cloudinary akan di-download dan di-upload ulang ke Google Drive agar bisa muncul di PDF. 
+                                Proses ini akan memakan waktu ~2-5 detik per foto. Estimasi: {Math.ceil((preview.photos_to_migrate ?? 0) * 3 / 60)} menit.
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                
                 {commitResult ? <div className="text-sm font-medium text-emerald-700">Hasil: {commitResult.partial_processed} parsial, {commitResult.final_processed} final, {commitResult.skipped} skip, {commitResult.pdf_queued} PDF final diantrikan.</div> : null}
                 <Card>
                     <CardHeader className="flex-row items-center justify-between gap-4"><CardTitle className="text-base">Daftar Kandidat Opname</CardTitle><div className="flex gap-2">
