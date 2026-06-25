@@ -2992,6 +2992,7 @@ export type OpnameFinalMigrationPreviewResult = {
     final_count: number;
     total_items: number;
     mapped_items: number;
+    photos_to_migrate: number;
     ready_count: number;
     conflict_count: number;
     invalid_count: number;
