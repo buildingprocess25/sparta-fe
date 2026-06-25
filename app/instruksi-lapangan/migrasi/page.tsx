@@ -99,6 +99,14 @@ export default function InstruksiLapanganMigrationPage() {
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileSpreadsheet className="h-5 w-5 text-red-700" />File Migrasi</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
+                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                            <div className="font-semibold mb-1">ℹ️ File yang harus diupload:</div>
+                            <ul className="list-disc list-inside ml-2 space-y-0.5">
+                                <li><strong>Nama file</strong>: OPNAME_v1.xlsx (file migrasi versi lama)</li>
+                                <li><strong>Sheet yang dibaca</strong>: data_rab (items) dan opname_final (status)</li>
+                                <li><strong>Jangan upload</strong>: rab_kedua.xlsx (gunakan halaman "Migrasi rab_kedua")</li>
+                            </ul>
+                        </div>
                         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
                             <Input type="file" accept=".xlsx,.xls" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); }} />
                             <Button variant="outline" onClick={analyze} disabled={!file || loading !== null}>

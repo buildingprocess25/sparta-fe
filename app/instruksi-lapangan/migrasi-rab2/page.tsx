@@ -203,6 +203,14 @@ export default function InstruksiLapanganMigrationRab2Page() {
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileSpreadsheet className="h-5 w-5 text-red-700" />File rab_kedua</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
+                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                            <div className="font-semibold mb-1">ℹ️ File yang harus diupload:</div>
+                            <ul className="list-disc list-inside ml-2 space-y-0.5">
+                                <li><strong>Nama file</strong>: rab_kedua.xlsx (atau file dengan sheet Form2/Form3)</li>
+                                <li><strong>Sheet yang dibaca</strong>: Form3 (prioritas) dan Form2 (fallback)</li>
+                                <li><strong>Jangan upload</strong>: OPNAME_v1.xlsx (gunakan halaman "Migrasi OPNAME_v1")</li>
+                            </ul>
+                        </div>
                         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
                             <Input type="file" accept=".xlsx,.xls" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
                             <Button variant="outline" onClick={analyze} disabled={!file || loading !== null}>
