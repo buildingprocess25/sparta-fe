@@ -145,6 +145,20 @@ export const ALL_MENUS = [
         icon: Upload,
     },
     {
+        id: "menu-migrasi-il",
+        title: "Migrasi Instruksi Lapangan",
+        desc: "Upload data dan migrasikan riwayat Instruksi Lapangan.",
+        href: "/instruksi-lapangan/migrasi",
+        icon: Upload,
+    },
+    {
+        id: "menu-migrasi-serah-terima",
+        title: "Migrasi Serah Terima",
+        desc: "Upload data dan migrasikan riwayat Serah Terima.",
+        href: "/serah-terima/migrasi",
+        icon: Upload,
+    },
+    {
         id: "menu-sp",
         title: "Surat Peringatan",
         desc: "Form surat peringatan.",
@@ -303,13 +317,16 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
     ],
 
-    // ─── Super Human: akses penuh ke semua menu ───────────────────────────────
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-dc-development",
-        "menu-rab", "menu-ubah-rab-item", "menu-migrasi-rab", "menu-spk", "menu-migrasi-spk", "menu-inputpic", "menu-opname",
-        "menu-dokumentasi", "menu-tambahspk", "menu-migrasi-tambahspk", "menu-svdokumen", "menu-migrasi-dokumen",
-        "menu-gantt", "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
+        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
+        // Pusat Migrasi
+        "menu-migrasi-rab", "menu-migrasi-spk", "menu-migrasi-tambahspk",
+        "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final",
+        "menu-migrasi-dokumen", "menu-migrasi-il", "menu-migrasi-serah-terima",
     ],
 };
 

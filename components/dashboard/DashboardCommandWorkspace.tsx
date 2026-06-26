@@ -263,8 +263,7 @@ const getSlaInfo = (project: any, stage: string, lateDays: number) => {
     return { label: "Selesai", helper: "Proyek telah ditutup", priority: false, tone: "done" as const };
   }
   if (stage === "Ongoing") {
-    if (lateDays > 3) return { label: "Sangat Terlambat", helper: `Melewati target SPK selama ${lateDays} hari`, priority: true, tone: "critical" as const };
-    if (lateDays > 0) return { label: "Terlambat", helper: `Melewati target SPK selama ${lateDays} hari`, priority: true, tone: "late" as const };
+    if (lateDays > 0) return { label: "Perlu Tindakan", helper: `Melewati target SPK selama ${lateDays} hari`, priority: true, tone: "critical" as const };
     return { label: "Dalam Target", helper: "Masih dalam durasi SPK", priority: false, tone: "safe" as const };
   }
   const limit = SLA_LIMITS[stage] ?? 0;
@@ -274,8 +273,7 @@ const getSlaInfo = (project: any, stage: string, lateDays: number) => {
     ? Math.max(0, Math.floor((Date.now() - start.getTime()) / 86_400_000))
     : 0;
   const exceeded = Math.max(0, age - limit);
-  if (exceeded > 3) return { label: "Melewati SLA", helper: `Berjalan ${age} hari (batas ${limit} hari)`, priority: true, tone: "critical" as const };
-  if (exceeded > 0) return { label: "Terlambat", helper: `Berjalan ${age} hari (batas ${limit} hari)`, priority: true, tone: "late" as const };
+  if (exceeded > 0) return { label: "Perlu Tindakan", helper: `Berjalan ${age} hari (batas ${limit} hari)`, priority: true, tone: "critical" as const };
   if (limit > 0 && age >= Math.max(1, limit - 1)) return { label: "Mendekati Batas", helper: `Sudah berjalan ${age} hari`, priority: false, tone: "warning" as const };
   return { label: "Aman", helper: limit > 0 ? `Berjalan ${age} hari` : "Belum ada ketentuan batas", priority: false, tone: "safe" as const };
 };
@@ -286,24 +284,53 @@ function DashboardMetric({
   helper,
   tone = "neutral",
   onClick,
+  subMetrics,
 }: {
   label: string;
   value: string | number;
   helper: string;
   tone?: "neutral" | "danger";
   onClick: () => void;
+  subMetrics?: { label: string; value: string | number }[];
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group min-h-29 border-l border-slate-200 px-5 py-4 text-left transition-all first:border-l-0 hover:bg-red-50 hover:shadow-[inset_0_-3px_0_#dc2626] ${
-        tone === "danger" ? "bg-red-50/55" : "bg-white"
+      className={`group relative flex min-h-[160px] flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 p-5 text-left shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_-4px_rgba(220,38,38,0.1)] ${
+        tone === "danger" ? "bg-gradient-to-br from-white to-red-50/60 hover:border-red-300" : "bg-gradient-to-br from-white to-slate-50 hover:border-slate-300"
       }`}
     >
-      <p className="text-[10px] font-medium uppercase tracking-[0.09em] text-slate-500">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold tracking-tight transition-colors group-hover:text-red-700 ${tone === "danger" ? "text-red-700" : "text-slate-950"}`}>{value}</p>
-      <p className="mt-1.5 text-[11px] text-slate-400">{helper}</p>
+      <div className="relative z-10 w-full">
+        <div className="flex items-center gap-2">
+          <div className={`flex h-6 w-6 items-center justify-center rounded-md ${tone === "danger" ? "bg-red-100 text-red-600" : "bg-slate-100 text-slate-600"}`}>
+            <FileText className="h-3.5 w-3.5" />
+          </div>
+          <p className="text-[11px] font-semibold tracking-wide text-slate-600 uppercase">{label}</p>
+        </div>
+        <div className="mt-4 flex items-baseline gap-2">
+          <p className={`text-3xl font-bold tracking-tight ${tone === "danger" ? "text-red-700" : "text-slate-900"}`}>{value}</p>
+          <TrendingUp className={`h-4 w-4 ${tone === "danger" ? "text-red-500" : "text-emerald-500"}`} />
+        </div>
+        <p className="mt-1 text-[11px] font-medium text-slate-500">{helper}</p>
+      </div>
+
+      {subMetrics && subMetrics.length > 0 && (
+        <div className="relative z-10 mt-5 grid w-full grid-cols-3 gap-2 border-t border-slate-100/80 pt-4">
+          {subMetrics.map((sm, i) => (
+            <div key={i} className="flex flex-col">
+              <span className="text-[11px] font-semibold text-slate-500 leading-tight">{sm.label}</span>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className={`text-[13px] font-extrabold ${i === 2 && tone === "danger" ? "text-red-600" : i === 0 ? "text-emerald-600" : "text-sky-600"}`}>{sm.value}</span>
+                <TrendingUp className="h-3.5 w-3.5 text-slate-300" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* Decorative gradient blur */}
+      <div className={`absolute -right-6 -top-6 z-0 h-24 w-24 rounded-full opacity-[0.06] blur-xl transition-opacity duration-300 group-hover:opacity-[0.12] ${tone === "danger" ? "bg-red-500" : "bg-blue-500"}`} />
     </button>
   );
 }
@@ -470,6 +497,11 @@ function SpecializedDetailContent({
   getLateDays,
   getPenalty,
   getQuality,
+  selectedProjectDetail,
+  onOpenProjectDetail,
+  onBackFromProject,
+  canOpenSource,
+  onOpenSource,
 }: {
   context: string;
   rows: any[];
@@ -480,6 +512,11 @@ function SpecializedDetailContent({
   getLateDays: Props["getLateDays"];
   getPenalty: Props["getPenalty"];
   getQuality: Props["getQuality"];
+  selectedProjectDetail: any | null;
+  onOpenProjectDetail: (project: any) => void;
+  onBackFromProject: () => void;
+  canOpenSource: Props["canOpenSource"];
+  onOpenSource: Props["onOpenSource"];
 }) {
   const selected = rows[Math.min(selectedIndex, Math.max(0, rows.length - 1))];
   const project = selected?.__kind ? null : selected;
@@ -559,31 +596,221 @@ function SpecializedDetailContent({
   }
 
   if (context === "ATTENTION") {
-    const critical = rows.filter((row) => getLateDays(row) > 3 || getSlaInfo(row, getStage(row), getLateDays(row)).tone === "critical");
-    return (
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff6f6] p-4 md:p-6">
-        <div className="grid gap-3 md:grid-cols-4">
-          {[["Melewati SLA", critical.length, "bg-red-50 text-red-700 border-red-200"], ["Terlambat", rows.filter((row) => getLateDays(row) > 0 || getSlaInfo(row, getStage(row), getLateDays(row)).tone === "late").length, "bg-orange-50 text-orange-700 border-orange-200"], ["Total hari", rows.reduce((sum, row) => sum + getLateDays(row), 0), "bg-white text-slate-950"], ["Eksposur", formatRupiah(rows.reduce((sum, row) => sum + getPenalty(row).amount, 0)), "bg-white text-slate-950"]].map(([label, value, tone]) => (
-            <div key={String(label)} className={`rounded-2xl border p-4 ${tone}`}><p className="text-[9px] uppercase tracking-[.08em] opacity-80">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_360px]">
-          <div className="grid content-start gap-3 md:grid-cols-2">
-            {rows.map((row, index) => {
-              const penalty = getPenalty(row); const late = getLateDays(row); const stage = getStage(row); const sla = getSlaInfo(row, stage, late);
-              return (
-                <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)} className={`rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-50 hover:shadow-md ${selectedIndex === index ? "border-red-500 bg-red-50 shadow-md" : "border-slate-200 bg-white"}`}>
-                  <div className="flex items-start justify-between gap-3"><span className="rounded-full bg-red-100 px-2 py-1 text-[8px] font-semibold text-red-700">{sla.label}</span><span className="text-[9px] font-semibold text-red-700">{stage}</span></div>
-                  <p className="mt-3 text-[12px] font-semibold text-slate-950">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {stage}</p>
-                  <p className="mt-3 rounded-lg bg-red-50 p-2.5 text-[9px] leading-relaxed text-red-700">{sla.helper}</p>
-                  <div className="mt-3 flex items-end justify-between border-t border-red-100 pt-3"><span className="text-[9px] text-slate-400">{penalty.amount > 0 ? `Denda ${penalty.source}` : "Prioritas SLA"}</span><span className="text-[13px] font-semibold text-red-800">{penalty.amount > 0 ? formatRupiah(penalty.amount) : sla.label}</span></div>
+    // Defined first so both branches (detail page + list) can access them
+    const stageIconMap: Record<string, typeof HardHat> = {
+      "Approval RAB": FileText,
+      "Proses Gantt": CalendarDays,
+      "Proses PJU": Clock3,
+      "Approval SPK": UserCheck,
+      "Ongoing": HardHat,
+      "Kerja Tambah Kurang": Layers3,
+    };
+    const stageColorMap: Record<string, { bg: string; icon: string; text: string; bar: string; border: string }> = {
+      "Approval RAB":        { bg: "from-violet-50 to-white",  icon: "bg-violet-100 text-violet-600",  text: "text-violet-700",  bar: "bg-violet-500",  border: "border-violet-100"  },
+      "Proses Gantt":        { bg: "from-sky-50 to-white",     icon: "bg-sky-100 text-sky-600",        text: "text-sky-700",     bar: "bg-sky-500",     border: "border-sky-100"     },
+      "Proses PJU":          { bg: "from-amber-50 to-white",   icon: "bg-amber-100 text-amber-600",    text: "text-amber-700",   bar: "bg-amber-500",   border: "border-amber-100"   },
+      "Approval SPK":        { bg: "from-emerald-50 to-white", icon: "bg-emerald-100 text-emerald-600",text: "text-emerald-700", bar: "bg-emerald-500", border: "border-emerald-100" },
+      "Ongoing":             { bg: "from-red-50 to-white",     icon: "bg-red-100 text-red-600",        text: "text-red-700",     bar: "bg-red-500",     border: "border-red-100"     },
+      "Kerja Tambah Kurang": { bg: "from-orange-50 to-white",  icon: "bg-orange-100 text-orange-600",  text: "text-orange-700",  bar: "bg-orange-500",  border: "border-orange-100"  },
+    };
+
+    // ── Project detail full-page view ──────────────────────────────────────────
+    if (selectedProjectDetail) {
+      const p = selectedProjectDetail;
+      const pStage = getStage(p);
+      const pLate = getLateDays(p);
+      const pPenalty = getPenalty(p);
+      const pQuality = getQuality(opnameItemsMap[p?.toko?.id] || []);
+      const colors = stageColorMap[pStage] || { bg: "from-slate-50 to-white", icon: "bg-slate-100 text-slate-600", text: "text-slate-600", bar: "bg-slate-400", border: "border-slate-100" };
+      const Icon = stageIconMap[pStage] || FileText;
+      return (
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
+          {/* Back button + breadcrumb */}
+          <button type="button" onClick={() => onBackFromProject()} className="group mb-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+            <ArrowLeft className="h-4 w-4 text-slate-500 transition-transform group-hover:-translate-x-0.5" />
+            <span className="text-[11px] font-semibold text-slate-600">Kembali ke Prioritas SLA</span>
+            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500">{p?.toko?.nama_toko}</span>
+          </button>
+
+          {/* Hero project header */}
+          <div className={`relative overflow-hidden rounded-2xl border ${colors.border} bg-gradient-to-br ${colors.bg} p-6 shadow-sm`}>
+            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-[0.06] bg-current" />
+            <div className="flex items-start gap-4">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colors.icon}`}>
+                <Icon className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${colors.icon}`}>{pStage}</span>
+                  {pLate > 0 && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[9px] font-bold text-red-700">Terlambat {pLate} hari</span>}
+                </div>
+                <h2 className="mt-2 text-xl font-black text-slate-900 leading-tight">{p?.toko?.nama_toko}</h2>
+                <p className="mt-1 text-[11px] text-slate-500">{p?.toko?.nomor_ulok} · {p?.toko?.cabang} · {p?.toko?.lingkup_pekerjaan || "—"}</p>
+              </div>
+              {canOpenSource && canOpenSource(p, context) && (
+                <button type="button" onClick={() => onOpenSource(p, context)} className="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md">
+                  Buka ULOK →
                 </button>
-              );
-            })}
+              )}
+            </div>
           </div>
-          <div className="sticky top-0 self-start rounded-2xl border border-red-200 bg-white p-5 shadow-sm">
-            {project ? <><p className="text-[9px] font-semibold uppercase tracking-[.12em] text-red-600">Analisis risiko</p><h2 className="mt-2 text-lg font-semibold">{project?.toko?.nama_toko}</h2><p className="mt-1 text-[10px] text-slate-400">{project?.toko?.nomor_ulok} · {project?.toko?.cabang}</p><div className="mt-5"><ContextInspector project={project} context={context} quality={getQuality(opnameItemsMap[project?.toko?.id] || [])} lateDays={getLateDays(project)} penalty={getPenalty(project)} /></div></> : null}
+
+          {/* Detail grid */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {/* Left: context inspector */}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-3">Analisis Risiko & Keterlambatan</p>
+                <ContextInspector project={p} context={context} quality={pQuality} lateDays={pLate} penalty={pPenalty} />
+              </div>
+            </div>
+            {/* Right: timeline + penalty */}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Perjalanan Dokumen</p>
+                <Timeline project={p} stage={pStage} />
+              </div>
+              {pPenalty.amount > 0 && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-3">Denda {pPenalty.source}</p>
+                  <p className="text-3xl font-black text-red-700">{formatRupiah(pPenalty.amount)}</p>
+                  <p className="mt-1 text-[11px] text-red-500">{pPenalty.days} hari keterlambatan</p>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
+      );
+    }
+
+    const stageBreakdown = PIPELINE.filter(s => s !== "Done").map(stage => ({
+      stage,
+      count: rows.filter((row) => getStage(row) === stage).length,
+      lateDays: rows.filter((row) => getStage(row) === stage).reduce((sum, row) => sum + getLateDays(row), 0),
+    })).filter(s => s.count > 0);
+    const maxCount = Math.max(...stageBreakdown.map(s => s.count), 1);
+    const totalExposure = rows.reduce((sum, row) => sum + getPenalty(row).amount, 0);
+    const totalLate = rows.reduce((sum, row) => sum + getLateDays(row), 0);
+    return (
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50/80 p-4 md:p-6">
+        {/* Hero summary bar */}
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="col-span-2 flex items-center gap-4 rounded-2xl border border-red-200 bg-gradient-to-br from-red-700 to-red-900 p-5 text-white shadow-lg shadow-red-200/50">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
+              <AlertTriangle className="h-6 w-6 text-red-100" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-200">Total Proyek Bermasalah</p>
+              <p className="mt-1 text-3xl font-black tracking-tight">{rows.length}</p>
+              <p className="mt-0.5 text-[11px] text-red-200">tersebar di {stageBreakdown.length} tahap pipeline</p>
+            </div>
+          </div>
+          <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50">
+                <Clock3 className="h-4 w-4 text-orange-500" />
+              </div>
+              <p className="text-[10px] font-semibold text-slate-500">Total Hari Terlambat</p>
+            </div>
+            <div>
+              <p className="text-2xl font-black text-slate-900">{totalLate.toLocaleString("id-ID")}</p>
+              <p className="text-[10px] text-slate-400">hari akumulasi</p>
+            </div>
+          </div>
+          <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
+                <DollarSign className="h-4 w-4 text-red-500" />
+              </div>
+              <p className="text-[10px] font-semibold text-slate-500">Eksposur Denda</p>
+            </div>
+            <div>
+              <p className="text-lg font-black text-red-700 leading-tight">{formatRupiah(totalExposure)}</p>
+              <p className="text-[10px] text-slate-400">estimasi &amp; resmi</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stage breakdown cards */}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {stageBreakdown.map(({ stage, count, lateDays: stageLate }) => {
+            const Icon = stageIconMap[stage] || FileText;
+            const colors = stageColorMap[stage] || { bg: "from-slate-50 to-white", icon: "bg-slate-100 text-slate-600", text: "text-slate-600", bar: "bg-slate-400", border: "border-slate-100" };
+            const pct = Math.round((count / maxCount) * 100);
+            return (
+              <div key={stage} className={`relative overflow-hidden rounded-2xl border ${colors.border} bg-gradient-to-br ${colors.bg} p-5 shadow-sm transition-all hover:shadow-md`}>
+                {/* Decorative circle */}
+                <div className={`absolute -right-4 -top-4 h-20 w-20 rounded-full opacity-[0.08] ${colors.bar}`} />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between">
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${colors.icon}`}>
+                      <Icon className="h-4.5 w-4.5" />
+                    </div>
+                    <span className={`text-[10px] font-bold ${colors.text}`}>{pct}%</span>
+                  </div>
+                  <p className={`mt-3 text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>{stage}</p>
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black text-slate-900">{count}</span>
+                    <span className="text-sm font-medium text-slate-400">toko</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className={`h-full rounded-full ${colors.bar} transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                  {stageLate > 0 && (
+                    <p className={`mt-2.5 text-[10px] font-semibold ${colors.text}`}>
+                      ⏱ {stageLate.toLocaleString("id-ID")} hari keterlambatan
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Divider + section header */}
+        <div className="mt-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Daftar {rows.length} Proyek · Klik untuk detail</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        {/* Project cards — clicking navigates to full detail */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {rows.map((row, index) => {
+            const penalty = getPenalty(row); const late = getLateDays(row); const stage = getStage(row); const sla = getSlaInfo(row, stage, late);
+            const colors = stageColorMap[stage] || { border: "border-slate-200", bg: "from-slate-50 to-white", icon: "bg-slate-100 text-slate-600", text: "text-slate-600", bar: "bg-slate-400" };
+            const Icon = stageIconMap[stage] || FileText;
+            return (
+              <button key={row?.toko?.id || index} type="button" onClick={() => onOpenProjectDetail(row)}
+                className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl">
+                {/* Stage accent bar */}
+                <div className={`absolute left-0 top-0 h-full w-1 rounded-l-2xl ${colors.bar}`} />
+                {/* Hover shimmer */}
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white via-transparent to-slate-50/50 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="relative pl-3">
+                  <div className="flex items-center justify-between">
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${colors.icon}`}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" />
+                  </div>
+                  <p className="mt-3 text-[12px] font-bold text-slate-900 leading-snug line-clamp-1">{row?.toko?.nama_toko}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</p>
+                  <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${colors.icon}`}>{stage}</span>
+                    {late > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-700">{late} hari terlambat</span>}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                    <span className="text-[9px] text-slate-400">{penalty.amount > 0 ? `Denda ${penalty.source}` : sla.helper.substring(0, 30) + "..."}</span>
+                    <span className={`text-[11px] font-black ${penalty.amount > 0 ? "text-red-700" : colors.text}`}>
+                      {penalty.amount > 0 ? formatRupiah(penalty.amount) : "Lihat →"}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -671,6 +898,7 @@ export default function DashboardCommandWorkspace({
   const [detailSearch, setDetailSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailCategory, setDetailCategory] = useState("Semua");
+  const [projectDetailView, setProjectDetailView] = useState<any | null>(null);
 
   const detailRows = useMemo(() => {
     if (detail.context === "NILAI_KONTRAKTOR") {
@@ -719,10 +947,7 @@ export default function DashboardCommandWorkspace({
     let filtered = detailRows;
     if (detailCategory !== "Semua") {
       if (detail.context === "ATTENTION") {
-        filtered = filtered.filter((row: any) => {
-          const sla = getSlaInfo(row, getStage(row), getLateDays(row));
-          return sla.label === detailCategory;
-        });
+        filtered = filtered.filter((row: any) => getStage(row) === detailCategory);
       } else if (detail.context === "PROJECT") {
         filtered = filtered.filter((row: any) => getStage(row) === detailCategory);
       }
@@ -766,22 +991,30 @@ export default function DashboardCommandWorkspace({
 
         {detail.context !== "PROJECT" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {detail.context === "ATTENTION" && projectDetailView ? null : (
             <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <Input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setSelectedIndex(0); }} placeholder="Cari toko, ULOK, cabang, atau kontraktor..." className="h-9 rounded-lg border-slate-200 pl-9 text-[11px]" />
               </div>
               {detail.context === "ATTENTION" && (
-                <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
-                  {["Semua", "Melewati SLA", "Sangat Terlambat", "Terlambat"].map(cat => (
-                    <Button key={cat} variant={detailCategory === cat ? "default" : "outline"} onClick={() => { setDetailCategory(cat); setSelectedIndex(0); }} className={`h-9 shrink-0 rounded-lg text-[10px] font-medium ${detailCategory === cat ? "bg-red-600 hover:bg-red-700 text-white border-transparent" : "border-slate-200 text-slate-600"}`}>{cat}</Button>
-                  ))}
-                </div>
+                <Select value={detailCategory} onValueChange={(val) => { setDetailCategory(val); setSelectedIndex(0); }}>
+                  <SelectTrigger className="h-9 w-[180px] shrink-0 rounded-lg border-slate-200 text-[11px] font-medium focus:ring-0 focus:ring-offset-0">
+                    <SelectValue placeholder="Filter Tahap" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Semua" className="text-[11px]">Semua Tahap</SelectItem>
+                    {PIPELINE.filter(s => s !== "Done").map(cat => (
+                      <SelectItem key={cat} value={cat} className="text-[11px]">{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
               <Badge className="w-fit border-red-100 bg-red-50 text-[9px] font-medium text-red-700 hidden sm:flex">
-                Layout {contextLabels[detail.context]}
+                {searchedRows.length} hasil
               </Badge>
             </div>
+          )}
             <SpecializedDetailContent
               context={detail.context}
               rows={searchedRows}
@@ -792,8 +1025,13 @@ export default function DashboardCommandWorkspace({
               getLateDays={getLateDays}
               getPenalty={getPenalty}
               getQuality={getQuality}
+              selectedProjectDetail={projectDetailView}
+              onOpenProjectDetail={(p) => setProjectDetailView(p)}
+              onBackFromProject={() => setProjectDetailView(null)}
+              canOpenSource={canOpenSource}
+              onOpenSource={onOpenSource}
             />
-            {selectedProject ? (
+            {selectedProject && !projectDetailView && detail.context !== "ATTENTION" ? (
               <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 md:px-6">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-800">{selectedProject?.toko?.nama_toko}</p>
@@ -1010,10 +1248,54 @@ export default function DashboardCommandWorkspace({
           <p className="text-[10px] text-slate-400">Data dashboard mengikuti filter aktif</p>
         </div>
 
-        <section className="mt-5 grid overflow-hidden rounded-2xl border border-slate-200 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {primaryKpis.map(([label, value, helper, context, tone]) => (
-            <DashboardMetric key={String(label)} label={String(label)} value={value as string | number} helper={String(helper)} tone={tone as "neutral" | "danger"} onClick={() => onOpenDetail(String(label), String(context))} />
-          ))}
+        <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {primaryKpis.map(([label, value, helper, context, tone]) => {
+            let subMetrics: { label: string; value: string | number }[] | undefined = undefined;
+            if (context === "PROJECT") {
+              subMetrics = [
+                { label: "Selesai", value: stats.miniStats["Done"] || 0 },
+                { label: "Aktif", value: stats.miniStats["Ongoing"] || 0 },
+                { label: "Review SPK", value: stats.miniStats["Approval SPK"] || 0 },
+              ];
+            } else if (context === "ATTENTION") {
+              subMetrics = [
+                { label: "PJU", value: stats.miniPerhatian?.["Proses PJU"] || 0 },
+                { label: "SPK", value: stats.miniPerhatian?.["Approval SPK"] || 0 },
+                { label: "Ongoing", value: stats.miniPerhatian?.["Ongoing"] || 0 },
+              ];
+            } else if (context === "PENAWARAN") {
+              subMetrics = [
+                { label: "Total RAB", value: stats.total },
+                { label: "Review RAB", value: stats.miniStats["Approval RAB"] || 0 },
+                { label: "Selesai", value: stats.miniStats["Done"] || 0 },
+              ];
+            } else if (context === "SPK") {
+              subMetrics = [
+                { label: "Total SPK", value: stats.total },
+                { label: "Aktif", value: stats.miniStats["Ongoing"] || 0 },
+                { label: "Review SPK", value: stats.miniStats["Approval SPK"] || 0 },
+              ];
+            } else if (context === "DENDA") {
+              const kritis = priorityProjects.filter((item: any) => item.lateDays > 3).length;
+              subMetrics = [
+                { label: "Terlambat", value: slaPriorityProjects.length },
+                { label: "Kritis", value: kritis },
+                { label: "Aman", value: Math.max(0, stats.total - slaPriorityProjects.length) },
+              ];
+            }
+
+            return (
+              <DashboardMetric
+                key={String(label)}
+                label={String(label)}
+                value={value as string | number}
+                helper={String(helper)}
+                tone={tone as "neutral" | "danger"}
+                onClick={() => onOpenDetail(String(label), String(context))}
+                subMetrics={subMetrics}
+              />
+            );
+          })}
         </section>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,.72fr)]">

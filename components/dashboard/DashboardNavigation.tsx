@@ -56,7 +56,17 @@ const GROUPS: NavigationGroup[] = [
     id: "migration",
     label: "Pusat Migrasi",
     icon: Upload,
-    menuIds: ["menu-migrasi-rab", "menu-migrasi-spk", "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-dokumen"],
+    menuIds: [
+      "menu-migrasi-rab",
+      "menu-migrasi-spk",
+      "menu-migrasi-tambahspk",
+      "menu-migrasi-gantt",
+      "menu-migrasi-pengawasan",
+      "menu-migrasi-opname-final",
+      "menu-migrasi-dokumen",
+      "menu-migrasi-il",
+      "menu-migrasi-serah-terima",
+    ],
   },
   {
     id: "control",
@@ -196,20 +206,20 @@ export default function DashboardNavigation({
           const Icon = group.icon;
           const groupCount = groupMenus.reduce((sum, menu) => sum + (menuCounts[menu.id] ?? 0), 0);
           return (
-            <details key={group.id} className="group/nav mb-2 rounded-xl border border-slate-200 bg-white open:shadow-sm" open={group.id !== "migration"}>
-              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 rounded-xl px-3 text-[12px] font-semibold text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700 [&::-webkit-details-marker]:hidden">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500">
+            <details key={group.id} className="group/nav mb-2 overflow-hidden rounded-xl border border-red-100 bg-white open:shadow-sm" open={group.id !== "migration"}>
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-gradient-to-r from-red-600 to-red-700 px-3 text-[12px] font-semibold text-white transition-colors hover:from-red-700 hover:to-red-800 [&::-webkit-details-marker]:hidden">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white backdrop-blur-sm">
                   <Icon className="h-3.5 w-3.5" />
                 </span>
                 <span className="flex-1">{group.label}</span>
                 {groupCount > 0 ? (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-semibold text-white">
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 text-[9px] font-semibold text-white ring-1 ring-white/30">
                     {groupCount > 99 ? "99+" : groupCount}
                   </span>
                 ) : null}
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform group-open/nav:rotate-180" />
+                <ChevronDown className="h-3.5 w-3.5 text-white/70 transition-transform group-open/nav:rotate-180" />
               </summary>
-              <div className="border-t border-slate-100 px-1.5 py-1.5">
+              <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5">
                 {groupMenus.map((menu) => (
                   <NavigationItem
                     key={menu.id}

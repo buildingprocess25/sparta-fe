@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
 
@@ -1198,24 +1199,11 @@ export default function DashboardPage() {
                     {/* === TOP BAR: info user (1 baris kompak) + judul === */}
                     <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-1.5 shrink-0 shadow-sm gap-3">
 
-                        {/* Kiri: avatar inisial + nama + role + cabang */}
-                        <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                                {userInfo.name ? userInfo.name.charAt(0) : '?'}
-                            </div>
-                            <span className="text-sm font-bold text-slate-800 truncate max-w-40 hidden sm:block">
-                                {userInfo.name || '-'}
+                        {/* Kiri: Judul Halaman */}
+                        <div className="flex items-center gap-2.5 min-w-0 pl-2">
+                            <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                                Dashboard Operasional
                             </span>
-                            {userInfo.roles.length > 0 && userInfo.roles.map((r, idx) => (
-                                <span key={idx} className="text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full hidden md:block whitespace-nowrap">
-                                    {r}
-                                </span>
-                            ))}
-                            {userInfo.cabang && (
-                                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full hidden lg:block whitespace-nowrap">
-                                    {userInfo.cabang}
-                                </span>
-                            )}
                         </div>
 
                         {canViewMonitoringDashboard && (
@@ -1234,57 +1222,38 @@ export default function DashboardPage() {
                                 )}
 
                                 {canExportDashboard && (
-                                    <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 px-1">Export</span>
-                                        {[
-                                            { format: "xlsx" as const, label: "XLSX", icon: FileSpreadsheet },
-                                            { format: "csv" as const, label: "CSV", icon: Download },
-                                            { format: "pdf" as const, label: "PDF", icon: FileDown },
-                                        ].map(({ format, label, icon: Icon }) => (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
                                             <Button
-                                                key={format}
                                                 variant="outline"
-                                                size="sm"
-                                                className="h-6 rounded-md border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                                                onClick={() => handleDownloadDashboardExport(format)}
+                                                className="h-8 rounded-lg border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 shadow-sm"
                                                 disabled={Boolean(exportingFormat)}
-                                                title={`Download dashboard ${label}`}
                                             >
-                                                {exportingFormat === format ? (
-                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                {exportingFormat ? (
+                                                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                                                 ) : (
-                                                    <Icon className="w-3 h-3" />
+                                                    <Download className="w-3.5 h-3.5 mr-1.5" />
                                                 )}
-                                                {label}
+                                                {exportingFormat ? "Mendownload..." : "Download Data"}
                                             </Button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {canExportDashboard && (
-                                    <div className="flex xl:hidden items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1 py-1">
-                                        {[
-                                            { format: "xlsx" as const, label: "XLSX", icon: FileSpreadsheet },
-                                            { format: "csv" as const, label: "CSV", icon: Download },
-                                            { format: "pdf" as const, label: "PDF", icon: FileDown },
-                                        ].map(({ format, label, icon: Icon }) => (
-                                            <Button
-                                                key={format}
-                                                variant="outline"
-                                                size="icon-sm"
-                                                className="rounded-md border-slate-200 bg-white text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                                                onClick={() => handleDownloadDashboardExport(format)}
-                                                disabled={Boolean(exportingFormat)}
-                                                title={`Download dashboard ${label}`}
-                                            >
-                                                {exportingFormat === format ? (
-                                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                                ) : (
-                                                    <Icon className="w-3.5 h-3.5" />
-                                                )}
-                                            </Button>
-                                        ))}
-                                    </div>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                                            {[
+                                                { format: "xlsx" as const, label: "Excel (.xlsx)", icon: FileSpreadsheet },
+                                                { format: "csv" as const, label: "CSV (.csv)", icon: Download },
+                                                { format: "pdf" as const, label: "PDF Document", icon: FileDown },
+                                            ].map(({ format, label, icon: Icon }) => (
+                                                <DropdownMenuItem
+                                                    key={format}
+                                                    onClick={() => handleDownloadDashboardExport(format)}
+                                                    className="cursor-pointer text-xs font-medium focus:bg-red-50 focus:text-red-700 rounded-lg py-2"
+                                                >
+                                                    <Icon className="mr-2 h-3.5 w-3.5" />
+                                                    {label}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 )}
 
                                 {/* Refresh Button */}
