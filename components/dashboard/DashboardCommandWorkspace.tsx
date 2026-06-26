@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import {
   ArrowLeft,
+  ArrowRightLeft,
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
@@ -605,13 +606,13 @@ function SpecializedDetailContent({
       "Ongoing": HardHat,
       "Kerja Tambah Kurang": Layers3,
     };
-    const stageColorMap: Record<string, { bg: string; icon: string; text: string; bar: string; border: string }> = {
-      "Approval RAB":        { bg: "from-violet-50 to-white",  icon: "bg-violet-100 text-violet-600",  text: "text-violet-700",  bar: "bg-violet-500",  border: "border-violet-100"  },
-      "Proses Gantt":        { bg: "from-sky-50 to-white",     icon: "bg-sky-100 text-sky-600",        text: "text-sky-700",     bar: "bg-sky-500",     border: "border-sky-100"     },
-      "Proses PJU":          { bg: "from-amber-50 to-white",   icon: "bg-amber-100 text-amber-600",    text: "text-amber-700",   bar: "bg-amber-500",   border: "border-amber-100"   },
-      "Approval SPK":        { bg: "from-emerald-50 to-white", icon: "bg-emerald-100 text-emerald-600",text: "text-emerald-700", bar: "bg-emerald-500", border: "border-emerald-100" },
-      "Ongoing":             { bg: "from-red-50 to-white",     icon: "bg-red-100 text-red-600",        text: "text-red-700",     bar: "bg-red-500",     border: "border-red-100"     },
-      "Kerja Tambah Kurang": { bg: "from-orange-50 to-white",  icon: "bg-orange-100 text-orange-600",  text: "text-orange-700",  bar: "bg-orange-500",  border: "border-orange-100"  },
+    const stageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
+      "Approval RAB":        { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
+      "Proses Gantt":        { text: "text-sky-600",    bar: "bg-sky-500",    borderTop: "border-t-sky-500",    bg: "bg-sky-50" },
+      "Proses PJU":          { text: "text-amber-600",  bar: "bg-amber-500",  borderTop: "border-t-amber-500",  bg: "bg-amber-50" },
+      "Approval SPK":        { text: "text-emerald-600",bar: "bg-emerald-500",borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
+      "Ongoing":             { text: "text-red-600",    bar: "bg-red-500",    borderTop: "border-t-red-500",    bg: "bg-red-50" },
+      "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
     };
 
     // ── Project detail full-page view ──────────────────────────────────────────
@@ -621,7 +622,7 @@ function SpecializedDetailContent({
       const pLate = getLateDays(p);
       const pPenalty = getPenalty(p);
       const pQuality = getQuality(opnameItemsMap[p?.toko?.id] || []);
-      const colors = stageColorMap[pStage] || { bg: "from-slate-50 to-white", icon: "bg-slate-100 text-slate-600", text: "text-slate-600", bar: "bg-slate-400", border: "border-slate-100" };
+      const colors = stageColorMap[pStage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
       const Icon = stageIconMap[pStage] || FileText;
       return (
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
@@ -633,22 +634,21 @@ function SpecializedDetailContent({
           </button>
 
           {/* Hero project header */}
-          <div className={`relative overflow-hidden rounded-2xl border ${colors.border} bg-gradient-to-br ${colors.bg} p-6 shadow-sm`}>
-            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-[0.06] bg-current" />
+          <div className={`relative overflow-hidden rounded-xl border border-slate-200 border-t-4 ${colors.borderTop} bg-white p-6 shadow-sm`}>
             <div className="flex items-start gap-4">
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colors.icon}`}>
-                <Icon className="h-6 w-6" />
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${colors.bg}`}>
+                <Icon className={`h-6 w-6 ${colors.text}`} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-widest ${colors.icon}`}>{pStage}</span>
-                  {pLate > 0 && <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[9px] font-bold text-red-700">Terlambat {pLate} hari</span>}
+                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>{pStage}</span>
+                  {pLate > 0 && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">Terlambat {pLate} hari</span>}
                 </div>
-                <h2 className="mt-2 text-xl font-black text-slate-900 leading-tight">{p?.toko?.nama_toko}</h2>
-                <p className="mt-1 text-[11px] text-slate-500">{p?.toko?.nomor_ulok} · {p?.toko?.cabang} · {p?.toko?.lingkup_pekerjaan || "—"}</p>
+                <h2 className="mt-2 text-xl font-bold text-slate-900 leading-tight">{p?.toko?.nama_toko}</h2>
+                <p className="mt-1 text-[12px] text-slate-500">{p?.toko?.nomor_ulok} · {p?.toko?.cabang} · {p?.toko?.lingkup_pekerjaan || "—"}</p>
               </div>
               {canOpenSource && canOpenSource(p, context) && (
-                <button type="button" onClick={() => onOpenSource(p, context)} className="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md">
+                <button type="button" onClick={() => onOpenSource(p, context)} className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md">
                   Buka ULOK →
                 </button>
               )}
@@ -659,22 +659,22 @@ function SpecializedDetailContent({
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {/* Left: context inspector */}
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-3">Analisis Risiko & Keterlambatan</p>
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-3">Analisis Risiko & Keterlambatan</p>
                 <ContextInspector project={p} context={context} quality={pQuality} lateDays={pLate} penalty={pPenalty} />
               </div>
             </div>
             {/* Right: timeline + penalty */}
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Perjalanan Dokumen</p>
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-4">Perjalanan Dokumen</p>
                 <Timeline project={p} stage={pStage} />
               </div>
               {pPenalty.amount > 0 && (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-3">Denda {pPenalty.source}</p>
-                  <p className="text-3xl font-black text-red-700">{formatRupiah(pPenalty.amount)}</p>
-                  <p className="mt-1 text-[11px] text-red-500">{pPenalty.days} hari keterlambatan</p>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 mb-3">Denda {pPenalty.source}</p>
+                  <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pPenalty.amount)}</p>
+                  <p className="mt-1 text-[12px] font-medium text-red-600">{pPenalty.days} hari keterlambatan</p>
                 </div>
               )}
             </div>
@@ -692,77 +692,76 @@ function SpecializedDetailContent({
     const totalExposure = rows.reduce((sum, row) => sum + getPenalty(row).amount, 0);
     const totalLate = rows.reduce((sum, row) => sum + getLateDays(row), 0);
     return (
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50/80 p-4 md:p-6">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50">
+        <div className="p-4 md:p-6">
         {/* Hero summary bar */}
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="col-span-2 flex items-center gap-4 rounded-2xl border border-red-200 bg-gradient-to-br from-red-700 to-red-900 p-5 text-white shadow-lg shadow-red-200/50">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
-              <AlertTriangle className="h-6 w-6 text-red-100" />
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex flex-col justify-center rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+              </div>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-red-700">Total Proyek Perlu Perhatian</p>
             </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-200">Total Proyek Bermasalah</p>
-              <p className="mt-1 text-3xl font-black tracking-tight">{rows.length}</p>
-              <p className="mt-0.5 text-[11px] text-red-200">tersebar di {stageBreakdown.length} tahap pipeline</p>
+            <div className="flex items-baseline gap-2 mt-2">
+              <p className="text-4xl font-bold tracking-tight text-red-700">{rows.length}</p>
+              <p className="text-[12px] font-medium text-red-600">Tersebar di {stageBreakdown.length} Alur Business Process</p>
             </div>
           </div>
-          <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50">
-                <Clock3 className="h-4 w-4 text-orange-500" />
-              </div>
-              <p className="text-[10px] font-semibold text-slate-500">Total Hari Terlambat</p>
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock3 className="h-4 w-4 text-slate-400" />
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Hari Terlambat</p>
             </div>
             <div>
-              <p className="text-2xl font-black text-slate-900">{totalLate.toLocaleString("id-ID")}</p>
-              <p className="text-[10px] text-slate-400">hari akumulasi</p>
+              <p className="text-2xl font-bold tracking-tight text-slate-900">{totalLate.toLocaleString("id-ID")}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Hari estimasi</p>
             </div>
           </div>
-          <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
-                <DollarSign className="h-4 w-4 text-red-500" />
-              </div>
-              <p className="text-[10px] font-semibold text-slate-500">Eksposur Denda</p>
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[9px] font-bold text-slate-500">Rp</div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Eksposur Denda</p>
             </div>
             <div>
-              <p className="text-lg font-black text-red-700 leading-tight">{formatRupiah(totalExposure)}</p>
-              <p className="text-[10px] text-slate-400">estimasi &amp; resmi</p>
+              <p className="text-xl font-bold tracking-tight text-red-600">{formatRupiah(totalExposure)}</p>
+              <p className="text-[11px] font-medium text-slate-500 mt-1">Estimasi dan Resmi</p>
             </div>
           </div>
         </div>
 
         {/* Stage breakdown cards */}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {stageBreakdown.map(({ stage, count, lateDays: stageLate }) => {
             const Icon = stageIconMap[stage] || FileText;
-            const colors = stageColorMap[stage] || { bg: "from-slate-50 to-white", icon: "bg-slate-100 text-slate-600", text: "text-slate-600", bar: "bg-slate-400", border: "border-slate-100" };
+            const colors = stageColorMap[stage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
             const pct = Math.round((count / maxCount) * 100);
             return (
-              <div key={stage} className={`relative overflow-hidden rounded-2xl border ${colors.border} bg-gradient-to-br ${colors.bg} p-5 shadow-sm transition-all hover:shadow-md`}>
-                {/* Decorative circle */}
-                <div className={`absolute -right-4 -top-4 h-20 w-20 rounded-full opacity-[0.08] ${colors.bar}`} />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${colors.icon}`}>
-                      <Icon className="h-4.5 w-4.5" />
-                    </div>
-                    <span className={`text-[10px] font-bold ${colors.text}`}>{pct}%</span>
+              <div key={stage} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-2 w-2 rounded-full ${colors.bar}`} />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{stage}</p>
                   </div>
-                  <p className={`mt-3 text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>{stage}</p>
-                  <div className="mt-1 flex items-baseline gap-1.5">
-                    <span className="text-3xl font-black text-slate-900">{count}</span>
-                    <span className="text-sm font-medium text-slate-400">toko</span>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <Icon className="h-4 w-4 text-slate-400" />
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-3xl font-bold tracking-tight text-slate-900">{count}</span>
+                  <span className="text-[13px] font-medium text-slate-500">Toko</span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div className={`h-full rounded-full ${colors.bar} transition-all`} style={{ width: `${pct}%` }} />
                   </div>
-                  {stageLate > 0 && (
-                    <p className={`mt-2.5 text-[10px] font-semibold ${colors.text}`}>
-                      ⏱ {stageLate.toLocaleString("id-ID")} hari keterlambatan
-                    </p>
-                  )}
+                  <span className="text-[11px] font-bold text-slate-500">{pct}%</span>
                 </div>
+                {stageLate > 0 && (
+                  <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {stageLate.toLocaleString("id-ID")} hari keterlambatan
+                  </div>
+                )}
               </div>
             );
           })}
@@ -775,42 +774,85 @@ function SpecializedDetailContent({
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        {/* Project cards — clicking navigates to full detail */}
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map((row, index) => {
-            const penalty = getPenalty(row); const late = getLateDays(row); const stage = getStage(row); const sla = getSlaInfo(row, stage, late);
-            const colors = stageColorMap[stage] || { border: "border-slate-200", bg: "from-slate-50 to-white", icon: "bg-slate-100 text-slate-600", text: "text-slate-600", bar: "bg-slate-400" };
-            const Icon = stageIconMap[stage] || FileText;
-            return (
-              <button key={row?.toko?.id || index} type="button" onClick={() => onOpenProjectDetail(row)}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl">
-                {/* Stage accent bar */}
-                <div className={`absolute left-0 top-0 h-full w-1 rounded-l-2xl ${colors.bar}`} />
-                {/* Hover shimmer */}
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white via-transparent to-slate-50/50 opacity-0 transition-opacity group-hover:opacity-100" />
-                <div className="relative pl-3">
-                  <div className="flex items-center justify-between">
-                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${colors.icon}`}>
-                      <Icon className="h-3.5 w-3.5" />
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" />
-                  </div>
-                  <p className="mt-3 text-[12px] font-bold text-slate-900 leading-snug line-clamp-1">{row?.toko?.nama_toko}</p>
-                  <p className="mt-0.5 text-[10px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</p>
-                  <div className="mt-3 flex items-center gap-1.5 flex-wrap">
-                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${colors.icon}`}>{stage}</span>
-                    {late > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-700">{late} hari terlambat</span>}
-                  </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                    <span className="text-[9px] text-slate-400">{penalty.amount > 0 ? `Denda ${penalty.source}` : sla.helper.substring(0, 30) + "..."}</span>
-                    <span className={`text-[11px] font-black ${penalty.amount > 0 ? "text-red-700" : colors.text}`}>
-                      {penalty.amount > 0 ? formatRupiah(penalty.amount) : "Lihat →"}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+        {/* Project List Table */}
+        <div className="sticky top-[-16px] z-20 -mx-4 mb-4 mt-4 bg-slate-50/95 px-4 py-2 backdrop-blur-sm md:hidden">
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <span className="text-[10px] font-bold text-slate-700">Tabel dapat digeser</span>
+            <div className="flex items-center gap-1.5 text-red-600">
+              <span className="text-[10px] font-bold">Geser</span>
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 md:mt-4 flex max-h-[65vh] md:max-h-none flex-col overflow-hidden md:overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="custom-scrollbar flex-1 overflow-auto md:overflow-visible">
+            <table className="w-full whitespace-nowrap text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
+                <tr>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Nama Toko & ULOK</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Cabang</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Tahap Pipeline</th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Keterlambatan</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider">Eksposur Denda</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((row, index) => {
+                  const penalty = getPenalty(row); 
+                  const late = getLateDays(row); 
+                  const stage = getStage(row);
+                  const colors = stageColorMap[stage] || { text: "text-slate-600", bg: "bg-slate-50" };
+                  
+                  return (
+                    <tr key={row?.toko?.id || index} className="group transition-colors hover:bg-slate-50/80">
+                      <td className="px-4 py-3">
+                        <p className="text-[12px] font-bold text-slate-900">{row?.toko?.nama_toko || "-"}</p>
+                        <p className="mt-0.5 text-[10px] text-slate-500">{row?.toko?.nomor_ulok || "-"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-[11px] font-medium text-slate-700">{row?.toko?.cabang || "-"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
+                          {stage}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {late > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                            <Clock3 className="h-3 w-3" /> {late} hari terlambat
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-slate-400">Tepat waktu</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {penalty.amount > 0 ? (
+                          <div>
+                            <p className="text-[11px] font-bold text-red-600">{formatRupiah(penalty.amount)}</p>
+                            <p className="mt-0.5 text-[9px] text-red-500">{penalty.source}</p>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button 
+                          type="button"
+                          onClick={() => onOpenProjectDetail(row)}
+                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold text-red-600 transition-colors hover:bg-red-50"
+                        >
+                          Detail <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
         </div>
       </div>
     );
