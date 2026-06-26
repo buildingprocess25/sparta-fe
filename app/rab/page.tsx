@@ -586,7 +586,7 @@ function RABPageContent() {
           setPrices(fetchedPrices);
 
           // Normalisasi Dropdown
-          let finalProyek = rabRef.proyek || data["Proyek"] || formData.proyek;
+          let finalProyek = tokoRef.proyek || data["Proyek"] || formData.proyek;
           const upperProyek = finalProyek?.toUpperCase();
           
           if (upperProyek === 'REGULER') finalProyek = 'Reguler';
@@ -1226,10 +1226,10 @@ function RABPageContent() {
                         <SelectValue placeholder="-- Pilih Jenis Proyek --" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Perpanjangan">Perpanjangan</SelectItem>
-                        <SelectItem value="Toko Tutup">Toko Tutup</SelectItem>
-                        <SelectItem value="Peremajaan/Perbaikan">Peremajaan/Perbaikan</SelectItem>
-                        <SelectItem value="Perluasan">Perluasan</SelectItem>
+                        <SelectItem value="Perpanjangan">Renovasi Perpanjangan</SelectItem>
+                        <SelectItem value="Toko Tutup">Renovasi Toko Tutup</SelectItem>
+                        <SelectItem value="Peremajaan/Perbaikan">Renovasi Peremajaan</SelectItem>
+                        <SelectItem value="Perluasan">Renovasi Perluasan</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (

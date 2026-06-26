@@ -514,6 +514,22 @@ const getBuildingClassification = (value?: boolean | null, fallback?: string | n
     return raw;
 };
 
+const PROYEK_LABEL_MAP: Record<string, string> = {
+    'perpanjangan':        'Renovasi Perpanjangan',
+    'perluasan':           'Renovasi Perluasan',
+    'toko tutup':          'Renovasi Toko Tutup',
+    'peremajaan/perbaikan':'Renovasi Peremajaan',
+    'peremajaan perbaikan':'Renovasi Peremajaan',
+    'peremajaan':          'Renovasi Peremajaan',
+    'renovasi':            'Renovasi',
+    'reguler':             'Reguler',
+};
+
+const formatProyekLabel = (proyek: string): string => {
+    const key = proyek.trim().toLowerCase();
+    return PROYEK_LABEL_MAP[key] ?? proyek;
+};
+
 const getDocumentContextBadges = (doc: Pick<NormalizedDoc, 'proyek' | 'lingkup_pekerjaan' | 'kategori_lokasi' | 'is_ruko' | 'klasifikasi_bangunan' | 'tipe' | 'status'>) => {
     const badges: Array<{ label: string; className: string }> = [];
     const proyek = String(doc.proyek ?? '').trim();
@@ -521,7 +537,14 @@ const getDocumentContextBadges = (doc: Pick<NormalizedDoc, 'proyek' | 'lingkup_p
     const klasifikasi = doc.klasifikasi_bangunan || getBuildingClassification(doc.is_ruko, doc.kategori_lokasi);
 
     if (proyek && proyek !== '-') {
-        badges.push({ label: proyek, className: 'bg-slate-100 text-slate-600 border-slate-200' });
+        const proyekLower = proyek.toLowerCase();
+        const isRenovasiType = proyekLower !== 'reguler' && proyekLower !== 'alfamart reguler';
+        badges.push({
+            label: formatProyekLabel(proyek),
+            className: isRenovasiType
+                ? 'bg-blue-100 text-blue-700 border-blue-200'
+                : 'bg-slate-100 text-slate-600 border-slate-200',
+        });
     }
     if (klasifikasi) {
         badges.push({
@@ -545,14 +568,38 @@ const DOCUMENT_GROUP_CONFIG: Array<Omit<DocumentContextGroup, 'docs'>> = [
     {
         key: 'REGULER',
         label: 'Reguler',
-        description: 'Dokumen pekerjaan reguler.',
+        description: 'Dokumen pekerjaan toko baru (new store).',
         className: 'bg-slate-50 text-slate-700 border-slate-200',
+    },
+    {
+        key: 'RENOVASI_PERPANJANGAN',
+        label: 'Renovasi Perpanjangan',
+        description: 'Dokumen renovasi dengan jenis perpanjangan.',
+        className: 'bg-blue-50 text-blue-700 border-blue-200',
+    },
+    {
+        key: 'RENOVASI_PERLUASAN',
+        label: 'Renovasi Perluasan',
+        description: 'Dokumen renovasi dengan jenis perluasan toko.',
+        className: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    },
+    {
+        key: 'RENOVASI_TOKO_TUTUP',
+        label: 'Renovasi Toko Tutup',
+        description: 'Dokumen renovasi terkait toko yang tutup.',
+        className: 'bg-rose-50 text-rose-700 border-rose-200',
+    },
+    {
+        key: 'RENOVASI_PEREMAJAAN',
+        label: 'Renovasi Peremajaan',
+        description: 'Dokumen renovasi peremajaan / perbaikan toko.',
+        className: 'bg-violet-50 text-violet-700 border-violet-200',
     },
     {
         key: 'RENOVASI',
         label: 'Renovasi',
-        description: 'Dokumen pekerjaan renovasi.',
-        className: 'bg-blue-50 text-blue-700 border-blue-200',
+        description: 'Dokumen renovasi lainnya.',
+        className: 'bg-sky-50 text-sky-700 border-sky-200',
     },
     {
         key: 'LAINNYA',
@@ -583,21 +630,21 @@ const BUILDING_GROUP_CONFIG: Array<Omit<DocumentContextGroup, 'docs'>> = [
     },
 ];
 
-const getProjectGroupKey = (doc: NormalizedDoc) => {
-    const proyek = String(doc.proyek ?? doc.jenis_proyek ?? '').toUpperCase();
+const getProjectGroupKey = (doc: NormalizedDoc): string => {
+    const proyek = String(doc.proyek ?? doc.jenis_proyek ?? '').toUpperCase().trim();
     const jenisPengajuan = String(doc.jenis_pengajuan ?? '').toUpperCase();
     const source = `${proyek} ${jenisPengajuan}`;
 
-    if (
-        source.includes('RENOVASI') ||
-        source.includes('PERLUAS') ||
-        source.includes('PERPANJANGAN') ||
-        source.includes('TOKO TUTUP') ||
-        source.includes('PEREMAJAAN') ||
-        source.includes('PERBAIKAN')
-    ) return 'RENOVASI';
+    // Sub-kategori Renovasi (urutan penting: cek spesifik dulu sebelum 'RENOVASI' generik)
+    if (source.includes('PERPANJANGAN')) return 'RENOVASI_PERPANJANGAN';
+    if (source.includes('PERLUAS'))      return 'RENOVASI_PERLUASAN';
+    if (source.includes('TOKO TUTUP'))   return 'RENOVASI_TOKO_TUTUP';
+    if (source.includes('PEREMAJAAN') || source.includes('PERBAIKAN')) return 'RENOVASI_PEREMAJAAN';
 
-    if (source.includes('REGULER')) return 'REGULER';
+    // Renovasi generik (dokumen lama sebelum sub-kategori diterapkan)
+    if (source.includes('RENOVASI')) return 'RENOVASI';
+
+    if (source.includes('REGULER') || proyek === '') return 'REGULER';
 
     return 'LAINNYA';
 };
