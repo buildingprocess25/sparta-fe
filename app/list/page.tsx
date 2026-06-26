@@ -572,34 +572,10 @@ const DOCUMENT_GROUP_CONFIG: Array<Omit<DocumentContextGroup, 'docs'>> = [
         className: 'bg-slate-50 text-slate-700 border-slate-200',
     },
     {
-        key: 'RENOVASI_PERPANJANGAN',
-        label: 'Renovasi Perpanjangan',
-        description: 'Dokumen renovasi dengan jenis perpanjangan.',
-        className: 'bg-blue-50 text-blue-700 border-blue-200',
-    },
-    {
-        key: 'RENOVASI_PERLUASAN',
-        label: 'Renovasi Perluasan',
-        description: 'Dokumen renovasi dengan jenis perluasan toko.',
-        className: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    },
-    {
-        key: 'RENOVASI_TOKO_TUTUP',
-        label: 'Renovasi Toko Tutup',
-        description: 'Dokumen renovasi terkait toko yang tutup.',
-        className: 'bg-rose-50 text-rose-700 border-rose-200',
-    },
-    {
-        key: 'RENOVASI_PEREMAJAAN',
-        label: 'Renovasi Peremajaan',
-        description: 'Dokumen renovasi peremajaan / perbaikan toko.',
-        className: 'bg-violet-50 text-violet-700 border-violet-200',
-    },
-    {
         key: 'RENOVASI',
         label: 'Renovasi',
-        description: 'Dokumen renovasi lainnya.',
-        className: 'bg-sky-50 text-sky-700 border-sky-200',
+        description: 'Dokumen pekerjaan renovasi.',
+        className: 'bg-blue-50 text-blue-700 border-blue-200',
     },
     {
         key: 'LAINNYA',
@@ -635,14 +611,14 @@ const getProjectGroupKey = (doc: NormalizedDoc): string => {
     const jenisPengajuan = String(doc.jenis_pengajuan ?? '').toUpperCase();
     const source = `${proyek} ${jenisPengajuan}`;
 
-    // Sub-kategori Renovasi (urutan penting: cek spesifik dulu sebelum 'RENOVASI' generik)
-    if (source.includes('PERPANJANGAN')) return 'RENOVASI_PERPANJANGAN';
-    if (source.includes('PERLUAS'))      return 'RENOVASI_PERLUASAN';
-    if (source.includes('TOKO TUTUP'))   return 'RENOVASI_TOKO_TUTUP';
-    if (source.includes('PEREMAJAAN') || source.includes('PERBAIKAN')) return 'RENOVASI_PEREMAJAAN';
-
-    // Renovasi generik (dokumen lama sebelum sub-kategori diterapkan)
-    if (source.includes('RENOVASI')) return 'RENOVASI';
+    if (
+        source.includes('RENOVASI') ||
+        source.includes('PERLUAS') ||
+        source.includes('PERPANJANGAN') ||
+        source.includes('TOKO TUTUP') ||
+        source.includes('PEREMAJAAN') ||
+        source.includes('PERBAIKAN')
+    ) return 'RENOVASI';
 
     if (source.includes('REGULER') || proyek === '') return 'REGULER';
 
@@ -1034,6 +1010,7 @@ export default function DaftarDokumenPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [cabangFilter, setCabangFilter] = useState('');
+    const [renovasiSubFilter, setRenovasiSubFilter] = useState('');
     const [hasAppliedQueryParams, setHasAppliedQueryParams] = useState(false);
     // --- UI ---
     const [isLoading, setIsLoading] = useState(false);
@@ -1099,6 +1076,7 @@ export default function DaftarDokumenPage() {
         setSelectedPengawasanGroupKey(null);
         setSelectedProjectGroupKey(null);
         setSelectedDocumentGroupKey(null);
+        setRenovasiSubFilter('');
         if (kategori === 'PROJECT_PLANNING' && !sessionCanViewAllBranches && !canAccessProjectPlanningByCabang(sessionStorage.getItem('loggedInUserCabang') || '')) {
             showToast('Project Planning sementara hanya dapat diakses oleh user cabang HEAD OFFICE.', 'error');
             return;
@@ -2068,11 +2046,24 @@ export default function DaftarDokumenPage() {
     );
 
     const isGroupedDocumentCategory = !!selectedKategori && selectedKategori !== 'PENGAWASAN';
-    const visibleList = selectedKategori === 'PENGAWASAN' && selectedPengawasanGroup
+
+    // Apply renovasi sub-filter when inside the RENOVASI group
+    const baseVisibleList = selectedKategori === 'PENGAWASAN' && selectedPengawasanGroup
         ? selectedPengawasanGroup.docs
         : isGroupedDocumentCategory && selectedDocumentGroup
             ? selectedDocumentGroup.docs
             : filteredList;
+
+    const visibleList = selectedProjectGroup?.key === 'RENOVASI' && renovasiSubFilter
+        ? baseVisibleList.filter(doc => {
+            const p = String(doc.proyek ?? '').toUpperCase();
+            if (renovasiSubFilter === 'PERPANJANGAN') return p.includes('PERPANJANGAN');
+            if (renovasiSubFilter === 'PERLUASAN')    return p.includes('PERLUAS');
+            if (renovasiSubFilter === 'TOKO_TUTUP')   return p.includes('TOKO TUTUP');
+            if (renovasiSubFilter === 'PEREMAJAAN')   return p.includes('PEREMAJAAN') || p.includes('PERBAIKAN');
+            return true;
+          })
+        : baseVisibleList;
 
     // =========================================================================
     // RENDER
@@ -2379,6 +2370,23 @@ export default function DaftarDokumenPage() {
                                     </select>
                                 </div>
                             )}
+                            {selectedProjectGroup?.key === 'RENOVASI' && (
+                                <div className="relative w-full sm:w-56">
+                                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                                    <select
+                                        id="filter-jenis-renovasi"
+                                        value={renovasiSubFilter}
+                                        onChange={e => setRenovasiSubFilter(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-sm text-blue-800 font-medium focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none appearance-none cursor-pointer"
+                                    >
+                                        <option value="">Semua Jenis Renovasi</option>
+                                        <option value="PERPANJANGAN">Renovasi Perpanjangan</option>
+                                        <option value="PERLUASAN">Renovasi Perluasan</option>
+                                        <option value="TOKO_TUTUP">Renovasi Toko Tutup</option>
+                                        <option value="PEREMAJAAN">Renovasi Peremajaan</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
 
                         {/* List */}
@@ -2430,7 +2438,7 @@ export default function DaftarDokumenPage() {
                                     <Button
                                         variant="outline"
                                         className="h-9"
-                                        onClick={() => setSelectedProjectGroupKey(null)}
+                                        onClick={() => { setSelectedProjectGroupKey(null); setRenovasiSubFilter(''); }}
                                     >
                                         <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Reguler / Renovasi
                                     </Button>
