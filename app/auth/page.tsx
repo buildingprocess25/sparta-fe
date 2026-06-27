@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +27,7 @@ import {
   STORE_BRANCH_CONTROLLING_ROLE,
   DIRECTOR_CONTRACTOR_ROLE,
 } from '@/lib/constants';
-import { fetchUserCabangList } from '@/lib/api';
+import { fetchUserCabangList, storeApiAuthSession } from '@/lib/api';
 
 // URL Google Apps Script tetap di sini karena spesifik hanya untuk file ini (logging)
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
@@ -53,6 +53,14 @@ export default function LoginPage() {
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const [pendingLoginData, setPendingLoginData] = useState<any>(null);
+
+  useEffect(() => {
+    const expiredMessage = sessionStorage.getItem("sessionExpiredMessage");
+    if (expiredMessage) {
+      setMessage({ text: expiredMessage, type: "error" });
+      sessionStorage.removeItem("sessionExpiredMessage");
+    }
+  }, []);
 
   // Fungsi untuk logging ke Google Apps Script
   const logLoginAttempt = async (username: string, cabang: string, status: string) => {
@@ -105,6 +113,8 @@ export default function LoginPage() {
   };
 
   const processLoginSuccess = async (result: any, fallbackEmail: string, fallbackCabang: string) => {
+    storeApiAuthSession(result?.data);
+
     const jabatanFromAPI = String(result?.data?.jabatan || "").toUpperCase().trim();
     const namaLengkapFromAPI = (result?.data?.nama_lengkap || "").trim();
     const cabangFromAPI = (result?.data?.cabang || fallbackCabang).trim();

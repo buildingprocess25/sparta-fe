@@ -15,6 +15,89 @@
 
 import { API_URL } from "./constants";
 
+const AUTH_TOKEN_STORAGE_KEY = "spartaAccessToken";
+const AUTH_EXPIRES_STORAGE_KEY = "spartaAccessTokenExpiresAt";
+
+export const storeApiAuthSession = (data: { access_token?: string | null; expires_at?: string | null } | null | undefined) => {
+    if (typeof window === "undefined") return;
+
+    const token = data?.access_token?.trim();
+    if (token) {
+        sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+        if (data?.expires_at) {
+            sessionStorage.setItem(AUTH_EXPIRES_STORAGE_KEY, data.expires_at);
+        }
+    }
+};
+
+export const clearApiAuthSession = () => {
+    if (typeof window === "undefined") return;
+    sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_EXPIRES_STORAGE_KEY);
+};
+
+const getApiAuthToken = (): string | null => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+};
+
+const withApiAuthQuery = (url: string): string => {
+    const token = getApiAuthToken();
+    if (!token) return url;
+
+    try {
+        const target = new URL(url, typeof window !== "undefined" ? window.location.origin : API_URL);
+        if (!isSpartaApiUrl(target)) return url;
+        target.searchParams.set("access_token", token);
+        return target.toString();
+    } catch {
+        return url;
+    }
+};
+
+const isSpartaApiUrl = (input: RequestInfo | URL): boolean => {
+    const raw = typeof input === "string"
+        ? input
+        : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+    if (raw.startsWith("/api/") || raw === "/get-data" || raw.startsWith("/get-data?")) return true;
+
+    try {
+        const target = new URL(raw, typeof window !== "undefined" ? window.location.origin : API_URL);
+        const apiBase = new URL(API_URL.replace(/\/$/, ""));
+        return target.origin === apiBase.origin;
+    } catch {
+        return false;
+    }
+};
+
+export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const token = getApiAuthToken();
+    const headers = new Headers(init?.headers);
+
+    if (token && isSpartaApiUrl(input) && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    const response = await globalThis.fetch(input, {
+        ...init,
+        headers
+    });
+
+    if (response.status === 401 && typeof window !== "undefined") {
+        clearApiAuthSession();
+        sessionStorage.removeItem("authenticated");
+        sessionStorage.setItem("sessionExpiredMessage", "Sesi berakhir, silakan login kembali.");
+        if (!window.location.pathname.startsWith("/auth")) {
+            window.location.href = "/auth";
+        }
+    }
+
+    return response;
+};
+
 export type ApiErrorContext = {
     url?: string;
     status?: number;
@@ -68,7 +151,7 @@ export const safeFetchJSON = async (url: string, options?: ApiRequestOptions) =>
     const { suppressGlobalError, ...fetchOptions } = options ?? {};
     let reported = false;
     try {
-        const res = await fetch(url, fetchOptions);
+        const res = await apiFetch(url, fetchOptions);
         const contentType = res.headers.get("content-type");
 
         if (contentType?.includes("application/json")) {
@@ -350,7 +433,7 @@ export const uploadDcDocuments = async (
     form.append("actor_role", payload.actor_role);
     files.forEach((file, index) => form.append(`dokumen_${index + 1}`, file));
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents`, {
         method: "POST",
         body: form,
     });
@@ -375,7 +458,7 @@ export const updateDcDocument = async (
     if (payload.notes) form.append("notes", payload.notes);
     if (file) form.append("dokumen", file);
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}`, {
         method: "PUT",
         body: form,
     });
@@ -394,7 +477,7 @@ export const deleteDcDocument = async (
         actor_email: actor.actor_email,
         actor_role: actor.actor_role,
     });
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}?${params}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}?${params}`, {
         method: "DELETE",
     });
     const result = await res.json();
@@ -409,7 +492,7 @@ export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode:
         actor_email: actor.actor_email,
         actor_role: actor.actor_role,
     });
-    return `${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}/${mode}?${params}`;
+    return withApiAuthQuery(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}/${mode}?${params}`);
 };
 
 // DC Tender Types
@@ -980,7 +1063,7 @@ export const checkRevisionStatus = async (email: string, cabang: string) => {
 export const fetchPricesData = async (cabang: string, lingkup: string) => {
     const base = API_URL.replace(/\/$/, "");
     const url = `${base}/get-data?cabang=${encodeURIComponent(cabang)}&lingkup=${encodeURIComponent(lingkup)}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error(`Gagal mengambil data harga (${res.status}).`);
     const data = await res.json();
 
@@ -1009,7 +1092,7 @@ export const fetchUserCabangList = async (
     if (filters?.email_sat) params.append("email_sat", filters.email_sat);
     if (filters?.nama_pt) params.append("nama_pt", filters.nama_pt);
     const url = `${base}/api/user_cabang${params.toString() ? `?${params}` : ""}`;
-    const res = await fetch(url, { headers: { "Content-Type": "application/json" } });
+    const res = await apiFetch(url, { headers: { "Content-Type": "application/json" } });
     if (!res.ok) throw new Error("Gagal mengambil data user cabang");
     return res.json();
 };
@@ -1017,7 +1100,7 @@ export const fetchUserCabangList = async (
 /** Detail user cabang berdasarkan ID */
 export const fetchUserCabangDetail = async (id: number): Promise<{ status: string; data: any }> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang/${id}`;
-    const res = await fetch(url, { headers: { "Content-Type": "application/json" } });
+    const res = await apiFetch(url, { headers: { "Content-Type": "application/json" } });
     if (res.status === 404) throw new Error("Data user_cabang tidak ditemukan");
     if (!res.ok) throw new Error("Gagal mengambil detail user cabang");
     return res.json();
@@ -1025,7 +1108,7 @@ export const fetchUserCabangDetail = async (id: number): Promise<{ status: strin
 
 export const createUserCabang = async (data: any) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: 'POST',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -1039,7 +1122,7 @@ export const createUserCabang = async (data: any) => {
 
 export const updateUserCabang = async (id: number, data: any) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang/${id}`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: 'PUT',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -1054,7 +1137,7 @@ export const updateUserCabang = async (id: number, data: any) => {
 
 export const deleteUserCabang = async (id: number) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang/${id}`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: 'DELETE',
         headers: { "Content-Type": "application/json" }
     });
@@ -1087,11 +1170,11 @@ export const submitRABData = async (
         const isRevision = fields.is_revisi === "true";
         form.append(isRevision ? "rev_file_asuransi" : "file_asuransi", asuransiFile);
 
-        res = await fetch(url, { method: "POST", body: form });
+        res = await apiFetch(url, { method: "POST", body: form });
     } else {
         // --- MODE JSON: backward compatible ---
         const jsonPayload = { ...fields, detail_items: detailItems };
-        res = await fetch(url, {
+        res = await apiFetch(url, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    JSON.stringify(jsonPayload),
@@ -1125,7 +1208,7 @@ export const fetchRABList = async (
 export const fetchRABDetail = async (
     id: number
 ): Promise<{ status: string; data: RABDetailResponse }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}`);
     if (res.status === 404) throw new Error(`RAB dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -1157,7 +1240,7 @@ export const updateRabItemsBulk = async (
     }
 ): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/rab/${id}/items`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items, ...totals })
@@ -1191,7 +1274,7 @@ export const replaceRabItems = async (
     }
 ): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/rab/${id}/items/replace`;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items, ...totals })
@@ -1285,7 +1368,7 @@ const postRabMigration = async <T>(
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/migration/${endpoint}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/migration/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -1309,7 +1392,7 @@ export const commitRabMigration = (
 
 /** Ambil detail Toko berdasarkan ID untuk menarik kolom alamat yang kosong pada revisi. */
 export const fetchTokoDetail = async (id: number) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/toko/detail?id=${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/toko/detail?id=${id}`);
     if (!res.ok) {
         if (res.status === 404) throw new Error("Data toko tidak ditemukan.");
         throw new Error(`Gagal memuat detail Toko (${res.status})`);
@@ -1324,12 +1407,12 @@ export const fetchTokoList = async (): Promise<{ status: string; data: RABDetail
 
 /** URL endpoint untuk download logo RAB. */
 export const getRABLogoDownloadUrl = (id: number) => {
-    return `${API_URL.replace(/\/$/, "")}/api/rab/${id}/logo`;
+    return withApiAuthQuery(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/logo`);
 };
 
 /** URL endpoint untuk download file asuransi RAB. */
 export const getRABInsuranceDownloadUrl = (id: number) => {
-    return `${API_URL.replace(/\/$/, "")}/api/rab/${id}/file-asuransi`;
+    return withApiAuthQuery(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/file-asuransi`);
 };
 
 /**
@@ -1337,7 +1420,7 @@ export const getRABInsuranceDownloadUrl = (id: number) => {
  * Nama file diambil dari header Content-Disposition jika tersedia.
  */
 export const downloadRABPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/pdf`);
     if (res.status === 404) throw new Error(`Data RAB/Toko dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -1377,7 +1460,7 @@ export const regenerateRABPdf = async (id: number): Promise<{
         has_materai_pdf: boolean;
     };
 }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/pdf/regenerate`, { method: "POST" });
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/pdf/regenerate`, { method: "POST" });
     const result = await res.json();
     if (!res.ok || result.status !== "success") {
         throw new Error(result.message || "Gagal generate ulang PDF RAB.");
@@ -1386,7 +1469,7 @@ export const regenerateRABPdf = async (id: number): Promise<{
 };
 
 export const regenerateAndDownloadRABPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/pdf/regenerate-download`, { method: "POST" });
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/pdf/regenerate-download`, { method: "POST" });
     if (!res.ok) {
         const text = await res.text();
         let message = "";
@@ -1444,7 +1527,7 @@ export const syncRABBranchPrices = async (
     };
 }> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/rab/${id}/sync-branch-prices`;
-    const res = await fetch(url, { method: "POST" });
+    const res = await apiFetch(url, { method: "POST" });
     const result = await res.json();
     if (!res.ok || result.status !== "success") {
         throw new Error(result.message || "Gagal sinkron harga cabang RAB.");
@@ -1461,7 +1544,7 @@ export const updateRABStatus = async (payload: {
     actor_role?: string;
     alasan_intervensi?: string;
 }): Promise<any> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/update-status`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/update-status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1503,7 +1586,7 @@ export const processRABApproval = async (
     id: number,
     payload: RABApprovalPayload
 ): Promise<RABApprovalResponse> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/rab/${id}/approval`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -1733,7 +1816,7 @@ export type GanttTokoDetailResponse = {
 
 /** Submit / upsert Gantt Chart (transaksi penuh). */
 export const submitGanttChart = async (payload: GanttSubmitPayload) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/submit`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/submit`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -1760,7 +1843,7 @@ export const fetchGanttList = async (
 /** Ambil data Gantt legacy (endpoint lama). */
 export const fetchGanttData = async (ulok: string, lingkup: string) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/get_gantt_data?nomor_ulok=${encodeURIComponent(ulok)}&lingkup_pekerjaan=${encodeURIComponent(lingkup)}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal (${res.status}): ${text.substring(0, 100)}`);
@@ -1772,7 +1855,7 @@ export const fetchGanttData = async (ulok: string, lingkup: string) => {
 export const fetchGanttDetail = async (
     id: number
 ): Promise<{ status: string; data: GanttDetailData }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}`);
     if (res.status === 404) throw new Error(`Gantt Chart dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -1784,7 +1867,7 @@ export const fetchGanttDetail = async (
 export const fetchGanttNotes = async (
     id: number
 ): Promise<{ status: string; data: GanttNoteItem[] }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/notes`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/notes`);
     if (res.status === 404) throw new Error(`Gantt Chart dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -1797,7 +1880,7 @@ export const createGanttNote = async (
     id: number,
     payload: CreateGanttNotePayload
 ): Promise<{ status: string; message: string; data: GanttNoteItem }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/notes`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1813,7 +1896,7 @@ export const interveneGanttStatus = async (
     id: number,
     payload: GanttInterventionPayload
 ): Promise<{ status: string; message: string; data: { id: string; old_status: string; new_status: string } }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/intervention`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/intervention`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1830,7 +1913,7 @@ export const interveneGanttStatus = async (
 export const fetchGanttDetailByToko = async (
     id_toko: number
 ): Promise<GanttTokoDetailResponse> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/detail/${id_toko}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/detail/${id_toko}`);
     if (res.status === 404) throw new Error(`Toko dengan ID ${id_toko} tidak ditemukan.`);
     if (res.status === 422) throw new Error("Parameter ID Toko tidak valid.");
     if (!res.ok) {
@@ -1842,7 +1925,7 @@ export const fetchGanttDetailByToko = async (
 
 /** Update Gantt Chart berdasarkan ID. */
 export const updateGanttChart = async (id: number, payload: GanttUpdatePayload) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}`, {
         method:  "PUT",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -1859,7 +1942,7 @@ export const updateGanttChart = async (id: number, payload: GanttUpdatePayload) 
 
 /** Kunci (lock) Gantt Chart agar tidak bisa diubah lagi. */
 export const lockGanttChart = async (id: number, email: string) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/lock`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/lock`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ email }),
@@ -1873,7 +1956,7 @@ export const lockGanttChart = async (id: number, email: string) => {
 
 /** Submit Hari Pengawasan ke Gantt */
 export const submitGanttPengawasan = async (id: number, tanggal_pengawasan: string[]) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/pengawasan`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/pengawasan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tanggal_pengawasan }),
@@ -1885,7 +1968,7 @@ export const submitGanttPengawasan = async (id: number, tanggal_pengawasan: stri
 
 /** Hapus Gantt Chart. */
 export const deleteGanttChart = async (id: number) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}`, {
         method:  "DELETE",
         headers: { "Content-Type": "application/json" },
     });
@@ -1898,7 +1981,7 @@ export const deleteGanttChart = async (id: number) => {
 
 /** Tambah day items (periode) ke Gantt Chart. */
 export const addGanttDayItems = async (id: number, dayItems: GanttDayItem[]) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ day_items: dayItems }),
@@ -1916,7 +1999,7 @@ export const updateGanttDelay = async (
     id: number,
     payload: { kategori_pekerjaan: string; keterlambatan: string } | { updates: { kategori_pekerjaan: string; keterlambatan: string }[] }
 ) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day/keterlambatan`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day/keterlambatan`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -1933,7 +2016,7 @@ export const updateGanttSpeed = async (
     id: number,
     payload: { kategori_pekerjaan: string; h_awal: string; h_akhir: string; kecepatan: string }
 ) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day/kecepatan`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day/kecepatan`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -1949,7 +2032,7 @@ export const previewGanttMigration = async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/preview`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/preview`, {
         method: 'POST',
         body: formData,
     });
@@ -1981,7 +2064,7 @@ export const commitGanttMigration = async (
     formData.append("actor_role", actorRole);
     formData.append("selections", JSON.stringify(selections));
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/commit`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/migration/commit`, {
         method: 'POST',
         body: formData,
     });
@@ -1995,7 +2078,7 @@ export const manageGanttPengawasan = async (
     id: number,
     payload: { kategori_pekerjaan?: string; remove_kategori?: string }
 ) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/pengawasan`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/pengawasan`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -2070,7 +2153,7 @@ export const fetchPengawasanPendingPdfs = async (nomorUlok?: string) => {
 
 /** Ambil detail pengawasan berdasarkan ID */
 export const fetchPengawasanDetail = async (id: number): Promise<any> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/${id}`);
     if (res.status === 404) throw new Error(`Data Pengawasan dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -2103,10 +2186,10 @@ export const submitInstruksiLapangan = async (
             form.append("detail_items", JSON.stringify(detailItems));
             form.append("lampiran", lampiranFile);
 
-            res = await fetch(url, { method: "POST", body: form, signal: controller.signal });
+            res = await apiFetch(url, { method: "POST", body: form, signal: controller.signal });
         } else {
             const jsonPayload = { ...fields, detail_items: detailItems };
-            res = await fetch(url, {
+            res = await apiFetch(url, {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
                 body:    JSON.stringify(jsonPayload),
@@ -2195,7 +2278,7 @@ export type OpnameListFilters = {
 /** Single Submit Opname (POST /api/opname) */
 export const submitOpnameSingle = async (payload: FormData | Record<string, any>) => {
     const isFormData = payload instanceof FormData;
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname`, {
         method: "POST",
         headers: isFormData ? {} : { "Content-Type": "application/json" },
         body: isFormData ? payload : JSON.stringify(payload),
@@ -2217,7 +2300,7 @@ export const submitOpnameBulk = async (
     }
 ) => {
     const isFormData = payload instanceof FormData;
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/bulk`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/bulk`, {
         method: "POST",
         headers: isFormData ? {} : { "Content-Type": "application/json" },
         body: isFormData ? payload : JSON.stringify(payload),
@@ -2247,7 +2330,7 @@ export const fetchOpnameList = async (
 export const fetchOpnameDetail = async (
     id: number
 ): Promise<{ status: string; data: OpnameItem }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`);
     if (res.status === 404) throw new Error(`Data opname dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -2258,7 +2341,7 @@ export const fetchOpnameDetail = async (
 
 /** Download foto opname item berdasarkan ID opname item. */
 export const downloadOpnameFoto = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/foto`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/foto`);
     if (res.status === 404) throw new Error(`Foto opname dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -2309,9 +2392,9 @@ export const updateOpname = async (
             if (value !== undefined && value !== null) form.append(key, String(value));
         });
         form.append("rev_file_foto_opname", fotoFile);
-        res = await fetch(url, { method: "PUT", body: form });
+        res = await apiFetch(url, { method: "PUT", body: form });
     } else {
-        res = await fetch(url, {
+        res = await apiFetch(url, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -2326,7 +2409,7 @@ export const updateOpname = async (
 
 /** Hapus data Opname. */
 export const deleteOpname = async (id: number) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
     });
@@ -2365,7 +2448,7 @@ export const fetchOpnameFinalList = async (filters?: {
 
 /** Detail Kerja Tambah Kurang */
 export const fetchOpnameFinalDetail = async (id: number) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}`);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal memuat detail Kerja Tambah Kurang (${res.status}): ${text.substring(0, 100)}`);
@@ -2382,7 +2465,7 @@ export const kunciOpnameFinal = async (id: number, payload: {
     grand_total_rab: string;
     opname_item: any[];
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/kunci_opname_final`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/kunci_opname_final`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -2400,7 +2483,7 @@ export const approveOpnameFinal = async (id: number, payload: {
     alasan_penolakan?: string | null;
     catatan_approval?: string | null;
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -2412,7 +2495,7 @@ export const approveOpnameFinal = async (id: number, payload: {
 
 /** Download PDF Opname */
 export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf`);
     if (res.status === 404) throw new Error(`Data Opname dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -2578,7 +2661,7 @@ export type SpkMigrationCommitResult = {
 
 /** Submit SPK baru. (Backend akan otomatis handle revisi jika ada status REJECTED sebelumnya) */
 export const submitSPK = async (payload: SPKSubmitPayload) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/submit`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/submit`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -2603,7 +2686,7 @@ const postSpkMigration = async <T>(
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/migration/${endpoint}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/migration/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -2716,7 +2799,7 @@ const postPengawasanMigration = async <T>(
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/migration/${endpoint}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/migration/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -2784,7 +2867,7 @@ const postInstruksiLapanganMigration = async <T>(
     form.append("actor_role", actorRole);
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
-    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/migration/${endpoint}`, {
+    const response = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/migration/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -2872,7 +2955,7 @@ const postInstruksiLapanganMigrationRab2 = async <T>(
     form.append("actor_role", actorRole);
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
-    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/migration/rab2/${endpoint}`, {
+    const response = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/migration/rab2/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -2939,7 +3022,7 @@ const postSerahTerimaMigration = async <T>(
     form.append("actor_role", actorRole);
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
-    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/serah-terima/migration/${endpoint}`, {
+    const response = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/serah-terima/migration/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -3021,7 +3104,7 @@ const postOpnameFinalMigration = async <T>(
     form.append("actor_role", actorRole);
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
-    const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/migration/${endpoint}`, {
+    const response = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/migration/${endpoint}`, {
         method: "POST",
         body: form
     });
@@ -3061,7 +3144,7 @@ export const fetchSPKList = async (filters?: {
 export const fetchSPKDetail = async (
     id: number
 ): Promise<{ status: string; data: SPKDetailResponse }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}`);
     if (res.status === 404) throw new Error(`SPK dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -3072,7 +3155,7 @@ export const fetchSPKDetail = async (
 
 /** Download PDF SPK. */
 export const downloadSPKPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/pdf`);
     if (res.status === 404) throw new Error(`Pengajuan SPK dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -3102,7 +3185,7 @@ export const downloadSPKPdf = async (id: number): Promise<boolean> => {
 /** Ambil daftar kontraktor untuk SPK (filter per Cabang). */
 export const fetchKontraktorList = async (cabang?: string): Promise<string[]> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/get_kontraktor${cabang ? `?cabang=${encodeURIComponent(cabang)}` : ""}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error(`Gagal mengambil daftar kontraktor (${res.status}).`);
     return res.json(); // Returns string[] directly
 };
@@ -3112,7 +3195,7 @@ export const processSPKApproval = async (
     id: number,
     payload: SPKApprovalPayload
 ): Promise<{ status: string; message: string; data: { id: number; old_status: string; new_status: string } }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/approval`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -3130,7 +3213,7 @@ export const interveneSPKStatus = async (
     id: number,
     payload: SPKInterventionPayload
 ): Promise<{ status: string; message: string; data: { id: number; old_status: string; new_status: string } }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/intervention`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/${id}/intervention`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -3272,10 +3355,10 @@ export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
         form.append("dibuat_oleh", fields.dibuat_oleh);
         form.append("file_lampiran_pendukung", file_lampiran_pendukung);
 
-        res = await fetch(url, { method: "POST", body: form });
+        res = await apiFetch(url, { method: "POST", body: form });
     } else {
         // --- MODE JSON: tanpa file ---
-        res = await fetch(url, {
+        res = await apiFetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(fields),
@@ -3308,7 +3391,7 @@ export const fetchPertambahanSPKList = async (
 export const fetchPertambahanSPKDetail = async (
     id: number
 ): Promise<{ status: string; data: PertambahanSPKDetailResponse }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`);
     if (res.status === 404) throw new Error(`Data pertambahan SPK dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -3335,9 +3418,9 @@ export const updatePertambahanSPK = async (
         });
         form.append("file_lampiran_pendukung", file_lampiran_pendukung);
 
-        res = await fetch(url, { method: "PUT", body: form });
+        res = await apiFetch(url, { method: "PUT", body: form });
     } else {
-        res = await fetch(url, {
+        res = await apiFetch(url, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(fields),
@@ -3356,7 +3439,7 @@ export const processPertambahanSPKApproval = async (
     id: number,
     payload: PertambahanSPKApprovalPayload
 ): Promise<{ status: string; message: string; data: any }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -3374,7 +3457,7 @@ export const intervenePertambahanSPKStatus = async (
     id: number,
     payload: PertambahanSPKInterventionPayload
 ): Promise<{ status: string; message: string; data: any }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/intervensi`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/intervensi`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
@@ -3390,7 +3473,7 @@ export const intervenePertambahanSPKStatus = async (
 
 /** Download file lampiran pendukung dari pertambahan SPK. */
 export const downloadPertambahanSPKLampiran = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/lampiran-pendukung`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/lampiran-pendukung`);
     if (res.status === 404) throw new Error(`Data Pertambahan SPK atau lampiran tidak ditemukan.`);
     if (res.status === 502) throw new Error(`Gagal mengambil file dari penyimpanan.`);
     if (!res.ok) {
@@ -3424,7 +3507,7 @@ export const downloadPertambahanSPKLampiran = async (id: number): Promise<boolea
 
 /** Download PDF pertambahan SPK. */
 export const downloadPertambahanSPKPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}/pdf`);
     if (res.status === 404) throw new Error("Data Pertambahan SPK atau PDF tidak ditemukan.");
     if (res.status === 502) throw new Error("Gagal mengambil PDF dari penyimpanan.");
     if (!res.ok) throw new Error(`Gagal mengunduh PDF Pertambahan SPK (${res.status}).`);
@@ -3451,7 +3534,7 @@ export const downloadPertambahanSPKPdf = async (id: number): Promise<boolean> =>
 
 /** Hapus data pertambahan SPK. */
 export const deletePertambahanSPK = async (id: number) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
     });
@@ -3530,7 +3613,7 @@ const postPertambahanSpkMigration = async <T>(
     if (actorEmail) form.append("actor_email", actorEmail);
     if (selections) form.append("selections", JSON.stringify(selections));
 
-    const res = await fetch(
+    const res = await apiFetch(
         `${API_URL.replace(/\/$/, "")}/api/pertambahan-spk/migration/${endpoint}`,
         { method: "POST", body: form }
     );
@@ -3609,7 +3692,7 @@ export type PICPengawasanListFilters = {
 
 /** Submit data PIC Pengawasan baru. */
 export const submitPICPengawasan = async (payload: PICPengawasanPayload) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pic_pengawasan`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pic_pengawasan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -3664,7 +3747,7 @@ export const fetchInstruksiLapanganList = async (
 };
 
 export const fetchInstruksiLapanganDetail = async (id: number): Promise<any> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}`);
     if (res.status === 404) throw new Error(`Data Instruksi Lapangan dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -3685,7 +3768,7 @@ export const processInstruksiLapanganApproval = async (
     id: number,
     payload: InstruksiLapanganApprovalPayload
 ): Promise<any> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -3696,7 +3779,7 @@ export const processInstruksiLapanganApproval = async (
 };
 
 export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf`);
     if (!res.ok) throw new Error(`Gagal download PDF Instruksi Lapangan (${res.status})`);
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
@@ -3747,7 +3830,7 @@ export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number })
 export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima`;
     try {
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id_toko }),
@@ -3795,7 +3878,7 @@ export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
 };
 
 export const downloadSerahTerimaPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/berkas_serah_terima/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/berkas_serah_terima/${id}/pdf`);
     if (res.status === 404) throw new Error(`Berkas Serah Terima dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -3823,7 +3906,7 @@ export const downloadSerahTerimaPdf = async (id: number): Promise<boolean> => {
 };
 
 export const downloadPengawasanPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/pengawasan/${id}/pdf`);
     if (res.status === 404) throw new Error("Data Pengawasan atau itemnya tidak ditemukan.");
     if (!res.ok) throw new Error(`Gagal mengunduh PDF Pengawasan (${res.status}).`);
 
@@ -3848,7 +3931,7 @@ export const downloadPengawasanPdf = async (id: number): Promise<boolean> => {
 };
 
 export const downloadDokumentasiBangunanPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dok/bangunan/${id}/pdf/download`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dok/bangunan/${id}/pdf/download`);
     if (res.status === 404) throw new Error("Data Dokumentasi Bangunan tidak ditemukan.");
     if (!res.ok) throw new Error(`Gagal mengunduh PDF Dokumentasi Bangunan (${res.status}).`);
 
@@ -3882,7 +3965,7 @@ export const viewGeneratedPdfOnline = async (
     const base = API_URL.replace(/\/$/, "");
 
     if (tipe === "DOKUMENTASI_BANGUNAN") {
-        const res = await fetch(`${base}/api/dok/bangunan/${id}/pdf`, { method: "POST" });
+        const res = await apiFetch(`${base}/api/dok/bangunan/${id}/pdf`, { method: "POST" });
         const result = await res.json();
         if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Dokumentasi Bangunan.");
         const linkPdf = result?.data?.link_pdf;
@@ -3902,7 +3985,7 @@ export const viewGeneratedPdfOnline = async (
     } as const;
 
     const endpoint = endpointByType[tipe];
-    const res = await fetch(`${base}${endpoint}`);
+    const res = await apiFetch(`${base}${endpoint}`);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal membuka PDF (${res.status}): ${text.substring(0, 100)}`);
@@ -3992,7 +4075,7 @@ const compressImageUrlToBlob = async (
     const maxWidth = options.maxWidth ?? 1280;
     const quality = options.quality ?? 0.68;
 
-    const response = await fetch(url);
+    const response = await apiFetch(url);
     const originalBlob = await response.blob();
 
     if (!originalBlob.type.startsWith("image/")) {
@@ -4046,7 +4129,7 @@ export const submitDokumentasiBangunan = async (
 
     let res: Response;
     try {
-        res = await fetch(url, { method: "POST", body: form });
+        res = await apiFetch(url, { method: "POST", body: form });
     } catch {
         throw new Error("Gagal mengirim dokumentasi. Periksa koneksi internet atau coba ulang dengan jaringan yang lebih stabil.");
     }
@@ -4070,14 +4153,14 @@ export const updateDokumentasiBangunan = async (
     if (photos) {
         for (const [idStr, data] of Object.entries(photos)) {
             if (data.url.startsWith('data:')) {
-                const res = await fetch(data.url);
+                const res = await apiFetch(data.url);
                 const blob = await res.blob();
                 form.append("foto", blob, `photo_${idStr}.jpg`);
             }
         }
     }
 
-    const res = await fetch(url, { method: "PUT", body: form });
+    const res = await apiFetch(url, { method: "PUT", body: form });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal memperbarui Dokumentasi Bangunan.");
     return result;
@@ -4085,7 +4168,7 @@ export const updateDokumentasiBangunan = async (
 
 export const deleteDokumentasiBangunan = async (id: number) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/dok/bangunan/${id}`;
-    const res = await fetch(url, { method: "DELETE" });
+    const res = await apiFetch(url, { method: "DELETE" });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal menghapus Dokumentasi Bangunan.");
     return result;
@@ -4100,13 +4183,13 @@ export const addDokumentasiBangunanItems = async (
     
     for (const [idStr, data] of Object.entries(photos)) {
         if (data.url.startsWith('data:')) {
-            const res = await fetch(data.url);
+            const res = await apiFetch(data.url);
             const blob = await res.blob();
             form.append("foto", blob, `photo_${idStr}.jpg`);
         }
     }
 
-    const res = await fetch(url, { method: "POST", body: form });
+    const res = await apiFetch(url, { method: "POST", body: form });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal menambah foto Dokumentasi Bangunan.");
     return result;
@@ -4114,7 +4197,7 @@ export const addDokumentasiBangunanItems = async (
 
 export const deleteDokumentasiBangunanItem = async (itemId: number) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/dok/bangunan/items/${itemId}`;
-    const res = await fetch(url, { method: "DELETE" });
+    const res = await apiFetch(url, { method: "DELETE" });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal menghapus foto Dokumentasi Bangunan.");
     return result;
@@ -4122,7 +4205,7 @@ export const deleteDokumentasiBangunanItem = async (itemId: number) => {
 
 export const generateDokumentasiBangunanPdf = async (id: number) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/dok/bangunan/${id}/pdf`;
-    const res = await fetch(url, { method: "POST" });
+    const res = await apiFetch(url, { method: "POST" });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal membuat ulang PDF Dokumentasi Bangunan.");
     return result;
@@ -4171,7 +4254,7 @@ export const downloadDashboardExport = async (params: {
     if (params.cabang && params.cabang !== "ALL") query.set("cabang", params.cabang);
     if (params.search?.trim()) query.set("search", params.search.trim());
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal mengunduh export (${res.status}): ${text.substring(0, 160)}`);
@@ -4292,7 +4375,7 @@ export const createPenyimpananDokumenArchiveStore = async (payload: {
     proyek?: string;
     folder_link?: string;
 }): Promise<{ status: string; message: string; data: PenyimpananDokumenArchiveStore }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/archive-stores`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/archive-stores`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -4314,7 +4397,7 @@ const postPenyimpananDokumenMigration = async (
     if (actorEmail) form.append("actor_email", actorEmail);
     form.append("excel", file);
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${endpoint}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${endpoint}`, {
         method: "POST",
         body: form,
     });
@@ -4359,7 +4442,7 @@ export const uploadPenyimpananDokumen = async (
     if (payload.folder_name) form.append("folder_name", payload.folder_name);
     files.forEach((file, i) => form.append(`dokumen_${i + 1}`, file));
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen`, {
         method: "POST", body: form,
     });
     const result = await res.json();
@@ -4380,7 +4463,7 @@ export const updatePenyimpananDokumen = async (
     if (payload.nama_dokumen) form.append("nama_dokumen", payload.nama_dokumen);
     if (file) form.append("dokumen", file);
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${id}`, {
         method: "PUT", body: form,
     });
     const result = await res.json();
@@ -4391,7 +4474,7 @@ export const updatePenyimpananDokumen = async (
 
 /** Hapus dokumen penyimpanan (DELETE /api/doc/penyimpanan-dokumen/:id) */
 export const deletePenyimpananDokumen = async (id: number): Promise<any> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${id}`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${id}`, {
         method: "DELETE",
     });
     const result = await res.json();
@@ -4414,7 +4497,7 @@ export const sendEmailNotification = async (payload: {
     id_spk?: number | string;
     flag: string;
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/send-email-notification`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/send-email-notification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -4667,7 +4750,7 @@ export const submitProjekPlanning = async (
         body = JSON.stringify(payload);
     }
 
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: "POST",
         headers,
         body,
@@ -4726,7 +4809,7 @@ export const resubmitProjekPlanning = async (
         body = JSON.stringify(payload);
     }
 
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
         method: "POST",
         headers,
         body,
@@ -4768,7 +4851,7 @@ export const fetchProjekPlanningTaskCounts = async (params: {
     if (params.cabang) query.append("cabang", params.cabang);
     if (params.email) query.append("email", params.email);
 
-    const res = await fetch(`${base}/api/projek-planning/task-counts?${query.toString()}`);
+    const res = await apiFetch(`${base}/api/projek-planning/task-counts?${query.toString()}`);
     if (!res.ok) {
         return {
             status: "error",
@@ -4796,7 +4879,7 @@ export const fetchRabProjectPlanningPrefill = async (
     actorEmail: string
 ): Promise<{ status: string; data: RabProjectPlanningPrefill }> => {
     const params = new URLSearchParams({ lingkup, actor_email: actorEmail });
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/rab-prefill?${params}`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/rab-prefill?${params}`);
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal memuat data Project Planning untuk RAB.");
     return result;
@@ -4807,7 +4890,7 @@ export const fetchProjekPlanningDetail = async (
     id: number
 ): Promise<{ status: string; data: ProjekPlanningDetail }> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (res.status === 404) throw new Error("Project planning tidak ditemukan.");
     if (!res.ok) throw new Error(`Gagal memuat detail (${res.status})`);
     return res.json();
@@ -4824,7 +4907,7 @@ export const interveneProjekPlanningStatus = async (
     id: number,
     payload: ProjectPlanningInterventionPayload
 ): Promise<{ status: string; message: string; data: { id: number; old_status: string; new_status: string } }> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/intervention`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/intervention`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -4842,7 +4925,7 @@ export const interveneProjekPlanningStatus = async (
  * Nama file diambil dari header Content-Disposition jika tersedia.
  */
 export const downloadProjekPlanningPdf = async (id: number): Promise<boolean> => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pdf`);
     if (res.status === 404) throw new Error(`Project Planning dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
@@ -4882,7 +4965,7 @@ export const proxyProjekPlanningFile = async (
     let url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/proxy-file?field=${field}&mode=${mode}`;
     if (itemIndex !== undefined) url += `&item_index=${itemIndex}`;
 
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal mengambil file (${res.status}): ${text.substring(0, 100)}`);
@@ -4918,7 +5001,7 @@ export const processBmApproval = async (id: number, payload: {
     catatan?: string;
     alasan_penolakan?: string;
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/bm-approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/bm-approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -4936,7 +5019,7 @@ export const processPpApproval1 = async (id: number, payload: {
     catatan?: string;
     alasan_penolakan?: string;
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-approval-1`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-approval-1`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -4967,7 +5050,7 @@ export const uploadDesain3d = async (id: number, payload: {
         body = JSON.stringify(payload);
     }
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/upload-3d`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/upload-3d`, {
         method: "POST",
         headers,
         body,
@@ -5024,7 +5107,7 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         body = JSON.stringify(payload);
     }
 
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/upload-rab`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/upload-rab`, {
         method: "POST",
         headers,
         body,
@@ -5044,7 +5127,7 @@ export const processPpManagerApproval = async (id: number, payload: {
     rab_rejected_item_ids?: number[];
     rab_rejected_item_notes?: string;
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-manager-approval`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-manager-approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -5064,7 +5147,7 @@ export const processPpApproval2 = async (id: number, payload: {
     rab_rejected_item_ids?: number[];
     rab_rejected_item_notes?: string;
 }) => {
-    const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-approval-2`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/pp-approval-2`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -5073,3 +5156,4 @@ export const processPpApproval2 = async (id: number, payload: {
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval final PP.");
     return result;
 };
+
