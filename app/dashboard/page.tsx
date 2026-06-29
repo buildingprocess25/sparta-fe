@@ -34,7 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
-import TaskNotificationBell from '@/components/TaskNotificationBell';
+
 
 // =============================================================================
 // MAIN COMPONENT
@@ -1102,7 +1102,7 @@ export default function DashboardPage() {
                 onMenuToggle={() => setSidebarOpen(prev => !prev)}
                 showLogout={true}
                 onLogout={() => setLogoutDialogOpen(true)}
-                rightActions={<TaskNotificationBell variant="brand" />}
+                // rightActions={<TaskNotificationBell variant="brand" />} // DISABLED: fitur belum stabil
             />
 
             {/* ================================================================
