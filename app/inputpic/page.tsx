@@ -634,6 +634,8 @@ function ScopePicForm({
     const autoSelectedLastDayRef = useRef<number | null>(null);
     const [ganttTargets, setGanttTargets] = useState<Array<{
         id: number;
+        groupKey: string;
+        nomorUlok: string;
         spk: SPKListItem;
         lingkup: string;
         pengawasanDates: string[];
@@ -717,28 +719,45 @@ function ScopePicForm({
                 if (uniqueGanttRows.length > 0) {
                     const fetchDetails = uniqueGanttRows.map((g: any) => fetchGanttDetail(g.id));
                     Promise.all(fetchDetails).then(details => {
-                        const targets = details.flatMap(d => {
-                            const ganttScope = d.data?.toko?.lingkup_pekerjaan;
-                            const ganttId = d.data?.gantt?.id;
-                            if (!ganttScope || !ganttId) return [];
+                        const targetsByGroup = new Map<string, {
+                            id: number;
+                            groupKey: string;
+                            nomorUlok: string;
+                            spk: SPKListItem;
+                            lingkup: string;
+                            pengawasanDates: string[];
+                        }>();
 
-                            const matchedSpk = allSpks.find(spk =>
-                                scopesMatch(ganttScope, spk.lingkup_pekerjaan)
+                        details.forEach(d => {
+                            const ganttScope = d.data?.toko?.lingkup_pekerjaan;
+                            const ganttUlok = d.data?.toko?.nomor_ulok;
+                            const ganttId = d.data?.gantt?.id;
+                            if (!ganttScope || !ganttUlok || !ganttId) return;
+
+                            const matchedGroup = groups.find(group =>
+                                normalizeUlok(group.nomor_ulok) === normalizeUlok(ganttUlok) &&
+                                scopesMatch(ganttScope, group.lingkup_pekerjaan)
                             );
 
-                            if (!matchedSpk) return [];
+                            if (!matchedGroup || targetsByGroup.has(matchedGroup.key)) return;
+
+                            const matchedSpk = matchedGroup.spks[0];
+                            if (!matchedSpk) return;
 
                             const gScope = d.data.toko.lingkup_pekerjaan.toUpperCase();
-                            return [{
+                            targetsByGroup.set(matchedGroup.key, {
                                 id: ganttId,
+                                groupKey: matchedGroup.key,
+                                nomorUlok: matchedGroup.nomor_ulok,
                                 spk: matchedSpk,
                                 lingkup: gScope,
                                 pengawasanDates: (d.data?.pengawasan || [])
                                     .map((item: any) => item.tanggal_pengawasan)
                                     .filter(Boolean)
-                            }];
+                            });
                         });
 
+                        const targets = Array.from(targetsByGroup.values());
                         setGanttTargets(targets.sort((a, b) => {
                             const aTime = parseDateOnly(a.spk.waktu_mulai)?.getTime() ?? Number.MAX_SAFE_INTEGER;
                             const bTime = parseDateOnly(b.spk.waktu_mulai)?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -872,9 +891,9 @@ function ScopePicForm({
                 });
 
             const targetGroups = isPartialCompletion ? missingGroups : groups;
-            const targetsToUpdate = ganttTargets.filter(target =>
-                targetGroups.some(group => scopesMatch(target.lingkup, group.lingkup_pekerjaan))
-            );
+            const targetsToUpdate = targetGroups
+                .map(group => ganttTargets.find(target => target.groupKey === group.key))
+                .filter((target): target is typeof ganttTargets[number] => Boolean(target));
             if (targetsToUpdate.length !== targetGroups.length) {
                 throw new Error("Gantt lingkup yang akan dilengkapi belum ditemukan secara lengkap.");
             }
