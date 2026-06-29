@@ -210,6 +210,7 @@ function RABPageContent() {
   const searchParams = useSearchParams();
   const requestedPlanningId = Number(searchParams.get('projek_planning_id') || 0);
   const requestedScope = searchParams.get('lingkup')?.toUpperCase();
+  const requestedRevisionId = Number(searchParams.get('revision_id') || 0);
   const [planningRequestOverridden, setPlanningRequestOverridden] = useState(false);
   const hasProjectPlanningRequest = !planningRequestOverridden
     && Number.isInteger(requestedPlanningId)
@@ -240,6 +241,7 @@ function RABPageContent() {
   const [planningRequestsLoading, setPlanningRequestsLoading] = useState(false);
   const [planningRequestDialogOpen, setPlanningRequestDialogOpen] = useState(false);
   const [planningPrefillLoading, setPlanningPrefillLoading] = useState(false);
+  const [autoLoadedRevisionId, setAutoLoadedRevisionId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isRevisionLoading, setIsRevisionLoading] = useState(false);
@@ -711,6 +713,16 @@ function RABPageContent() {
           setIsRevisionLoading(false);
       }
   };
+
+  useEffect(() => {
+    if (!requestedRevisionId || autoLoadedRevisionId === requestedRevisionId) return;
+    setAutoLoadedRevisionId(requestedRevisionId);
+    setRevisionListDialogOpen(false);
+    handleLoadRevision({ id: requestedRevisionId });
+    // handleLoadRevision intentionally stays outside deps because it reads the latest form state
+    // and is only triggered once per URL revision id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedRevisionId, autoLoadedRevisionId]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

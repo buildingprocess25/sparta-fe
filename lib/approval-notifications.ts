@@ -400,7 +400,7 @@ const toApprovalNotificationItem = (item: CountableApprovalItem): ApprovalNotifi
         description: item.status || "Menunggu persetujuan",
         status: item.status,
         cabang: item.cabang,
-        action_url: `/approval?type=${item.tipe}`,
+        action_url: `/approval?type=${item.tipe}&id=${entityId}`,
     };
 };
 

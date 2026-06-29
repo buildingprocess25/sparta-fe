@@ -3,7 +3,7 @@
 // Handles caching, offline support, push notifications, and navigation.
 // =============================================================================
 
-const CACHE_NAME = 'sparta-v9-20260629-task-notification-center';
+const CACHE_NAME = 'sparta-v10-20260629-complete-task-notifications';
 
 // Static assets to cache on install for offline shell
 const STATIC_ASSETS = [

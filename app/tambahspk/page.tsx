@@ -84,6 +84,7 @@ export default function TambahSPKPage() {
 
     // ── Selected SPK ─────────────────────────────────────────────────────
     const [selectedSpk, setSelectedSpk] = useState<SPKListItem | null>(null);
+    const [autoSelectedSpkId, setAutoSelectedSpkId] = useState<string | null>(null);
 
     // ── Form fields ──────────────────────────────────────────────────────
     const [pertambahanHari, setPertambahanHari] = useState('');
@@ -172,6 +173,22 @@ export default function TambahSPKPage() {
         loadApprovedSpks(cabang, canViewAllBranches(user.roles, isSHUser));
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, router]);
+
+    useEffect(() => {
+        if (approvedSpks.length === 0 || typeof window === 'undefined') return;
+
+        const params = new URLSearchParams(window.location.search);
+        const targetSpkId = params.get('spk_id');
+        if (!targetSpkId || autoSelectedSpkId === targetSpkId) return;
+
+        const target = approvedSpks.find(spk => String(spk.id) === targetSpkId);
+        if (!target) return;
+
+        setAutoSelectedSpkId(targetSpkId);
+        setSearchQuery(target.toko?.nama_toko || target.nomor_ulok || target.nomor_spk || '');
+        handleSpkSelect(targetSpkId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [approvedSpks, autoSelectedSpkId]);
 
     // ════════════════════════════════════════════════════════════════════
     //   DATA LOADING

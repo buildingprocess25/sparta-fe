@@ -571,6 +571,8 @@ export default function ApprovalPage() {
     const [activeView, setActiveView]     = useState<ActiveView>('menu');
     const [selectedType, setSelectedType] = useState<ApprovalType | null>(null);
     const [autoSelectedType, setAutoSelectedType] = useState<ApprovalType | null>(null);
+    const [autoOpenDetailId, setAutoOpenDetailId] = useState<string | null>(null);
+    const [autoOpenedDetailKey, setAutoOpenedDetailKey] = useState<string | null>(null);
 
     // --- DATA ---
     const [listData, setListData]         = useState<NormalizedListItem[]>([]);
@@ -711,7 +713,7 @@ export default function ApprovalPage() {
     // ==========================================
     // LOAD LIST
     // ==========================================
-    const loadList = async (type: ApprovalType) => {
+    const loadList = async (type: ApprovalType): Promise<NormalizedListItem[]> => {
         setIsLoading(true);
         setSearchQuery('');
         try {
@@ -880,9 +882,11 @@ export default function ApprovalPage() {
 
             setListData(normalized);
             refreshApprovalCounts();
+            return normalized;
         } catch (err: any) {
             showToast(err.message || 'Gagal memuat data.', 'error');
             setListData([]);
+            return [];
         } finally {
             setIsLoading(false);
         }
@@ -1397,21 +1401,39 @@ export default function ApprovalPage() {
     // ==========================================
     // NAVIGATION
     // ==========================================
-    const handleSelectType = (type: ApprovalType) => {
+    const handleSelectType = async (type: ApprovalType, detailId?: string | null) => {
         setSelectedType(type);
         setSelectedDetail(null);
         setActiveView('list');
-        loadList(type);
+        const loadedItems = await loadList(type);
+        if (detailId) {
+            const target = loadedItems.find(item => String(item.id) === String(detailId));
+            if (target) await loadDetail(target);
+        }
     };
 
     useEffect(() => {
-        const queryType = new URLSearchParams(window.location.search).get('type') as ApprovalType | null;
+        const params = new URLSearchParams(window.location.search);
+        const queryType = params.get('type') as ApprovalType | null;
+        const queryId = params.get('id');
         if (!queryType || autoSelectedType === queryType || accessibleTypes.length === 0) return;
         if (!accessibleTypes.includes(queryType)) return;
 
         setAutoSelectedType(queryType);
-        handleSelectType(queryType);
+        setAutoOpenDetailId(queryId);
+        handleSelectType(queryType, queryId);
     }, [accessibleTypes, autoSelectedType]);
+
+    useEffect(() => {
+        if (!autoOpenDetailId || activeView !== 'list' || listData.length === 0 || !selectedType) return;
+        const key = `${selectedType}:${autoOpenDetailId}`;
+        if (autoOpenedDetailKey === key) return;
+        const target = listData.find(item => String(item.id) === String(autoOpenDetailId));
+        if (!target) return;
+
+        setAutoOpenedDetailKey(key);
+        loadDetail(target);
+    }, [activeView, autoOpenDetailId, autoOpenedDetailKey, listData, selectedType]);
 
     const handleBackToMenu = () => {
         setActiveView('menu');

@@ -1236,6 +1236,7 @@ export default function InputPICPage() {
     const [rabDetailsByKey, setRabDetailsByKey] = useState<Record<string, RabDetailSummary>>({});
     const [successScope, setSuccessScope] = useState<PicScopeGroup | null>(null);
     const [picList, setPicList] = useState<any[]>([]);
+    const [autoSelectedPicTokoId, setAutoSelectedPicTokoId] = useState<string | null>(null);
 
     const { user } = useSession();
 
@@ -1479,6 +1480,20 @@ export default function InputPICPage() {
 
         setStatusMsg({ text: `Detail proyek berhasil dimuat. Silakan isi PIC pengawasan untuk ${scopes.length} lingkup yang tersedia.`, type: 'info' });
     };
+
+    useEffect(() => {
+        const targetTokoId = new URLSearchParams(window.location.search).get('id_toko');
+        if (!targetTokoId || autoSelectedPicTokoId === targetTokoId || ulokOptions.length === 0) return;
+
+        const target = ulokOptions.find(option =>
+            option.scopes.some(scope => String(scope.toko?.id ?? scope.spks[0]?.id_toko ?? '') === targetTokoId)
+        );
+        if (!target) return;
+
+        setAutoSelectedPicTokoId(targetTokoId);
+        setSearchQuery(target.toko?.nama_toko || target.nomor_ulok || '');
+        handleUlokSelect(target.key);
+    }, [autoSelectedPicTokoId, ulokOptions]);
 
     const handleSuccess = (group: PicScopeGroup) => {
         setSuccessScope(group);

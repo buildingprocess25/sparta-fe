@@ -62,6 +62,8 @@ export default function InstruksiLapanganPage() {
     const [tableRows, setTableRows] = useState<any[]>([]);
     const [rejectedInstruksiList, setRejectedInstruksiList] = useState<any[]>([]);
     const [selectedRevisionId, setSelectedRevisionId] = useState<string>('new');
+    const [autoOpenedRevisionTarget, setAutoOpenedRevisionTarget] = useState<string | null>(null);
+    const [pendingRevisionId, setPendingRevisionId] = useState<string | null>(null);
 
     const [lampiranFile, setLampiranFile] = useState<File | null>(null);
     const [lampiranFileName, setLampiranFileName] = useState<string | null>(null);
@@ -98,6 +100,56 @@ export default function InstruksiLapanganPage() {
             showAlert("Error", "Gagal memuat daftar SPK", "error");
         });
     }, [user]);
+
+    useEffect(() => {
+        if (spkList.length === 0 || typeof window === 'undefined') return;
+
+        const params = new URLSearchParams(window.location.search);
+        const revisionId = params.get('revision_id');
+        const idTokoParam = params.get('id_toko');
+        const spkIdParam = params.get('spk_id');
+        if (!revisionId && !idTokoParam && !spkIdParam) return;
+
+        const targetKey = [revisionId, idTokoParam, spkIdParam].filter(Boolean).join('|');
+        if (autoOpenedRevisionTarget === targetKey) return;
+
+        const openTarget = async () => {
+            let idToko = idTokoParam;
+            if (!idToko && revisionId) {
+                try {
+                    const detail = await fetchInstruksiLapanganDetail(Number(revisionId));
+                    idToko = String(detail.data?.id_toko ?? detail.id_toko ?? detail.toko?.id ?? '');
+                } catch (error) {
+                    console.error("Gagal memuat target Instruksi Lapangan dari notif:", error);
+                }
+            }
+
+            const targetSpk = spkList.find(spk => {
+                if (spkIdParam && String(spk.id) === spkIdParam) return true;
+                if (idToko && String(spk.id_toko) === idToko) return true;
+                return false;
+            });
+
+            if (!targetSpk) return;
+
+            setAutoOpenedRevisionTarget(targetKey);
+            if (revisionId) setPendingRevisionId(revisionId);
+            await handleSpkChange(String(targetSpk.id));
+        };
+
+        openTarget();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [spkList, autoOpenedRevisionTarget]);
+
+    useEffect(() => {
+        if (!pendingRevisionId) return;
+        const hasRevision = rejectedInstruksiList.some((il: any) => String(il.id) === pendingRevisionId);
+        if (!hasRevision) return;
+
+        loadRejectedInstruksi(pendingRevisionId);
+        setPendingRevisionId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingRevisionId, rejectedInstruksiList]);
 
     const handleSpkChange = async (spkIdStr: string) => {
         setSelectedSpkId(spkIdStr);

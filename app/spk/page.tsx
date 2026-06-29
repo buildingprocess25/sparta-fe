@@ -97,6 +97,7 @@ export default function SPKPage() {
     const [kontraktorList, setKontraktorList] = useState<string[]>([]);
     const [searchUlok, setSearchUlok] = useState('');
     const [cabangFilter, setCabangFilter] = useState('');
+    const [autoSelectedTargetKey, setAutoSelectedTargetKey] = useState<string | null>(null);
     
     // Status Info
     const [spkMsg, setSpkMsg] = useState({ text: '', type: '' });
@@ -188,6 +189,34 @@ export default function SPKPage() {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (approvedRabs.length === 0 || typeof window === 'undefined') return;
+
+        const params = new URLSearchParams(window.location.search);
+        const nomorUlok = params.get('nomor_ulok');
+        const lingkup = params.get('lingkup');
+        const idToko = params.get('id_toko');
+        if (!nomorUlok && !idToko) return;
+
+        const targetKey = [nomorUlok, lingkup, idToko].filter(Boolean).join('|');
+        if (autoSelectedTargetKey === targetKey) return;
+
+        const target = approvedRabs.find(r => {
+            const sameUlok = nomorUlok ? r["Nomor Ulok"] === nomorUlok : true;
+            const sameLingkup = lingkup ? r["Lingkup_Pekerjaan"] === lingkup : true;
+            const sameToko = idToko ? String(r.id_toko) === idToko : true;
+            return sameUlok && sameLingkup && sameToko;
+        });
+
+        if (!target) return;
+
+        setAutoSelectedTargetKey(targetKey);
+        setSearchUlok(target["Nama_Toko"] || target["Nomor Ulok"] || '');
+        setCabangFilter(target.Cabang || '');
+        handleUlokSelect(`${target["Nomor Ulok"]} (${target["Lingkup_Pekerjaan"]})`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [approvedRabs, autoSelectedTargetKey]);
 
     const handleUlokSelect = async (ulokStr: string) => {
         setSpkMsg({ text: '', type: '' });
