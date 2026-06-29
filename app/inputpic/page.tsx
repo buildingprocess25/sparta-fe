@@ -1275,7 +1275,7 @@ export default function InputPICPage() {
 
     const loadPicList = async (cabang: string) => {
         try {
-            const res = await fetchUserCabangList({ cabang, jabatan: 'BRANCH BUILDING SUPPORT' });
+            const res = await fetchUserCabangList({ cabang, jabatan: 'BRANCH BUILDING SUPPORT', include_branch_scope: true });
             if (res.data) setPicList(res.data);
         } catch (error) {
             console.error("Gagal memuat daftar PIC:", error);

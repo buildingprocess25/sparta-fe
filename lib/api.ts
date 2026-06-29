@@ -1103,7 +1103,7 @@ export const fetchPricesData = async (cabang: string, lingkup: string) => {
 
 /** Ambil daftar User Cabang (PIC) */
 export const fetchUserCabangList = async (
-    filters?: { cabang?: string; jabatan?: string; search?: string; email_sat?: string; nama_pt?: string }
+    filters?: { cabang?: string; jabatan?: string; search?: string; email_sat?: string; nama_pt?: string; include_branch_scope?: boolean }
 ): Promise<{ status: string; data: any[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
@@ -1112,6 +1112,7 @@ export const fetchUserCabangList = async (
     if (filters?.search) params.append("search", filters.search);
     if (filters?.email_sat) params.append("email_sat", filters.email_sat);
     if (filters?.nama_pt) params.append("nama_pt", filters.nama_pt);
+    if (filters?.include_branch_scope) params.append("include_branch_scope", "true");
     const url = `${base}/api/user_cabang${params.toString() ? `?${params}` : ""}`;
     const res = await apiFetch(url, { headers: { "Content-Type": "application/json" } });
     if (!res.ok) throw new Error("Gagal mengambil data user cabang");

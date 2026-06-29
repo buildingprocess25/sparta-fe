@@ -3,7 +3,7 @@
 // Handles caching, offline support, push notifications, and navigation.
 // =============================================================================
 
-const CACHE_NAME = 'sparta-v7-20260629-spk-kontraktor-scope';
+const CACHE_NAME = 'sparta-v8-20260629-private-api-scope-fixes';
 
 // Static assets to cache on install for offline shell
 const STATIC_ASSETS = [
