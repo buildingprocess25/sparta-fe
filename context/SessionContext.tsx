@@ -43,8 +43,8 @@ const PUBLIC_PATHS = ['/', '/auth', '/about', '/manual'];
  * Pengecualian: Super Human mengabaikan aturan ini sepenuhnya.
  */
 const OPERATING_START_MINUTES = 6 * 60;
-const GENERAL_OPERATING_END_MINUTES = 21 * 60;
-const CONTRACTOR_OPERATING_END_MINUTES = 21 * 60;
+const GENERAL_OPERATING_END_MINUTES = 24 * 60; // 24:00 = tengah malam
+const CONTRACTOR_OPERATING_END_MINUTES = 24 * 60; // 24:00 = tengah malam
 const TEMPORARY_ALL_ROLE_ACCESS_START = new Date('2026-06-19T00:00:00+07:00').getTime();
 const TEMPORARY_ALL_ROLE_ACCESS_END = new Date('2026-06-21T00:00:00+07:00').getTime();
 
