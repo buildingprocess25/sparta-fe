@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -201,6 +201,7 @@ function InfoItem({ icon, label, value, highlight }: {
 
 function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; cabang: string; email: string; isSuperHuman?: boolean } }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { showAlert } = useGlobalAlert();
     const isSuperHuman = userInfo.isSuperHuman ?? false;
     const isReadOnly = isViewOnlyUser(userInfo.role, isSuperHuman);
@@ -226,6 +227,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [submittingItemId, setSubmittingItemId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeView, setActiveView] = useState<'form' | 'history'>('form');
+    const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
 
     // Opname inputs: keyed by rab_item id
     const [opnameInputs, setOpnameInputs] = useState<Record<number, {
@@ -412,6 +414,18 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             setIsLoadingDetail(false);
         }
     };
+
+    useEffect(() => {
+        const targetTokoId = searchParams.get('id_toko');
+        if (!targetTokoId || isLoading || rabList.length === 0 || autoSelectedTokoId === targetTokoId) return;
+
+        const targetProject = rabList.find(item => String(item.id_toko) === targetTokoId);
+        if (!targetProject) return;
+
+        setAutoSelectedTokoId(targetTokoId);
+        setSearchQuery(targetProject.nama_toko || targetProject.nomor_ulok || "");
+        handleSelectRab(String(targetProject.id));
+    }, [autoSelectedTokoId, isLoading, rabList, searchParams]);
 
     // Handle input change
     const handleSetInput = async (itemId: number, field: string, value: any) => {

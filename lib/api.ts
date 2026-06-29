@@ -2544,6 +2544,36 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
     return true;
 };
 
+// =============================================================================
+// 3c. TASK NOTIFICATIONS
+// =============================================================================
+
+export type TaskNotificationItem = {
+    id: string;
+    entity_type: string;
+    entity_id: number;
+    id_toko?: number;
+    title: string;
+    subtitle: string;
+    description: string;
+    action_label: string;
+    action_url: string;
+    metadata?: Record<string, unknown>;
+};
+
+export type TaskNotificationGroup = {
+    key: string;
+    title: string;
+    description: string;
+    count: number;
+    items: TaskNotificationItem[];
+};
+
+export const fetchTaskNotifications = async (
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: { groups: TaskNotificationGroup[] } }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/task-notifications`, options);
+
 
 // =============================================================================
 // 4. SPK  Surat Perintah Kerja

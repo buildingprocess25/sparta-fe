@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { LogOut, Menu, X, ChevronLeft } from 'lucide-react';
+import TaskNotificationBell from '@/components/TaskNotificationBell';
 
 interface AppNavbarProps {
   title?: string;
@@ -60,6 +61,7 @@ export default function AppNavbar({
       </div>
 
       <div className="flex items-center gap-1.5 md:gap-3 relative z-10 shrink-0">
+        <TaskNotificationBell variant={variant} />
         {/* Render custom action di sini (seperti icon lonceng) */}
         {rightActions}
         

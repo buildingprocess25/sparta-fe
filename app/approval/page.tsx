@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -561,6 +561,7 @@ const ApprovalHistoryRow = ({ label, pemberi, waktu, catatan }: {
 // =============================================
 export default function ApprovalPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     // --- AUTH ---
     const [userInfo, setUserInfo]       = useState({ name: '', role: '', cabang: '', email: '', nama_pt: '' });
@@ -570,6 +571,7 @@ export default function ApprovalPage() {
     // --- NAVIGATION ---
     const [activeView, setActiveView]     = useState<ActiveView>('menu');
     const [selectedType, setSelectedType] = useState<ApprovalType | null>(null);
+    const [autoSelectedType, setAutoSelectedType] = useState<ApprovalType | null>(null);
 
     // --- DATA ---
     const [listData, setListData]         = useState<NormalizedListItem[]>([]);
@@ -1402,6 +1404,15 @@ export default function ApprovalPage() {
         setActiveView('list');
         loadList(type);
     };
+
+    useEffect(() => {
+        const queryType = searchParams.get('type') as ApprovalType | null;
+        if (!queryType || autoSelectedType === queryType || accessibleTypes.length === 0) return;
+        if (!accessibleTypes.includes(queryType)) return;
+
+        setAutoSelectedType(queryType);
+        handleSelectType(queryType);
+    }, [accessibleTypes, autoSelectedType, searchParams]);
 
     const handleBackToMenu = () => {
         setActiveView('menu');
