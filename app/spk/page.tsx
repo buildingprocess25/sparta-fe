@@ -227,8 +227,12 @@ export default function SPKPage() {
             try {
                 const names = await fetchKontraktorList(selected.Cabang);
                 setKontraktorList(names || []);
-            } catch {
+                if (!names?.length) {
+                    setSpkMsg({ text: `Tidak ada kontraktor aktif untuk cabang ${selected.Cabang}.`, type: "warning" });
+                }
+            } catch (error: any) {
                 setKontraktorList([]); 
+                setSpkMsg({ text: `Gagal memuat kontraktor: ${error?.message || "Terjadi kesalahan."}`, type: "warning" });
             }
 
             // Check Status SPK
