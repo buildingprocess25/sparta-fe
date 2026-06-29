@@ -776,19 +776,10 @@ function SpecializedDetailContent({
         </div>
 
         {/* Project List Table */}
-        <div className="sticky top-[-16px] z-20 -mx-4 mb-4 mt-4 bg-slate-50/95 px-4 py-2 backdrop-blur-sm md:hidden">
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <span className="text-[10px] font-bold text-slate-700">Tabel dapat digeser</span>
-            <div className="flex items-center gap-1.5 text-red-600">
-              <span className="text-[10px] font-bold">Geser</span>
-              <ArrowRightLeft className="h-3.5 w-3.5" />
-            </div>
-          </div>
-        </div>
-        <div className="mt-2 md:mt-4 flex max-h-[65vh] md:max-h-none flex-col overflow-hidden md:overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="custom-scrollbar flex-1 overflow-auto md:overflow-visible">
-            <table className="w-full whitespace-nowrap text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
                 <tr>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Nama Toko & ULOK</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Cabang</th>
@@ -806,9 +797,9 @@ function SpecializedDetailContent({
                   const colors = stageColorMap[stage] || { text: "text-slate-600", bg: "bg-slate-50" };
                   
                   return (
-                    <tr key={row?.toko?.id || index} className="group transition-colors hover:bg-slate-50/80">
+                    <tr key={row?.toko?.id || index} className="group cursor-pointer transition-colors hover:bg-red-50/60" onClick={() => onOpenProjectDetail(row)}>
                       <td className="px-4 py-3">
-                        <p className="text-[12px] font-bold text-slate-900">{row?.toko?.nama_toko || "-"}</p>
+                        <p className="text-[12px] font-bold text-slate-900 transition-colors group-hover:text-red-700">{row?.toko?.nama_toko || "-"}</p>
                         <p className="mt-0.5 text-[10px] text-slate-500">{row?.toko?.nomor_ulok || "-"}</p>
                       </td>
                       <td className="px-4 py-3">
@@ -839,13 +830,9 @@ function SpecializedDetailContent({
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button 
-                          type="button"
-                          onClick={() => onOpenProjectDetail(row)}
-                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold text-red-600 transition-colors hover:bg-red-50"
-                        >
+                        <span className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold text-red-600 transition-colors group-hover:bg-red-100">
                           Detail <ChevronRight className="h-3.5 w-3.5" />
-                        </button>
+                        </span>
                       </td>
                     </tr>
                   );
@@ -856,6 +843,7 @@ function SpecializedDetailContent({
         </div>
         </div>
       </div>
+
     );
   }
 
@@ -1093,31 +1081,127 @@ export default function DashboardCommandWorkspace({
             ) : null}
           </div>
         ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 overflow-hidden xl:grid-cols-[minmax(0,1fr)_340px] xl:grid-rows-1">
-          <div className="flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
+          projectDetailView ? (
+            <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
+              <button type="button" onClick={() => setProjectDetailView(null)} className="group mb-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+                <ArrowLeft className="h-4 w-4 text-slate-500 transition-transform group-hover:-translate-x-0.5" />
+                <span className="text-[11px] font-semibold text-slate-600">Kembali ke Daftar</span>
+                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500">
+                  {projectDetailView.__kind === "contractor" ? projectDetailView.nama_kontraktor : projectDetailView.__kind === "beanspot" ? projectDetailView.nama_toko : projectDetailView?.toko?.nama_toko}
+                </span>
+              </button>
+
+              {projectDetailView.__kind === "contractor" ? (
+                <div className="mx-auto max-w-5xl space-y-6">
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian kontraktor</p>
+                    <h2 className="mt-2 text-2xl font-bold text-slate-950">{projectDetailView.nama_kontraktor}</h2>
+                    <p className="mt-1 text-sm text-slate-500">{projectDetailView.tokoCount} toko · rata-rata {Number(projectDetailView.nilai).toFixed(1)} poin</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {(projectDetailView.stores || []).map((store: any) => (
+                      <div key={store.nomor_ulok} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-900">{store.nama_toko}</p><p className="text-lg font-bold text-emerald-600">{Number(store.nilai).toFixed(1)}</p></div>
+                        <p className="mt-1 text-sm text-slate-500">{store.nomor_ulok} · {store.cabang}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : projectDetailView.__kind === "beanspot" ? (
+                <div className="mx-auto max-w-2xl space-y-6">
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian Beanspot</p>
+                    <h2 className="mt-2 text-2xl font-bold text-slate-950">{projectDetailView.nama_toko}</h2>
+                    <p className="mt-1 text-sm text-slate-500">{projectDetailView.nomor_ulok} · {projectDetailView.cabang}</p>
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nilai pekerjaan Beanspot</p>
+                      <p className="mt-2 text-3xl font-bold text-emerald-700">{formatRupiah(projectDetailView.nominal)}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (() => {
+                const pdStage = getStage(projectDetailView);
+                const pdLate = getLateDays(projectDetailView);
+                const pdPenalty = getPenalty(projectDetailView);
+                const pdQuality = getQuality(opnameItemsMap[projectDetailView?.toko?.id] || []);
+                const pdStageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
+                  "Approval RAB":        { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
+                  "Proses Gantt":        { text: "text-sky-600",    bar: "bg-sky-500",    borderTop: "border-t-sky-500",    bg: "bg-sky-50" },
+                  "Proses PJU":          { text: "text-amber-600",  bar: "bg-amber-500",  borderTop: "border-t-amber-500",  bg: "bg-amber-50" },
+                  "Approval SPK":        { text: "text-emerald-600",bar: "bg-emerald-500",borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
+                  "Ongoing":             { text: "text-red-600",    bar: "bg-red-500",    borderTop: "border-t-red-500",    bg: "bg-red-50" },
+                  "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
+                };
+                const pdStageIconMap: Record<string, typeof HardHat> = {
+                  "Approval RAB": FileText, "Proses Gantt": CalendarDays, "Proses PJU": Clock3,
+                  "Approval SPK": UserCheck, "Ongoing": HardHat, "Kerja Tambah Kurang": Layers3,
+                };
+                const pdColors = pdStageColorMap[pdStage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
+                const PdIcon = pdStageIconMap[pdStage] || FileText;
+                return (
+                  <div className="mx-auto max-w-5xl space-y-4">
+                    <div className={`relative overflow-hidden rounded-xl border border-slate-200 border-t-4 ${pdColors.borderTop} bg-white p-6 shadow-sm`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${pdColors.bg}`}>
+                          <PdIcon className={`h-6 w-6 ${pdColors.text}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${pdColors.bg} ${pdColors.text}`}>{pdStage}</span>
+                            {pdLate > 0 && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">Terlambat {pdLate} hari</span>}
+                          </div>
+                          <h2 className="mt-2 text-xl font-bold text-slate-900 leading-tight">{projectDetailView?.toko?.nama_toko}</h2>
+                          <p className="mt-1 text-[12px] text-slate-500">{projectDetailView?.toko?.nomor_ulok} · {projectDetailView?.toko?.cabang} · {projectDetailView?.toko?.lingkup_pekerjaan || "—"}</p>
+                        </div>
+                        {canOpenSource(projectDetailView, detail.context) && (
+                          <button type="button" onClick={() => onOpenSource(projectDetailView, detail.context)} className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md">
+                            Buka ULOK →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-3">Analisis Risiko &amp; Keterlambatan</p>
+                          <ContextInspector project={projectDetailView} context={detail.context} quality={pdQuality} lateDays={pdLate} penalty={pdPenalty} />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-4">Perjalanan Dokumen</p>
+                          <Timeline project={projectDetailView} stage={pdStage} />
+                        </div>
+                        {pdPenalty.amount > 0 && (
+                          <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 mb-3">Denda {pdPenalty.source}</p>
+                            <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pdPenalty.amount)}</p>
+                            <p className="mt-1 text-[12px] font-medium text-red-600">{pdPenalty.days} hari keterlambatan</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
             <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <Input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setSelectedIndex(0); }} placeholder="Cari toko, ULOK, cabang, atau kontraktor..." className="h-9 rounded-lg border-slate-200 pl-9 text-[11px]" />
               </div>
               {detail.context === "PROJECT" && !detail.subContext && (
-                <div className="w-[140px] shrink-0 pb-1 sm:pb-0">
-                  <Select
-                    value={detailCategory}
-                    onValueChange={(val) => {
-                      setDetailCategory(val);
-                      setSelectedIndex(0);
-                    }}
-                  >
+                <div className="w-[160px] shrink-0 pb-1 sm:pb-0">
+                  <Select value={detailCategory} onValueChange={(val) => { setDetailCategory(val); setSelectedIndex(0); }}>
                     <SelectTrigger className="h-9 w-full rounded-lg border-slate-200 text-[11px] font-medium focus:ring-0 focus:ring-offset-0">
                       <SelectValue placeholder="Semua Tahap" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Semua" className="text-[11px]">Semua Tahap</SelectItem>
                       {PIPELINE.map((cat) => (
-                        <SelectItem key={cat} value={cat} className="text-[11px]">
-                          {cat}
-                        </SelectItem>
+                        <SelectItem key={cat} value={cat} className="text-[11px]">{cat}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1126,7 +1210,7 @@ export default function DashboardCommandWorkspace({
             </div>
 
             {!["NILAI_KONTRAKTOR", "BEANSPOT"].includes(detail.context) ? (
-              <div className="hidden shrink-0 grid-cols-[minmax(185px,1.25fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-slate-400 lg:grid">
+              <div className="hidden shrink-0 grid-cols-[minmax(200px,1.5fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-slate-400 lg:grid">
                 <span>TOKO / IDENTITAS</span><span>{columnLabels[0]}</span><span>{columnLabels[1]}</span><span className="text-right">{columnLabels[2]}</span><span />
               </div>
             ) : null}
@@ -1142,17 +1226,17 @@ export default function DashboardCommandWorkspace({
                 searchedRows.map((row: any, index) => {
                   if (row.__kind === "contractor") {
                     return (
-                      <button key={row.nama_kontraktor} type="button" onClick={() => setSelectedIndex(index)} className={`group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626] ${selectedIndex === index ? "bg-red-50/70 shadow-[inset_3px_0_0_#dc2626]" : ""}`}>
-                        <div><p className="text-[12px] font-semibold text-slate-900">{row.nama_kontraktor}</p><p className="mt-1 text-[10px] text-slate-400">{row.tokoCount} toko dinilai</p></div>
-                        <p className="text-lg font-semibold text-slate-950">{Number(row.nilai).toFixed(1)}</p>
+                      <button key={row.nama_kontraktor} type="button" onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }} className="group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]">
+                        <div><p className="text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row.nama_kontraktor}</p><p className="mt-1 text-[10px] text-slate-400">{row.tokoCount} toko dinilai</p></div>
+                        <div className="flex items-center gap-2"><p className="text-lg font-semibold text-slate-950">{Number(row.nilai).toFixed(1)}</p><ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" /></div>
                       </button>
                     );
                   }
                   if (row.__kind === "beanspot") {
                     return (
-                      <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={() => setSelectedIndex(index)} className={`group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626] ${selectedIndex === index ? "bg-red-50/70 shadow-[inset_3px_0_0_#dc2626]" : ""}`}>
-                        <div><p className="text-[12px] font-semibold text-slate-900">{row.nama_toko}</p><p className="mt-1 text-[10px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p></div>
-                        <p className="text-[12px] font-semibold text-slate-950">{formatRupiah(row.nominal)}</p>
+                      <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }} className="group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]">
+                        <div><p className="text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row.nama_toko}</p><p className="mt-1 text-[10px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p></div>
+                        <div className="flex items-center gap-2"><p className="text-[12px] font-semibold text-slate-950">{formatRupiah(row.nominal)}</p><ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" /></div>
                       </button>
                     );
                   }
@@ -1165,8 +1249,8 @@ export default function DashboardCommandWorkspace({
                     <button
                       key={row?.toko?.id || `${row?.toko?.nomor_ulok}-${index}`}
                       type="button"
-                      onClick={() => setSelectedIndex(index)}
-                      className={`group flex flex-col gap-3 lg:grid w-full lg:grid-cols-[minmax(185px,1.25fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] lg:items-center border-b border-slate-100 px-4 py-3.5 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626] ${selectedIndex === index ? "bg-red-50/70 shadow-[inset_3px_0_0_#dc2626]" : ""}`}
+                      onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }}
+                      className="group flex flex-col gap-3 lg:grid w-full lg:grid-cols-[minmax(200px,1.5fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] lg:items-center border-b border-slate-100 px-4 py-3.5 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]"
                     >
                       <div className="min-w-0 flex items-center justify-between lg:block">
                         <div className="min-w-0 flex-1">
@@ -1191,60 +1275,7 @@ export default function DashboardCommandWorkspace({
               )}
             </div>
           </div>
-
-          <aside className="custom-scrollbar min-h-0 overflow-y-auto border-t border-slate-200 bg-white p-5 xl:border-t-0">
-            {!selectedRow ? null : selectedRow.__kind === "contractor" ? (
-              <>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian kontraktor</p>
-                <h2 className="mt-2 text-lg font-semibold text-slate-950">{selectedRow.nama_kontraktor}</h2>
-                <p className="mt-1 text-[11px] text-slate-500">{selectedRow.tokoCount} toko · rata-rata {Number(selectedRow.nilai).toFixed(1)} poin</p>
-                <div className="mt-5 space-y-2">
-                  {(selectedRow.stores || []).slice(0, 8).map((store: any) => (
-                    <div key={store.nomor_ulok} className="rounded-lg border border-slate-200 p-3">
-                      <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-semibold text-slate-800">{store.nama_toko}</p><p className="text-[11px] font-semibold">{Number(store.nilai).toFixed(1)}</p></div>
-                      <p className="mt-1 text-[9px] text-slate-400">{store.nomor_ulok} · {store.cabang}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : selectedRow.__kind === "beanspot" ? (
-              <>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian Beanspot</p>
-                <h2 className="mt-2 text-lg font-semibold text-slate-950">{selectedRow.nama_toko}</h2>
-                <p className="mt-1 text-[11px] text-slate-500">{selectedRow.nomor_ulok} · {selectedRow.cabang}</p>
-                <div className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-[9px] text-slate-400">Nilai pekerjaan Beanspot</p><p className="mt-2 text-xl font-semibold">{formatRupiah(selectedRow.nominal)}</p></div>
-              </>
-            ) : (
-              <>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian proyek</p>
-                <h2 className="mt-2 text-lg font-semibold text-slate-950">{selectedProject?.toko?.nama_toko || "-"}</h2>
-                <p className="mt-1 text-[11px] text-slate-500">{selectedProject?.toko?.nomor_ulok || "-"} · {selectedProject?.toko?.cabang || "-"} · {selectedProject?.toko?.lingkup_pekerjaan || "-"}</p>
-                <div className="mt-5">
-                  <ContextInspector
-                    project={selectedProject}
-                    context={detail.context}
-                    quality={selectedQuality}
-                    lateDays={getLateDays(selectedProject)}
-                    penalty={getPenalty(selectedProject)}
-                  />
-                </div>
-                <div className="mt-5 border-t border-slate-200 pt-5">
-                  <p className="mb-4 text-[10px] font-semibold text-slate-800">
-                    {["PROJECT", "ATTENTION"].includes(detail.context) ? "Perjalanan dokumen" : "Jejak dokumen terkait"}
-                  </p>
-                  <Timeline project={selectedProject} stage={selectedStage} />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {canOpenSource(selectedProject, detail.context) ? (
-                    <Button variant="outline" className="h-9 rounded-lg text-[10px]" onClick={() => onOpenSource(selectedProject, detail.context)}>Buka data ULOK</Button>
-                  ) : (
-                    <div className="flex items-center rounded-lg border border-slate-200 px-3 text-[9px] text-slate-400">Akses detail dibatasi</div>
-                  )}
-                </div>
-              </>
-            )}
-          </aside>
-        </div>
+          )
         )}
       </div>
     );
