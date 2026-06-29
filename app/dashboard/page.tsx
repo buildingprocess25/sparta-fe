@@ -338,6 +338,19 @@ const getStoreQualityScore = (items: any[]) => {
     return { desain, kualitas, spesifikasi, total: desain + kualitas + spesifikasi };
 };
 
+// =============================================================================
+// GLOBAL CACHE FOR DASHBOARD DATA (Prevents full reload on navigation back)
+// =============================================================================
+const dashboardCache = {
+    projects: null as any[] | null,
+    cabangList: [] as string[],
+    opnameMap: {} as Record<number, any[]>,
+    rabRevisionCount: 0,
+    timestamp: 0,
+    email: '',
+};
+const CACHE_TTL = 300_000; // 5 minutes
+
 export default function DashboardPage() {
     const router = useRouter();
 
@@ -481,8 +494,20 @@ export default function DashboardPage() {
         canSeeAllBranches = false,
         userEmail = '',
         userNamaPt = '',
-        shouldFilterByCompany = false
+        shouldFilterByCompany = false,
+        forceRefresh = false
     ) => {
+        const now = Date.now();
+        const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail;
+
+        if (isCacheValid) {
+            setProjects(dashboardCache.projects!);
+            setCabangList(dashboardCache.cabangList);
+            setOpnameItemsMap(dashboardCache.opnameMap);
+            setRabRevisionCount(dashboardCache.rabRevisionCount);
+            return;
+        }
+
         setIsDataLoading(true);
         try {
             // Fetch dari API real
@@ -535,6 +560,14 @@ export default function DashboardPage() {
 
             setOpnameItemsMap(opnameMap);
             setRabRevisionCount(rejectedRabCount);
+
+            // Update cache
+            dashboardCache.projects = data;
+            dashboardCache.cabangList = allowedBranches.sort();
+            dashboardCache.opnameMap = opnameMap;
+            dashboardCache.rabRevisionCount = rejectedRabCount;
+            dashboardCache.timestamp = now;
+            dashboardCache.email = userEmail;
 
         } catch (err) {
             console.error('Gagal memuat data dashboard:', err);
@@ -1268,7 +1301,8 @@ export default function DashboardPage() {
                                         canSeeAllMonitoringBranches,
                                         user?.email ?? '',
                                         userInfo.namaPt,
-                                        isCompanyScopedUser
+                                        isCompanyScopedUser,
+                                        true
                                     )}
                                     disabled={isDataLoading}
                                 >
