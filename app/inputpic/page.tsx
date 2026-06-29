@@ -771,7 +771,9 @@ function ScopePicForm({
                             .sort((a, b) => {
                                 const aTime = new Date(a.data?.gantt?.timestamp || 0).getTime();
                                 const bTime = new Date(b.data?.gantt?.timestamp || 0).getTime();
-                                return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+                                const byTimestamp = (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+                                if (byTimestamp !== 0) return byTimestamp;
+                                return Number(b.data?.gantt?.id || 0) - Number(a.data?.gantt?.id || 0);
                             })
                             .forEach(d => {
                             const ganttScope = d.data?.toko?.lingkup_pekerjaan;
