@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/context/SessionContext";
 import {
     fetchApprovalNotificationCounts,
+    fetchApprovalNotificationItems,
     getAccessibleApprovalTypes,
     getApprovalNotificationTotal,
     type ApprovalCounts,
+    type ApprovalNotificationItem,
     EMPTY_APPROVAL_COUNTS,
 } from "@/lib/approval-notifications";
 import {
+    checkRevisionStatus,
+    fetchRabProjectPlanningRequests,
     fetchTaskNotifications,
     type TaskNotificationGroup,
     type TaskNotificationItem,
@@ -35,36 +39,58 @@ const APPROVAL_LABELS: Record<string, string> = {
     PROJECT_PLANNING: "Approval Project Planning",
 };
 
-const buildApprovalGroup = (counts: ApprovalCounts, user: NonNullable<ReturnType<typeof useSession>["user"]>): PanelGroup => {
+const buildApprovalGroup = (
+    counts: ApprovalCounts,
+    user: NonNullable<ReturnType<typeof useSession>["user"]>,
+    approvalItems: ApprovalNotificationItem[],
+): PanelGroup => {
     const types = getAccessibleApprovalTypes(user);
-    const items = types
-        .filter((type) => (counts[type] ?? 0) > 0)
-        .map((type) => ({
-            id: `approval-${type}`,
-            entity_type: type,
-            entity_id: 0,
-            title: APPROVAL_LABELS[type] ?? type,
-            subtitle: `${counts[type]} dokumen menunggu tindakan`,
-            description: "Buka approval center untuk melihat dan memproses dokumen.",
-            action_label: "Buka Approval",
-            action_url: `/approval?type=${type}`,
-        }));
+    const items = approvalItems.length > 0
+        ? approvalItems.map((item) => ({
+            id: item.id,
+            entity_type: item.tipe,
+            entity_id: Number(item.entity_id) || 0,
+            title: item.title,
+            subtitle: item.subtitle,
+            description: item.description,
+            action_label: APPROVAL_LABELS[item.tipe] ?? "Buka Approval",
+            action_url: item.action_url,
+        }))
+        : types
+            .filter((type) => (counts[type] ?? 0) > 0)
+            .map((type) => ({
+                id: `approval-${type}`,
+                entity_type: type,
+                entity_id: 0,
+                title: APPROVAL_LABELS[type] ?? type,
+                subtitle: `${counts[type]} dokumen menunggu tindakan`,
+                description: "Buka approval center untuk melihat dan memproses dokumen.",
+                action_label: "Buka Approval",
+                action_url: `/approval?type=${type}`,
+            }));
 
     return {
         key: "approval_pending",
         title: "Approval Menunggu",
         description: "Dokumen yang menunggu persetujuan role Anda.",
-        count: getApprovalNotificationTotal(counts, types),
+        count: approvalItems.length || getApprovalNotificationTotal(counts, types),
         items,
         accent: "bg-sky-50 text-sky-700 border-sky-200",
     };
 };
 
+const isContractorUser = (user: NonNullable<ReturnType<typeof useSession>["user"]>) =>
+    user.roles.some(role => role.includes("KONTRAKTOR"));
+
 const mapBackendGroup = (group: TaskNotificationGroup): PanelGroup => ({
     ...group,
     accent: group.key === "support_ktk_ready"
         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-        : "bg-slate-50 text-slate-700 border-slate-200",
+        : group.key === "revision_rejected"
+            ? "bg-amber-50 text-amber-700 border-amber-200"
+            : group.key === "rab_project_planning_request"
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-slate-50 text-slate-700 border-slate-200",
 });
 
 export default function TaskNotificationBell({ variant = "brand" }: { variant?: "brand" | "clean" }) {
@@ -74,26 +100,82 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts>(EMPTY_APPROVAL_COUNTS);
+    const [approvalItems, setApprovalItems] = useState<ApprovalNotificationItem[]>([]);
     const [backendGroups, setBackendGroups] = useState<PanelGroup[]>([]);
+    const [localGroups, setLocalGroups] = useState<PanelGroup[]>([]);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const refresh = useCallback(async () => {
         if (!user) return;
         setLoading(true);
         try {
-            const [approvalResult, taskResult] = await Promise.allSettled([
+            const [approvalResult, approvalItemsResult, taskResult, revisionResult, planningResult] = await Promise.allSettled([
                 fetchApprovalNotificationCounts(user),
+                fetchApprovalNotificationItems(user),
                 fetchTaskNotifications({ suppressGlobalError: true }),
+                checkRevisionStatus(user.email, user.cabang),
+                isContractorUser(user)
+                    ? fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
+                    : Promise.resolve({ status: "success", count: 0, data: [] }),
             ]);
 
             if (approvalResult.status === "fulfilled") setApprovalCounts(approvalResult.value);
             else setApprovalCounts(EMPTY_APPROVAL_COUNTS);
+
+            if (approvalItemsResult.status === "fulfilled") setApprovalItems(approvalItemsResult.value);
+            else setApprovalItems([]);
 
             if (taskResult.status === "fulfilled") {
                 setBackendGroups((taskResult.value.data?.groups ?? []).map(mapBackendGroup));
             } else {
                 setBackendGroups([]);
             }
+
+            const nextLocalGroups: PanelGroup[] = [];
+            if (revisionResult.status === "fulfilled") {
+                const revisions = revisionResult.value.rejected_submissions ?? [];
+                nextLocalGroups.push(mapBackendGroup({
+                    key: "revision_rejected",
+                    title: "Revisi / Ditolak",
+                    description: "Dokumen yang dikembalikan dan perlu diperbaiki.",
+                    count: revisions.length,
+                    items: revisions.map((item: any) => ({
+                        id: `rab-revision-${item.id ?? item["Nomor Ulok"]}`,
+                        entity_type: "RAB_REJECTED",
+                        entity_id: Number(item.id || 0),
+                        title: item.nama_toko || item["Nomor Ulok"] || "RAB Ditolak",
+                        subtitle: [item["Nomor Ulok"], item.lingkup_pekerjaan || item["Lingkup Pekerjaan"], item.Proyek || item["Proyek"]].filter(Boolean).join(" | "),
+                        description: item.alasan_penolakan ? `Alasan: ${item.alasan_penolakan}` : "RAB perlu direvisi dan diajukan ulang.",
+                        action_label: "Revisi RAB",
+                        action_url: item.id ? `/rab?revision_id=${item.id}` : "/rab",
+                        metadata: item,
+                    })),
+                }));
+            }
+
+            if (planningResult.status === "fulfilled") {
+                const requests = planningResult.value.data ?? [];
+                nextLocalGroups.push(mapBackendGroup({
+                    key: "rab_project_planning_request",
+                    title: "Permintaan RAB Project Planning",
+                    description: "ULOK dari FPD yang membutuhkan penawaran RAB.",
+                    count: requests.length,
+                    items: requests.map((request: any) => ({
+                        id: `rab-planning-${request.projek_planning_id}-${request.lingkup_pekerjaan}`,
+                        entity_type: "RAB_PROJECT_PLANNING_REQUEST",
+                        entity_id: Number(request.projek_planning_id || 0),
+                        id_toko: request.id_toko ?? undefined,
+                        title: request.nama_toko || request.nama_lokasi || request.nomor_ulok || "Permintaan RAB",
+                        subtitle: [request.nomor_ulok, request.lingkup_pekerjaan, request.cabang].filter(Boolean).join(" | "),
+                        description: "Project Planning membutuhkan penawaran untuk melanjutkan proses.",
+                        action_label: "Buat Penawaran",
+                        action_url: `/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`,
+                        metadata: request,
+                    })),
+                }));
+            }
+
+            setLocalGroups(nextLocalGroups);
         } finally {
             setLoading(false);
         }
@@ -115,9 +197,9 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
 
     const groups = useMemo(() => {
         if (!user) return [];
-        const approvalGroup = buildApprovalGroup(approvalCounts, user);
-        return [approvalGroup, ...backendGroups].filter((group) => group.count > 0);
-    }, [approvalCounts, backendGroups, user]);
+        const approvalGroup = buildApprovalGroup(approvalCounts, user, approvalItems);
+        return [approvalGroup, ...backendGroups, ...localGroups].filter((group) => group.count > 0);
+    }, [approvalCounts, approvalItems, backendGroups, localGroups, user]);
 
     const total = groups.reduce((sum, group) => sum + group.count, 0);
     const activeGroup = groups.find((group) => group.key === activeGroupKey) ?? null;

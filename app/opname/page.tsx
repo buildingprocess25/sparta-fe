@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -201,7 +201,6 @@ function InfoItem({ icon, label, value, highlight }: {
 
 function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; cabang: string; email: string; isSuperHuman?: boolean } }) {
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { showAlert } = useGlobalAlert();
     const isSuperHuman = userInfo.isSuperHuman ?? false;
     const isReadOnly = isViewOnlyUser(userInfo.role, isSuperHuman);
@@ -416,7 +415,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     };
 
     useEffect(() => {
-        const targetTokoId = searchParams.get('id_toko');
+        const targetTokoId = new URLSearchParams(window.location.search).get('id_toko');
         if (!targetTokoId || isLoading || rabList.length === 0 || autoSelectedTokoId === targetTokoId) return;
 
         const targetProject = rabList.find(item => String(item.id_toko) === targetTokoId);
@@ -425,7 +424,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         setAutoSelectedTokoId(targetTokoId);
         setSearchQuery(targetProject.nama_toko || targetProject.nomor_ulok || "");
         handleSelectRab(String(targetProject.id));
-    }, [autoSelectedTokoId, isLoading, rabList, searchParams]);
+    }, [autoSelectedTokoId, isLoading, rabList]);
 
     // Handle input change
     const handleSetInput = async (itemId: number, field: string, value: any) => {

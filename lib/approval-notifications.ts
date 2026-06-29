@@ -349,5 +349,127 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
     return counts;
 };
 
+export type ApprovalNotificationItem = {
+    id: string;
+    tipe: ApprovalType;
+    entity_id: number | string;
+    title: string;
+    subtitle: string;
+    description: string;
+    status: string;
+    cabang?: string | null;
+    action_url: string;
+};
+
+const getEntityId = (value: unknown) =>
+    getStringValue(value, "id")
+    ?? getStringValue(value, "pengajuan_spk_id")
+    ?? getStringValue(value, "projek_planning_id")
+    ?? "0";
+
+const getTitleForApprovalItem = (type: ApprovalType, raw: unknown) => {
+    const directName =
+        getStringValue(raw, "nama_toko")
+        ?? getStringValue(raw, "nama_lokasi")
+        ?? getTokoStringValue(raw, "nama_toko")
+        ?? getStringValue(raw, "nomor_ulok")
+        ?? getTokoStringValue(raw, "nomor_ulok");
+
+    if (directName) return directName;
+    if (type === "PERTAMBAHAN_SPK") return getStringValue(raw, "nomor_spk") ?? "Pertambahan SPK";
+    if (type === "PROJECT_PLANNING") return getStringValue(raw, "nama_project") ?? "Project Planning";
+    return type;
+};
+
+const getSubtitleForApprovalItem = (raw: unknown) =>
+    [
+        getStringValue(raw, "nomor_ulok") ?? getTokoStringValue(raw, "nomor_ulok"),
+        getStringValue(raw, "lingkup_pekerjaan") ?? getTokoStringValue(raw, "lingkup_pekerjaan"),
+        getStringValue(raw, "cabang") ?? getTokoStringValue(raw, "cabang"),
+    ].filter(Boolean).join(" | ");
+
+const toApprovalNotificationItem = (item: CountableApprovalItem): ApprovalNotificationItem => {
+    const raw = item.raw ?? {};
+    const entityId = getEntityId(raw);
+    return {
+        id: `approval-${item.tipe}-${entityId}`,
+        tipe: item.tipe,
+        entity_id: entityId,
+        title: getTitleForApprovalItem(item.tipe, raw),
+        subtitle: getSubtitleForApprovalItem(raw) || item.tipe,
+        description: item.status || "Menunggu persetujuan",
+        status: item.status,
+        cabang: item.cabang,
+        action_url: `/approval?type=${item.tipe}`,
+    };
+};
+
+export const fetchApprovalNotificationItems = async (user: UserSession): Promise<ApprovalNotificationItem[]> => {
+    const accessibleTypes = getAccessibleApprovalTypes(user);
+    const jabatan = getApprovalJabatan(user);
+    const items: ApprovalNotificationItem[] = [];
+
+    for (const type of accessibleTypes) {
+        try {
+            let countableItems: CountableApprovalItem[] = [];
+            if (type === "RAB") {
+                const res = await fetchRABList(undefined, { suppressGlobalError: true });
+                countableItems = (res.data ?? []).map(item => ({
+                    tipe: "RAB",
+                    status: item.status,
+                    cabang: item.cabang ?? item.toko?.cabang,
+                    raw: item,
+                }));
+            } else if (type === "SPK") {
+                const res = await fetchSPKList({ status: "WAITING_FOR_BM_APPROVAL" }, { suppressGlobalError: true });
+                countableItems = (res.data ?? []).map((item: unknown) => ({
+                    tipe: "SPK",
+                    status: getStringValue(item, "status") ?? "",
+                    cabang: getTokoStringValue(item, "cabang") ?? getStringValue(item, "cabang"),
+                    raw: item,
+                }));
+            } else if (type === "PERTAMBAHAN_SPK") {
+                const res = await fetchPertambahanSPKList({ status_persetujuan: "Menunggu Persetujuan" }, { suppressGlobalError: true });
+                countableItems = (res.data ?? []).map((item: unknown) => ({
+                    tipe: "PERTAMBAHAN_SPK",
+                    status: getStringValue(item, "status_persetujuan") ?? "",
+                    cabang: getTokoStringValue(item, "cabang"),
+                    raw: item,
+                }));
+            } else if (type === "OPNAME") {
+                const res = await fetchOpnameFinalList({ aksi: "terkunci", tipe_opname: "OPNAME_FINAL" }, { suppressGlobalError: true });
+                countableItems = getOpnameRows(res.data).map((item: unknown) => ({
+                    tipe: "OPNAME",
+                    status: getStringValue(item, "status_opname_final") ?? "",
+                    cabang: getStringValue(item, "cabang") ?? getTokoStringValue(item, "cabang"),
+                    raw: item,
+                }));
+            } else if (type === "INSTRUKSI_LAPANGAN") {
+                const res = await fetchInstruksiLapanganList(undefined, { suppressGlobalError: true });
+                countableItems = (res.data ?? []).map((item: unknown) => ({
+                    tipe: "INSTRUKSI_LAPANGAN",
+                    status: getStringValue(item, "status") ?? "",
+                    cabang: getStringValue(item, "cabang"),
+                    raw: item,
+                }));
+            } else if (type === "PROJECT_PLANNING") {
+                const res = await fetchProjekPlanningList(undefined, { suppressGlobalError: true });
+                countableItems = (res.data ?? []).map((item: unknown) => ({
+                    tipe: "PROJECT_PLANNING",
+                    status: getStringValue(item, "status") ?? "",
+                    cabang: getStringValue(item, "cabang"),
+                    raw: item,
+                }));
+            }
+
+            items.push(...countableItems.filter(item => canCountForUser(item, user, jabatan)).map(toApprovalNotificationItem));
+        } catch (error) {
+            console.warn(`Gagal memuat detail notifikasi approval ${type}:`, error);
+        }
+    }
+
+    return items;
+};
+
 export const getApprovalNotificationTotal = (counts: ApprovalCounts, types?: ApprovalType[]) =>
     (types ?? (Object.keys(counts) as ApprovalType[])).reduce((total, type) => total + (counts[type] ?? 0), 0);
