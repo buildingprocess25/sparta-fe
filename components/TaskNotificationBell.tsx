@@ -4,114 +4,28 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import { useSession } from "@/context/SessionContext";
 import {
-    fetchApprovalNotificationItems,
-    type ApprovalNotificationItem,
-} from "@/lib/approval-notifications";
-import {
-    checkRevisionStatus,
-    fetchInstruksiLapanganList,
-    fetchOpnameFinalList,
-    fetchPICPengawasanList,
-    fetchPertambahanSPKList,
-    fetchRabProjectPlanningRequests,
-    fetchSPKList,
     fetchTaskNotifications,
     type TaskNotificationGroup,
     type TaskNotificationItem,
 } from "@/lib/api";
 import { Bell, ArrowLeft, ChevronRight, ClipboardCheck, FileCheck2, Loader2 } from "lucide-react";
 
-type PanelGroup = {
-    key: string;
-    title: string;
-    description: string;
-    count: number;
-    items: TaskNotificationItem[];
+type PanelGroup = TaskNotificationGroup & {
     accent: string;
 };
 
-const APPROVAL_LABELS: Record<string, string> = {
-    RAB: "Approval RAB",
-    SPK: "Approval SPK",
-    PERTAMBAHAN_SPK: "Approval Pertambahan SPK",
-    OPNAME: "Approval KTK",
-    INSTRUKSI_LAPANGAN: "Approval Instruksi Lapangan",
-    PROJECT_PLANNING: "Approval Project Planning",
+const getGroupAccent = (key: string) => {
+    if (key === "approval_pending") return "bg-sky-50 text-sky-700 border-sky-200";
+    if (key === "support_ktk_ready") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (key === "revision_required") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (key === "pic_pengawasan_missing") return "bg-violet-50 text-violet-700 border-violet-200";
+    if (key === "rab_project_planning_request") return "bg-blue-50 text-blue-700 border-blue-200";
+    return "bg-slate-50 text-slate-700 border-slate-200";
 };
 
-const buildApprovalGroup = (approvalItems: ApprovalNotificationItem[]): PanelGroup => {
-    const items = approvalItems.map((item) => ({
-            id: item.id,
-            entity_type: item.tipe,
-            entity_id: Number(item.entity_id) || 0,
-            title: item.title,
-            subtitle: item.subtitle,
-            description: item.description,
-            action_label: APPROVAL_LABELS[item.tipe] ?? "Buka Approval",
-            action_url: item.action_url,
-        }));
-
-    return {
-        key: "approval_pending",
-        title: "Approval Menunggu",
-        description: "Dokumen yang menunggu persetujuan role Anda.",
-        count: approvalItems.length,
-        items,
-        accent: "bg-sky-50 text-sky-700 border-sky-200",
-    };
-};
-
-const isContractorUser = (user: NonNullable<ReturnType<typeof useSession>["user"]>) =>
-    user.roles.some(role => role.includes("KONTRAKTOR"));
-
-const normalizeBranch = (value?: string | null) =>
-    String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase();
-
-const isSameBranchScope = (itemCabang: string | null | undefined, userCabang: string) => {
-    const item = normalizeBranch(itemCabang);
-    const user = normalizeBranch(userCabang);
-    if (!item || !user || item === "-") return true;
-    const groups = [
-        ["LOMBOK", "SUMBAWA"],
-        ["CIKOKOL", "BINTAN"],
-        ["MEDAN", "ACEH"],
-        ["LAMPUNG", "KOTABUMI"],
-        ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
-        ["SIDOARJO", "SIDOARJO BPN_SMD", "MANOKWARI", "NTT", "SORONG"],
-    ];
-    const group = groups.find(items => items.includes(user));
-    return group ? group.includes(item) : item === user;
-};
-
-const canSeeBranchItem = (user: NonNullable<ReturnType<typeof useSession>["user"]>, cabang?: string | null) =>
-    user.isHO || user.isSuperHuman || user.isRegionalManager || isSameBranchScope(cabang, user.cabang);
-
-const canReceivePicTask = (user: NonNullable<ReturnType<typeof useSession>["user"]>) =>
-    user.isSuperHuman
-    || user.roles.some(role =>
-        role.includes("BRANCH BUILDING COORDINATOR")
-        || role.includes("BRANCH BUILDING & MAINTENANCE MANAGER")
-    );
-
-const canReceiveRevisionTask = (user: NonNullable<ReturnType<typeof useSession>["user"]>) =>
-    user.isSuperHuman
-    || user.roles.some(role =>
-        role.includes("KONTRAKTOR")
-        || role.includes("BRANCH BUILDING COORDINATOR")
-        || role.includes("BRANCH BUILDING & MAINTENANCE MANAGER")
-        || role.includes("BRANCH MANAGER")
-        || role.includes("SUPPORT")
-    );
-
-const mapBackendGroup = (group: TaskNotificationGroup): PanelGroup => ({
+const mapGroup = (group: TaskNotificationGroup): PanelGroup => ({
     ...group,
-    accent: group.key === "support_ktk_ready"
-        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-        : group.key === "revision_rejected"
-            ? "bg-amber-50 text-amber-700 border-amber-200"
-            : group.key === "rab_project_planning_request"
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-slate-50 text-slate-700 border-slate-200",
+    accent: getGroupAccent(group.key),
 });
 
 export default function TaskNotificationBell({ variant = "brand" }: { variant?: "brand" | "clean" }) {
@@ -119,10 +33,8 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     const { user, isLoading } = useSession();
     const [open, setOpen] = useState(false);
     const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
+    const [groups, setGroups] = useState<PanelGroup[]>([]);
     const [loading, setLoading] = useState(false);
-    const [approvalItems, setApprovalItems] = useState<ApprovalNotificationItem[]>([]);
-    const [backendGroups, setBackendGroups] = useState<PanelGroup[]>([]);
-    const [localGroups, setLocalGroups] = useState<PanelGroup[]>([]);
     const [autoPopupDone, setAutoPopupDone] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -130,205 +42,11 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
         if (!user) return;
         setLoading(true);
         try {
-            const [approvalItemsResult, taskResult, revisionResult, planningResult, spkRejectedResult, pspkRejectedResult, ilRejectedResult, ktkRejectedResult, spkApprovedResult] = await Promise.allSettled([
-                fetchApprovalNotificationItems(user),
-                fetchTaskNotifications({ suppressGlobalError: true }),
-                checkRevisionStatus(user.email, user.cabang),
-                isContractorUser(user)
-                    ? fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
-                    : Promise.resolve({ status: "success", count: 0, data: [] }),
-                canReceiveRevisionTask(user)
-                    ? fetchSPKList({ status: "SPK_REJECTED" }, { suppressGlobalError: true })
-                    : Promise.resolve({ status: "success", data: [] }),
-                canReceiveRevisionTask(user)
-                    ? fetchPertambahanSPKList({ status_persetujuan: "Ditolak BM" }, { suppressGlobalError: true })
-                    : Promise.resolve({ status: "success", data: [] }),
-                canReceiveRevisionTask(user)
-                    ? fetchInstruksiLapanganList({ status: "Ditolak" }, { suppressGlobalError: true })
-                    : Promise.resolve({ status: "success", data: [] }),
-                canReceiveRevisionTask(user)
-                    ? fetchOpnameFinalList({ aksi: "terkunci", tipe_opname: "OPNAME_FINAL" }, { suppressGlobalError: true })
-                    : Promise.resolve({ status: "success", data: [] }),
-                canReceivePicTask(user)
-                    ? fetchSPKList({ status: "SPK_APPROVED" }, { suppressGlobalError: true })
-                    : Promise.resolve({ status: "success", data: [] }),
-            ]);
-
-            if (approvalItemsResult.status === "fulfilled") setApprovalItems(approvalItemsResult.value);
-            else setApprovalItems([]);
-
-            if (taskResult.status === "fulfilled") {
-                setBackendGroups((taskResult.value.data?.groups ?? []).map(mapBackendGroup));
-            } else {
-                setBackendGroups([]);
-            }
-
-            const nextLocalGroups: PanelGroup[] = [];
-            if (revisionResult.status === "fulfilled") {
-                const revisions = revisionResult.value.rejected_submissions ?? [];
-                nextLocalGroups.push(mapBackendGroup({
-                    key: "revision_rejected",
-                    title: "Revisi / Ditolak",
-                    description: "Dokumen yang dikembalikan dan perlu diperbaiki.",
-                    count: revisions.length,
-                    items: revisions.map((item: any) => ({
-                        id: `rab-revision-${item.id ?? item["Nomor Ulok"]}`,
-                        entity_type: "RAB_REJECTED",
-                        entity_id: Number(item.id || 0),
-                        title: item.nama_toko || item["Nomor Ulok"] || "RAB Ditolak",
-                        subtitle: [item["Nomor Ulok"], item.lingkup_pekerjaan || item["Lingkup Pekerjaan"], item.Proyek || item["Proyek"]].filter(Boolean).join(" | "),
-                        description: item.alasan_penolakan ? `Alasan: ${item.alasan_penolakan}` : "RAB perlu direvisi dan diajukan ulang.",
-                        action_label: "Revisi RAB",
-                        action_url: item.id ? `/rab?revision_id=${item.id}` : "/rab",
-                        metadata: item,
-                    })),
-                }));
-            }
-
-            const rejectedItems: TaskNotificationItem[] = [];
-            if (spkRejectedResult.status === "fulfilled") {
-                rejectedItems.push(...(spkRejectedResult.value.data ?? [])
-                    .filter((item: any) => canSeeBranchItem(user, item.toko?.cabang))
-                    .map((item: any) => ({
-                        id: `spk-rejected-${item.id}`,
-                        entity_type: "SPK_REJECTED",
-                        entity_id: Number(item.id || 0),
-                        id_toko: item.id_toko,
-                        title: item.toko?.nama_toko || item.nomor_ulok || "SPK Ditolak",
-                        subtitle: [item.nomor_ulok, item.lingkup_pekerjaan, item.toko?.cabang].filter(Boolean).join(" | "),
-                        description: item.alasan_penolakan ? `Alasan: ${item.alasan_penolakan}` : "SPK perlu diperbaiki/diajukan ulang.",
-                        action_label: "Buka SPK",
-                        action_url: `/spk?nomor_ulok=${encodeURIComponent(item.nomor_ulok || '')}&lingkup=${encodeURIComponent(item.lingkup_pekerjaan || '')}&id_toko=${encodeURIComponent(String(item.id_toko || ''))}`,
-                        metadata: item,
-                    })));
-            }
-            if (pspkRejectedResult.status === "fulfilled") {
-                rejectedItems.push(...(pspkRejectedResult.value.data ?? [])
-                    .filter((item: any) => canSeeBranchItem(user, item.toko?.cabang ?? item.spk?.cabang))
-                    .map((item: any) => ({
-                        id: `pspk-rejected-${item.id}`,
-                        entity_type: "PERTAMBAHAN_SPK_REJECTED",
-                        entity_id: Number(item.id || 0),
-                        title: item.toko?.nama_toko || item.spk?.nama_toko || item.nomor_spk || "Pertambahan SPK Ditolak",
-                        subtitle: [item.toko?.nomor_ulok || item.spk?.nomor_ulok, item.nomor_spk, item.toko?.cabang || item.spk?.cabang].filter(Boolean).join(" | "),
-                        description: item.alasan_penolakan ? `Alasan: ${item.alasan_penolakan}` : "Pertambahan SPK perlu diperbaiki.",
-                        action_label: "Buka Pertambahan SPK",
-                        action_url: item.id_spk || item.spk?.id ? `/tambahspk?spk_id=${encodeURIComponent(String(item.id_spk || item.spk?.id))}&pertambahan_id=${encodeURIComponent(String(item.id || ''))}` : "/tambahspk",
-                        metadata: item,
-                    })));
-            }
-            if (ilRejectedResult.status === "fulfilled") {
-                rejectedItems.push(...(ilRejectedResult.value.data ?? [])
-                    .filter((item: any) => canSeeBranchItem(user, item.cabang))
-                    .map((item: any) => ({
-                        id: `il-rejected-${item.id}`,
-                        entity_type: "INSTRUKSI_LAPANGAN_REJECTED",
-                        entity_id: Number(item.id || 0),
-                        id_toko: item.id_toko,
-                        title: item.nama_toko || item.nomor_ulok || "Instruksi Lapangan Ditolak",
-                        subtitle: [item.nomor_ulok, item.lingkup_pekerjaan, item.cabang].filter(Boolean).join(" | "),
-                        description: item.alasan_penolakan ? `Alasan: ${item.alasan_penolakan}` : "Instruksi Lapangan perlu diperbaiki.",
-                        action_label: "Buka Instruksi Lapangan",
-                        action_url: `/instruksi-lapangan?revision_id=${encodeURIComponent(String(item.id || ''))}&id_toko=${encodeURIComponent(String(item.id_toko || ''))}`,
-                        metadata: item,
-                    })));
-            }
-            if (ktkRejectedResult.status === "fulfilled") {
-                const rows = Array.isArray(ktkRejectedResult.value.data)
-                    ? ktkRejectedResult.value.data
-                    : Array.isArray((ktkRejectedResult.value.data as any)?.opname_final)
-                        ? (ktkRejectedResult.value.data as any).opname_final
-                        : [];
-                rejectedItems.push(...rows
-                    .filter((item: any) => String(item.status_opname_final || "").toUpperCase().includes("DITOLAK"))
-                    .filter((item: any) => canSeeBranchItem(user, item.cabang))
-                    .map((item: any) => ({
-                        id: `ktk-rejected-${item.id}`,
-                        entity_type: "OPNAME_FINAL_REJECTED",
-                        entity_id: Number(item.id || 0),
-                        id_toko: item.id_toko,
-                        title: item.nama_toko || item.nomor_ulok || "KTK Ditolak",
-                        subtitle: [item.nomor_ulok, item.lingkup_pekerjaan, item.cabang].filter(Boolean).join(" | "),
-                        description: item.alasan_penolakan ? `Alasan: ${item.alasan_penolakan}` : item.status_opname_final || "KTK perlu diperbaiki.",
-                        action_label: "Buka Opname",
-                        action_url: item.id_toko ? `/opname?id_toko=${item.id_toko}` : "/opname",
-                        metadata: item,
-                    })));
-            }
-
-            if (rejectedItems.length > 0) {
-                const existingRevisionGroup = nextLocalGroups.find(group => group.key === "revision_rejected");
-                if (existingRevisionGroup) {
-                    existingRevisionGroup.items.push(...rejectedItems);
-                    existingRevisionGroup.count = existingRevisionGroup.items.length;
-                } else {
-                    nextLocalGroups.push(mapBackendGroup({
-                        key: "revision_rejected",
-                        title: "Revisi / Ditolak",
-                        description: "Dokumen yang dikembalikan dan perlu diperbaiki.",
-                        count: rejectedItems.length,
-                        items: rejectedItems,
-                    }));
-                }
-            }
-
-            if (planningResult.status === "fulfilled") {
-                const requests = planningResult.value.data ?? [];
-                nextLocalGroups.push(mapBackendGroup({
-                    key: "rab_project_planning_request",
-                    title: "Permintaan RAB Project Planning",
-                    description: "ULOK dari FPD yang membutuhkan penawaran RAB.",
-                    count: requests.length,
-                    items: requests.map((request: any) => ({
-                        id: `rab-planning-${request.projek_planning_id}-${request.lingkup_pekerjaan}`,
-                        entity_type: "RAB_PROJECT_PLANNING_REQUEST",
-                        entity_id: Number(request.projek_planning_id || 0),
-                        id_toko: request.id_toko ?? undefined,
-                        title: request.nama_toko || request.nama_lokasi || request.nomor_ulok || "Permintaan RAB",
-                        subtitle: [request.nomor_ulok, request.lingkup_pekerjaan, request.cabang].filter(Boolean).join(" | "),
-                        description: "Project Planning membutuhkan penawaran untuk melanjutkan proses.",
-                        action_label: "Buat Penawaran",
-                        action_url: `/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`,
-                        metadata: request,
-                    })),
-                }));
-            }
-
-            if (spkApprovedResult.status === "fulfilled" && canReceivePicTask(user)) {
-                const approvedSpks = (spkApprovedResult.value.data ?? [])
-                    .filter((item: any) => canSeeBranchItem(user, item.toko?.cabang));
-                const picChecks = await Promise.allSettled(
-                    approvedSpks.map((item: any) => fetchPICPengawasanList({ id_toko: Number(item.id_toko) }))
-                );
-                const missingPicItems = approvedSpks.filter((item: any, index: number) => {
-                    const result = picChecks[index];
-                    if (result.status !== "fulfilled") return false;
-                    return (result.value.data ?? []).length === 0;
-                }).map((item: any) => ({
-                    id: `pic-missing-${item.id_toko}`,
-                    entity_type: "PIC_PENGAWASAN_MISSING",
-                    entity_id: Number(item.id_toko || 0),
-                    id_toko: item.id_toko,
-                    title: item.toko?.nama_toko || item.nomor_ulok || "PIC Pengawasan Belum Dibuat",
-                    subtitle: [item.nomor_ulok, item.lingkup_pekerjaan, item.toko?.cabang].filter(Boolean).join(" | "),
-                    description: "SPK sudah approved, tetapi PIC pengawasan belum ditentukan.",
-                    action_label: "Input PIC",
-                    action_url: item.id_toko ? `/inputpic?id_toko=${item.id_toko}` : "/inputpic",
-                    metadata: item,
-                }));
-
-                if (missingPicItems.length > 0) {
-                    nextLocalGroups.push(mapBackendGroup({
-                        key: "pic_pengawasan_missing",
-                        title: "PIC Pengawasan",
-                        description: "Proyek yang perlu penentuan PIC pengawasan.",
-                        count: missingPicItems.length,
-                        items: missingPicItems,
-                    }));
-                }
-            }
-
-            setLocalGroups(nextLocalGroups);
+            const result = await fetchTaskNotifications({ suppressGlobalError: true });
+            setGroups((result.data?.groups ?? []).map(mapGroup).filter(group => group.count > 0));
+        } catch (error) {
+            console.warn("Gagal memuat notifikasi tugas:", error);
+            setGroups([]);
         } finally {
             setLoading(false);
         }
@@ -348,13 +66,7 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
         return () => document.removeEventListener("mousedown", handleClick);
     }, []);
 
-    const groups = useMemo(() => {
-        if (!user) return [];
-        const approvalGroup = buildApprovalGroup(approvalItems);
-        return [approvalGroup, ...backendGroups, ...localGroups].filter((group) => group.count > 0);
-    }, [approvalItems, backendGroups, localGroups, user]);
-
-    const total = groups.reduce((sum, group) => sum + group.count, 0);
+    const total = useMemo(() => groups.reduce((sum, group) => sum + group.count, 0), [groups]);
     const activeGroup = groups.find((group) => group.key === activeGroupKey) ?? null;
     const isClean = variant === "clean";
 
@@ -400,7 +112,7 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
             </button>
 
             {open && (
-                <div className="absolute right-0 mt-3 w-[min(92vw,420px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
+                <div className="absolute right-0 z-50 mt-3 w-[min(92vw,420px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
                     {!activeGroup ? (
                         <>
                             <div className="border-b border-slate-100 px-4 py-3">
@@ -461,22 +173,24 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
                                 </div>
                             </div>
                             <div className="max-h-[65vh] overflow-y-auto p-2">
-                                {activeGroup.items.map((item) => (
+                                {activeGroup.items.length === 0 ? (
+                                    <div className="px-4 py-8 text-center text-sm text-slate-500">Tidak ada item.</div>
+                                ) : activeGroup.items.map((item) => (
                                     <button
                                         key={item.id}
                                         type="button"
                                         onClick={() => goToItem(item)}
-                                        className="w-full rounded-xl border border-slate-100 bg-white p-3 text-left transition hover:border-red-200 hover:bg-red-50"
+                                        className="w-full rounded-xl p-3 text-left transition hover:bg-slate-50"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
-                                                <p className="truncate text-sm font-black text-slate-900">{item.title}</p>
-                                                <p className="mt-1 text-xs font-semibold text-slate-500">{item.subtitle}</p>
-                                                <p className="mt-2 text-xs text-slate-500">{item.description}</p>
+                                                <p className="truncate text-sm font-black text-slate-800">{item.title}</p>
+                                                <p className="mt-0.5 text-xs font-semibold text-slate-500">{item.subtitle}</p>
+                                                <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.description}</p>
                                             </div>
-                                            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-red-500" />
+                                            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
                                         </div>
-                                        <p className="mt-3 text-xs font-black text-red-700">{item.action_label}</p>
+                                        <p className="mt-2 text-xs font-black text-blue-600">{item.action_label}</p>
                                     </button>
                                 ))}
                             </div>

@@ -2571,7 +2571,7 @@ export type TaskNotificationGroup = {
 
 export const fetchTaskNotifications = async (
     options?: ApiRequestOptions
-): Promise<{ status: string; data: { groups: TaskNotificationGroup[] } }> =>
+): Promise<{ status: string; data: { total?: number; groups: TaskNotificationGroup[] } }> =>
     safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/task-notifications`, options);
 
 
