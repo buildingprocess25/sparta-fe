@@ -61,6 +61,25 @@ function formatDateDDMMYYYY(date: Date): string {
     return `${day}/${month}/${date.getFullYear()}`;
 }
 
+function parseGanttDayValue(value: unknown): number {
+    const raw = String(value ?? '').trim();
+    if (!raw) return NaN;
+
+    if (raw.includes('/')) {
+        const parsed = parseDateDDMMYYYY(raw);
+        return parsed ? Math.floor(parsed.getTime() / 86_400_000) : NaN;
+    }
+
+    const isoDate = parseDateOnly(raw);
+    if (isoDate) return Math.floor(isoDate.getTime() / 86_400_000);
+
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) return numeric;
+
+    const match = raw.match(/\d+/);
+    return match ? Number(match[0]) : NaN;
+}
+
 function normalizeScope(value: string | null | undefined): string {
     const scope = String(value || '').trim().toUpperCase();
     if (scope.includes('SIPIL')) return 'SIPIL';
@@ -94,8 +113,8 @@ function formatScopeList(scopes: Array<string | null | undefined>): string {
 function getGanttDurationFromDayItems(dayItems: Array<{ h_awal?: number | string | null; h_akhir?: number | string | null }> | null | undefined): number {
     const ranges = (dayItems || [])
         .map(item => ({
-            start: Number(item.h_awal),
-            end: Number(item.h_akhir),
+            start: parseGanttDayValue(item.h_awal),
+            end: parseGanttDayValue(item.h_akhir),
         }))
         .filter(item => Number.isFinite(item.start) && Number.isFinite(item.end) && item.start > 0 && item.end > 0);
 
@@ -188,7 +207,8 @@ function InteractiveGanttChart({
                         const diff = Math.round((parsed.getTime() - projectStart.getTime()) / msPerDay);
                         return diff + 1;
                     }
-                    return parseInt(val);
+                    const parsed = parseGanttDayValue(val);
+                    return Number.isFinite(parsed) ? parsed : NaN;
                 };
 
                 const endDaysRaw = day_items.map((entry: any) => toDayNumber(entry.h_akhir)).filter((d: number) => !isNaN(d));
@@ -1029,7 +1049,7 @@ function ScopePicForm({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-lg border border-slate-100">
                     <InfoItem icon={<Clock className="w-3.5 h-3.5" />} label="Durasi Gantt" value={`${ganttTimeline.duration || '-'} Hari`} />
                     <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Mulai Bersama" value={formatTanggal(ganttTimeline.startDate)} highlight />
-                    <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Selesai Terakhir" value={sharedTimeline.endDate ? formatDateDDMMYYYY(sharedTimeline.endDate) : '-'} />
+                    <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Selesai Terakhir" value={ganttTimeline.endDate ? formatDateDDMMYYYY(ganttTimeline.endDate) : '-'} />
                 </div>
 
                 {ganttTargets.length > 0 && (
