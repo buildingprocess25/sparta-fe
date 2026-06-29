@@ -559,7 +559,7 @@ const ApprovalHistoryRow = ({ label, pemberi, waktu, catatan }: {
 // =============================================
 // MAIN PAGE COMPONENT
 // =============================================
-export default function ApprovalPage() {
+function ApprovalPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -2458,5 +2458,13 @@ export default function ApprovalPage() {
 
             </main>
         </div>
+    );
+}
+
+export default function ApprovalPage() {
+    return (
+        <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}>
+            <ApprovalPageContent />
+        </React.Suspense>
     );
 }
