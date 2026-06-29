@@ -91,6 +91,20 @@ function formatScopeList(scopes: Array<string | null | undefined>): string {
         .join(' + ');
 }
 
+function getGanttDurationFromDayItems(dayItems: Array<{ h_awal?: number | string | null; h_akhir?: number | string | null }> | null | undefined): number {
+    const ranges = (dayItems || [])
+        .map(item => ({
+            start: Number(item.h_awal),
+            end: Number(item.h_akhir),
+        }))
+        .filter(item => Number.isFinite(item.start) && Number.isFinite(item.end) && item.start > 0 && item.end > 0);
+
+    if (ranges.length === 0) return 0;
+    const minStart = Math.min(...ranges.map(item => item.start));
+    const maxEnd = Math.max(...ranges.map(item => item.end));
+    return Math.max(0, maxEnd - minStart + 1);
+}
+
 function getProjectGroupKey(item: Pick<PicScopeGroup, 'nomor_ulok' | 'kode_toko' | 'toko'>): string {
     const storeKey = String(item.kode_toko || item.toko?.kode_toko || item.toko?.nama_toko || '').trim().toUpperCase();
     return `${normalizeUlok(item.nomor_ulok)}::${storeKey}`;
@@ -630,7 +644,6 @@ function ScopePicForm({
     }, [allSpks]);
     const [picName, setPicName] = useState('');
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
-    const ganttDuration = sharedTimeline.duration;
     const autoSelectedLastDayRef = useRef<number | null>(null);
     const [ganttTargets, setGanttTargets] = useState<Array<{
         id: number;
@@ -638,6 +651,9 @@ function ScopePicForm({
         nomorUlok: string;
         spk: SPKListItem;
         lingkup: string;
+        startDate: string;
+        duration: number;
+        createdAt: string;
         pengawasanDates: string[];
     }>>([]);
     const [existingScopeKeys, setExistingScopeKeys] = useState<Set<string>>(() => new Set());
@@ -725,10 +741,19 @@ function ScopePicForm({
                             nomorUlok: string;
                             spk: SPKListItem;
                             lingkup: string;
+                            startDate: string;
+                            duration: number;
+                            createdAt: string;
                             pengawasanDates: string[];
                         }>();
 
-                        details.forEach(d => {
+                        details
+                            .sort((a, b) => {
+                                const aTime = new Date(a.data?.gantt?.timestamp || 0).getTime();
+                                const bTime = new Date(b.data?.gantt?.timestamp || 0).getTime();
+                                return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+                            })
+                            .forEach(d => {
                             const ganttScope = d.data?.toko?.lingkup_pekerjaan;
                             const ganttUlok = d.data?.toko?.nomor_ulok;
                             const ganttId = d.data?.gantt?.id;
@@ -744,6 +769,10 @@ function ScopePicForm({
                             const matchedSpk = matchedGroup.spks[0];
                             if (!matchedSpk) return;
 
+                            const ganttDurationFromItems = getGanttDurationFromDayItems(d.data?.day_items);
+                            const fallbackDuration = Number(matchedSpk.durasi || 0);
+                            const duration = ganttDurationFromItems || fallbackDuration;
+                            const startDate = matchedSpk.waktu_mulai || '';
                             const gScope = d.data.toko.lingkup_pekerjaan.toUpperCase();
                             targetsByGroup.set(matchedGroup.key, {
                                 id: ganttId,
@@ -751,6 +780,9 @@ function ScopePicForm({
                                 nomorUlok: matchedGroup.nomor_ulok,
                                 spk: matchedSpk,
                                 lingkup: gScope,
+                                startDate,
+                                duration,
+                                createdAt: d.data?.gantt?.timestamp || '',
                                 pengawasanDates: (d.data?.pengawasan || [])
                                     .map((item: any) => item.tanggal_pengawasan)
                                     .filter(Boolean)
@@ -769,6 +801,38 @@ function ScopePicForm({
             .catch(console.error);
     }, [groups, allSpks]);
 
+    const ganttTimeline = useMemo(() => {
+        if (ganttTargets.length === 0) return sharedTimeline;
+
+        const starts = ganttTargets
+            .map(target => parseDateOnly(target.startDate))
+            .filter((date): date is Date => date !== null);
+        if (starts.length === 0) return sharedTimeline;
+
+        const startDate = new Date(Math.min(...starts.map(date => date.getTime())));
+        const endDates = ganttTargets
+            .map(target => {
+                const start = parseDateOnly(target.startDate);
+                const duration = Number(target.duration || 0);
+                if (!start || duration <= 0) return null;
+                const end = new Date(start);
+                end.setDate(end.getDate() + duration - 1);
+                return end;
+            })
+            .filter((date): date is Date => date !== null);
+        const endDate = endDates.length > 0
+            ? new Date(Math.max(...endDates.map(date => date.getTime())))
+            : startDate;
+        const duration = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+
+        return {
+            startDate: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`,
+            duration,
+            endDate,
+        };
+    }, [ganttTargets, sharedTimeline]);
+    const ganttDuration = ganttTimeline.duration;
+
     useEffect(() => {
         if ((!isPartialCompletion && !isLocked) || ganttTargets.length === 0) return;
 
@@ -779,7 +843,7 @@ function ScopePicForm({
         const sourceDates = Array.from(new Set(sourceTarget?.pengawasanDates || []));
         setExistingScheduleDates(sourceDates);
 
-        const sharedStart = parseDateOnly(sharedTimeline.startDate);
+        const sharedStart = parseDateOnly(ganttTimeline.startDate);
         if (!sharedStart) {
             setSelectedDays([]);
             return;
@@ -791,7 +855,7 @@ function ScopePicForm({
             .filter(day => day > 0)
             .sort((a, b) => a - b);
         setSelectedDays(days);
-    }, [isPartialCompletion, isLocked, ganttTargets, groups, existingScopeKeys, sharedTimeline.startDate]);
+    }, [isPartialCompletion, isLocked, ganttTargets, groups, existingScopeKeys, ganttTimeline.startDate]);
 
     useEffect(() => {
         if (ganttDuration <= 0 || isLocked || isPartialCompletion) return;
@@ -878,7 +942,7 @@ function ScopePicForm({
                 throw new Error(`Gantt Chart lingkup ${scopeLabel} belum lengkap untuk ULOK ini.`);
             }
 
-            const sharedStartDate = parseDateOnly(sharedTimeline.startDate);
+            const sharedStartDate = parseDateOnly(ganttTimeline.startDate);
             if (!sharedStartDate) {
                 throw new Error(`Tanggal mulai ${scopeLabel} tidak valid.`);
             }
@@ -917,7 +981,7 @@ function ScopePicForm({
                     id_spk: scopeSpk.id,
                     kategori_lokasi: scopeRabDetail.kategori_lokasi || '-',
                     durasi: `${scopeSpk.durasi} Hari`,
-                    tanggal_mulai_spk: sharedTimeline.startDate,
+                    tanggal_mulai_spk: ganttTimeline.startDate,
                     plc_building_support: picName.trim(),
                     hari_pengawasan: selectedDays,
                 });
@@ -963,8 +1027,8 @@ function ScopePicForm({
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                    <InfoItem icon={<Clock className="w-3.5 h-3.5" />} label="Durasi Gabungan" value={`${sharedTimeline.duration || '-'} Hari`} />
-                    <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Mulai Bersama" value={formatTanggal(sharedTimeline.startDate)} highlight />
+                    <InfoItem icon={<Clock className="w-3.5 h-3.5" />} label="Durasi Gantt" value={`${ganttTimeline.duration || '-'} Hari`} />
+                    <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Mulai Bersama" value={formatTanggal(ganttTimeline.startDate)} highlight />
                     <InfoItem icon={<Calendar className="w-3.5 h-3.5" />} label="Selesai Terakhir" value={sharedTimeline.endDate ? formatDateDDMMYYYY(sharedTimeline.endDate) : '-'} />
                 </div>
 
@@ -1008,8 +1072,8 @@ function ScopePicForm({
                                                 readonlyDays={isReadOnly || isPartialCompletion || isLocked}
                                                 selectedDays={selectedDays}
                                                 onToggleDay={handleToggleDay}
-                                                spkStartDate={sharedTimeline.startDate}
-                                                spkDuration={sharedTimeline.duration}
+                                                spkStartDate={target.startDate || ganttTimeline.startDate}
+                                                spkDuration={target.duration || ganttTimeline.duration}
                                                 requiredDays={requiredDays}
                                             />
                                         </div>
