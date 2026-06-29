@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import {
   ArrowLeft,
   ArrowRightLeft,
@@ -522,6 +522,86 @@ function SpecializedDetailContent({
   const selected = rows[Math.min(selectedIndex, Math.max(0, rows.length - 1))];
   const project = selected?.__kind ? null : selected;
 
+  const stageIconMap: Record<string, typeof HardHat> = {
+    "Approval RAB": FileText,
+    "Proses Gantt": CalendarDays,
+    "Proses PJU": Clock3,
+    "Approval SPK": UserCheck,
+    "Ongoing": HardHat,
+    "Kerja Tambah Kurang": Layers3,
+  };
+  const stageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
+    "Approval RAB":        { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
+    "Proses Gantt":        { text: "text-sky-600",    bar: "bg-sky-500",    borderTop: "border-t-sky-500",    bg: "bg-sky-50" },
+    "Proses PJU":          { text: "text-amber-600",  bar: "bg-amber-500",  borderTop: "border-t-amber-500",  bg: "bg-amber-50" },
+    "Approval SPK":        { text: "text-emerald-600",bar: "bg-emerald-500",borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
+    "Ongoing":             { text: "text-red-600",    bar: "bg-red-500",    borderTop: "border-t-red-500",    bg: "bg-red-50" },
+    "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
+  };
+
+  if (selectedProjectDetail) {
+    const p = selectedProjectDetail;
+    const pStage = getStage(p);
+    const pLate = getLateDays(p);
+    const pPenalty = getPenalty(p);
+    const pQuality = getQuality(opnameItemsMap[p?.toko?.id] || []);
+    const colors = stageColorMap[pStage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
+    const Icon = stageIconMap[pStage] || FileText;
+    return (
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
+        <button type="button" onClick={() => onBackFromProject()} className="group mb-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+          <ArrowLeft className="h-4 w-4 text-slate-500 transition-transform group-hover:-translate-x-0.5" />
+          <span className="text-[11px] font-semibold text-slate-600">Kembali ke Daftar</span>
+          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500">{p?.toko?.nama_toko}</span>
+        </button>
+
+        <div className={`relative overflow-hidden rounded-xl border border-slate-200 border-t-4 ${colors.borderTop} bg-white p-6 shadow-sm`}>
+          <div className="flex items-start gap-4">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${colors.bg}`}>
+              <Icon className={`h-6 w-6 ${colors.text}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>{pStage}</span>
+                {pLate > 0 && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">Terlambat {pLate} hari</span>}
+              </div>
+              <h2 className="mt-2 text-xl font-bold text-slate-900 leading-tight">{p?.toko?.nama_toko}</h2>
+              <p className="mt-1 text-[12px] text-slate-500">{p?.toko?.nomor_ulok} · {p?.toko?.cabang} · {p?.toko?.lingkup_pekerjaan || "—"}</p>
+            </div>
+            {canOpenSource && canOpenSource(p, context) && (
+              <button type="button" onClick={() => onOpenSource(p, context)} className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md">
+                Buka ULOK →
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-3">Analisis Risiko & Keterlambatan</p>
+              <ContextInspector project={p} context={context} quality={pQuality} lateDays={pLate} penalty={pPenalty} />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-4">Perjalanan Dokumen</p>
+              <Timeline project={p} stage={pStage} />
+            </div>
+            {pPenalty.amount > 0 && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 mb-3">Denda {pPenalty.source}</p>
+                <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pPenalty.amount)}</p>
+                <p className="mt-1 text-[12px] font-medium text-red-600">{pPenalty.days} hari keterlambatan</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
   if (context === "SPK") {
     const total = rows.reduce((sum, row) => sum + Number(firstSpk(row)?.grand_total || 0), 0);
     return (
@@ -529,10 +609,13 @@ function SpecializedDetailContent({
         <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
           <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><FileText className="h-5 w-5"/></span><p className="mt-6 text-[9px] uppercase tracking-[.14em] text-red-500">Register kontrak aktif</p><p className="mt-2 text-3xl font-semibold text-slate-950">{rows.length}</p><div className="mt-6 border-t border-red-100 pt-5"><p className="text-[9px] text-slate-400">Total komitmen</p><p className="mt-1 text-xl font-semibold text-red-700">{formatRupiah(total)}</p></div></div>
           <div className="grid gap-3 md:grid-cols-2">
-            {rows.map((row,index)=>{const spk=firstSpk(row);const extra=getApprovedExtensions(row).reduce((sum:number,item:any)=>sum+Number(item?.pertambahan_hari||0),0);return <button key={row?.toko?.id||index} type="button" onClick={()=>onSelect(index)} className={`rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md ${selectedIndex===index?"border-red-500 shadow-md":"border-slate-200"}`}><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-slate-100 px-2 py-1 text-[8px] font-semibold text-slate-600">{spk?.nomor_spk||"SPK"}</span><span className="text-[9px] font-medium text-emerald-700">{spk?.status}</span></div><p className="mt-4 text-[12px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{spk?.nama_kontraktor||row?.toko?.nama_kontraktor}</p><div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3"><div><p className="text-[8px] text-slate-400">PERIODE</p><p className="mt-1 text-[9px] font-medium">{formatDashboardDate(spk?.waktu_mulai)} – {formatDashboardDate(spk?.waktu_selesai)}</p></div><div className="text-right"><p className="text-[8px] text-slate-400">DURASI</p><p className="mt-1 text-[9px] font-medium">{Number(spk?.durasi||0)+extra} hari</p></div></div><p className="mt-4 text-lg font-semibold text-red-800">{formatRupiah(spk?.grand_total||0)}</p></button>})}
+            {rows.map((row,index)=>{const spk=firstSpk(row);const extra=getApprovedExtensions(row).reduce((sum:number,item:any)=>sum+Number(item?.pertambahan_hari||0),0);return (
+              <Fragment key={row?.toko?.id||index}>
+                <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md ${selectedIndex===index?"border-red-500 shadow-md":"border-slate-200"}`}><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-slate-100 px-2 py-1 text-[8px] font-semibold text-slate-600">{spk?.nomor_spk||"SPK"}</span><span className="text-[9px] font-medium text-emerald-700">{spk?.status}</span></div><p className="mt-4 text-[12px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{spk?.nama_kontraktor||row?.toko?.nama_kontraktor}</p><div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3"><div><p className="text-[8px] text-slate-400">PERIODE</p><p className="mt-1 text-[9px] font-medium">{formatDashboardDate(spk?.waktu_mulai)} – {formatDashboardDate(spk?.waktu_selesai)}</p></div><div className="text-right"><p className="text-[8px] text-slate-400">DURASI</p><p className="mt-1 text-[9px] font-medium">{Number(spk?.durasi||0)+extra} hari</p></div></div><p className="mt-4 text-lg font-semibold text-red-800">{formatRupiah(spk?.grand_total||0)}</p></button>
+              </Fragment>
+            )})}
           </div>
         </div>
-        {project ? <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5"><ContextInspector project={project} context="SPK" quality={getQuality(opnameItemsMap[project?.toko?.id] || [])} lateDays={getLateDays(project)} penalty={getPenalty(project)} /></div> : null}
       </div>
     );
   }
@@ -554,16 +637,17 @@ function SpecializedDetailContent({
             const rab = firstRab(row); const spk = firstSpk(row);
             const value = context === "PENAWARAN" ? rab?.grand_total_final : spk?.grand_total;
             return (
-              <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)} className={`grid w-full grid-cols-[1.25fr_.8fr_.8fr_.8fr] items-center border-t border-orange-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex === index ? "bg-red-50 shadow-[inset_4px_0_0_#dc2626]" : ""}`}>
-                <span><span className="block text-[11px] font-semibold text-slate-900">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {context === "PENAWARAN" ? rab?.nama_pt : spk?.nama_kontraktor}</span></span>
-                <span className="text-[10px] font-medium text-slate-700">{context === "PENAWARAN" ? rab?.status : spk?.status}</span>
-                <span className="text-[9px] text-slate-500">{context === "PENAWARAN" ? formatDashboardDate(rab?.created_at) : `${formatDashboardDate(spk?.waktu_mulai)} – ${formatDashboardDate(spk?.waktu_selesai)}`}</span>
-                <span className="text-right text-[12px] font-semibold text-red-800">{formatRupiah(value || 0)}</span>
-              </button>
+              <Fragment key={row?.toko?.id || index}>
+                <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.25fr_.8fr_.8fr_.8fr] items-center border-t border-orange-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex === index ? "bg-red-50 shadow-[inset_4px_0_0_#dc2626]" : ""}`}>
+                  <span><span className="block text-[11px] font-semibold text-slate-900">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {context === "PENAWARAN" ? rab?.nama_pt : spk?.nama_kontraktor}</span></span>
+                  <span className="text-[10px] font-medium text-slate-700">{context === "PENAWARAN" ? rab?.status : spk?.status}</span>
+                  <span className="text-[9px] text-slate-500">{context === "PENAWARAN" ? formatDashboardDate(rab?.created_at) : `${formatDashboardDate(spk?.waktu_mulai)} – ${formatDashboardDate(spk?.waktu_selesai)}`}</span>
+                  <span className="text-right text-[12px] font-semibold text-red-800">{formatRupiah(value || 0)}</span>
+                </button>
+              </Fragment>
             );
           })}
         </div>
-        {project ? <div className="mt-4 rounded-2xl border border-orange-200 bg-white p-5"><ContextInspector project={project} context={context} quality={getQuality(opnameItemsMap[project?.toko?.id] || [])} lateDays={getLateDays(project)} penalty={getPenalty(project)} /></div> : null}
       </div>
     );
   }
@@ -578,9 +662,12 @@ function SpecializedDetailContent({
         </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-white">
           <div className="grid grid-cols-[1.2fr_.7fr_.7fr_.8fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Sumber</span><span>Hari terlambat</span><span className="text-right">Nilai denda</span></div>
-          {rows.map((row,index)=>{const penalty=getPenalty(row);return <button key={row?.toko?.id||index} type="button" onClick={()=>onSelect(index)} className={`grid w-full grid-cols-[1.2fr_.7fr_.7fr_.8fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}><span><span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span></span><span className="text-[10px] font-medium text-red-700">{penalty.source}</span><span className="text-[11px] font-semibold text-red-800">{penalty.days} hari</span><span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span></button>})}
+          {rows.map((row,index)=>{const penalty=getPenalty(row);return (
+            <Fragment key={row?.toko?.id||index}>
+              <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.7fr_.7fr_.8fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}><span><span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span></span><span className="text-[10px] font-medium text-red-700">{penalty.source}</span><span className="text-[11px] font-semibold text-red-800">{penalty.days} hari</span><span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span></button>
+            </Fragment>
+          )})}
         </div>
-        {project ? <div className="mt-4 rounded-2xl border border-red-200 bg-white p-5"><ContextInspector project={project} context="DENDA" quality={getQuality(opnameItemsMap[project?.toko?.id] || [])} lateDays={getLateDays(project)} penalty={getPenalty(project)} /></div> : null}
       </div>
     );
   }
@@ -590,98 +677,14 @@ function SpecializedDetailContent({
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
         <div className="mb-4"><h2 className="text-lg font-semibold text-slate-950">Peta keterlambatan</h2><p className="mt-1 text-[10px] text-slate-400">Bandingkan target SPK dengan kondisi serah terima.</p></div>
         <div className="space-y-3">
-          {rows.map((row,index)=>{const spk=firstSpk(row);const st=Array.isArray(row?.berkas_serah_terima)?row.berkas_serah_terima[0]:row?.berkas_serah_terima;const late=getLateDays(row);return <button key={row?.toko?.id||index} type="button" onClick={()=>onSelect(index)} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 ${selectedIndex===index?"border-red-500 shadow-[inset_4px_0_0_#dc2626]":"border-slate-200"}`}><div className="grid gap-4 lg:grid-cols-[220px_1fr_90px] lg:items-center"><div><p className="text-[11px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {getStage(row)}</p></div><div className="relative pt-4"><div className="h-1.5 rounded-full bg-slate-200"><div className="h-full rounded-full bg-red-600" style={{width:`${Math.min(100,Math.max(8,late*7))}%`}}/></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>Target {formatDashboardDate(spk?.waktu_selesai)}</span><span>{st?`ST ${formatDashboardDate(st.created_at)}`:"Belum ST"}</span></div></div><p className="text-right text-2xl font-semibold text-red-700">{late}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p></div></button>})}
+          {rows.map((row,index)=>{const spk=firstSpk(row);const st=Array.isArray(row?.berkas_serah_terima)?row.berkas_serah_terima[0]:row?.berkas_serah_terima;const late=getLateDays(row);return <button key={row?.toko?.id||index} type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 ${selectedIndex===index?"border-red-500 shadow-[inset_4px_0_0_#dc2626]":"border-slate-200"}`}><div className="grid gap-4 lg:grid-cols-[220px_1fr_90px] lg:items-center"><div><p className="text-[11px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {getStage(row)}</p></div><div className="relative pt-4"><div className="h-1.5 rounded-full bg-slate-200"><div className="h-full rounded-full bg-red-600" style={{width:`${Math.min(100,Math.max(8,late*7))}%`}}/></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>Target {formatDashboardDate(spk?.waktu_selesai)}</span><span>{st?`ST ${formatDashboardDate(st.created_at)}`:"Belum ST"}</span></div></div><p className="text-right text-2xl font-semibold text-red-700">{late}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p></div></button>})}
         </div>
       </div>
     );
   }
 
-  if (context === "ATTENTION") {
-    // Defined first so both branches (detail page + list) can access them
-    const stageIconMap: Record<string, typeof HardHat> = {
-      "Approval RAB": FileText,
-      "Proses Gantt": CalendarDays,
-      "Proses PJU": Clock3,
-      "Approval SPK": UserCheck,
-      "Ongoing": HardHat,
-      "Kerja Tambah Kurang": Layers3,
-    };
-    const stageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
-      "Approval RAB":        { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
-      "Proses Gantt":        { text: "text-sky-600",    bar: "bg-sky-500",    borderTop: "border-t-sky-500",    bg: "bg-sky-50" },
-      "Proses PJU":          { text: "text-amber-600",  bar: "bg-amber-500",  borderTop: "border-t-amber-500",  bg: "bg-amber-50" },
-      "Approval SPK":        { text: "text-emerald-600",bar: "bg-emerald-500",borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
-      "Ongoing":             { text: "text-red-600",    bar: "bg-red-500",    borderTop: "border-t-red-500",    bg: "bg-red-50" },
-      "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
-    };
+    // Maps and full-page detail view extracted to the top
 
-    // ── Project detail full-page view ──────────────────────────────────────────
-    if (selectedProjectDetail) {
-      const p = selectedProjectDetail;
-      const pStage = getStage(p);
-      const pLate = getLateDays(p);
-      const pPenalty = getPenalty(p);
-      const pQuality = getQuality(opnameItemsMap[p?.toko?.id] || []);
-      const colors = stageColorMap[pStage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
-      const Icon = stageIconMap[pStage] || FileText;
-      return (
-        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
-          {/* Back button + breadcrumb */}
-          <button type="button" onClick={() => onBackFromProject()} className="group mb-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
-            <ArrowLeft className="h-4 w-4 text-slate-500 transition-transform group-hover:-translate-x-0.5" />
-            <span className="text-[11px] font-semibold text-slate-600">Kembali ke Prioritas SLA</span>
-            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500">{p?.toko?.nama_toko}</span>
-          </button>
-
-          {/* Hero project header */}
-          <div className={`relative overflow-hidden rounded-xl border border-slate-200 border-t-4 ${colors.borderTop} bg-white p-6 shadow-sm`}>
-            <div className="flex items-start gap-4">
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${colors.bg}`}>
-                <Icon className={`h-6 w-6 ${colors.text}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>{pStage}</span>
-                  {pLate > 0 && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">Terlambat {pLate} hari</span>}
-                </div>
-                <h2 className="mt-2 text-xl font-bold text-slate-900 leading-tight">{p?.toko?.nama_toko}</h2>
-                <p className="mt-1 text-[12px] text-slate-500">{p?.toko?.nomor_ulok} · {p?.toko?.cabang} · {p?.toko?.lingkup_pekerjaan || "—"}</p>
-              </div>
-              {canOpenSource && canOpenSource(p, context) && (
-                <button type="button" onClick={() => onOpenSource(p, context)} className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow-md">
-                  Buka ULOK →
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Detail grid */}
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            {/* Left: context inspector */}
-            <div className="space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-3">Analisis Risiko & Keterlambatan</p>
-                <ContextInspector project={p} context={context} quality={pQuality} lateDays={pLate} penalty={pPenalty} />
-              </div>
-            </div>
-            {/* Right: timeline + penalty */}
-            <div className="space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-4">Perjalanan Dokumen</p>
-                <Timeline project={p} stage={pStage} />
-              </div>
-              {pPenalty.amount > 0 && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 mb-3">Denda {pPenalty.source}</p>
-                  <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pPenalty.amount)}</p>
-                  <p className="mt-1 text-[12px] font-medium text-red-600">{pPenalty.days} hari keterlambatan</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    }
 
     const stageBreakdown = PIPELINE.filter(s => s !== "Done").map(stage => ({
       stage,
@@ -1019,17 +1022,19 @@ export default function DashboardCommandWorkspace({
   if (detail.open) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50">
-        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 bg-white px-4 py-4 md:flex-row md:items-center md:px-6">
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => { onCloseDetail(); setDetailCategory("Semua"); setDetailSearch(""); }}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-red-600">Workspace rincian</p>
-            <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-950">{detail.title || contextLabels[detail.context]}</h1>
-            <p className="mt-1 text-[11px] text-slate-500">Pilih data untuk melihat perjalanan proyek dan sumber nilainya.</p>
+        {!projectDetailView && (
+          <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 bg-white px-4 py-4 md:flex-row md:items-center md:px-6">
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => { onCloseDetail(); setDetailCategory("Semua"); setDetailSearch(""); setProjectDetailView(null); }}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-red-600">Workspace rincian</p>
+              <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-950">{detail.title || contextLabels[detail.context]}</h1>
+              <p className="mt-1 text-[11px] text-slate-500">Pilih data untuk melihat perjalanan proyek dan sumber nilainya.</p>
+            </div>
+            <Badge className="w-fit border-slate-200 bg-slate-100 px-3 py-1 text-[10px] font-medium text-slate-600">{searchedRows.length} hasil</Badge>
           </div>
-          <Badge className="w-fit border-slate-200 bg-slate-100 px-3 py-1 text-[10px] font-medium text-slate-600">{searchedRows.length} hasil</Badge>
-        </div>
+        )}
 
         {detail.context !== "PROJECT" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1090,7 +1095,7 @@ export default function DashboardCommandWorkspace({
             ) : null}
           </div>
         ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 overflow-hidden xl:grid-cols-[minmax(0,1fr)_340px] xl:grid-rows-1">
           <div className="flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
             <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center">
               <div className="relative min-w-0 flex-1">
@@ -1189,7 +1194,7 @@ export default function DashboardCommandWorkspace({
             </div>
           </div>
 
-          <aside className="custom-scrollbar min-h-0 overflow-y-auto bg-white p-5">
+          <aside className="custom-scrollbar min-h-0 overflow-y-auto border-t border-slate-200 bg-white p-5 xl:border-t-0">
             {!selectedRow ? null : selectedRow.__kind === "contractor" ? (
               <>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian kontraktor</p>
