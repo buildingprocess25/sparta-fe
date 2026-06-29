@@ -3,7 +3,7 @@
 // Handles caching, offline support, push notifications, and navigation.
 // =============================================================================
 
-const CACHE_NAME = 'sparta-v5-20260629-rab-branch-select';
+const CACHE_NAME = 'sparta-v6-20260629-rab-price-scope';
 
 // Static assets to cache on install for offline shell
 const STATIC_ASSETS = [
