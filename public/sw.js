@@ -3,7 +3,7 @@
 // Handles caching, offline support, push notifications, and navigation.
 // =============================================================================
 
-const CACHE_NAME = 'sparta-v2';
+const CACHE_NAME = 'sparta-v3-20260629-inputpic';
 
 // Static assets to cache on install for offline shell
 const STATIC_ASSETS = [

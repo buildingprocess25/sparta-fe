@@ -138,6 +138,10 @@ interface NormalizedDetail {
     grand_total_non_sbo?: string;
     grand_total_opname?: string;
     grand_total_final?: string;
+    beanspot_type?: string | null;
+    is_hth?: boolean | null;
+    hth_meter?: string | number | null;
+    is_fasade?: boolean | null;
     nilai_denda?: string | null;
     link_pdf?: string | null;
     link_pdf_gabungan?: string | null;
@@ -740,6 +744,30 @@ const isExternalOnlyLink = (url: string) => {
 
 const isDownloadableAttachment = (url: string) => isUploadedDriveFileLink(url);
 
+const formatBeanspotType = (value?: string | null) => {
+    const labels: Record<string, string> = {
+        TIDAK: 'Tidak',
+        ADVANCE: 'Advance',
+        MEDIUM: 'Medium',
+        RTD_ONLY: 'RTD Only',
+    };
+    return labels[String(value ?? '').trim().toUpperCase()] ?? '-';
+};
+
+const formatYesNoNullable = (value?: boolean | null) => {
+    if (value === true) return 'Ya';
+    if (value === false) return 'Tidak';
+    return '-';
+};
+
+const formatHthInfo = (isHth?: boolean | null, meter?: string | number | null) => {
+    if (isHth === true) {
+        const meterText = String(meter ?? '').trim();
+        return meterText ? `Ya, ${meterText} meter` : 'Ya';
+    }
+    return formatYesNoNullable(isHth);
+};
+
 // =============================================================================
 // NORMALIZE HELPERS
 // =============================================================================
@@ -1290,6 +1318,10 @@ export default function DaftarDokumenPage() {
                     grand_total:         d.rab.grand_total,
                     grand_total_non_sbo: d.rab.grand_total_non_sbo,
                     grand_total_final:   d.rab.grand_total_final,
+                    beanspot_type:       d.rab.beanspot_type,
+                    is_hth:              d.rab.is_hth,
+                    hth_meter:           d.rab.hth_meter,
+                    is_fasade:           d.rab.is_fasade,
                     created_at:          d.rab.created_at,
                     link_pdf_gabungan:   d.rab.link_pdf_gabungan,
                     link_pdf_non_sbo:    d.rab.link_pdf_non_sbo,
@@ -2891,6 +2923,13 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                     {selectedDetail.durasi_pekerjaan && (
                                                         <InfoRow icon={<Clock className="w-4 h-4" />} label="Durasi Pekerjaan" value={`${selectedDetail.durasi_pekerjaan} Hari`} />
+                                                    )}
+                                                    {(selectedDetail.beanspot_type || selectedDetail.is_hth != null || selectedDetail.is_fasade != null) && (
+                                                        <div className="sm:col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                            <InfoRow icon={<ClipboardList className="w-4 h-4" />} label="Beanspot" value={formatBeanspotType(selectedDetail.beanspot_type)} />
+                                                            <InfoRow icon={<ClipboardList className="w-4 h-4" />} label="HTH" value={formatHthInfo(selectedDetail.is_hth, selectedDetail.hth_meter)} />
+                                                            <InfoRow icon={<ClipboardList className="w-4 h-4" />} label="Fasade" value={formatYesNoNullable(selectedDetail.is_fasade)} />
+                                                        </div>
                                                     )}
                                                 </>
                                             )}

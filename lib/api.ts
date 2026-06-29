@@ -900,6 +900,10 @@ export type RABListItem = {
     cabang:               string;
     proyek:               string;
     alasan_penolakan?:    string | null;
+    beanspot_type?:       string | null;
+    is_hth?:              boolean | null;
+    hth_meter?:           string | number | null;
+    is_fasade?:           boolean | null;
     toko?:                RABTokoDetail;
 };
 
@@ -952,6 +956,17 @@ export type RABDetailData = {
     luas_area_parkir:                string;
     luas_area_sales:                 string;
     luas_gudang:                     string;
+    beanspot_type?:                  string | null;
+    is_hth?:                         boolean | null;
+    hth_meter?:                      string | number | null;
+    is_fasade?:                      boolean | null;
+    coordinator_info_prefill?: {
+        source: "RAB" | "FPD" | "NONE" | string;
+        beanspot_type: string | null;
+        is_hth: boolean | null;
+        hth_meter: string | number | null;
+        is_fasade: boolean | null;
+    } | null;
     grand_total:                     string;
     grand_total_non_sbo:             string;
     grand_total_final:               string;
@@ -1007,6 +1022,10 @@ export type RABApprovalPayload = {
     catatan_approval?: string | null;
     revisi_item_ids?: number[];
     revisi_item_notes?: Record<string, string | null | undefined>;
+    beanspot_type?: "TIDAK" | "ADVANCE" | "MEDIUM" | "RTD_ONLY" | string | null;
+    is_hth?: boolean | null;
+    hth_meter?: number | null;
+    is_fasade?: boolean | null;
 };
 
 export type RABApprovalResponse = {

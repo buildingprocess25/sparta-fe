@@ -50,6 +50,48 @@ import {
 // =============================================
 type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
 type ActiveView = 'menu' | 'list' | 'detail';
+type RabBeanspotType = '' | 'TIDAK' | 'ADVANCE' | 'MEDIUM' | 'RTD_ONLY';
+type YesNoValue = '' | 'YA' | 'TIDAK';
+
+const RAB_BEANSPOT_OPTIONS: Array<{ value: Exclude<RabBeanspotType, ''>; label: string }> = [
+    { value: 'TIDAK', label: 'Tidak' },
+    { value: 'ADVANCE', label: 'Advance' },
+    { value: 'MEDIUM', label: 'Medium' },
+    { value: 'RTD_ONLY', label: 'RTD Only' },
+];
+
+const EMPTY_RAB_COORDINATOR_INFO = {
+    beanspot_type: '' as RabBeanspotType,
+    hth: '' as YesNoValue,
+    hth_meter: '',
+    fasade: '' as YesNoValue,
+};
+
+type RabCoordinatorInfoPayload = {
+    beanspot_type: Exclude<RabBeanspotType, ''>;
+    is_hth: boolean;
+    hth_meter: number | null;
+    is_fasade: boolean;
+};
+
+const toRabCoordinatorInfoState = (input?: {
+    beanspot_type?: string | null;
+    is_hth?: boolean | null;
+    hth_meter?: string | number | null;
+    is_fasade?: boolean | null;
+} | null) => {
+    const beanspot = String(input?.beanspot_type ?? '').trim().toUpperCase();
+    const validBeanspot = RAB_BEANSPOT_OPTIONS.some(option => option.value === beanspot)
+        ? beanspot as RabBeanspotType
+        : '';
+
+    return {
+        beanspot_type: validBeanspot,
+        hth: input?.is_hth === true ? 'YA' as YesNoValue : input?.is_hth === false ? 'TIDAK' as YesNoValue : '',
+        hth_meter: input?.is_hth === true && input?.hth_meter != null ? String(input.hth_meter) : '',
+        fasade: input?.is_fasade === true ? 'YA' as YesNoValue : input?.is_fasade === false ? 'TIDAK' as YesNoValue : '',
+    };
+};
 
 
 interface NormalizedListItem {
@@ -546,6 +588,7 @@ export default function ApprovalPage() {
     const [rejectRabRevisionItems, setRejectRabRevisionItems] = useState<Array<{ id: number | null; note: string }>>([]);
     const [approveModal, setApproveModal]     = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [approveNote, setApproveNote]       = useState('');
+    const [rabCoordinatorInfo, setRabCoordinatorInfo] = useState(EMPTY_RAB_COORDINATOR_INFO);
     const [toast, setToast]                   = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     // ==========================================
@@ -1084,8 +1127,17 @@ export default function ApprovalPage() {
     // ==========================================
     // APPROVE
     // ==========================================
-    const openApproveModal = (item: NormalizedListItem | NormalizedDetail) => {
+    const openApproveModal = async (item: NormalizedListItem | NormalizedDetail) => {
         setApproveNote('');
+        setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
+        if (item.tipe === 'RAB' && jabatan === 'KOORDINATOR') {
+            try {
+                const detail = await fetchRABDetail(Number(item.id));
+                setRabCoordinatorInfo(toRabCoordinatorInfoState(detail.data.rab.coordinator_info_prefill));
+            } catch (err) {
+                console.error('Gagal mengambil prefill coordinator RAB:', err);
+            }
+        }
         setApproveModal(item);
     };
 
@@ -1093,12 +1145,49 @@ export default function ApprovalPage() {
         if (!approveModal) return;
         const item = approveModal;
         const note = approveNote;
+        const requiresRabCoordinatorInfo = item.tipe === 'RAB' && jabatan === 'KOORDINATOR';
+        let coordinatorInfoPayload: RabCoordinatorInfoPayload | undefined;
+
+        if (requiresRabCoordinatorInfo) {
+            if (!rabCoordinatorInfo.beanspot_type) {
+                showToast('Pilih Beanspot terlebih dahulu.', 'error');
+                return;
+            }
+            if (!rabCoordinatorInfo.hth) {
+                showToast('Pilih HTH terlebih dahulu.', 'error');
+                return;
+            }
+            if (!rabCoordinatorInfo.fasade) {
+                showToast('Pilih Fasade terlebih dahulu.', 'error');
+                return;
+            }
+
+            const isHth = rabCoordinatorInfo.hth === 'YA';
+            const hthMeterValue = Number(rabCoordinatorInfo.hth_meter);
+            if (isHth && (!Number.isFinite(hthMeterValue) || hthMeterValue <= 0)) {
+                showToast('Isi meter HTH dengan angka lebih dari 0.', 'error');
+                return;
+            }
+
+            coordinatorInfoPayload = {
+                beanspot_type: rabCoordinatorInfo.beanspot_type,
+                is_hth: isHth,
+                hth_meter: isHth ? hthMeterValue : null,
+                is_fasade: rabCoordinatorInfo.fasade === 'YA',
+            };
+        }
+
         setApproveModal(null);
         setApproveNote('');
-        await handleApprove(item, note);
+        setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
+        await handleApprove(item, note, coordinatorInfoPayload);
     };
 
-    const handleApprove = async (item: NormalizedListItem | NormalizedDetail, note = '') => {
+    const handleApprove = async (
+        item: NormalizedListItem | NormalizedDetail,
+        note = '',
+        coordinatorInfo?: RabCoordinatorInfoPayload
+    ) => {
         setProcessingId(item.id);
         try {
             const catatanApproval = note.trim() || null;
@@ -1117,6 +1206,7 @@ export default function ApprovalPage() {
                     ...(shouldFinalizeRABAfterCoordinatorApproval(item) ? { next_status: 'DISETUJUI' } : {}),
                     tindakan:       'APPROVE',
                     catatan_approval: catatanApproval,
+                    ...(coordinatorInfo ?? {}),
                 });
             } else if (item.tipe === 'SPK') {
                 await processSPKApproval(item.id as number, {
@@ -1456,7 +1546,7 @@ export default function ApprovalPage() {
             {/* APPROVE NOTE MODAL */}
             {approveModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200">
                         <div className="p-5 border-b border-green-100 bg-green-50/70 flex items-start gap-3">
                             <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                                 <CheckCircle className="w-5 h-5 text-green-700" />
@@ -1470,6 +1560,80 @@ export default function ApprovalPage() {
                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                                 Catatan bersifat opsional dan akan tersimpan sebagai catatan approval role Anda.
                             </div>
+                            {approveModal.tipe === 'RAB' && jabatan === 'KOORDINATOR' && (
+                                <div className="rounded-xl border border-green-100 bg-green-50/50 p-3 space-y-3">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Informasi Tambahan Koordinator</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">Data ini akan tersimpan dan tampil di PDF RAB/penawaran.</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                            <span>Beanspot</span>
+                                            <select
+                                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                                                value={rabCoordinatorInfo.beanspot_type}
+                                                onChange={e => setRabCoordinatorInfo(prev => ({
+                                                    ...prev,
+                                                    beanspot_type: e.target.value as RabBeanspotType,
+                                                }))}
+                                            >
+                                                <option value="">Pilih Beanspot</option>
+                                                {RAB_BEANSPOT_OPTIONS.map(option => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                            <span>Fasade</span>
+                                            <select
+                                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                                                value={rabCoordinatorInfo.fasade}
+                                                onChange={e => setRabCoordinatorInfo(prev => ({
+                                                    ...prev,
+                                                    fasade: e.target.value as YesNoValue,
+                                                }))}
+                                            >
+                                                <option value="">Pilih Fasade</option>
+                                                <option value="YA">Ya</option>
+                                                <option value="TIDAK">Tidak</option>
+                                            </select>
+                                        </label>
+                                        <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                            <span>HTH</span>
+                                            <select
+                                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                                                value={rabCoordinatorInfo.hth}
+                                                onChange={e => setRabCoordinatorInfo(prev => ({
+                                                    ...prev,
+                                                    hth: e.target.value as YesNoValue,
+                                                    hth_meter: e.target.value === 'YA' ? prev.hth_meter : '',
+                                                }))}
+                                            >
+                                                <option value="">Pilih HTH</option>
+                                                <option value="YA">Ya</option>
+                                                <option value="TIDAK">Tidak</option>
+                                            </select>
+                                        </label>
+                                        {rabCoordinatorInfo.hth === 'YA' && (
+                                            <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                                <span>Meter HTH</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                                                    value={rabCoordinatorInfo.hth_meter}
+                                                    onChange={e => setRabCoordinatorInfo(prev => ({
+                                                        ...prev,
+                                                        hth_meter: e.target.value,
+                                                    }))}
+                                                    placeholder="Contoh: 12.5"
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             <textarea
                                 className="w-full border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-400"
                                 rows={4}
@@ -1479,7 +1643,10 @@ export default function ApprovalPage() {
                                 autoFocus
                             />
                             <div className="flex gap-3 pt-1">
-                                <Button variant="outline" className="flex-1" onClick={() => setApproveModal(null)}>Batal</Button>
+                                <Button variant="outline" className="flex-1" onClick={() => {
+                                    setApproveModal(null);
+                                    setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
+                                }}>Batal</Button>
                                 <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={handleConfirmApprove}>
                                     Konfirmasi Setuju
                                 </Button>
