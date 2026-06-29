@@ -683,9 +683,7 @@ function SpecializedDetailContent({
     );
   }
 
-    // Maps and full-page detail view extracted to the top
-
-
+  if (context === "ATTENTION") {
     const stageBreakdown = PIPELINE.filter(s => s !== "Done").map(stage => ({
       stage,
       count: rows.filter((row) => getStage(row) === stage).length,
