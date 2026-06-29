@@ -2563,6 +2563,7 @@ export type TaskNotificationItem = {
 
 export type TaskNotificationGroup = {
     key: string;
+    action_type?: "approval" | "revision" | "input" | "process" | "offer";
     title: string;
     description: string;
     count: number;

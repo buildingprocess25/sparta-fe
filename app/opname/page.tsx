@@ -65,6 +65,11 @@ type OpnameFinalSummary = {
     status_opname_final?: string | null;
 };
 
+type OpnameNotificationTarget = {
+    mode: 'finalisasi_ktk' | 'revisi_ktk';
+    opnameFinalId?: string | null;
+};
+
 function formatUlokWithDash(ulok: string) {
     if (!ulok) return "";
     if (ulok.includes("-")) return ulok;
@@ -227,6 +232,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [searchQuery, setSearchQuery] = useState('');
     const [activeView, setActiveView] = useState<'form' | 'history'>('form');
     const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
+    const [notificationTarget, setNotificationTarget] = useState<OpnameNotificationTarget | null>(null);
 
     // Opname inputs: keyed by rab_item id
     const [opnameInputs, setOpnameInputs] = useState<Record<number, {
@@ -415,13 +421,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     };
 
     useEffect(() => {
-        const targetTokoId = new URLSearchParams(window.location.search).get('id_toko');
-        if (!targetTokoId || isLoading || rabList.length === 0 || autoSelectedTokoId === targetTokoId) return;
+        const params = new URLSearchParams(window.location.search);
+        const targetTokoId = params.get('id_toko');
+        const targetMode = params.get('mode');
+        const validMode = targetMode === 'finalisasi_ktk' || targetMode === 'revisi_ktk' ? targetMode : null;
+        const targetOpnameFinalId = params.get('opname_final_id');
+        const targetKey = [targetTokoId, validMode, targetOpnameFinalId].filter(Boolean).join('|');
+        if (!targetTokoId || isLoading || rabList.length === 0 || autoSelectedTokoId === targetKey) return;
 
         const targetProject = rabList.find(item => String(item.id_toko) === targetTokoId);
         if (!targetProject) return;
 
-        setAutoSelectedTokoId(targetTokoId);
+        setAutoSelectedTokoId(targetKey);
+        if (validMode) {
+            setNotificationTarget({ mode: validMode, opnameFinalId: targetOpnameFinalId });
+            setActiveView('form');
+        }
         setSearchQuery(targetProject.nama_toko || targetProject.nomor_ulok || "");
         handleSelectRab(String(targetProject.id));
     }, [autoSelectedTokoId, isLoading, rabList]);
@@ -980,6 +995,38 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     <InfoItem icon={<FileText className="w-4 h-4" />} label="Lingkup" value={tokoDetail.lingkup_pekerjaan || '-'} />
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Kontraktor" value={tokoDetail.nama_kontraktor || '-'} />
                                 </div>
+
+                                {notificationTarget && (
+                                    <div className={`mb-6 rounded-xl border p-4 shadow-sm ${
+                                        notificationTarget.mode === 'finalisasi_ktk'
+                                            ? 'border-emerald-200 bg-emerald-50'
+                                            : 'border-amber-200 bg-amber-50'
+                                    }`}>
+                                        <div className="flex items-start gap-3">
+                                            {notificationTarget.mode === 'finalisasi_ktk' ? (
+                                                <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                                            ) : (
+                                                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                                            )}
+                                            <div>
+                                                <h4 className={`text-sm font-black ${
+                                                    notificationTarget.mode === 'finalisasi_ktk' ? 'text-emerald-800' : 'text-amber-800'
+                                                }`}>
+                                                    {notificationTarget.mode === 'finalisasi_ktk' ? 'Notifikasi: KTK Siap Diproses' : 'Notifikasi: Revisi KTK'}
+                                                </h4>
+                                                <p className={`mt-1 text-xs leading-relaxed ${
+                                                    notificationTarget.mode === 'finalisasi_ktk' ? 'text-emerald-700' : 'text-amber-700'
+                                                }`}>
+                                                    {notificationTarget.mode === 'finalisasi_ktk'
+                                                        ? 'Semua item opname yang diperlukan sudah disetujui kontraktor. Periksa data proyek ini lalu lanjutkan Finalisasi Proses Kerja Tambah Kurang.'
+                                                        : 'KTK proyek ini dikembalikan. Periksa item dan catatan penolakan, lalu lakukan perbaikan sebelum finalisasi ulang.'
+                                                    }
+                                                    {notificationTarget.opnameFinalId ? ` Referensi KTK #${notificationTarget.opnameFinalId}.` : ''}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Finalisasi Kerja Tambah Kurang */}
                                 {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (

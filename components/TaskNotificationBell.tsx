@@ -15,13 +15,22 @@ type PanelGroup = TaskNotificationGroup & {
 };
 
 const getGroupAccent = (key: string) => {
-    if (key === "approval_pending") return "bg-sky-50 text-sky-700 border-sky-200";
+    if (key.startsWith("approval_")) return "bg-sky-50 text-sky-700 border-sky-200";
     if (key === "support_ktk_ready") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (key === "revision_required") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (key.startsWith("revision_")) return "bg-amber-50 text-amber-700 border-amber-200";
     if (key === "pic_pengawasan_missing") return "bg-violet-50 text-violet-700 border-violet-200";
     if (key === "rab_project_planning_request") return "bg-blue-50 text-blue-700 border-blue-200";
     return "bg-slate-50 text-slate-700 border-slate-200";
 };
+
+const FILTERS = [
+    { key: "all", label: "Semua" },
+    { key: "approval", label: "Approval" },
+    { key: "revision", label: "Revisi" },
+    { key: "input", label: "Input" },
+    { key: "process", label: "Proses" },
+    { key: "offer", label: "Penawaran" },
+] as const;
 
 const mapGroup = (group: TaskNotificationGroup): PanelGroup => ({
     ...group,
@@ -34,6 +43,7 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     const [open, setOpen] = useState(false);
     const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
     const [groups, setGroups] = useState<PanelGroup[]>([]);
+    const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
     const [loading, setLoading] = useState(false);
     const [autoPopupDone, setAutoPopupDone] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -67,6 +77,10 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     }, []);
 
     const total = useMemo(() => groups.reduce((sum, group) => sum + group.count, 0), [groups]);
+    const filteredGroups = useMemo(
+        () => activeFilter === "all" ? groups : groups.filter(group => group.action_type === activeFilter),
+        [activeFilter, groups]
+    );
     const activeGroup = groups.find((group) => group.key === activeGroupKey) ?? null;
     const isClean = variant === "clean";
 
@@ -125,15 +139,41 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
                                         Refresh
                                     </button>
                                 </div>
+                                <div className="mt-3 flex gap-1 overflow-x-auto pb-1">
+                                    {FILTERS.map(filter => {
+                                        const selected = activeFilter === filter.key;
+                                        return (
+                                            <button
+                                                key={filter.key}
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveFilter(filter.key);
+                                                    setActiveGroupKey(null);
+                                                }}
+                                                className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black transition ${
+                                                    selected
+                                                        ? "bg-slate-900 text-white"
+                                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                                }`}
+                                            >
+                                                {filter.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                             <div className="max-h-[65vh] overflow-y-auto p-2">
-                                {groups.length === 0 ? (
+                                {filteredGroups.length === 0 ? (
                                     <div className="px-4 py-8 text-center">
                                         <FileCheck2 className="mx-auto h-8 w-8 text-emerald-500" />
-                                        <p className="mt-3 text-sm font-bold text-slate-800">Tidak ada tugas aktif</p>
-                                        <p className="mt-1 text-xs text-slate-500">Semua notifikasi status-based sudah bersih.</p>
+                                        <p className="mt-3 text-sm font-bold text-slate-800">
+                                            {groups.length === 0 ? "Tidak ada tugas aktif" : "Tidak ada tugas pada filter ini"}
+                                        </p>
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            {groups.length === 0 ? "Semua notifikasi status-based sudah bersih." : "Coba pilih kategori lain untuk melihat tugas yang masih aktif."}
+                                        </p>
                                     </div>
-                                ) : groups.map((group) => (
+                                ) : filteredGroups.map((group) => (
                                     <button
                                         key={group.key}
                                         type="button"

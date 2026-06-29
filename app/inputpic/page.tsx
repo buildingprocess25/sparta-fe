@@ -1482,15 +1482,26 @@ export default function InputPICPage() {
     };
 
     useEffect(() => {
-        const targetTokoId = new URLSearchParams(window.location.search).get('id_toko');
-        if (!targetTokoId || autoSelectedPicTokoId === targetTokoId || ulokOptions.length === 0) return;
+        const params = new URLSearchParams(window.location.search);
+        const targetTokoId = params.get('id_toko');
+        const targetSpkId = params.get('id_spk');
+        const targetKey = [targetTokoId, targetSpkId].filter(Boolean).join('|');
+        if ((!targetTokoId && !targetSpkId) || autoSelectedPicTokoId === targetKey || ulokOptions.length === 0) return;
 
         const target = ulokOptions.find(option =>
-            option.scopes.some(scope => String(scope.toko?.id ?? scope.spks[0]?.id_toko ?? '') === targetTokoId)
+            option.scopes.some(scope => {
+                const matchToko = targetTokoId
+                    ? String(scope.toko?.id ?? scope.spks[0]?.id_toko ?? '') === targetTokoId
+                    : true;
+                const matchSpk = targetSpkId
+                    ? scope.spks.some(spk => String(spk.id) === targetSpkId)
+                    : true;
+                return matchToko && matchSpk;
+            })
         );
         if (!target) return;
 
-        setAutoSelectedPicTokoId(targetTokoId);
+        setAutoSelectedPicTokoId(targetKey);
         setSearchQuery(target.toko?.nama_toko || target.nomor_ulok || '');
         handleUlokSelect(target.key);
     }, [autoSelectedPicTokoId, ulokOptions]);
