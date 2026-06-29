@@ -589,6 +589,7 @@ export default function ApprovalPage() {
     const [approveModal, setApproveModal]     = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [approveNote, setApproveNote]       = useState('');
     const [rabCoordinatorInfo, setRabCoordinatorInfo] = useState(EMPTY_RAB_COORDINATOR_INFO);
+    const [approveModalError, setApproveModalError] = useState('');
     const [toast, setToast]                   = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     // ==========================================
@@ -1129,6 +1130,7 @@ export default function ApprovalPage() {
     // ==========================================
     const openApproveModal = async (item: NormalizedListItem | NormalizedDetail) => {
         setApproveNote('');
+        setApproveModalError('');
         setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
         if (item.tipe === 'RAB' && jabatan === 'KOORDINATOR') {
             try {
@@ -1147,25 +1149,26 @@ export default function ApprovalPage() {
         const note = approveNote;
         const requiresRabCoordinatorInfo = item.tipe === 'RAB' && jabatan === 'KOORDINATOR';
         let coordinatorInfoPayload: RabCoordinatorInfoPayload | undefined;
+        setApproveModalError('');
 
         if (requiresRabCoordinatorInfo) {
             if (!rabCoordinatorInfo.beanspot_type) {
-                showToast('Pilih Beanspot terlebih dahulu.', 'error');
+                setApproveModalError('Pilih Beanspot terlebih dahulu.');
                 return;
             }
             if (!rabCoordinatorInfo.hth) {
-                showToast('Pilih HTH terlebih dahulu.', 'error');
+                setApproveModalError('Pilih HTH terlebih dahulu.');
                 return;
             }
             if (!rabCoordinatorInfo.fasade) {
-                showToast('Pilih Fasade terlebih dahulu.', 'error');
+                setApproveModalError('Pilih Fasade terlebih dahulu.');
                 return;
             }
 
             const isHth = rabCoordinatorInfo.hth === 'YA';
             const hthMeterValue = Number(rabCoordinatorInfo.hth_meter);
             if (isHth && (!Number.isFinite(hthMeterValue) || hthMeterValue <= 0)) {
-                showToast('Isi meter HTH dengan angka lebih dari 0.', 'error');
+                setApproveModalError('Isi meter HTH dengan angka lebih dari 0.');
                 return;
             }
 
@@ -1180,6 +1183,7 @@ export default function ApprovalPage() {
         setApproveModal(null);
         setApproveNote('');
         setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
+        setApproveModalError('');
         await handleApprove(item, note, coordinatorInfoPayload);
     };
 
@@ -1634,6 +1638,12 @@ export default function ApprovalPage() {
                                     </div>
                                 </div>
                             )}
+                            {approveModalError && (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                                    <span>{approveModalError}</span>
+                                </div>
+                            )}
                             <textarea
                                 className="w-full border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-400"
                                 rows={4}
@@ -1646,8 +1656,10 @@ export default function ApprovalPage() {
                                 <Button variant="outline" className="flex-1" onClick={() => {
                                     setApproveModal(null);
                                     setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
+                                    setApproveModalError('');
                                 }}>Batal</Button>
-                                <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={handleConfirmApprove}>
+                                <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" disabled={!!processingId} onClick={handleConfirmApprove}>
+                                    {processingId === approveModal.id && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                     Konfirmasi Setuju
                                 </Button>
                             </div>
@@ -2376,7 +2388,7 @@ export default function ApprovalPage() {
                                 ) : null}
 
                                 {/* Sticky bottom bar */}
-                                {canActOnDetail && detailAsListItem && (
+                                {canActOnDetail && detailAsListItem && !approveModal && !rejectModal && (
                                     <div className="sticky bottom-6 flex justify-center z-50">
                                         <div className="bg-white border border-slate-200 rounded-2xl shadow-xl px-6 py-4 flex items-center gap-4 animate-in slide-in-from-bottom-2 duration-300">
                                             <span className="text-sm text-slate-600 font-medium hidden md:block">Ambil tindakan pada pengajuan ini:</span>
