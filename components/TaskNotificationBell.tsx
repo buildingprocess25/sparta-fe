@@ -336,7 +336,7 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
 
     useEffect(() => {
         refresh();
-        const timer = window.setInterval(refresh, 60_000);
+        const timer = window.setInterval(refresh, 300_000);
         return () => window.clearInterval(timer);
     }, [refresh]);
 

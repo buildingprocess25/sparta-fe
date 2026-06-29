@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -561,6 +561,7 @@ const ApprovalHistoryRow = ({ label, pemberi, waktu, catatan }: {
 // =============================================
 export default function ApprovalPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     // --- AUTH ---
     const [userInfo, setUserInfo]       = useState({ name: '', role: '', cabang: '', email: '', nama_pt: '' });
@@ -1413,16 +1414,19 @@ export default function ApprovalPage() {
     };
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const queryType = params.get('type') as ApprovalType | null;
-        const queryId = params.get('id');
-        if (!queryType || autoSelectedType === queryType || accessibleTypes.length === 0) return;
+        const queryType = searchParams.get('type') as ApprovalType | null;
+        const queryId = searchParams.get('id');
+        if (!queryType || accessibleTypes.length === 0) return;
         if (!accessibleTypes.includes(queryType)) return;
+        
+        // Prevent infinite loops but allow clicking another notification of the same type
+        const newKey = `${queryType}:${queryId}`;
+        if (autoOpenedDetailKey === newKey) return;
 
         setAutoSelectedType(queryType);
         setAutoOpenDetailId(queryId);
         handleSelectType(queryType, queryId);
-    }, [accessibleTypes, autoSelectedType]);
+    }, [accessibleTypes, searchParams, autoOpenedDetailKey]);
 
     useEffect(() => {
         if (!autoOpenDetailId || activeView !== 'list' || listData.length === 0 || !selectedType) return;
