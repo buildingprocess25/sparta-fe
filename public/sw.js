@@ -3,7 +3,7 @@
 // Handles caching, offline support, push notifications, and navigation.
 // =============================================================================
 
-const CACHE_NAME = 'sparta-v4-20260629-inputpic-gantt-revision';
+const CACHE_NAME = 'sparta-v5-20260629-rab-branch-select';
 
 // Static assets to cache on install for offline shell
 const STATIC_ASSETS = [

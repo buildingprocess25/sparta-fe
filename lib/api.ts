@@ -1047,7 +1047,7 @@ export const checkRevisionStatus = async (email: string, cabang: string) => {
         const res = await fetchRABList({
             email_pembuat: email,
             cabang: cabang,
-        });
+        }, { suppressGlobalError: true });
         
         // Filter RAB yang ditolak/dikembalikan, dan pastikan cabang cocok (double-check client-side)
         const rejected = res.data.filter(rab => {
