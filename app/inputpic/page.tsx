@@ -74,6 +74,28 @@ function scopesMatch(left: string | null | undefined, right: string | null | und
     return Boolean(leftScope && rightScope && leftScope === rightScope);
 }
 
+function normalizeUlok(value: string | null | undefined): string {
+    return String(value || '').trim().toUpperCase();
+}
+
+function getScopeSortRank(scope: string | null | undefined): number {
+    const normalized = normalizeScope(scope);
+    if (normalized === 'SIPIL') return 1;
+    if (normalized === 'ME') return 2;
+    return 99;
+}
+
+function formatScopeList(scopes: Array<string | null | undefined>): string {
+    return Array.from(new Set(scopes.map(normalizeScope).filter(Boolean)))
+        .sort((a, b) => getScopeSortRank(a) - getScopeSortRank(b) || a.localeCompare(b))
+        .join(' + ');
+}
+
+function getProjectGroupKey(item: Pick<PicScopeGroup, 'nomor_ulok' | 'kode_toko' | 'toko'>): string {
+    const storeKey = String(item.kode_toko || item.toko?.kode_toko || item.toko?.nama_toko || '').trim().toUpperCase();
+    return `${normalizeUlok(item.nomor_ulok)}::${storeKey}`;
+}
+
 // =============================================================================
 // SUB-COMPONENTS
 // =============================================================================
@@ -621,6 +643,10 @@ function ScopePicForm({
     const [isLocked, setIsLocked] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMsg, setStatusMsg] = useState({ text: '', type: '' as '' | 'info' | 'success' | 'warning' | 'error' });
+    const scopeLabel = useMemo(
+        () => formatScopeList(groups.map(group => group.lingkup_pekerjaan)) || '-',
+        [groups]
+    );
 
     const requiredDays = useMemo(() => {
         return Math.max(...groups.map(group => {
@@ -662,7 +688,7 @@ function ScopePicForm({
                     setIsLocked(true);
                     setPicName(existingPics[0]?.plc_building_support || '');
                     setStatusMsg({
-                        text: `PIC Pengawasan untuk ${groups.map(group => group.lingkup_pekerjaan).join(' & ')} sudah ditentukan (${existingPics[0]?.plc_building_support || '-'}).`,
+                        text: `PIC Pengawasan untuk ${scopeLabel} sudah ditentukan (${existingPics[0]?.plc_building_support || '-'}).`,
                         type: 'success'
                     });
                 } else if (completedScopes > 0) {
@@ -678,16 +704,18 @@ function ScopePicForm({
     }, [groups, rabDetailsByKey]);
 
     useEffect(() => {
-        const nomorUlok = groups[0]?.nomor_ulok;
-        if (!nomorUlok) return;
+        const nomorUloks = Array.from(new Set(groups.map(group => group.nomor_ulok).filter(Boolean)));
+        if (nomorUloks.length === 0) return;
         setGanttTargets([]);
         setSelectedDays([]);
         autoSelectedLastDayRef.current = null;
 
-        fetchGanttList({ nomor_ulok: nomorUlok })
-            .then(res => {
-                if (res.data && res.data.length > 0) {
-                    const fetchDetails = res.data.map((g: any) => fetchGanttDetail(g.id));
+        Promise.all(nomorUloks.map(nomorUlok => fetchGanttList({ nomor_ulok: nomorUlok })))
+            .then(results => {
+                const ganttRows = results.flatMap(res => res.data || []);
+                const uniqueGanttRows = Array.from(new Map(ganttRows.map((g: any) => [g.id, g])).values());
+                if (uniqueGanttRows.length > 0) {
+                    const fetchDetails = uniqueGanttRows.map((g: any) => fetchGanttDetail(g.id));
                     Promise.all(fetchDetails).then(details => {
                         const targets = details.flatMap(d => {
                             const ganttScope = d.data?.toko?.lingkup_pekerjaan;
@@ -761,7 +789,7 @@ function ScopePicForm({
 
     const handleToggleDay = useCallback((day: number) => {
         if (isPartialCompletion) {
-            showAlert({ message: "Jadwal SIPIL existing dipertahankan dan tidak dapat diubah saat melengkapi ME.", type: "warning" });
+            showAlert({ message: `Jadwal ${scopeLabel} existing dipertahankan dan tidak dapat diubah saat melengkapi lingkup lain.`, type: "warning" });
             return;
         }
         if (ganttDuration > 0 && day === ganttDuration) {
@@ -828,12 +856,12 @@ function ScopePicForm({
         setIsSubmitting(true);
         try {
             if (ganttTargets.length < groups.length) {
-                throw new Error("Gantt Chart seluruh lingkup SIPIL/ME belum lengkap untuk ULOK ini.");
+                throw new Error(`Gantt Chart lingkup ${scopeLabel} belum lengkap untuk ULOK ini.`);
             }
 
             const sharedStartDate = parseDateOnly(sharedTimeline.startDate);
             if (!sharedStartDate) {
-                throw new Error("Tanggal mulai bersama SIPIL/ME tidak valid.");
+                throw new Error(`Tanggal mulai ${scopeLabel} tidak valid.`);
             }
             const tglPengawasan = isPartialCompletion
                 ? existingScheduleDates
@@ -879,8 +907,8 @@ function ScopePicForm({
             setIsLocked(true);
             setStatusMsg({
                 text: isPartialCompletion
-                    ? `Lingkup ${missingGroups.map(group => group.lingkup_pekerjaan).join(' & ')} berhasil dilengkapi menggunakan jadwal existing. PIC: ${picName}`
-                    : `Berhasil disimpan sekaligus untuk ${groups.map(group => group.lingkup_pekerjaan).join(' & ')}. PIC yang ditunjuk: ${picName}`,
+                    ? `Lingkup ${formatScopeList(missingGroups.map(group => group.lingkup_pekerjaan))} berhasil dilengkapi menggunakan jadwal existing. PIC: ${picName}`
+                    : `Berhasil disimpan untuk ${scopeLabel}. PIC yang ditunjuk: ${picName}`,
                 type: 'success'
             });
             onSuccess(groups[0], picName);
@@ -896,10 +924,10 @@ function ScopePicForm({
             <div className="bg-indigo-50 border-b border-indigo-100 p-4">
                 <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-indigo-600" />
-                    PIC Pengawasan Bersama: {groups[0]?.nomor_ulok}
+                    PIC Pengawasan: {groups[0]?.nomor_ulok}
                 </h3>
                 <p className="text-sm text-indigo-700 mt-1">
-                    Satu PIC dan satu jadwal tanggal berlaku sekaligus untuk {groups.map(group => group.lingkup_pekerjaan).join(' & ')}.
+                    Satu PIC dan satu jadwal tanggal berlaku untuk lingkup {scopeLabel}.
                 </p>
             </div>
             <div className="p-5 space-y-6">
@@ -929,8 +957,10 @@ function ScopePicForm({
                             </p>
                             <p className="mt-1 text-xs leading-relaxed text-indigo-700">
                                 {isLocked
-                                    ? 'Timeline SIPIL dan ME ditampilkan bersama dalam mode baca.'
-                                    : 'Klik tanggal pada salah satu timeline. Pilihan yang sama otomatis diterapkan ke SIPIL dan ME.'}
+                                    ? `Timeline ${scopeLabel} ditampilkan dalam mode baca.`
+                                    : groups.length > 1
+                                        ? 'Klik tanggal pada salah satu timeline. Pilihan yang sama otomatis diterapkan ke semua lingkup terpilih.'
+                                        : `Klik tanggal pada timeline ${scopeLabel}.`}
                             </p>
                         </div>
 
@@ -1040,7 +1070,7 @@ function ScopePicForm({
                                 ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Menyimpan...</>
                                 : <><Save className="w-5 h-5 mr-2" /> {isPartialCompletion
                                     ? `Lengkapi ${missingGroups.map(group => group.lingkup_pekerjaan).join(' & ')}`
-                                    : "Simpan PIC SIPIL & ME"
+                                    : `Simpan PIC ${scopeLabel}`
                                 }</>
                             }
                         </Button>
@@ -1072,6 +1102,7 @@ type RabDetailSummary = {
 };
 
 type UlokOption = {
+    key: string;
     nomor_ulok: string;
     lingkup_pekerjaan: string;
     toko: any;
@@ -1237,10 +1268,12 @@ export default function InputPICPage() {
     const ulokOptions = useMemo(() => {
         const map = new Map<string, UlokOption>();
         filteredScopes.forEach(scope => {
-            if (!map.has(scope.nomor_ulok)) {
-                map.set(scope.nomor_ulok, {
+            const key = getProjectGroupKey(scope);
+            if (!map.has(key)) {
+                map.set(key, {
+                    key,
                     nomor_ulok: scope.nomor_ulok,
-                    lingkup_pekerjaan: scope.lingkup_pekerjaan,
+                    lingkup_pekerjaan: formatScopeList([scope.lingkup_pekerjaan]),
                     toko: scope.toko,
                     proyek: scope.proyek,
                     kode_toko: scope.kode_toko,
@@ -1249,24 +1282,25 @@ export default function InputPICPage() {
                 return;
             }
 
-            const existing = map.get(scope.nomor_ulok)!;
+            const existing = map.get(key)!;
             existing.scopes.push(scope);
-            existing.lingkup_pekerjaan = existing.scopes.map(item => item.lingkup_pekerjaan).join(' & ');
+            existing.lingkup_pekerjaan = formatScopeList(existing.scopes.map(item => item.lingkup_pekerjaan));
         });
-        return Array.from(map.values());
+        return Array.from(map.values()).sort((a, b) => a.nomor_ulok.localeCompare(b.nomor_ulok));
     }, [filteredScopes]);
 
-    const handleUlokSelect = async (ulok: string) => {
+    const handleUlokSelect = async (optionKey: string) => {
         setStatusMsg({ text: '', type: '' });
-        setSelectedUlok(ulok);
+        setSelectedUlok(optionKey);
         setSelectedScopes([]);
         setRabDetailsByKey({});
 
-        if (!ulok) {
+        if (!optionKey) {
             return;
         }
 
-        const scopes = approvedGroups.filter(g => g.nomor_ulok === ulok);
+        const selectedOption = ulokOptions.find(option => option.key === optionKey);
+        const scopes = selectedOption?.scopes || [];
         if (scopes.length === 0) return;
 
         setSelectedScopes(scopes);
@@ -1276,10 +1310,16 @@ export default function InputPICPage() {
         setStatusMsg({ text: 'Memuat detail proyek...', type: 'info' });
 
         try {
-            const rabList = await fetchRABList({ nomor_ulok: ulok });
-            const approvedRabs = (rabList.data || []).filter(r =>
-                r.status?.toUpperCase().includes('DISETUJUI') || r.status?.toUpperCase().includes('APPROVED')
-            );
+            const nomorUloks = Array.from(new Set(scopes.map(scope => scope.nomor_ulok).filter(Boolean)));
+            const rabLists = await Promise.all(nomorUloks.map(nomorUlok => fetchRABList({ nomor_ulok: nomorUlok })));
+            const approvedRabs = rabLists.flatMap((result, index) => {
+                const requestedUlok = normalizeUlok(nomorUloks[index]);
+                return (result.data || []).filter(r => {
+                    const rowUlok = normalizeUlok(r.nomor_ulok || r.toko?.nomor_ulok);
+                    const isApproved = r.status?.toUpperCase().includes('DISETUJUI') || r.status?.toUpperCase().includes('APPROVED');
+                    return isApproved && rowUlok === requestedUlok;
+                });
+            });
 
             const rabDetails = await Promise.all(
                 approvedRabs.map(async (rab) => {
@@ -1299,8 +1339,9 @@ export default function InputPICPage() {
             scopes.forEach(scope => {
                 const selectedScope = scope.lingkup_pekerjaan.toUpperCase();
                 const matchedRab = rabDetails.find(item => {
+                    const rabUlok = normalizeUlok(item?.detail?.data?.toko?.nomor_ulok || item?.rab?.nomor_ulok);
                     const rabScope = item?.detail?.data?.toko?.lingkup_pekerjaan?.toUpperCase() || '';
-                    if (!rabScope) return false;
+                    if (!rabScope || rabUlok !== normalizeUlok(scope.nomor_ulok)) return false;
                     return rabScope.includes(selectedScope) || selectedScope.includes(rabScope);
                 });
 
@@ -1416,7 +1457,7 @@ export default function InputPICPage() {
                                                 >
                                                     <option value="">-- Klik untuk Pilih ULOK --</option>
                                                     {ulokOptions.map(g => (
-                                                        <option key={g.nomor_ulok} value={g.nomor_ulok}>
+                                                        <option key={g.key} value={g.key}>
                                                             {g.nomor_ulok} ({g.lingkup_pekerjaan}) — {g.kode_toko} — {g.toko?.nama_toko || ''} — {g.proyek}
                                                         </option>
                                                     ))}
@@ -1442,12 +1483,12 @@ export default function InputPICPage() {
                                 {selectedScopes.length > 0 && (
                                     <div className="pt-4 border-t mt-4 border-slate-100">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-linear-to-br from-slate-50 to-indigo-50/30 p-4 rounded-xl border border-slate-200">
-                                            <InfoItem icon={<Hash className="w-3.5 h-3.5" />} label="Nomor ULOK" value={selectedUlok} />
+                                            <InfoItem icon={<Hash className="w-3.5 h-3.5" />} label="Nomor ULOK" value={selectedScopes[0].nomor_ulok} />
                                             <InfoItem icon={<Building2 className="w-3.5 h-3.5" />} label="Nama Toko" value={selectedScopes[0].toko?.nama_toko || '-'} />
                                             <InfoItem icon={<Hash className="w-3.5 h-3.5" />} label="Kode Toko" value={selectedScopes[0].kode_toko || '-'} />
                                             <InfoItem icon={<MapPin className="w-3.5 h-3.5" />} label="Cabang" value={selectedScopes[0].toko?.cabang || '-'} />
                                             <InfoItem icon={<Briefcase className="w-3.5 h-3.5" />} label="Proyek" value={selectedScopes[0].proyek || '-'} />
-                                            <InfoItem icon={<Eye className="w-3.5 h-3.5" />} label="Lingkup Tersedia" value={selectedScopes.map(scope => scope.lingkup_pekerjaan).join(' & ')} />
+                                            <InfoItem icon={<Eye className="w-3.5 h-3.5" />} label="Lingkup Tersedia" value={formatScopeList(selectedScopes.map(scope => scope.lingkup_pekerjaan))} />
                                         </div>
                                     </div>
                                 )}
@@ -1469,7 +1510,7 @@ export default function InputPICPage() {
                                         />
                                     ) : (
                                         <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 text-sm font-medium text-amber-700">
-                                            Seluruh RAB approved SIPIL/ME harus tersedia sebelum PIC dan jadwal bersama dapat disimpan.
+                                            RAB approved untuk {formatScopeList(selectedScopes.map(scope => scope.lingkup_pekerjaan)) || 'lingkup terpilih'} harus tersedia sebelum PIC dan jadwal dapat disimpan.
                                         </div>
                                     )}
                                 </div>
@@ -1488,7 +1529,7 @@ export default function InputPICPage() {
                         </div>
                         <h2 className="text-2xl font-bold text-slate-800 mb-2">Berhasil!</h2>
                         <p className="text-slate-600 mb-8 leading-relaxed">
-                            PIC dan jadwal pengawasan bersama untuk ULOK <b>{successScope?.nomor_ulok}</b> berhasil disimpan ke seluruh lingkup.
+                            PIC dan jadwal pengawasan untuk ULOK <b>{successScope?.nomor_ulok}</b> berhasil disimpan.
                         </p>
                         <Button
                             onClick={() => setShowSuccessModal(false)}
