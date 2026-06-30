@@ -476,7 +476,7 @@ export const BRANCH_TO_ULOK: Record<string, string> = {
     "PONTIANAK":       "1PZ1",
     "LOMBOK":          "1SZ1",
     "SUMBAWA":         "1SZ1",
-    "KOTABUMI":        "1VZ1",
+    "KOTABUMI":        "LZ01",
     "SERANG":          "2GZ1",
     "CIANJUR":         "2JZ1",
     "BALARAJA":        "TZ01",
