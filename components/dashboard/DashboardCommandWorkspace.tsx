@@ -241,45 +241,64 @@ const formatDashboardDate = (value: unknown) => {
   }).format(date);
 };
 
-const SLA_LIMITS: Record<string, number> = {
-  "Approval RAB": 2,
-  "Proses Gantt": 2,
-  "Proses PJU": 10,
-  "Approval SPK": 2,
-  Ongoing: 0,
-  "Kerja Tambah Kurang": 14,
+const parseSlaDate = (value: unknown) => {
+  const date = value ? new Date(String(value)) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
 };
 
-const getStageStartDate = (project: any, stage: string) => {
+const diffSlaDays = (start: Date | null, end: Date | null) => {
+  if (!start || !end) return 0;
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86_400_000));
+};
+
+const latestSerahTerima = (project: any) => {
+  const stArr = Array.isArray(project?.berkas_serah_terima)
+    ? project.berkas_serah_terima
+    : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+  return stArr
+    .filter(Boolean)
+    .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ?? null;
+};
+
+const getSlaWindow = (project: any, stage: string) => {
+  const now = new Date();
   const rab = firstRab(project);
   const spk = firstSpk(project);
   const opname = firstOpname(project);
-  if (stage === "Approval RAB" || stage === "Proses Gantt") return rab?.created_at;
-  if (stage === "Proses PJU") return rab?.waktu_persetujuan_manager || rab?.updated_at || rab?.created_at;
-  if (stage === "Approval SPK") return spk?.created_at;
-  if (stage === "Ongoing") return spk?.waktu_mulai || spk?.created_at;
-  if (stage === "Kerja Tambah Kurang") return opname?.created_at;
-  return project?.toko?.created_at;
+  const st = latestSerahTerima(project);
+
+  if (stage === "Approval RAB") {
+    return { start: parseSlaDate(rab?.created_at), end: parseSlaDate(rab?.waktu_persetujuan_manager) || now, limit: 2 };
+  }
+  if (stage === "Proses PJU") {
+    return { start: parseSlaDate(rab?.waktu_persetujuan_manager), end: parseSlaDate(spk?.created_at) || now, limit: 10 };
+  }
+  if (stage === "Approval SPK") {
+    return { start: parseSlaDate(spk?.created_at), end: parseSlaDate(spk?.waktu_persetujuan) || now, limit: 2 };
+  }
+  if (stage === "Ongoing") {
+    const extensionDays = getApprovedExtensions(project).reduce((sum: number, item: any) => sum + Number(item?.pertambahan_hari || 0), 0);
+    return { start: parseSlaDate(spk?.waktu_mulai), end: now, limit: Number(spk?.durasi || 0) + extensionDays };
+  }
+  if (stage === "Kerja Tambah Kurang") {
+    return { start: parseSlaDate(st?.created_at), end: parseSlaDate(opname?.created_at) || now, limit: 14 };
+  }
+  return { start: null, end: null, limit: 0 };
 };
 
 const getSlaInfo = (project: any, stage: string, lateDays: number) => {
   if (stage === "Done") {
     return { label: "Selesai", helper: "Proyek telah ditutup", priority: false, tone: "done" as const };
   }
-  if (stage === "Ongoing") {
-    if (lateDays > 0) return { label: "Perlu Tindakan", helper: `Melewati target SPK selama ${lateDays} hari`, priority: true, tone: "critical" as const };
-    return { label: "Dalam Target", helper: "Masih dalam durasi SPK", priority: false, tone: "safe" as const };
+  if (stage === "Proses Gantt") {
+    return { label: "Aman", helper: "Tidak masuk SLA utama", priority: false, tone: "safe" as const };
   }
-  const limit = SLA_LIMITS[stage] ?? 0;
-  const startDate = getStageStartDate(project, stage);
-  const start = startDate ? new Date(startDate) : null;
-  const age = start && !Number.isNaN(start.getTime())
-    ? Math.max(0, Math.floor((Date.now() - start.getTime()) / 86_400_000))
-    : 0;
+  const { start, end, limit } = getSlaWindow(project, stage);
+  const age = diffSlaDays(start, end);
   const exceeded = Math.max(0, age - limit);
   if (exceeded > 0) return { label: "Perlu Tindakan", helper: `Berjalan ${age} hari (batas ${limit} hari)`, priority: true, tone: "critical" as const };
-  if (limit > 0 && age >= Math.max(1, limit - 1)) return { label: "Mendekati Batas", helper: `Sudah berjalan ${age} hari`, priority: false, tone: "warning" as const };
-  return { label: "Aman", helper: limit > 0 ? `Berjalan ${age} hari` : "Belum ada ketentuan batas", priority: false, tone: "safe" as const };
+  if (limit > 0 && age >= Math.max(1, limit - 1)) return { label: "Mendekati Batas", helper: `Berjalan ${age} hari (batas ${limit} hari)`, priority: false, tone: "warning" as const };
+  return { label: "Aman", helper: limit > 0 ? `Berjalan ${age} hari (batas ${limit} hari)` : "Belum ada ketentuan batas", priority: false, tone: "safe" as const };
 };
 
 function DashboardMetric({

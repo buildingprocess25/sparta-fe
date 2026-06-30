@@ -350,12 +350,11 @@ const isProjectPastSla = (project: any, stage = getProjectStage(project)) => {
     }
 
     if (stage === 'Proses Gantt') {
-        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager || rabData?.created_at || project.toko?.created_at);
-        return dashboardDayDiff(start, now) > 2;
+        return false;
     }
 
     if (stage === 'Proses PJU') {
-        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager || rabData?.created_at || project.toko?.created_at);
+        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager);
         const firstSpkCreated = spkArray
             .map((spk: any) => parseDashboardDate(spk?.created_at))
             .filter((date: Date | null): date is Date => Boolean(date))
@@ -364,8 +363,8 @@ const isProjectPastSla = (project: any, stage = getProjectStage(project)) => {
     }
 
     if (stage === 'Kerja Tambah Kurang') {
-        const start = parseDashboardDate(latestSt?.created_at || opnameData?.created_at);
-        const end = parseDashboardDate(opnameData?.waktu_persetujuan_direktur) || now;
+        const start = parseDashboardDate(latestSt?.created_at);
+        const end = parseDashboardDate(opnameData?.created_at) || now;
         return dashboardDayDiff(start, end) > 14;
     }
 
