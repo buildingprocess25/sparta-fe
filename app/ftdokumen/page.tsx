@@ -35,7 +35,16 @@ type UlokOption = {
     nomorUlok: string; kontraktorSipil: string; kontraktorMe: string;
     spkAwal: string; spkAkhir: string; kodeToko: string; namaToko: string;
     tanggalSt: string;
+    tanggalStLocked: boolean;
     cabang: string;
+};
+
+const todayLocalIso = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
 const emptyForm: FormData = {
@@ -70,7 +79,7 @@ export default function FTDokumenPage() {
     useEffect(() => {
         if (!user) return;
 
-        setFormData(prev => ({ ...prev, cabang: user.cabang }));
+        setFormData(prev => ({ ...prev, cabang: user.cabang, tanggalAmbilFoto: prev.tanggalAmbilFoto || todayLocalIso() }));
 
         const loadUlokData = async () => {
             setIsLoadingUlok(true);
@@ -116,6 +125,7 @@ export default function FTDokumenPage() {
                         spkAwal: item.spk_awal || '',
                         spkAkhir: item.spk_akhir || '',
                         tanggalSt: item.tanggal_serah_terima || '',
+                        tanggalStLocked: item.tanggal_serah_terima_source === 'SERAH_TERIMA',
                         kodeToko: item.kode_toko || '',
                         namaToko: item.nama_toko || '',
                         cabang: rabCabang,
@@ -222,7 +232,7 @@ export default function FTDokumenPage() {
             showAlert({ message: 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
             
             // Reset form
-            setFormData({ ...emptyForm, cabang: user?.cabang || '' });
+            setFormData({ ...emptyForm, cabang: user?.cabang || '', tanggalAmbilFoto: todayLocalIso() });
             setPhotos({});
             setCurrentStep('form');
             setCurrentPage(1);
@@ -298,6 +308,10 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
     const [ulokDropdownOpen, setUlokDropdownOpen] = useState(false);
     const ulokDropdownRef = useRef<HTMLDivElement | null>(null);
     const isFranchise = formData.jenisToko === 'FRANCHISE';
+    const selectedUlok = useMemo(
+        () => ulokOptions.find(u => u.nomorUlok === formData.nomorUlok),
+        [formData.nomorUlok, ulokOptions]
+    );
 
     const filteredUlokOptions = useMemo(() => {
         if (!searchQuery) return ulokOptions;
@@ -336,7 +350,8 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                 kontraktorMe: selected.kontraktorMe,
                 spkAwal: selected.spkAwal,
                 spkAkhir: selected.spkAkhir,
-                tanggalSt: selected.tanggalSt,
+                tanggalSt: selected.tanggalSt || selected.spkAkhir,
+                tanggalAmbilFoto: prev.tanggalAmbilFoto || todayLocalIso(),
                 kodeToko: selected.kodeToko,
                 namaToko: selected.namaToko,
                 cabang: selected.cabang || prev.cabang,
@@ -361,6 +376,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
             kontraktorMe: '',
             spkAwal: '',
             spkAkhir: '',
+            tanggalSt: '',
             kodeToko: '',
             namaToko: '',
         }));
@@ -526,7 +542,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal ST <span className="text-red-500">*</span></Label>
-                            <DatePicker value={formData.tanggalSt} onChange={val => onChange('tanggalSt', val)} disabled={isReadOnly} />
+                            <DatePicker value={formData.tanggalSt} onChange={val => onChange('tanggalSt', val)} disabled={isReadOnly || (!isFranchise && Boolean(selectedUlok?.tanggalStLocked))} />
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal Ambil Foto <span className="text-red-500">*</span></Label>
