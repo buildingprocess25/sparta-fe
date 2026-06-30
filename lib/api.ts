@@ -4087,6 +4087,18 @@ export type DokumentasiBangunanData = {
     created_at: string;
 };
 
+export type DokumentasiBangunanPrefillOption = {
+    nomor_ulok: string;
+    cabang: string;
+    kode_toko: string;
+    nama_toko: string;
+    kontraktor_sipil: string;
+    kontraktor_me: string;
+    spk_awal: string;
+    spk_akhir: string;
+    tanggal_serah_terima: string;
+};
+
 export type DokumentasiBangunanResponse = {
     dokumentasi: DokumentasiBangunanData;
     items: DokumentasiBangunanItem[];
@@ -4109,6 +4121,21 @@ export const fetchDokumentasiBangunanList = async (filters?: {
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     
     const url = `${base}/api/dok/bangunan${params.toString() ? `?${params}` : ""}`;
+    return safeFetchJSON(url);
+};
+
+export const fetchDokumentasiBangunanPrefillOptions = async (filters?: {
+    cabang?: string;
+    include_submitted?: boolean;
+}): Promise<{ status: string; data: DokumentasiBangunanPrefillOption[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams();
+    if (filters?.cabang) params.append("cabang", filters.cabang);
+    if (typeof filters?.include_submitted === "boolean") {
+        params.append("include_submitted", String(filters.include_submitted));
+    }
+
+    const url = `${base}/api/dok/bangunan/prefill-options${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
 

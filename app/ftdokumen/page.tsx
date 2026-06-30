@@ -16,7 +16,7 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { PHOTO_POINTS, ALL_POINTS, TOTAL_PHOTOS, FLOOR_IMAGES, PAGE_LABELS, type PhotoPoint } from './photoPoints';
 import CameraModal from './CameraModal';
-import { submitDokumentasiBangunan, fetchRABList, fetchDokumentasiBangunanList } from '@/lib/api';
+import { submitDokumentasiBangunan, fetchDokumentasiBangunanPrefillOptions, fetchDokumentasiBangunanList } from '@/lib/api';
 import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 
 
@@ -34,23 +34,8 @@ type FormData = {
 type UlokOption = {
     nomorUlok: string; kontraktorSipil: string; kontraktorMe: string;
     spkAwal: string; spkAkhir: string; kodeToko: string; namaToko: string;
+    tanggalSt: string;
     cabang: string;
-};
-
-type DokumentasiSourceRab = {
-    nomor_ulok?: string | null;
-    nama_toko?: string | null;
-    cabang?: string | null;
-    proyek?: string | null;
-    nama_pt?: string | null;
-    kode_toko?: string | null;
-    toko?: {
-        nomor_ulok?: string | null;
-        nama_toko?: string | null;
-        cabang?: string | null;
-        kode_toko?: string | null;
-        lingkup_pekerjaan?: string | null;
-    };
 };
 
 const emptyForm: FormData = {
@@ -90,12 +75,16 @@ export default function FTDokumenPage() {
         const loadUlokData = async () => {
             setIsLoadingUlok(true);
             try {
-                // Ambil data dari RAB dan Dokumentasi Bangunan
-                const [rabRes, dokRes] = await Promise.all([
-                    fetchRABList(),
+                // Ambil data prefill lintas RAB/SPK/ST dan Dokumentasi Bangunan
+                const [prefillRes, dokRes] = await Promise.all([
+                    fetchDokumentasiBangunanPrefillOptions(
+                        canViewAllBranches(user.roles, user.isSuperHuman ?? false)
+                            ? undefined
+                            : { cabang: user.cabang }
+                    ),
                     fetchDokumentasiBangunanList()
                 ]);
-                const rabList = rabRes.data || [];
+                const prefillList = prefillRes.data || [];
                 const dokList = dokRes.data || [];
 
                 // Kumpulkan ULOK yang sudah pernah submit
@@ -106,44 +95,35 @@ export default function FTDokumenPage() {
                 );
                 setSubmittedUloks(submittedUlokSet);
 
-                const grouped: Record<string, UlokOption> = {};
+                const options: UlokOption[] = [];
 
-                for (const rab of rabList as DokumentasiSourceRab[]) {
-                    const ulok = rab.nomor_ulok || rab.toko?.nomor_ulok;
+                for (const item of prefillList) {
+                    const ulok = item.nomor_ulok;
                     if (!ulok || submittedUlokSet.has(String(ulok).trim().toUpperCase())) continue;
 
                     // Filter based on user branch
-                    const rabCabang = rab.cabang || rab.toko?.cabang || '';
+                    const rabCabang = item.cabang || '';
                     if (!canViewAllBranches(user.roles, user.isSuperHuman ?? false)) {
                         if (rabCabang.toUpperCase() !== user.cabang.toUpperCase()) {
                             continue;
                         }
                     }
 
-                    if (!grouped[ulok]) {
-                        grouped[ulok] = {
-                            nomorUlok: ulok,
-                            kontraktorSipil: '',
-                            kontraktorMe: '',
-                            spkAwal: '',
-                            spkAkhir: '',
-                            kodeToko: rab.toko?.kode_toko || rab.kode_toko || '',
-                            namaToko: rab.nama_toko || rab.toko?.nama_toko || '',
-                            cabang: rabCabang,
-                        };
-                    }
-
-                    // Tentukan kontraktor sipil vs ME berdasarkan proyek / lingkup_pekerjaan
-                    const lingkup = (rab.proyek || rab.toko?.lingkup_pekerjaan || '').toUpperCase();
-                    if (lingkup.includes('ME') || lingkup.includes('MEKANIKAL') || lingkup.includes('ELEKTRIKAL')) {
-                        grouped[ulok].kontraktorMe = rab.nama_pt || grouped[ulok].kontraktorMe;
-                    } else {
-                        grouped[ulok].kontraktorSipil = rab.nama_pt || grouped[ulok].kontraktorSipil;
-                    }
+                    options.push({
+                        nomorUlok: ulok,
+                        kontraktorSipil: item.kontraktor_sipil || '',
+                        kontraktorMe: item.kontraktor_me || '',
+                        spkAwal: item.spk_awal || '',
+                        spkAkhir: item.spk_akhir || '',
+                        tanggalSt: item.tanggal_serah_terima || '',
+                        kodeToko: item.kode_toko || '',
+                        namaToko: item.nama_toko || '',
+                        cabang: rabCabang,
+                    });
                 }
 
-                setUlokOptions(Object.values(grouped));
-                if (Object.keys(grouped).length === 0) {
+                setUlokOptions(options);
+                if (options.length === 0) {
                     showAlert({ message: 'Tidak ada data proyek/RAB yang terdaftar.', type: 'warning' });
                 }
             } catch (err) {
@@ -356,6 +336,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                 kontraktorMe: selected.kontraktorMe,
                 spkAwal: selected.spkAwal,
                 spkAkhir: selected.spkAkhir,
+                tanggalSt: selected.tanggalSt,
                 kodeToko: selected.kodeToko,
                 namaToko: selected.namaToko,
                 cabang: selected.cabang || prev.cabang,
