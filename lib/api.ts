@@ -4092,6 +4092,7 @@ export type DokumentasiBangunanPrefillOption = {
     cabang: string;
     kode_toko: string;
     nama_toko: string;
+    kontraktor: string;
     kontraktor_sipil: string;
     kontraktor_me: string;
     spk_awal: string;

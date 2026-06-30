@@ -26,13 +26,13 @@ import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 type PhotoData = { url: string; note: string | null; timestamp: string };
 type FormData = {
     jenisToko: 'REGULAR' | 'FRANCHISE';
-    cabang: string; nomorUlok: string; kontraktorSipil: string; kontraktorMe: string;
+    cabang: string; nomorUlok: string; kontraktor: string;
     spkAwal: string; spkAkhir: string; kodeToko: string; namaToko: string;
     tanggalGo: string; tanggalSt: string; tanggalAmbilFoto: string;
 };
 
 type UlokOption = {
-    nomorUlok: string; kontraktorSipil: string; kontraktorMe: string;
+    nomorUlok: string; kontraktor: string;
     spkAwal: string; spkAkhir: string; kodeToko: string; namaToko: string;
     tanggalSt: string;
     tanggalStLocked: boolean;
@@ -49,7 +49,7 @@ const todayLocalIso = () => {
 
 const emptyForm: FormData = {
     jenisToko: 'REGULAR',
-    cabang: '', nomorUlok: '', kontraktorSipil: '', kontraktorMe: '',
+    cabang: '', nomorUlok: '', kontraktor: '',
     spkAwal: '', spkAkhir: '', kodeToko: '', namaToko: '',
     tanggalGo: '', tanggalSt: '', tanggalAmbilFoto: '',
 };
@@ -120,8 +120,7 @@ export default function FTDokumenPage() {
 
                     options.push({
                         nomorUlok: ulok,
-                        kontraktorSipil: item.kontraktor_sipil || '',
-                        kontraktorMe: item.kontraktor_me || '',
+                        kontraktor: item.kontraktor || item.kontraktor_sipil || item.kontraktor_me || '',
                         spkAwal: item.spk_awal || '',
                         spkAkhir: item.spk_akhir || '',
                         tanggalSt: item.tanggal_serah_terima || '',
@@ -213,8 +212,8 @@ export default function FTDokumenPage() {
                 jenis_toko: formData.jenisToko,
                 cabang: formData.cabang,
                 nomor_ulok: formData.nomorUlok,
-                kontraktor_sipil: formData.kontraktorSipil,
-                kontraktor_me: formData.kontraktorMe,
+                kontraktor_sipil: formData.kontraktor,
+                kontraktor_me: formData.kontraktor,
                 spk_awal: formData.spkAwal,
                 spk_akhir: formData.spkAkhir,
                 kode_toko: formData.kodeToko,
@@ -346,8 +345,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                 ...prev,
                 jenisToko: 'REGULAR',
                 nomorUlok: selected.nomorUlok,
-                kontraktorSipil: selected.kontraktorSipil,
-                kontraktorMe: selected.kontraktorMe,
+                kontraktor: selected.kontraktor,
                 spkAwal: selected.spkAwal,
                 spkAkhir: selected.spkAkhir,
                 tanggalSt: selected.tanggalSt || selected.spkAkhir,
@@ -372,8 +370,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
             jenisToko: enabled ? 'FRANCHISE' : 'REGULAR',
             cabang: enabled ? prev.cabang : defaultCabang,
             nomorUlok: '',
-            kontraktorSipil: '',
-            kontraktorMe: '',
+            kontraktor: '',
             spkAwal: '',
             spkAkhir: '',
             tanggalSt: '',
@@ -480,27 +477,15 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                                 </div>
                             )}
                         </div>
-                        <div className="space-y-2">
-                            <Label>Kontraktor Sipil</Label>
+                        <div className="space-y-2 lg:col-span-2">
+                            <Label>Kontraktor</Label>
                             <Input
                                 readOnly={!isFranchise}
-                                value={formData.kontraktorSipil}
-                                onChange={(e) => onChange('kontraktorSipil', e.target.value)}
+                                value={formData.kontraktor}
+                                onChange={(e) => onChange('kontraktor', e.target.value)}
                                 disabled={isReadOnly}
                                 className={isFranchise ? manualInputClass : autoInputClass}
-                                placeholder={isFranchise ? "Input kontraktor sipil" : "Terisi otomatis"}
-                                tabIndex={isFranchise ? 0 : -1}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Kontraktor ME</Label>
-                            <Input
-                                readOnly={!isFranchise}
-                                value={formData.kontraktorMe}
-                                onChange={(e) => onChange('kontraktorMe', e.target.value)}
-                                disabled={isReadOnly}
-                                className={isFranchise ? manualInputClass : autoInputClass}
-                                placeholder={isFranchise ? "Input kontraktor ME" : "Terisi otomatis"}
+                                placeholder={isFranchise ? "Input kontraktor" : "Terisi otomatis"}
                                 tabIndex={isFranchise ? 0 : -1}
                             />
                         </div>
