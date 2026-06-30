@@ -143,6 +143,9 @@ function getContextCells(
   const date = formatDashboardDate;
   const area = Number(rab?.luas_terbangun || 0);
   const totalCost = Number(opname?.grand_total_opname || rab?.grand_total_final || 0);
+  const latestValue = ["Kerja Tambah Kurang", "Done"].includes(stage)
+    ? Number(opname?.grand_total_opname || spk?.grand_total || rab?.grand_total_final || 0)
+    : Number(spk?.grand_total || rab?.grand_total_final || 0);
 
   if (context === "ATTENTION") return [
     { value: stage, helper: penalty.amount > 0 ? `Denda ${penalty.source}` : "Melewati SLA", danger: true },
@@ -188,7 +191,7 @@ function getContextCells(
   return [
     { value: stage, helper: project?.toko?.lingkup_pekerjaan || "-" },
     { value: sla.label, helper: sla.helper, danger: sla.priority },
-    { value: formatRupiah(spk?.grand_total || rab?.grand_total_final || 0), helper: penalty.amount > 0 ? `Denda ${formatRupiah(penalty.amount)}` : "Nilai terakhir" },
+    { value: formatRupiah(latestValue), helper: penalty.amount > 0 ? `Denda ${formatRupiah(penalty.amount)}` : "Nilai terakhir" },
   ];
 }
 

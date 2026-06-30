@@ -86,6 +86,11 @@ const parseDashboardDate = (value: unknown): Date | null => {
     return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
+const dashboardDayDiff = (from: Date | null, to: Date | null = new Date()) => {
+    if (!from || !to) return 0;
+    return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
+};
+
 const addDashboardDays = (date: Date, days: number) => {
     const next = new Date(date);
     next.setDate(next.getDate() + days);
@@ -297,15 +302,74 @@ const getProjectStage = (project: any) => {
     const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
     const hasOpnamePdf = !!opnameData;
     const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
+    const hasDirectorApproval = Boolean(opnameData?.waktu_persetujuan_direktur);
 
-    if (hasOpnamePdf && isOpnameDisetujui) return 'Done';
+    if (hasOpnamePdf && isOpnameDisetujui && hasDirectorApproval) return 'Done';
     if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
+    if (hasOpnamePdf && isOpnameDisetujui && !hasDirectorApproval) return 'Kerja Tambah Kurang';
     if (hasST) return 'Kerja Tambah Kurang';
     if (hasSPK) return 'Ongoing';
     if (hasApprovalSPK) return 'Approval SPK';
     if (isRabDisetujui) return 'Proses PJU';
     if (hasRAB && isRabMenungguGantt) return 'Proses Gantt';
     return 'Approval RAB';
+};
+
+const isProjectPastSla = (project: any, stage = getProjectStage(project)) => {
+    const now = new Date();
+    const rabData = project.rab?.[0];
+    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim()) || opnameArr[0];
+    const stArr = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const latestSt = stArr
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+
+    if (stage === 'Ongoing') {
+        const approvedSpks = getApprovedDashboardSpks(project);
+        if (approvedSpks.length === 0) return false;
+        const waktuMulai = approvedSpks
+            .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(waktuMulai, now) > getProjectAllowedDays(project);
+    }
+
+    if (stage === 'Approval SPK') {
+        const spkData = spkArray.find((spk: any) => String(spk?.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL') || spkArray[0];
+        const start = parseDashboardDate(spkData?.created_at);
+        const end = parseDashboardDate(spkData?.waktu_persetujuan) || now;
+        return dashboardDayDiff(start, end) > 2;
+    }
+
+    if (stage === 'Approval RAB') {
+        const start = parseDashboardDate(rabData?.created_at || project.toko?.created_at);
+        const end = parseDashboardDate(rabData?.waktu_persetujuan_manager) || now;
+        return dashboardDayDiff(start, end) > 2;
+    }
+
+    if (stage === 'Proses Gantt') {
+        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager || rabData?.created_at || project.toko?.created_at);
+        return dashboardDayDiff(start, now) > 2;
+    }
+
+    if (stage === 'Proses PJU') {
+        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager || rabData?.created_at || project.toko?.created_at);
+        const firstSpkCreated = spkArray
+            .map((spk: any) => parseDashboardDate(spk?.created_at))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(start, firstSpkCreated || now) > 10;
+    }
+
+    if (stage === 'Kerja Tambah Kurang') {
+        const start = parseDashboardDate(latestSt?.created_at || opnameData?.created_at);
+        const end = parseDashboardDate(opnameData?.waktu_persetujuan_direktur) || now;
+        return dashboardDayDiff(start, end) > 14;
+    }
+
+    return false;
 };
 
 const getLatestSerahTerima = (project: any) => {
@@ -704,111 +768,13 @@ export default function DashboardPage() {
 
         filteredProjects.forEach(p => {
             // Mapping Category (Funnel)
-            const hasRAB = (p.rab || []).length > 0;
-            const rabData = p.rab?.[0];
-            const rabStatus = (rabData?.status || '').toUpperCase();
-            const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
-            const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
-            
-            const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-            const hasSPK = spkArray.some((s: any) => {
-                const st = (s.status || '').toUpperCase();
-                return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(st);
-            });
-            const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
-            
-            const hasST = (p.berkas_serah_terima || []).length > 0;
-            const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-            const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
-            const hasOpnamePdf = !!opnameData;
-            const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
-
-            let cat = '';
-            if (hasOpnamePdf && isOpnameDisetujui) { cat = 'Done'; miniStats['Done']++; }
-            else if (hasOpnamePdf && !isOpnameDisetujui) { cat = 'Kerja Tambah Kurang'; miniStats['Kerja Tambah Kurang']++; }
-            else if (hasST) { cat = 'Kerja Tambah Kurang'; miniStats['Kerja Tambah Kurang']++; }
-            else if (hasSPK) { cat = 'Ongoing'; miniStats['Ongoing']++; }
-            else if (hasApprovalSPK) { cat = 'Approval SPK'; miniStats['Approval SPK']++; }
-            else if (isRabDisetujui) { cat = 'Proses PJU'; miniStats['Proses PJU']++; }
-            else if (hasRAB && isRabMenungguGantt) { cat = 'Proses Gantt'; miniStats['Proses Gantt']++; }
-            else { cat = 'Approval RAB'; miniStats['Approval RAB']++; }
+            const cat = getProjectStage(p);
+            if (miniStats[cat as keyof typeof miniStats] !== undefined) {
+                miniStats[cat as keyof typeof miniStats]++;
+            }
 
             // SLA / Attention Logic
-            const createdAt = new Date(p.toko?.created_at || Date.now());
-            const diffDays = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
-            
-            let isPerhatian = false;
-            if (cat === 'Ongoing') {
-                const approvedSpks = getApprovedDashboardSpks(p);
-                if (approvedSpks.length > 0) {
-                    const waktuMulai = approvedSpks
-                        .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
-                        .filter((date: Date | null): date is Date => Boolean(date))
-                        .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || new Date();
-                    const totalAllowedDays = getProjectAllowedDays(p);
-                    const elapsedDays = Math.floor((Date.now() - waktuMulai.getTime()) / (1000 * 60 * 60 * 24));
-                    if (elapsedDays > totalAllowedDays) {
-                        isPerhatian = true;
-                    }
-                }
-            }
-            else if (cat === 'Approval SPK') {
-                const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                const spkData = spkArray[0];
-                if (spkData) {
-                    const spkCreatedAt = new Date(spkData.created_at || p.toko?.created_at || Date.now());
-                    const spkDiffDays = Math.floor((Date.now() - spkCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                    if (spkDiffDays > 2) {
-                        isPerhatian = true;
-                    }
-                } else {
-                    if (diffDays > 7) isPerhatian = true;
-                }
-            }
-            else if (cat === 'Approval RAB') {
-                const rabData = p.rab?.[0];
-                if (rabData) {
-                    const rabCreatedAt = new Date(rabData.created_at || p.toko?.created_at || Date.now());
-                    const rabDiffDays = Math.floor((Date.now() - rabCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                    const isDisetujui = (rabData.status || '').toUpperCase() === 'DISETUJUI';
-                    
-                    if (rabDiffDays > 2 && !isDisetujui) {
-                        isPerhatian = true;
-                    }
-                }
-            }
-            else if (cat === 'Proses Gantt') {
-                const rabData = p.rab?.[0];
-                const rabCreatedAt = new Date(rabData?.created_at || p.toko?.created_at || Date.now());
-                const rabDiffDays = Math.floor((Date.now() - rabCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                if (rabDiffDays > 2) {
-                    isPerhatian = true;
-                }
-            }
-            else if (cat === 'Proses PJU') {
-                const rabData = p.rab?.[0];
-                if (rabData && (rabData.status || '').toUpperCase() === 'DISETUJUI') {
-                    const rabApprovedAt = new Date(rabData.waktu_persetujuan_manager || rabData.updated_at || rabData.created_at || p.toko?.created_at || Date.now());
-                    const pjuDiffDays = Math.floor((Date.now() - rabApprovedAt.getTime()) / (1000 * 60 * 60 * 24));
-                    
-                    if (pjuDiffDays > 10) {
-                        isPerhatian = true;
-                    }
-                }
-            }
-            else if (cat === 'Kerja Tambah Kurang') {
-                const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-                const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
-                if (opnameData) {
-                    const opnameCreatedAt = new Date(opnameData.created_at || Date.now());
-                    const opnameDiffDays = Math.floor((Date.now() - opnameCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                    const isDisetujui = (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
-                    
-                    if (opnameDiffDays > 14 && !isDisetujui) {
-                        isPerhatian = true;
-                    }
-                }
-            }
+            const isPerhatian = isProjectPastSla(p, cat);
 
             if (isPerhatian && cat !== 'Done') {
                 attentionCount++;
@@ -2055,112 +2021,12 @@ export default function DashboardPage() {
                                     return true;
                                 }
                                 
-                                const hasRAB = (p.rab || []).length > 0;
-                                const rabData = p.rab?.[0];
-                                const rabStatus = (rabData?.status || '').toUpperCase();
-                                const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
-                                const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
-                                
-                                const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                const hasSPK = spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
-                                const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
-                                
-                                const hasST = (p.berkas_serah_terima || []).length > 0;
-                                const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-                                const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
-                                const hasOpnamePdf = !!opnameData;
-                                const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
-
-                                let cat = '';
-                                if (hasOpnamePdf && isOpnameDisetujui) cat = 'Done';
-                                else if (hasOpnamePdf && !isOpnameDisetujui) cat = 'Kerja Tambah Kurang';
-                                else if (hasST) cat = 'Kerja Tambah Kurang';
-                                else if (hasSPK) cat = 'Ongoing';
-                                else if (hasApprovalSPK) cat = 'Approval SPK';
-                                else if (isRabDisetujui) cat = 'Proses PJU';
-                                else if (hasRAB && isRabMenungguGantt) cat = 'Proses Gantt';
-                                else cat = 'Approval RAB';
+                                const cat = getProjectStage(p);
 
                                 if (cat !== detailModal.subContext) return false;
 
                                 if (detailModal.context === 'ATTENTION') {
-                                    const createdAt = new Date(p.toko?.created_at || Date.now());
-                                    const diffDays = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
-                                    
-                                    let isPerhatian = false;
-                                    if (cat === 'Ongoing') {
-                                        const approvedSpks = getApprovedDashboardSpks(p);
-                                        if (approvedSpks.length > 0) {
-                                            const waktuMulai = approvedSpks
-                                                .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
-                                                .filter(Boolean)
-                                                .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || new Date();
-                                            const totalAllowedDays = getProjectAllowedDays(p);
-                                            const elapsedDays = Math.floor((Date.now() - waktuMulai.getTime()) / (1000 * 60 * 60 * 24));
-                                            if (elapsedDays > totalAllowedDays) {
-                                                isPerhatian = true;
-                                            }
-                                        }
-                                    }
-                                    else if (cat === 'Approval SPK') {
-                                        const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                        const spkData = spkArray[0];
-                                        if (spkData) {
-                                            const spkCreatedAt = new Date(spkData.created_at || p.toko?.created_at || Date.now());
-                                            const spkDiffDays = Math.floor((Date.now() - spkCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                                            if (spkDiffDays > 2) {
-                                                isPerhatian = true;
-                                            }
-                                        } else {
-                                            if (diffDays > 7) isPerhatian = true;
-                                        }
-                                    }
-                                    else if (cat === 'Approval RAB') {
-                                        const rabData = p.rab?.[0];
-                                        if (rabData) {
-                                            const rabCreatedAt = new Date(rabData.created_at || p.toko?.created_at || Date.now());
-                                            const rabDiffDays = Math.floor((Date.now() - rabCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                                            const isDisetujui = (rabData.status || '').toUpperCase() === 'DISETUJUI';
-                                            
-                                            if (rabDiffDays > 2 && !isDisetujui) {
-                                                isPerhatian = true;
-                                            }
-                                        }
-                                    }
-                                    else if (cat === 'Proses Gantt') {
-                                        const rabData = p.rab?.[0];
-                                        const rabCreatedAt = new Date(rabData?.created_at || p.toko?.created_at || Date.now());
-                                        const rabDiffDays = Math.floor((Date.now() - rabCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                                        if (rabDiffDays > 2) {
-                                            isPerhatian = true;
-                                        }
-                                    }
-                                    else if (cat === 'Proses PJU') {
-                                        const rabData = p.rab?.[0];
-                                        if (rabData && (rabData.status || '').toUpperCase() === 'DISETUJUI') {
-                                            const rabApprovedAt = new Date(rabData.waktu_persetujuan_manager || rabData.updated_at || rabData.created_at || p.toko?.created_at || Date.now());
-                                            const pjuDiffDays = Math.floor((Date.now() - rabApprovedAt.getTime()) / (1000 * 60 * 60 * 24));
-                                            
-                                            if (pjuDiffDays > 10) {
-                                                isPerhatian = true;
-                                            }
-                                        }
-                                    }
-                                    else if (cat === 'Kerja Tambah Kurang') {
-                                        const opnameArr = Array.isArray(p.opname_final) ? p.opname_final : (p.opname_final ? [p.opname_final] : []);
-                                        const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
-                                        if (opnameData) {
-                                            const opnameCreatedAt = new Date(opnameData.created_at || Date.now());
-                                            const opnameDiffDays = Math.floor((Date.now() - opnameCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-                                            const isDisetujui = (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
-                                            
-                                            if (opnameDiffDays > 14 && !isDisetujui) {
-                                                isPerhatian = true;
-                                            }
-                                        }
-                                    }
-
-                                    return isPerhatian && cat !== 'Done';
+                                    return isProjectPastSla(p, cat) && cat !== 'Done';
                                 }
 
                                 return true;
