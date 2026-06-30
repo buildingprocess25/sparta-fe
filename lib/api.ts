@@ -1775,6 +1775,9 @@ export type SupervisionScope = {
     link_pdf_serah_terima: string | null;
     spk_start_date: string | null;
     spk_duration: number | null;
+    total_pengawasan_checkpoints?: number;
+    filled_pengawasan_checkpoints?: number;
+    missing_pengawasan_checkpoints?: number;
     checkpoints: SupervisionCheckpoint[];
 };
 

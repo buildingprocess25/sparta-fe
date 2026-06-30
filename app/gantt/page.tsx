@@ -300,8 +300,15 @@ function GanttBoard() {
         setShowMemoModal(true);
     }, [showAlert]);
 
+    const isScopeReadyForSerahTerima = useCallback((scope: SupervisionScope) =>
+        Boolean(scope.gantt_id)
+        && Boolean(scope.opname_final_id)
+        && Number(scope.total_pengawasan_checkpoints || 0) > 0
+        && Number(scope.missing_pengawasan_checkpoints || 0) === 0,
+    []);
+
     const handleGenerateUnifiedHandover = useCallback(async () => {
-        const target = supervisionWorkspace?.scopes.find((scope) => scope.gantt_id);
+        const target = supervisionWorkspace?.scopes.find((scope) => isScopeReadyForSerahTerima(scope));
         if (!target || (!supervisionWorkspace?.serah_terima_ready && !supervisionWorkspace?.serah_terima_generated)) return;
         setIsGeneratingHandover(true);
         try {
@@ -313,7 +320,7 @@ function GanttBoard() {
         } finally {
             setIsGeneratingHandover(false);
         }
-    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
+    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace, isScopeReadyForSerahTerima]);
 
     const loadGanttNotes = async (ganttId: number) => {
         setIsGanttNoteLoading(true);
@@ -1579,8 +1586,8 @@ function GanttBoard() {
                                                         {supervisionWorkspace.serah_terima_generated
                                                             ? 'PDF sudah tersedia'
                                                             : supervisionWorkspace.serah_terima_ready
-                                                                ? 'Semua lingkup siap diproses'
-                                                                : 'Menunggu Opname Final seluruh lingkup'}
+                                                                ? 'Siap diproses'
+                                                                : 'Menunggu semua pengawasan selesai dan Opname Final'}
                                                     </p>
                                                 </div>
                                                 {supervisionWorkspace.serah_terima_generated
