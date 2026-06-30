@@ -49,6 +49,35 @@ const getOpnameItemKey = (item: any) =>
         ? `il:${item.id_instruksi_lapangan_item}`
         : `rab:${item?.id_rab_item}`;
 
+const normalizeWorkText = (value: any) =>
+    String(value || '')
+        .trim()
+        .replace(/\[IL\]\s*/gi, '')
+        .replace(/\s*\/\s*/g, '/')
+        .replace(/\s+/g, ' ')
+        .toUpperCase();
+
+const isSameWorkText = (left: any, right: any) =>
+    normalizeWorkText(left) === normalizeWorkText(right);
+
+const isCategoryLevelPengawasan = (item: any) =>
+    isSameWorkText(item?.kategori_pekerjaan, item?.jenis_pekerjaan);
+
+const validateSequentialDependencies = (tasks: any[]) => {
+    const namedTasks = tasks.filter((task) => String(task.name || '').trim());
+    if (namedTasks.length <= 1) return null;
+
+    const missingTasks = namedTasks
+        .slice(0, -1)
+        .filter((task) => !task.dependencies || task.dependencies.length === 0);
+
+    if (missingTasks.length === 0) return null;
+
+    return `Keterikatan wajib diisi untuk semua tahapan kecuali tahapan terakhir. Belum terisi: ${missingTasks
+        .map((task) => task.name)
+        .join(', ')}.`;
+};
+
 const mapApprovedInstruksiToTokoOptions = (items: any[] = []) => {
     const map = new Map<string, any>();
     items.forEach((item) => {
@@ -303,8 +332,8 @@ function GanttBoard() {
     const isScopeReadyForSerahTerima = useCallback((scope: SupervisionScope) =>
         Boolean(scope.gantt_id)
         && Boolean(scope.opname_final_id)
-        && Number(scope.total_pengawasan_checkpoints || 0) > 0
-        && Number(scope.missing_pengawasan_checkpoints || 0) === 0,
+        && (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0) > 0
+        && (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0) === 0,
     []);
 
     const handleGenerateUnifiedHandover = useCallback(async () => {
@@ -893,6 +922,10 @@ function GanttBoard() {
             const kategori_pekerjaan: string[] = [];
             const day_items: any[] = [];
             const dependencies: any[] = [];
+            const dependencyError = validateSequentialDependencies(tasks);
+            if (dependencyError) {
+                throw new Error(dependencyError);
+            }
 
             const pengawasanSet = new Set<string>();
             (rawDayGanttData || []).forEach((d: any) => {
@@ -1587,7 +1620,7 @@ function GanttBoard() {
                                                             ? 'PDF sudah tersedia'
                                                             : supervisionWorkspace.serah_terima_ready
                                                                 ? 'Siap diproses'
-                                                                : 'Menunggu semua pengawasan selesai dan Opname Final'}
+                                                                : 'Menunggu pekerjaan selesai masuk Opname'}
                                                     </p>
                                                 </div>
                                                 {supervisionWorkspace.serah_terima_generated
@@ -3086,51 +3119,38 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         }
                     });
 
-                    // Fetch fresh RAB data directly from GET api/rab/:id to guarantee satuan exists
-                    let idRab = rabItems?.[0]?.id_rab;
-                    if (!idRab && nomorUlok && id_toko) {
+                    // Fetch fresh RAB data directly from GET api/rab/:id to guarantee satuan exists.
+                    // Some migrated projects have an approved RAB header with no items, so try
+                    // toko-matching RAB candidates until one provides detail rows.
+                    const candidateRabIds = new Set<number>();
+                    if (rabItems?.[0]?.id_rab) candidateRabIds.add(Number(rabItems[0].id_rab));
+                    if (nomorUlok && id_toko) {
                         try {
                             const rabListRes = await fetchRABList({ nomor_ulok: nomorUlok });
-                            const matchingRab = (rabListRes.data || []).find(
-                                (rab: any) => Number(rab.id_toko) === Number(id_toko)
-                            );
-                            idRab = matchingRab?.id;
+                            (rabListRes.data || [])
+                                .filter((rab: any) => Number(rab.id_toko) === Number(id_toko))
+                                .forEach((rab: any) => {
+                                    if (rab?.id) candidateRabIds.add(Number(rab.id));
+                                });
                         } catch (e) {
                             console.warn("Gagal mendapatkan RAB fallback untuk opname:", e);
                         }
                     }
-                    if (idRab) {
+
+                    for (const idRab of candidateRabIds) {
                         try {
                             const rabRes = await fetchRABDetail(idRab);
-                            if (rabRes?.data?.items) {
+                            if (rabRes?.data?.items?.length) {
                                 const ilItems = (rabItems || []).filter((item: any) => item.source_type === 'IL');
                                 latestRabItems = [...rabRes.data.items, ...ilItems];
+                                break;
                             }
                         } catch (e) {
                             console.error("Gagal get RAB detail fallback", e);
                         }
                     }
 
-                    const merged = data.map((p: any) => {
-                        // Coba gunakan id_rab_item langsung dari pengawasan jika tersedia
-                        let matchedRabItemId = p.id_rab_item ? Number(p.id_rab_item) : null;
-                        let rItem: any = null;
-
-                        if (matchedRabItemId) {
-                            // Cocokkan langsung via ID
-                            rItem = latestRabItems.find((r: any) => Number(r.id) === matchedRabItemId);
-                        }
-
-                        // Fallback: cocokkan via nama kategori + jenis pekerjaan
-                        if (!rItem) {
-                            rItem = latestRabItems.find((r: any) =>
-                                r.kategori_pekerjaan?.toUpperCase() === p.kategori_pekerjaan?.toUpperCase() &&
-                                r.jenis_pekerjaan?.toUpperCase() === p.jenis_pekerjaan?.toUpperCase()
-                            );
-                            if (rItem) matchedRabItemId = Number(rItem.id);
-                        }
-
-                        // Lookup existing opname record for upsert id
+                    const buildOpnameSourceItem = (p: any, rItem: any, matchedRabItemId: number | null) => {
                         const sourceKey = rItem ? getWorkItemKey(rItem) : null;
                         const existingOp = sourceKey ? existingOpnameMap.get(sourceKey) : null;
 
@@ -3140,13 +3160,42 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                             id_instruksi_lapangan_item: rItem?.source_type === 'IL' ? rItem.id_instruksi_lapangan_item : null,
                             source_type: rItem?.source_type || 'RAB',
                             source_key: sourceKey,
+                            kategori_pekerjaan: rItem?.kategori_pekerjaan || p.kategori_pekerjaan,
+                            jenis_pekerjaan: rItem?.jenis_pekerjaan || p.jenis_pekerjaan,
                             volume_rab: parseFloat(rItem?.volume) || 0,
                             harga_material: parseFloat(rItem?.harga_material) || 0,
                             harga_upah: parseFloat(rItem?.harga_upah) || 0,
                             satuan: rItem?.satuan || '',
-                            existing_opname_id: existingOp?.id || null, // for upsert
+                            existing_opname_id: existingOp?.id || null,
                             existing_opname: existingOp || null,
                         };
+                    };
+
+                    const merged = data.flatMap((p: any) => {
+                        let matchedRabItemId = p.id_rab_item ? Number(p.id_rab_item) : null;
+                        let rItem: any = null;
+
+                        if (matchedRabItemId) {
+                            rItem = latestRabItems.find((r: any) => Number(r.id) === matchedRabItemId);
+                        }
+
+                        if (!rItem) {
+                            rItem = latestRabItems.find((r: any) =>
+                                isSameWorkText(r.kategori_pekerjaan, p.kategori_pekerjaan) &&
+                                isSameWorkText(r.jenis_pekerjaan, p.jenis_pekerjaan)
+                            );
+                            if (rItem) matchedRabItemId = Number(rItem.id);
+                        }
+
+                        if (rItem) return [buildOpnameSourceItem(p, rItem, matchedRabItemId)];
+
+                        if (isCategoryLevelPengawasan(p)) {
+                            return latestRabItems
+                                .filter((item: any) => isSameWorkText(item.kategori_pekerjaan, p.kategori_pekerjaan))
+                                .map((item: any) => buildOpnameSourceItem(p, item, Number(item.id)));
+                        }
+
+                        return [buildOpnameSourceItem(p, null, null)];
                     }).filter((item: any) => {
                         if (!item.source_key) return false;
                         
