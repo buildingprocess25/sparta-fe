@@ -469,6 +469,65 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
     SIDOARJO:  ["SIDOARJO", "SIDOARJO BPN_SMD", "MANOKWARI", "NTT", "SORONG"],
 };
 
+const normalizeBranchValue = (branch?: string | null): string =>
+    String(branch ?? "").trim().toUpperCase();
+
+export const isBranchSupportRole = (role: string | string[] | undefined | null): boolean =>
+    normalizeRoles(role).some(r => r.includes("BRANCH BUILDING SUPPORT"));
+
+export const getSessionBranchCoverage = (): string[] => {
+    if (typeof window === "undefined") return [];
+    const raw = sessionStorage.getItem("branchCoverage");
+    if (!raw) return [];
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .map(item => normalizeBranchValue(String(item)))
+            .filter(Boolean);
+    } catch {
+        return [];
+    }
+};
+
+export const getBranchGroupForBranch = (branch?: string | null): { name: string; branches: string[] } | null => {
+    const upper = normalizeBranchValue(branch);
+    if (!upper) return null;
+    const entry = Object.entries(BRANCH_GROUPS).find(([, group]) => group.includes(upper));
+    return entry ? { name: entry[0], branches: entry[1] } : null;
+};
+
+export const getAccessibleBranchesForUser = (
+    role: string | string[] | undefined | null,
+    cabang?: string | null,
+    coverage: string[] = []
+): string[] => {
+    const upperCabang = normalizeBranchValue(cabang);
+    const normalizedCoverage = Array.from(new Set(coverage.map(normalizeBranchValue).filter(Boolean)));
+
+    if (isBranchSupportRole(role)) {
+        const group = getBranchGroupForBranch(upperCabang);
+        if (group && (group.name === "CIKOKOL" || group.name === "CILEUNGSI")) {
+            return [...group.branches];
+        }
+    }
+
+    if (normalizedCoverage.length > 0) return normalizedCoverage;
+    return upperCabang ? [upperCabang] : [];
+};
+
+export const canAccessBranchForUser = (
+    branch: string | undefined | null,
+    role: string | string[] | undefined | null,
+    cabang?: string | null,
+    coverage: string[] = []
+): boolean => {
+    const normalizedBranch = normalizeBranchValue(branch);
+    if (!normalizedBranch || normalizedBranch === "-") return true;
+    return getAccessibleBranchesForUser(role, cabang, coverage).includes(normalizedBranch);
+};
+
 /**
  * Mapping nama cabang ke kode ULOK-nya.
  * Digunakan untuk keperluan API yang membutuhkan kode ULOK cabang.

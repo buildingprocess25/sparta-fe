@@ -1,7 +1,8 @@
 import type { UserSession } from "@/context/SessionContext";
 import {
-    BRANCH_GROUPS,
+    canAccessBranchForUser,
     canViewAllBranches,
+    getSessionBranchCoverage,
     isViewOnlyUser,
 } from "@/lib/constants";
 import {
@@ -168,19 +169,10 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
     return Array.from(allAccessibleTypes);
 };
 
-const isSameBranchScope = (itemCabang: string | null | undefined, userCabang: string) => {
+const isSameBranchScope = (itemCabang: string | null | undefined, user: UserSession) => {
+    const userCabang = normalizeBranch(user.cabang);
     if (!userCabang || !itemCabang || itemCabang === "-") return true;
-
-    let userGroup: string[] | null = null;
-    for (const group of Object.values(BRANCH_GROUPS)) {
-        if (group.includes(userCabang)) {
-            userGroup = group;
-            break;
-        }
-    }
-
-    const itemCabangUpper = itemCabang.toUpperCase();
-    return userGroup ? userGroup.includes(itemCabangUpper) : itemCabangUpper === userCabang;
+    return canAccessBranchForUser(itemCabang, user.roles, userCabang, getSessionBranchCoverage());
 };
 
 const isPendingProcessStatus = (status: string, tipe: ApprovalType) => {
@@ -233,7 +225,7 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
 
     if (!statusMatchesRole) return false;
     if (isHOUser) return normalizeBranch(item.cabang) === userCabang;
-    return isSameBranchScope(item.cabang, userCabang);
+    return isSameBranchScope(item.cabang, user);
 };
 
 const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan: ApprovalJabatan) => {
@@ -256,7 +248,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     const canSeeAll = canViewAllBranches(user.roles, user.isSuperHuman);
 
     if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR") {
-        if (!isSameBranchScope(item.cabang, userCabang)) return false;
+        if (!isSameBranchScope(item.cabang, user)) return false;
     }
 
     if (canSeeAll || user.isRegionalManager) return true;
@@ -265,7 +257,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
 
     if (item.tipe === "RAB" && jabatan === "DIREKTUR") {
         if (userCabang && !isDirectorHOUser && item.cabang) {
-            if (!isSameBranchScope(item.cabang, userCabang)) return false;
+            if (!isSameBranchScope(item.cabang, user)) return false;
         }
 
         return isDirectorApprovalStatus(upper);

@@ -128,6 +128,7 @@ export default function LoginPage() {
     const cabangFromAPI = (result?.data?.cabang || fallbackCabang).trim();
     const emailFromAPI = (result?.data?.email_sat || fallbackEmail).trim();
     const namaPtFromAPI = (result?.data?.nama_pt || "").trim();
+    const coverageFromAPI = Array.isArray(result?.data?.coverage) ? result.data.coverage : [];
 
     let mappedRole = normalizeJabatanRole(jabatanFromAPI);
     let sessionCabang = cabangFromAPI;
@@ -144,6 +145,7 @@ export default function LoginPage() {
     sessionStorage.setItem("loggedInUserCabang", sessionCabang);
     sessionStorage.setItem("nama_pt", sessionNamaPt);
     sessionStorage.setItem("alamat_cabang", sessionAlamatCabang);
+    sessionStorage.setItem("branchCoverage", JSON.stringify(coverageFromAPI));
 
     setIsLoading(false);
     setTimeout(() => {

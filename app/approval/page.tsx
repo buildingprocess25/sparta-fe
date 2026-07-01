@@ -37,7 +37,15 @@ import {
 } from '@/lib/api';
 
 import { parseCurrency } from '@/lib/utils';
-import { BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import {
+    BRANCH_GROUPS,
+    BRANCH_TO_ULOK,
+    canViewAllBranches,
+    isViewOnlyUser,
+    getAccessibleBranchesForUser,
+    getSessionBranchCoverage,
+    canAccessBranchForUser,
+} from '@/lib/constants';
 import {
     EMPTY_APPROVAL_COUNTS,
     fetchApprovalNotificationCounts,
@@ -780,6 +788,7 @@ function ApprovalPageContent() {
                 const isSuperHumanUser = user?.isSuperHuman ?? false;
                 const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHumanUser);
                 const isRegionalManagerUser = user?.isRegionalManager ?? false;
+                const userBranchCoverage = getSessionBranchCoverage();
 
                 if (
                     ['RAB', 'OPNAME', 'INSTRUKSI_LAPANGAN'].includes(type)
@@ -840,20 +849,7 @@ function ApprovalPageContent() {
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
                 // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
                 if (!isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
-                    let userGroup: string[] | null = null;
-                    for (const grp of Object.values(BRANCH_GROUPS)) {
-                        if (grp.includes(upperUserCabang)) {
-                            userGroup = grp;
-                            break;
-                        }
-                    }
-                    
-                    const itemCabangUpper = item.cabang.toUpperCase();
-                    if (userGroup) {
-                        if (!userGroup.includes(itemCabangUpper)) return false;
-                    } else {
-                        if (itemCabangUpper !== upperUserCabang) return false;
-                    }
+                    if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
                 }
                 
                 // 2. FILTER STATUS & JABATAN (Eksisting)
@@ -869,20 +865,7 @@ function ApprovalPageContent() {
 
                 if (type === 'RAB' && isDirectorJabatan(jabatan)) {
                     if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
-                        let userGroup: string[] | null = null;
-                        for (const grp of Object.values(BRANCH_GROUPS)) {
-                            if (grp.includes(upperUserCabang)) {
-                                userGroup = grp;
-                                break;
-                            }
-                        }
-
-                        const itemCabangUpper = normalizeBranch(item.cabang);
-                        if (userGroup) {
-                            if (!userGroup.includes(itemCabangUpper)) return false;
-                        } else if (itemCabangUpper !== upperUserCabang) {
-                            return false;
-                        }
+                        if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
                     }
 
                     return matchesApprovalStage(jabatan, upper);
@@ -1544,27 +1527,21 @@ function ApprovalPageContent() {
 
     const isSuperHuman = user?.isSuperHuman ?? false;
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
-    const branchGroupForUser = useMemo(() => {
-        const upper = normalizeBranch(userInfo.cabang);
-        if (!upper) return null;
-        const entry = Object.entries(BRANCH_GROUPS).find(([, group]) => group.includes(upper));
-        return entry ? { name: entry[0], branches: entry[1] } : null;
-    }, [userInfo.cabang]);
-    const isBranchGroupUser = !!branchGroupForUser;
-    const showCabangFilter = canSeeAllBranches || isBranchGroupUser;
+    const accessibleBranches = useMemo(() => {
+        if (canSeeAllBranches) return Object.keys(BRANCH_TO_ULOK).sort();
+        return getAccessibleBranchesForUser(userInfo.role, userInfo.cabang, getSessionBranchCoverage()).sort();
+    }, [canSeeAllBranches, userInfo.cabang, userInfo.role]);
+    const showCabangFilter = canSeeAllBranches || accessibleBranches.length > 1;
 
     // Static cabang options based on user role/group
     const cabangOptions = useMemo(() => {
-        if (canSeeAllBranches) {
-            return Object.keys(BRANCH_TO_ULOK).sort();
-        }
-        return branchGroupForUser ? [...branchGroupForUser.branches].sort() : [];
-    }, [branchGroupForUser, canSeeAllBranches]);
+        return accessibleBranches;
+    }, [accessibleBranches]);
 
     const cabangFilterDefaultLabel = canSeeAllBranches
         ? 'Semua Cabang'
-        : branchGroupForUser
-            ? `Semua Cabang Group ${branchGroupForUser.name}`
+        : accessibleBranches.length > 1
+            ? 'Semua Cabang Akses'
             : 'Semua Cabang';
 
     useEffect(() => {

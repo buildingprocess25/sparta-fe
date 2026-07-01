@@ -33,7 +33,18 @@ import {
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
-import { BRANCH_GROUPS, BRANCH_TO_ULOK, getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole, isViewOnlyUser } from '@/lib/constants';
+import {
+    BRANCH_GROUPS,
+    BRANCH_TO_ULOK,
+    getPpRoles,
+    canAccessProjectPlanningByCabang,
+    canViewAllBranches,
+    hasSuperHumanRole,
+    isViewOnlyUser,
+    getAccessibleBranchesForUser,
+    getSessionBranchCoverage,
+    canAccessBranchForUser,
+} from '@/lib/constants';
 
 // =============================================================================
 // TYPES
@@ -1192,16 +1203,7 @@ export default function DaftarDokumenPage() {
                     filters.nama_kontraktor = sessionNamaPt;
                 }
                 if (sessionCabang && !sessionCanViewAllBranches) {
-                    let userGroup: string[] | null = null;
-                    for (const grp of Object.values(BRANCH_GROUPS)) {
-                        if (grp.includes(sessionCabang)) {
-                            userGroup = grp;
-                            break;
-                        }
-                    }
-                    if (!userGroup) {
-                        filters.cabang = sessionCabang;
-                    }
+                    filters.cabang = sessionCabang;
                 }
                 const res = await fetchSPKList(Object.keys(filters).length > 0 ? filters : undefined);
                 docs = normalizeSPKDocs(res.data ?? []);
@@ -1284,19 +1286,8 @@ export default function DaftarDokumenPage() {
             // Filter by cabang for users without global branch visibility.
             const upperUserCabang = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
             if (upperUserCabang && !sessionCanViewAllBranches) {
-                let userGroup: string[] | null = null;
-                for (const grp of Object.values(BRANCH_GROUPS)) {
-                    if (grp.includes(upperUserCabang)) {
-                        userGroup = grp;
-                        break;
-                    }
-                }
-                
-                if (userGroup) {
-                    docs = docs.filter(d => userGroup!.includes(d.cabang.toUpperCase()));
-                } else {
-                    docs = docs.filter(d => d.cabang.toUpperCase() === upperUserCabang);
-                }
+                const sessionCoverage = getSessionBranchCoverage();
+                docs = docs.filter(d => canAccessBranchForUser(d.cabang, sessionRoles, upperUserCabang, sessionCoverage));
             }
 
             // Sort by newest first
@@ -1971,25 +1962,13 @@ export default function DaftarDokumenPage() {
         if (canSeeAllBranches) {
             return Object.keys(BRANCH_TO_ULOK).sort();
         }
-        let userGroup: string[] | null = null;
-        for (const grp of Object.values(BRANCH_GROUPS)) {
-            if (grp.includes(upper)) {
-                userGroup = grp;
-                break;
-            }
-        }
-        return userGroup ? [...userGroup].sort() : [];
+        return getAccessibleBranchesForUser(userInfo.role, upper, getSessionBranchCoverage()).sort();
     }, [userInfo.cabang, userInfo.role, isSuperHuman]);
 
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const isHO = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
     const isGlobalViewOnly = isViewOnlyUser(userInfo.role, isSuperHuman);
-    const isHeadGroup = useMemo(() => {
-        if (!userInfo.cabang) return false;
-        const upper = userInfo.cabang.toUpperCase();
-        return Object.values(BRANCH_GROUPS).some(grp => grp.includes(upper));
-    }, [userInfo.cabang]);
-    const showCabangFilter = canSeeAllBranches || isHeadGroup || isContractor || isDirektur;
+    const showCabangFilter = canSeeAllBranches || cabangOptions.length > 1 || isContractor || isDirektur;
 
     const filteredList = useMemo(() => {
         const q = searchQuery.toLowerCase();
