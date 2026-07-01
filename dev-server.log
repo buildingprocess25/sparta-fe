@@ -145,3 +145,4 @@ Creating turbopack project { dir: 'C:\\alfamart\\SPARTA\\sparta-fe', testMode: t
  GET /auth 200 in 940ms (compile: 86ms, render: 854ms)
  GET /manifest.webmanifest 200 in 51ms (compile: 27ms, render: 25ms)
  GET /auth 200 in 662ms (compile: 35ms, render: 627ms)
+ GET /auth 200 in 9.6s (compile: 5.6s, render: 3.9s)

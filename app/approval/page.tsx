@@ -227,10 +227,12 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
 };
 
-const ROLE_TO_JABATAN: Record<string, 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR'> = {
+type ApprovalJabatan = 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'DIREKTUR_KONTRAKTOR' | 'KONTRAKTOR';
+
+const ROLE_TO_JABATAN: Record<string, ApprovalJabatan> = {
     'BRANCH BUILDING COORDINATOR':           'KOORDINATOR',
     'BRANCH BUILDING & MAINTENANCE MANAGER': 'MANAGER',
-    'DIREKTUR KONTRAKTOR':                   'DIREKTUR',
+    'DIREKTUR KONTRAKTOR':                   'DIREKTUR_KONTRAKTOR',
     'DIREKTUR':                              'DIREKTUR',
     'KONTRAKTOR':                            'KONTRAKTOR',
 };
@@ -265,6 +267,23 @@ const isManagerApprovalStatus = (status?: string | null) => {
 const isDirectorApprovalStatus = (status?: string | null) => {
     const upper = String(status ?? '').trim().toUpperCase();
     return upper.includes('DIREKTUR') || upper.includes('DIR.');
+};
+
+const isContractorDirectorApprovalStatus = (status?: string | null) => {
+    const upper = String(status ?? '').trim().toUpperCase();
+    return upper.includes('DIREKTUR KONTRAKTOR') || upper.includes('DIR. KONTRAKTOR');
+};
+
+const isDirectorJabatan = (value?: ApprovalJabatan | null) =>
+    value === 'DIREKTUR' || value === 'DIREKTUR_KONTRAKTOR';
+
+const matchesApprovalStage = (jabatan: ApprovalJabatan | null, status?: string | null) => {
+    if (!isPendingApprovalStatus(status)) return false;
+    if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(status);
+    if (jabatan === 'MANAGER') return isManagerApprovalStatus(status);
+    if (jabatan === 'DIREKTUR_KONTRAKTOR') return isContractorDirectorApprovalStatus(status);
+    if (jabatan === 'DIREKTUR') return isDirectorApprovalStatus(status);
+    return true;
 };
 
 const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
@@ -566,7 +585,7 @@ function ApprovalPageContent() {
     // --- AUTH ---
     const [userInfo, setUserInfo]       = useState({ name: '', role: '', cabang: '', email: '', nama_pt: '' });
     const [accessibleTypes, setAccessibleTypes] = useState<ApprovalType[]>([]);
-    const [jabatan, setJabatan]         = useState<'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR' | null>(null);
+    const [jabatan, setJabatan]         = useState<ApprovalJabatan | null>(null);
 
     // --- NAVIGATION ---
     const [activeView, setActiveView]     = useState<ActiveView>('menu');
@@ -657,9 +676,11 @@ function ApprovalPageContent() {
 
         // Prioritas Jabatan: DIREKTUR KONTRAKTOR > MANAGER > KOORDINATOR
         // Super Human mendapat jabatan MANAGER untuk bisa approve semua level
-        let currentJabatan: 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'KONTRAKTOR' | null = null;
+        let currentJabatan: ApprovalJabatan | null = null;
         if (isSuperHuman) {
             currentJabatan = 'MANAGER';
+        } else if (roles.some(r => r === 'DIREKTUR KONTRAKTOR')) {
+            currentJabatan = 'DIREKTUR_KONTRAKTOR';
         } else if (roles.some(r => r.includes('DIREKTUR'))) {
             currentJabatan = 'DIREKTUR';
         } else if (roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER') || roles.includes('MANAGER')) {
@@ -818,7 +839,7 @@ function ApprovalPageContent() {
 
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
                 // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
-                if (jabatan !== 'DIREKTUR' && upperUserCabang && item.cabang && item.cabang !== '-') {
+                if (!isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
                     let userGroup: string[] | null = null;
                     for (const grp of Object.values(BRANCH_GROUPS)) {
                         if (grp.includes(upperUserCabang)) {
@@ -846,7 +867,7 @@ function ApprovalPageContent() {
                     return upper === 'MENUNGGU PERSETUJUAN';
                 }
 
-                if (type === 'RAB' && jabatan === 'DIREKTUR') {
+                if (type === 'RAB' && isDirectorJabatan(jabatan)) {
                     if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
                         let userGroup: string[] | null = null;
                         for (const grp of Object.values(BRANCH_GROUPS)) {
@@ -864,7 +885,7 @@ function ApprovalPageContent() {
                         }
                     }
 
-                    return isPendingApprovalStatus(upper) && isDirectorApprovalStatus(upper);
+                    return matchesApprovalStage(jabatan, upper);
                 }
 
                 // Khusus OPNAME — tampilkan semua yang statusnya menunggu persetujuan apapun level-nya
@@ -875,10 +896,7 @@ function ApprovalPageContent() {
 
                 // Untuk RAB & IL (Multi-level)
                 if (!isPendingApprovalStatus(upper)) return false;
-                if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(upper);
-                if (jabatan === 'MANAGER')     return isManagerApprovalStatus(upper);
-                if (jabatan === 'DIREKTUR')    return isDirectorApprovalStatus(upper);
-                return true;
+                return matchesApprovalStage(jabatan, upper);
             });
 
             setListData(normalized);
@@ -1117,7 +1135,7 @@ function ApprovalPageContent() {
         const status = (item.status ?? '').toUpperCase();
         return item.tipe === 'RAB'
             && normalizeBranch(item.cabang) === 'BOGOR'
-            && jabatan === 'DIREKTUR'
+            && isDirectorJabatan(jabatan)
             && status.includes('MENUNGGU')
             && status.includes('DIREKTUR');
     };
@@ -1203,7 +1221,7 @@ function ApprovalPageContent() {
             const catatanApproval = note.trim() || null;
             if (item.tipe === 'RAB') {
                 let currentName = userInfo.name;
-                if (jabatan === 'DIREKTUR' && item.status.toUpperCase().includes('MENUNGGU PERSETUJUAN DIREKTUR')) {
+                if (isDirectorJabatan(jabatan) && item.status.toUpperCase().includes('MENUNGGU PERSETUJUAN DIREKTUR')) {
                     const direkturName = await fetchDirekturName(userInfo.email);
                     if (direkturName) currentName = direkturName;
                 }
@@ -1297,7 +1315,7 @@ function ApprovalPageContent() {
         try {
             if (item.tipe === 'RAB') {
                 let currentName = userInfo.name;
-                if (jabatan === 'DIREKTUR' && item.status.toUpperCase().includes('MENUNGGU PERSETUJUAN DIREKTUR')) {
+                if (isDirectorJabatan(jabatan) && item.status.toUpperCase().includes('MENUNGGU PERSETUJUAN DIREKTUR')) {
                     const direkturName = await fetchDirekturName(userInfo.email);
                     if (direkturName) currentName = direkturName;
                 }
@@ -1409,7 +1427,26 @@ function ApprovalPageContent() {
         const loadedItems = await loadList(type);
         if (detailId) {
             const target = loadedItems.find(item => String(item.id) === String(detailId));
-            if (target) await loadDetail(target);
+            if (target) {
+                await loadDetail(target);
+                return;
+            }
+
+            const numericDetailId = Number(detailId);
+            if (Number.isFinite(numericDetailId) && accessibleTypes.includes(type)) {
+                await loadDetail({
+                    id: numericDetailId,
+                    tipe: type,
+                    nomor_ulok: '-',
+                    nama_toko: '-',
+                    cabang: '-',
+                    status: '',
+                    total_nilai: 0,
+                    email_pembuat: '',
+                    created_at: '',
+                    _raw: {},
+                });
+            }
         }
     };
 
@@ -1488,17 +1525,11 @@ function ApprovalPageContent() {
         // OPNAME (Final) — multi-level mirip RAB tapi status dalam Bahasa Indonesia
         if (tipe === 'OPNAME') {
             if (!isPendingApprovalStatus(upper) && !upper.includes('MENUNGGU')) return false;
-            if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(upper);
-            if (jabatan === 'MANAGER')     return isManagerApprovalStatus(upper);
-            if (jabatan === 'DIREKTUR')    return isDirectorApprovalStatus(upper);
-            return isPendingApprovalStatus(upper) || upper.includes('MENUNGGU');
+            return matchesApprovalStage(jabatan, upper);
         }
 
         // RAB & IL — multi-level
-        if (jabatan === 'KOORDINATOR') return isPendingApprovalStatus(upper) && isCoordinatorApprovalStatus(upper);
-        if (jabatan === 'MANAGER')     return isPendingApprovalStatus(upper) && isManagerApprovalStatus(upper);
-        if (jabatan === 'DIREKTUR')    return isPendingApprovalStatus(upper) && isDirectorApprovalStatus(upper);
-        return isPendingApprovalStatus(upper);
+        return matchesApprovalStage(jabatan, upper);
     };
 
     const isApproved = (status: string) => {
