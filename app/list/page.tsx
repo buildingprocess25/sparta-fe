@@ -34,7 +34,6 @@ import {
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
 import {
-    BRANCH_GROUPS,
     BRANCH_TO_ULOK,
     getPpRoles,
     canAccessProjectPlanningByCabang,

@@ -38,7 +38,6 @@ import {
 
 import { parseCurrency } from '@/lib/utils';
 import {
-    BRANCH_GROUPS,
     BRANCH_TO_ULOK,
     canViewAllBranches,
     isViewOnlyUser,
@@ -830,16 +829,7 @@ function ApprovalPageContent() {
                     if (isHOUser) return normalizeBranch(item.cabang) === upperUserCabang;
                     if (!upperUserCabang || !item.cabang || item.cabang === '-') return true;
 
-                    let userGroup: string[] | null = null;
-                    for (const grp of Object.values(BRANCH_GROUPS)) {
-                        if (grp.includes(upperUserCabang)) {
-                            userGroup = grp;
-                            break;
-                        }
-                    }
-
-                    const itemCabangUpper = item.cabang.toUpperCase();
-                    return userGroup ? userGroup.includes(itemCabangUpper) : itemCabangUpper === upperUserCabang;
+                    return canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage);
                 }
 
                 if (canSeeAllBranches || isRegionalManagerUser) {

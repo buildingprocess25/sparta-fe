@@ -8,7 +8,20 @@ import {
     type TaskNotificationGroup,
     type TaskNotificationItem,
 } from "@/lib/api";
-import { Bell, ArrowLeft, ChevronRight, ClipboardCheck, FileCheck2, Loader2 } from "lucide-react";
+import {
+    AlertCircle,
+    ArrowLeft,
+    Bell,
+    ChevronRight,
+    ClipboardCheck,
+    FileCheck2,
+    FilePenLine,
+    Filter,
+    Loader2,
+    RefreshCw,
+    Send,
+    Wrench,
+} from "lucide-react";
 
 type PanelGroup = TaskNotificationGroup & {
     accent: string;
@@ -21,6 +34,23 @@ const getGroupAccent = (key: string) => {
     if (key === "pic_pengawasan_missing") return "bg-violet-50 text-violet-700 border-violet-200";
     if (key === "rab_project_planning_request") return "bg-blue-50 text-blue-700 border-blue-200";
     return "bg-slate-50 text-slate-700 border-slate-200";
+};
+
+const getGroupRail = (key: string) => {
+    if (key.startsWith("approval_")) return "bg-sky-500";
+    if (key === "support_ktk_ready") return "bg-emerald-500";
+    if (key.startsWith("revision_")) return "bg-amber-500";
+    if (key === "pic_pengawasan_missing") return "bg-violet-500";
+    if (key === "rab_project_planning_request") return "bg-blue-500";
+    return "bg-slate-400";
+};
+
+const getGroupIcon = (group: TaskNotificationGroup) => {
+    if (group.action_type === "revision") return FilePenLine;
+    if (group.action_type === "input") return Wrench;
+    if (group.action_type === "process") return AlertCircle;
+    if (group.action_type === "offer") return Send;
+    return ClipboardCheck;
 };
 
 const FILTERS = [
@@ -77,6 +107,17 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     }, []);
 
     const total = useMemo(() => groups.reduce((sum, group) => sum + group.count, 0), [groups]);
+    const filterCounts = useMemo(() => {
+        const counts = FILTERS.reduce<Record<string, number>>((acc, filter) => {
+            acc[filter.key] = filter.key === "all"
+                ? total
+                : groups
+                    .filter(group => group.action_type === filter.key)
+                    .reduce((sum, group) => sum + group.count, 0);
+            return acc;
+        }, {});
+        return counts;
+    }, [groups, total]);
     const filteredGroups = useMemo(
         () => activeFilter === "all" ? groups : groups.filter(group => group.action_type === activeFilter),
         [activeFilter, groups]
@@ -126,40 +167,48 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
             </button>
 
             {open && (
-                <div className="absolute right-0 z-50 mt-3 w-[min(92vw,420px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
+                <div className="absolute right-0 z-50 mt-3 w-[min(92vw,440px)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
                     {!activeGroup ? (
                         <>
-                            <div className="border-b border-slate-100 px-4 py-3">
+                            <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <p className="text-sm font-black">Notifikasi</p>
-                                        <p className="text-xs text-slate-500">{total} perlu tindakan</p>
+                                        <p className="text-sm font-black text-slate-900">Notifikasi</p>
+                                        <p className="text-xs font-medium text-slate-500">
+                                            {total > 0 ? `${total} perlu tindakan` : "Tidak ada tugas aktif"}
+                                        </p>
                                     </div>
-                                    <button type="button" onClick={refresh} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-200">
-                                        Refresh
+                                    <button
+                                        type="button"
+                                        onClick={refresh}
+                                        className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100"
+                                    >
+                                        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                        Muat Ulang
                                     </button>
                                 </div>
-                                <div className="mt-3 flex gap-1 overflow-x-auto pb-1">
-                                    {FILTERS.map(filter => {
-                                        const selected = activeFilter === filter.key;
-                                        return (
-                                            <button
-                                                key={filter.key}
-                                                type="button"
-                                                onClick={() => {
-                                                    setActiveFilter(filter.key);
-                                                    setActiveGroupKey(null);
-                                                }}
-                                                className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black transition ${
-                                                    selected
-                                                        ? "bg-slate-900 text-white"
-                                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                                }`}
-                                            >
-                                                {filter.label}
-                                            </button>
-                                        );
-                                    })}
+                                <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-2">
+                                    <label className="relative block">
+                                        <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                        <select
+                                            value={activeFilter}
+                                            onChange={(event) => {
+                                                setActiveFilter(event.target.value as (typeof FILTERS)[number]["key"]);
+                                                setActiveGroupKey(null);
+                                            }}
+                                            className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm font-bold text-slate-700 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                                        >
+                                            {FILTERS.map(filter => (
+                                                <option key={filter.key} value={filter.key}>
+                                                    {filter.label} ({filterCounts[filter.key] ?? 0})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronRight className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-slate-400" />
+                                    </label>
+                                    <span className="rounded-full bg-slate-900 px-3 py-2 text-xs font-black text-white">
+                                        {filterCounts[activeFilter] ?? 0}
+                                    </span>
                                 </div>
                             </div>
                             <div className="max-h-[65vh] overflow-y-auto p-2">
@@ -173,31 +222,35 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
                                             {groups.length === 0 ? "Semua notifikasi status-based sudah bersih." : "Coba pilih kategori lain untuk melihat tugas yang masih aktif."}
                                         </p>
                                     </div>
-                                ) : filteredGroups.map((group) => (
-                                    <button
-                                        key={group.key}
-                                        type="button"
-                                        onClick={() => setActiveGroupKey(group.key)}
-                                        className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition hover:bg-slate-50"
-                                    >
-                                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${group.accent}`}>
-                                            <ClipboardCheck className="h-5 w-5" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="truncate text-sm font-black">{group.title}</p>
-                                                <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-black text-white">{group.count}</span>
+                                ) : filteredGroups.map((group) => {
+                                    const GroupIcon = getGroupIcon(group);
+                                    return (
+                                        <button
+                                            key={group.key}
+                                            type="button"
+                                            onClick={() => setActiveGroupKey(group.key)}
+                                            className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-transparent p-3 text-left transition hover:border-slate-200 hover:bg-slate-50"
+                                        >
+                                            <span className={`absolute left-0 top-3 h-10 w-1 rounded-r-full ${getGroupRail(group.key)}`} />
+                                            <div className={`ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${group.accent}`}>
+                                                <GroupIcon className="h-5 w-5" />
                                             </div>
-                                            <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{group.description}</p>
-                                        </div>
-                                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                                    </button>
-                                ))}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className="truncate text-sm font-black text-slate-900">{group.title}</p>
+                                                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-black text-white shadow-sm">{group.count}</span>
+                                                </div>
+                                                <p className="mt-0.5 line-clamp-2 text-xs font-medium text-slate-500">{group.description}</p>
+                                            </div>
+                                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </>
                     ) : (
                         <>
-                            <div className="border-b border-slate-100 px-4 py-3">
+                            <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
                                 <button type="button" onClick={() => setActiveGroupKey(null)} className="mb-2 inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800">
                                     <ArrowLeft className="h-3.5 w-3.5" />
                                     Kembali
@@ -220,7 +273,7 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
                                         key={item.id}
                                         type="button"
                                         onClick={() => goToItem(item)}
-                                        className="w-full rounded-xl p-3 text-left transition hover:bg-slate-50"
+                                        className="w-full rounded-xl border border-transparent p-3 text-left transition hover:border-slate-200 hover:bg-slate-50"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
