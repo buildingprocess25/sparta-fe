@@ -39,7 +39,6 @@ import { GlobalAlert } from "@/components/GlobalAlert";
 import ErrorReporter from "@/components/ErrorReporter";
 import { SessionProvider } from "@/context/SessionContext";
 import { cn } from "@/lib/utils";
-import MaintenanceNotice from "@/components/MaintenanceNotice";
 
 export default function RootLayout({
   children,
@@ -57,7 +56,6 @@ export default function RootLayout({
         <GlobalAlertProvider>
           <SessionProvider>
             {children}
-            <MaintenanceNotice />
           </SessionProvider>
           <ErrorReporter />
           <GlobalAlert />

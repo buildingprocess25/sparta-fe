@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { hasRegionalManagerRole, hasSuperHumanRole } from '@/lib/constants';
+import { fetchSystemMaintenanceStatus, type SystemMaintenanceStatus } from '@/lib/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface UserSession {
@@ -47,33 +48,6 @@ const GENERAL_OPERATING_END_MINUTES = 24 * 60; // 24:00 = tengah malam
 const CONTRACTOR_OPERATING_END_MINUTES = 24 * 60; // 24:00 = tengah malam
 const TEMPORARY_ALL_ROLE_ACCESS_START = new Date('2026-06-19T00:00:00+07:00').getTime();
 const TEMPORARY_ALL_ROLE_ACCESS_END = new Date('2026-06-21T00:00:00+07:00').getTime();
-const MAINTENANCE_LOCK_DATE = '2026-07-01';
-const MAINTENANCE_LOCK_START_MINUTES = 17 * 60;
-
-function getJakartaNow() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date());
-
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '00';
-  const date = `${value('year')}-${value('month')}-${value('day')}`;
-  const hour = Number(value('hour'));
-  const minute = Number(value('minute'));
-  const second = Number(value('second'));
-
-  return {
-    date,
-    totalMinutes: hour * 60 + minute,
-    timeLabel: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`,
-  };
-}
 
 const isContractorRole = (roles: string[]): boolean =>
   roles.some((role) => role.includes('KONTRAKTOR'));
@@ -114,14 +88,6 @@ function isWithinOperatingHours(roles: string[]): boolean {
   return totalMinutes >= OPERATING_START_MINUTES && totalMinutes < operatingEndMinutes;
 }
 
-function isWithinMaintenanceLock(): boolean {
-  const jakartaNow = getJakartaNow();
-  return (
-    jakartaNow.date === MAINTENANCE_LOCK_DATE
-    && jakartaNow.totalMinutes >= MAINTENANCE_LOCK_START_MINUTES
-  );
-}
-
 // ─── Provider ────────────────────────────────────────────────────────────────
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -131,12 +97,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isTimeBlocked, setIsTimeBlocked] = useState(false);
   const [isMaintenanceBlocked, setIsMaintenanceBlocked] = useState(false);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<SystemMaintenanceStatus | null>(null);
 
   const logout = useCallback(() => {
     sessionStorage.clear();
     setUser(null);
     setIsTimeBlocked(false);
     setIsMaintenanceBlocked(false);
+    setMaintenanceStatus(null);
     router.push('/');
   }, [router]);
 
@@ -149,6 +117,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       setIsTimeBlocked(false);
       setIsMaintenanceBlocked(false);
+      setMaintenanceStatus(null);
       return;
     }
 
@@ -199,29 +168,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIsTimeBlocked(false);
     }
 
-    setIsMaintenanceBlocked(!isSuperHuman && isWithinMaintenanceLock());
-
     setIsLoading(false);
   }, [pathname, router]);
 
   useEffect(() => {
     if (!user) return;
-    if (user.isSuperHuman) {
-      setIsMaintenanceBlocked(false);
-      return;
-    }
 
-    const refreshMaintenanceLock = () => {
-      setIsMaintenanceBlocked(isWithinMaintenanceLock());
+    const refreshMaintenanceLock = async () => {
+      try {
+        const result = await fetchSystemMaintenanceStatus({ suppressGlobalError: true });
+        const data = result.data;
+        setMaintenanceStatus(data);
+        setIsMaintenanceBlocked(Boolean(data?.is_active && !user.isSuperHuman));
+      } catch (error) {
+        console.warn('Gagal membaca status pemeliharaan sistem:', error);
+        setIsMaintenanceBlocked(false);
+      }
     };
 
     refreshMaintenanceLock();
-    const timer = window.setInterval(refreshMaintenanceLock, 30_000);
+    const timer = window.setInterval(refreshMaintenanceLock, 15_000);
     return () => window.clearInterval(timer);
   }, [user]);
 
   if (!isLoading && isMaintenanceBlocked && user) {
-    return <MaintenanceBlockedScreen user={user} onLogout={logout} />;
+    return <MaintenanceBlockedScreen user={user} onLogout={logout} status={maintenanceStatus} />;
   }
 
   // Show time-blocked screen instead of children
@@ -249,17 +220,17 @@ export function useSession(): SessionContextValue {
 function MaintenanceBlockedScreen({
   user,
   onLogout,
+  status,
 }: {
   user: UserSession;
   onLogout: () => void;
+  status: SystemMaintenanceStatus | null;
 }) {
-  const currentTime = getJakartaNow().timeLabel;
-
   return (
     <div
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #111827 0%, #7f1d1d 48%, #111827 100%)',
+        background: '#f8fafc',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -271,30 +242,35 @@ function MaintenanceBlockedScreen({
       <div
         style={{
           width: '100%',
-          maxWidth: '460px',
-          textAlign: 'center',
+          maxWidth: '520px',
+          borderRadius: '1rem',
+          border: '1px solid #e2e8f0',
+          background: '#ffffff',
+          boxShadow: '0 24px 70px rgba(15,23,42,0.12)',
+          padding: '2rem',
+          textAlign: 'left',
         }}
       >
         <div
           style={{
-            width: '96px',
-            height: '96px',
-            borderRadius: '50%',
-            background: 'rgba(254,242,242,0.12)',
-            border: '2px solid rgba(252,165,165,0.35)',
+            width: '52px',
+            height: '52px',
+            borderRadius: '0.8rem',
+            background: '#fee2e2',
+            border: '1px solid #fecaca',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 1.75rem',
+            marginBottom: '1.25rem',
           }}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="48"
-            height="48"
+            width="28"
+            height="28"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="rgba(254,202,202,1)"
+            stroke="#b91c1c"
             strokeWidth={1.5}
           >
             <path
@@ -307,53 +283,44 @@ function MaintenanceBlockedScreen({
 
         <h1
           style={{
-            fontSize: '1.85rem',
+            fontSize: '1.55rem',
             fontWeight: 900,
-            color: '#fff7ed',
-            marginBottom: '0.65rem',
+            color: '#0f172a',
+            marginBottom: '0.5rem',
             letterSpacing: '0',
           }}
         >
-          Maintenance Sedang Berlangsung
+          {status?.title || 'Sistem sedang dalam pemeliharaan'}
         </h1>
 
-        <p style={{ color: '#fecaca', marginBottom: '0.35rem', fontSize: '0.95rem', fontWeight: 600 }}>
-          Mulai Rabu, 1 Juli 2026 pukul 17:00 WIB
-        </p>
-        <p style={{ color: '#fee2e2', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-          Akses SPARTA untuk sementara dinonaktifkan agar proses maintenance dapat berjalan.
-          Akun Super Human tetap dapat masuk untuk kebutuhan pengecekan sistem.
+        <p style={{ color: '#475569', fontSize: '0.95rem', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+          {status?.message || 'Akses sementara dibatasi agar pembaruan dapat berjalan stabil. Silakan kembali beberapa saat lagi.'}
         </p>
 
         <div
           style={{
-            background: 'rgba(17,24,39,0.72)',
-            border: '1px solid rgba(254,202,202,0.22)',
-            borderRadius: '0.9rem',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '0.75rem',
             padding: '1rem 1.25rem',
             marginBottom: '1.5rem',
-            color: '#fecaca',
+            color: '#64748b',
           }}
         >
-          <p style={{ marginBottom: '0.35rem', fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase' }}>
-            Akun
+          <p style={{ marginBottom: '0.25rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8' }}>
+            Sesi pengguna
           </p>
-          <p style={{ color: '#fff7ed', fontSize: '0.95rem', fontWeight: 800 }}>{user.namaLengkap}</p>
-          <p style={{ color: '#fca5a5', fontSize: '0.82rem' }}>{user.cabang}</p>
-          <p style={{ marginTop: '0.85rem', color: '#fca5a5', fontSize: '0.82rem' }}>
-            Waktu saat ini: <span style={{ color: '#fff7ed', fontWeight: 800 }}>{currentTime} WIB</span>
-          </p>
+          <p style={{ color: '#0f172a', fontSize: '0.95rem', fontWeight: 800 }}>{user.namaLengkap}</p>
+          <p style={{ color: '#64748b', fontSize: '0.82rem' }}>{user.cabang}</p>
         </div>
 
         <button
           onClick={onLogout}
           style={{
-            width: '100%',
-            maxWidth: '220px',
             padding: '0.8rem 1.5rem',
-            background: 'rgba(254,242,242,0.92)',
-            color: '#991b1b',
-            border: '1px solid rgba(254,242,242,0.95)',
+            background: '#991b1b',
+            color: '#ffffff',
+            border: '1px solid #991b1b',
             borderRadius: '0.75rem',
             fontSize: '0.95rem',
             fontWeight: 800,

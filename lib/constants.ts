@@ -8,7 +8,7 @@ import {
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
     AlertTriangle, Activity, PieChart, ClipboardCheck,
     FileStack, ClipboardList, FileEdit, Upload, Building2,
-    ShieldAlert,
+    ShieldAlert, SlidersHorizontal,
 } from "lucide-react";
 
 // -----------------------------------------------------------------------------
@@ -203,6 +203,13 @@ export const ALL_MENUS = [
         icon: Users,
     },
     {
+        id: "menu-system-maintenance",
+        title: "Pemeliharaan Sistem",
+        desc: "Aktifkan atau nonaktifkan pembatasan akses aplikasi.",
+        href: "/system-maintenance",
+        icon: SlidersHorizontal,
+    },
+    {
         id: "menu-projek-planning",
         title: "Project Planning",
         desc: "Form Permintaan Desain (FPD) dan approval project planning.",
@@ -322,7 +329,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-intervensi", "menu-il", "menu-users", "menu-projek-planning",
+        "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-projek-planning",
         // Pusat Migrasi
         "menu-migrasi-rab", "menu-migrasi-spk", "menu-migrasi-tambahspk",
         "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final",

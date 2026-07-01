@@ -184,6 +184,35 @@ export const safeFetchJSON = async (url: string, options?: ApiRequestOptions) =>
     }
 };
 
+export type SystemMaintenanceStatus = {
+    id: number;
+    is_active: boolean;
+    title: string;
+    message: string;
+    started_at: string | null;
+    ended_at: string | null;
+    updated_by_email: string | null;
+    updated_by_role: string | null;
+    updated_at: string;
+    can_manage: boolean;
+};
+
+export const fetchSystemMaintenanceStatus = async (
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: SystemMaintenanceStatus }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/system-maintenance/status`, options);
+
+export const updateSystemMaintenanceStatus = async (
+    isActive: boolean,
+    options?: ApiRequestOptions
+): Promise<{ status: string; message: string; data: SystemMaintenanceStatus }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/system-maintenance/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: isActive }),
+        ...options,
+    });
+
 // =============================================================================
 // DC DEVELOPMENT
 // =============================================================================

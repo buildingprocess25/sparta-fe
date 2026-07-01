@@ -13,6 +13,7 @@ import {
   LogOut,
   Settings2,
   ShieldAlert,
+  SlidersHorizontal,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,7 @@ const GROUPS: NavigationGroup[] = [
     id: "control",
     label: "Kontrol Sistem",
     icon: Settings2,
-    menuIds: ["menu-approval", "menu-intervensi", "menu-users", "menu-sp"],
+    menuIds: ["menu-approval", "menu-intervensi", "menu-users", "menu-system-maintenance", "menu-sp"],
   },
 ];
 
@@ -80,6 +81,7 @@ const SPECIAL_ICONS: Record<string, typeof LayoutDashboard> = {
   "menu-approval": ClipboardCheck,
   "menu-intervensi": ShieldAlert,
   "menu-daftardokumen": FolderArchive,
+  "menu-system-maintenance": SlidersHorizontal,
 };
 
 type Props = {
