@@ -91,6 +91,12 @@ const dashboardDayDiff = (from: Date | null, to: Date | null = new Date()) => {
     return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
 };
 
+const isDashboardDateEffective = (value: unknown, now = new Date()) => {
+    const date = parseDashboardDate(value);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Boolean(date && date.getTime() <= today.getTime());
+};
+
 const addDashboardDays = (date: Date, days: number) => {
     const next = new Date(date);
     next.setDate(next.getDate() + days);
@@ -289,6 +295,7 @@ const getUniquePenaltyProjects = (projects: any[]) => {
 };
 
 const getProjectStage = (project: any) => {
+    const now = new Date();
     const hasRAB = (project.rab || []).length > 0;
     const rabData = project.rab?.[0];
     const rabStatus = (rabData?.status || '').toUpperCase();
@@ -297,12 +304,13 @@ const getProjectStage = (project: any) => {
     const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
     const hasSPK = spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
     const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
-    const hasST = (project.berkas_serah_terima || []).length > 0;
+    const stArray = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const hasST = stArray.some((st: any) => isDashboardDateEffective(st?.created_at, now));
     const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
-    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim());
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim() && isDashboardDateEffective(o?.created_at, now));
     const hasOpnamePdf = !!opnameData;
     const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
-    const hasDirectorApproval = Boolean(opnameData?.waktu_persetujuan_direktur);
+    const hasDirectorApproval = isDashboardDateEffective(opnameData?.waktu_persetujuan_direktur, now);
 
     if (hasOpnamePdf && isOpnameDisetujui && hasDirectorApproval) return 'Done';
     if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
