@@ -229,7 +229,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     RAB: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
     SPK: ['BRANCH MANAGER', 'MANAGER'],
     PERTAMBAHAN_SPK: ['BRANCH MANAGER', 'MANAGER'],
-    OPNAME: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'DIREKTUR', 'COORDINATOR', 'MANAGER'],
+    OPNAME: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'COORDINATOR', 'MANAGER'],
     INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'COORDINATOR', 'MANAGER'],
     PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
 };
@@ -251,7 +251,7 @@ const isHeadOfficeDirector = (cabang?: string | null, roles: string[] = []) =>
     normalizeBranch(cabang) === 'HEAD OFFICE' && hasDirectorRole(roles);
 
 const isContractorCompanyScopedRole = (roles: string[]) =>
-    roles.some(role => role === 'KONTRAKTOR' || (role.includes('KONTRAKTOR') && !role.includes('DIREKTUR KONTRAKTOR')));
+    roles.some(role => role === 'KONTRAKTOR' || role.includes('DIREKTUR KONTRAKTOR'));
 
 const normalizeCompanyName = (value?: string | null) =>
     String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
@@ -660,7 +660,9 @@ function ApprovalPageContent() {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isDirectorHO) {
             allAccessibleTypes.add('RAB');
-            allAccessibleTypes.add('OPNAME');
+            if (roles.some(r => r === 'DIREKTUR KONTRAKTOR')) {
+                allAccessibleTypes.add('OPNAME');
+            }
         } else {
             roles.forEach(r => {
                 (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {
@@ -846,10 +848,8 @@ function ApprovalPageContent() {
                 if (
                     ['RAB', 'OPNAME', 'INSTRUKSI_LAPANGAN'].includes(type)
                     && isContractorCompanyScopedRole(userRoles)
-                    && userInfo.nama_pt
-                    && !matchesUserCompany(item._raw, userInfo.nama_pt)
                 ) {
-                    return false;
+                    return Boolean(userInfo.nama_pt) && matchesUserCompany(item._raw, userInfo.nama_pt);
                 }
 
                 if (type === 'PROJECT_PLANNING') {
@@ -918,7 +918,7 @@ function ApprovalPageContent() {
                 // Khusus OPNAME — tampilkan semua yang statusnya menunggu persetujuan apapun level-nya
                 // karena tidak ada jabatan multi-level seperti RAB; semua approver bisa melihat antrian
                 if (type === 'OPNAME') {
-                    return isPendingApprovalStatus(upper) || upper.includes('MENUNGGU');
+                    return matchesApprovalStage(jabatan, upper);
                 }
 
                 // Untuk RAB & IL (Multi-level)
@@ -964,6 +964,7 @@ function ApprovalPageContent() {
                     alamat:            d.toko.alamat,
                     cabang:            d.toko.cabang,
                     lingkup_pekerjaan: d.toko.lingkup_pekerjaan,
+                    nama_kontraktor:   d.toko.nama_kontraktor,
                     status:            d.rab.status,
                     total_nilai:       parseCurrency(d.rab.grand_total_final ?? d.rab.grand_total),
                     email_pembuat:     d.rab.email_pembuat,
@@ -1062,6 +1063,7 @@ function ApprovalPageContent() {
                     alamat:            toko.alamat,
                     cabang:            toko.cabang || item.cabang || '',
                     lingkup_pekerjaan: toko.lingkup_pekerjaan,
+                    nama_kontraktor:   toko.nama_kontraktor,
                     status:            header.status_opname_final,
                     total_nilai:       parseCurrency(header.grand_total_final ?? header.grand_total_opname),
                     email_pembuat:     header.email_pembuat,
@@ -1127,6 +1129,36 @@ function ApprovalPageContent() {
                         catatan:         it.catatan,
                     })),
                 };
+            }
+
+            const detailUserRoles = userInfo.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
+            const detailCanSeeAllBranches = canViewAllBranches(userInfo.role, user?.isSuperHuman ?? false);
+            const detailCoverage = detailCanSeeAllBranches
+                ? []
+                : await ensureBranchCoverage(detailUserRoles, userInfo.cabang, userInfo.email);
+
+            if (
+                detail
+                && !detailCanSeeAllBranches
+                && detail.cabang
+                && detail.cabang !== '-'
+                && !canAccessBranchForUser(detail.cabang, detailUserRoles, normalizeBranch(userInfo.cabang), detailCoverage)
+            ) {
+                showToast('Anda tidak memiliki akses ke cabang dokumen ini.', 'error');
+                setActiveView('list');
+                return;
+            }
+
+            if (
+                detail
+                && ['RAB', 'OPNAME'].includes(detail.tipe)
+                && isContractorCompanyScopedRole(detailUserRoles)
+            ) {
+                if (!userInfo.nama_pt || !matchesUserCompany(detail, userInfo.nama_pt)) {
+                    showToast('Anda tidak memiliki akses ke dokumen ini.', 'error');
+                    setActiveView('list');
+                    return;
+                }
             }
 
             setSelectedDetail(detail);
