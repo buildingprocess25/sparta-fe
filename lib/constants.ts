@@ -454,7 +454,8 @@ export const ME_CATEGORIES = [
  */
 export const BRANCH_GROUPS: Record<string, string[]> = {
     LOMBOK:    ["LOMBOK", "SUMBAWA"],
-    CIKOKOL:   ["CIKOKOL", "BINTAN"],
+    CILEUNGSI: ["CILEUNGSI", "BOGOR", "BEKASI", "KARAWANG"],
+    CIKOKOL:   ["CIKOKOL", "BINTAN", "PARUNG", "BALARAJA", "SERANG"],
     MEDAN:     ["MEDAN", "ACEH"],
     LAMPUNG:   ["LAMPUNG", "KOTABUMI"],
     PALEMBANG: ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],

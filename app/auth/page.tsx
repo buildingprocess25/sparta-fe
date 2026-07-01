@@ -27,7 +27,7 @@ import {
   STORE_BRANCH_CONTROLLING_ROLE,
   DIRECTOR_CONTRACTOR_ROLE,
 } from '@/lib/constants';
-import { fetchUserCabangList, storeApiAuthSession } from '@/lib/api';
+import { storeApiAuthSession } from '@/lib/api';
 
 // URL Google Apps Script tetap di sini karena spesifik hanya untuk file ini (logging)
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
@@ -47,7 +47,7 @@ export default function LoginPage() {
   const [otpToken, setOtpToken] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
-  const [otpLoginData, setOtpLoginData] = useState<{ email: string; cabang: string } | null>(null);
+  const [otpLoginData, setOtpLoginData] = useState<{ email: string; cabang: string; user_cabang_id?: number } | null>(null);
 
   // Modal untuk multi-role
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
@@ -113,6 +113,14 @@ export default function LoginPage() {
   };
 
   const processLoginSuccess = async (result: any, fallbackEmail: string, fallbackCabang: string) => {
+    if (result?.data?.requires_account_selection) {
+      setAvailableRoles(result.data.accounts || []);
+      setPendingLoginData({ email: fallbackEmail, cabang: fallbackCabang });
+      setIsLoading(false);
+      setRoleSelectOpen(true);
+      return;
+    }
+
     storeApiAuthSession(result?.data);
 
     const jabatanFromAPI = String(result?.data?.jabatan || "").toUpperCase().trim();
@@ -126,42 +134,8 @@ export default function LoginPage() {
     let sessionNamaPt = namaPtFromAPI;
     let sessionAlamatCabang = result?.data?.alamat_cabang || "";
 
-    try {
-      const userList = await fetchUserCabangList({ email_sat: emailFromAPI });
-      
-      // Filter list role yang didapat berdasarkan password/cabang yang dimasukkan saat login
-      const filteredUsers = userList?.data ? userList.data.filter((u: any) => 
-        (u.cabang || "").trim().toUpperCase() === fallbackCabang.trim().toUpperCase()
-      ) : [];
-
-      if (filteredUsers.length > 1) {
-        setAvailableRoles(filteredUsers);
-        setPendingLoginData({ emailFromAPI, cabangFromAPI, namaPtFromAPI, mappedRole, result });
-        setIsLoading(false);
-        setRoleSelectOpen(true);
-        return;
-      } else if (filteredUsers.length === 1) {
-        const selectedUser = filteredUsers[0];
-        const realName = selectedUser.nama_lengkap;
-        const realJabatan = selectedUser.jabatan;
-        sessionStorage.setItem("nama_lengkap", realName);
-
-        const realMappedRole = normalizeJabatanRole(realJabatan);
-
-        sessionStorage.setItem("userRole", realMappedRole);
-        mappedRole = realMappedRole;
-        sessionCabang = (selectedUser.cabang || cabangFromAPI).trim();
-        sessionNamaPt = (selectedUser.nama_pt || namaPtFromAPI || "").trim();
-        sessionAlamatCabang = selectedUser.alamat_cabang || sessionAlamatCabang;
-      } else {
-        sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
-        sessionStorage.setItem("userRole", mappedRole);
-      }
-    } catch (e) {
-      console.error("Gagal mengecek multi-role", e);
-      sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
-      sessionStorage.setItem("userRole", mappedRole);
-    }
+    sessionStorage.setItem("nama_lengkap", namaLengkapFromAPI);
+    sessionStorage.setItem("userRole", mappedRole);
 
     setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
 
@@ -210,7 +184,8 @@ export default function LoginPage() {
           setOtpToken(result.data.otp_token || "");
           setOtpLoginData({
             email: result?.data?.email_sat || email,
-            cabang: result?.data?.cabang || password
+            cabang: result?.data?.cabang || password,
+            user_cabang_id: result?.data?.user_cabang_id
           });
           setOtpCode("");
           setOtpError("");
@@ -259,6 +234,7 @@ export default function LoginPage() {
         body: JSON.stringify({
           email_sat: otpLoginData.email,
           cabang: otpLoginData.cabang,
+          user_cabang_id: otpLoginData.user_cabang_id,
           otp_token: otpToken,
           otp_code: otpCode
         })
@@ -282,6 +258,65 @@ export default function LoginPage() {
       console.error(error);
       setOtpError("Gagal verifikasi OTP. Silakan coba lagi.");
       setOtpLoading(false);
+    }
+  };
+
+  const handleSelectAccount = async (role: any) => {
+    if (!pendingLoginData?.email || !pendingLoginData?.cabang || !role?.id) {
+      setMessage({ text: "Data akun tidak lengkap. Silakan login ulang.", type: "error" });
+      setRoleSelectOpen(false);
+      setPendingLoginData(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setRoleSelectOpen(false);
+    setMessage({ text: "Logging in...", type: "info" });
+
+    try {
+      const cleanBaseUrl = API_URL.replace(/\/$/, "");
+      const loginEndpoint = `${cleanBaseUrl}/api/auth/login`;
+
+      const response = await fetch(loginEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_sat: pendingLoginData.email,
+          cabang: pendingLoginData.cabang,
+          user_cabang_id: role.id
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setPendingLoginData(null);
+
+        if (result?.data?.requires_otp) {
+          setOtpToken(result.data.otp_token || "");
+          setOtpLoginData({
+            email: result?.data?.email_sat || pendingLoginData.email,
+            cabang: result?.data?.cabang || pendingLoginData.cabang,
+            user_cabang_id: result?.data?.user_cabang_id || role.id
+          });
+          setOtpCode("");
+          setOtpError("");
+          setOtpOpen(true);
+          setIsLoading(false);
+          setMessage({ text: "OTP sudah dikirim ke email Anda.", type: "info" });
+          return;
+        }
+
+        await processLoginSuccess(result, pendingLoginData.email, pendingLoginData.cabang);
+        return;
+      }
+
+      setMessage({ text: result.message || "Login gagal!", type: "error" });
+      setIsLoading(false);
+    } catch (error) {
+      console.error(error);
+      setMessage({ text: "Gagal terhubung ke server. Silakan coba lagi.", type: "error" });
+      setIsLoading(false);
     }
   };
 
@@ -455,25 +490,7 @@ export default function LoginPage() {
                 key={role.id ?? `${role.email_sat}-${role.cabang}-${idx}`}
                 variant="outline"
                 className="w-full justify-start h-auto py-3 px-4 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
-                onClick={() => {
-                  const realMappedRole = normalizeJabatanRole(role.jabatan);
-
-                  sessionStorage.setItem("authenticated", "true");
-                  sessionStorage.setItem("loggedInUserEmail", role.email_sat || pendingLoginData.emailFromAPI);
-                  sessionStorage.setItem("loggedInUserCabang", (role.cabang || pendingLoginData.cabangFromAPI || "").trim()); 
-                  sessionStorage.setItem("nama_pt", (role.nama_pt || "").trim());
-                  sessionStorage.setItem("alamat_cabang", role.alamat_cabang || pendingLoginData.result?.data?.alamat_cabang || "");
-                  
-                  // Set nama dan role yang dipilih
-                  sessionStorage.setItem("nama_lengkap", role.nama_lengkap);
-                  sessionStorage.setItem("userRole", realMappedRole);
-
-                  setRoleSelectOpen(false);
-                  setMessage({ text: "Login berhasil! Mengalihkan...", type: "success" });
-                  setTimeout(() => {
-                    router.push("/workspace"); 
-                  }, 500);
-                }}
+                onClick={() => handleSelectAccount(role)}
               >
                 <div className="text-left flex-col items-start gap-1">
                   <div className="font-bold text-slate-800">{role.nama_lengkap}</div>
