@@ -301,6 +301,13 @@ const getSlaInfo = (project: any, stage: string, lateDays: number) => {
   return { label: "Aman", helper: limit > 0 ? `Berjalan ${age} hari (batas ${limit} hari)` : "Belum ada ketentuan batas", priority: false, tone: "safe" as const };
 };
 
+const isStageVisibleInDetail = (project: any, stage: string) => {
+  if (stage === "Proses Gantt") return true;
+  if (stage === "Done") return true;
+  const { start, end } = getSlaWindow(project, stage);
+  return diffSlaDays(start, end) > 0;
+};
+
 function DashboardMetric({
   label,
   value,
@@ -984,6 +991,7 @@ export default function DashboardCommandWorkspace({
     return projects.filter((project) => {
       const stage = getStage(project);
       if (detail.subContext && stage !== detail.subContext) return false;
+      if (detail.context === "PROJECT" && detail.subContext && !isStageVisibleInDetail(project, stage)) return false;
       if (detail.context === "ATTENTION") {
         return getSlaInfo(project, stage, getLateDays(project)).priority || getPenalty(project).amount > 0;
       }

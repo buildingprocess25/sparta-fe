@@ -94,7 +94,7 @@ const dashboardDayDiff = (from: Date | null, to: Date | null = new Date()) => {
 const isDashboardDateEffective = (value: unknown, now = new Date()) => {
     const date = parseDashboardDate(value);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return Boolean(date && date.getTime() <= today.getTime());
+    return Boolean(date && date.getTime() < today.getTime());
 };
 
 const addDashboardDays = (date: Date, days: number) => {
@@ -377,6 +377,52 @@ const isProjectPastSla = (project: any, stage = getProjectStage(project)) => {
     }
 
     return false;
+};
+
+const getProjectStageElapsedDays = (project: any, stage = getProjectStage(project)) => {
+    if (stage === 'Proses Gantt' || stage === 'Done') return 1;
+
+    const now = new Date();
+    const rabData = project.rab?.[0];
+    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim()) || opnameArr[0];
+    const stArr = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const latestSt = stArr
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+
+    if (stage === 'Ongoing') {
+        const approvedSpks = getApprovedDashboardSpks(project);
+        const start = approvedSpks
+            .map((spk: any) => parseDashboardDate(spk.waktu_mulai))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(start, now);
+    }
+
+    if (stage === 'Approval SPK') {
+        const spkData = spkArray.find((spk: any) => String(spk?.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL') || spkArray[0];
+        return dashboardDayDiff(parseDashboardDate(spkData?.created_at), parseDashboardDate(spkData?.waktu_persetujuan) || now);
+    }
+
+    if (stage === 'Approval RAB') {
+        return dashboardDayDiff(parseDashboardDate(rabData?.created_at || project.toko?.created_at), parseDashboardDate(rabData?.waktu_persetujuan_manager) || now);
+    }
+
+    if (stage === 'Proses PJU') {
+        const firstSpkCreated = spkArray
+            .map((spk: any) => parseDashboardDate(spk?.created_at))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(parseDashboardDate(rabData?.waktu_persetujuan_manager), firstSpkCreated || now);
+    }
+
+    if (stage === 'Kerja Tambah Kurang') {
+        return dashboardDayDiff(parseDashboardDate(latestSt?.created_at), parseDashboardDate(opnameData?.created_at) || now);
+    }
+
+    return 0;
 };
 
 const getLatestSerahTerima = (project: any) => {
@@ -2031,6 +2077,7 @@ export default function DashboardPage() {
                                 const cat = getProjectStage(p);
 
                                 if (cat !== detailModal.subContext) return false;
+                                if (detailModal.context === 'PROJECT' && getProjectStageElapsedDays(p, cat) <= 0) return false;
 
                                 if (detailModal.context === 'ATTENTION') {
                                     return isProjectPastSla(p, cat) && cat !== 'Done';
