@@ -608,6 +608,7 @@ function ApprovalPageContent() {
     const [isCountsLoading, setIsCountsLoading] = useState(false);
     const [searchQuery, setSearchQuery]   = useState('');
     const [cabangFilter, setCabangFilter] = useState('');
+    const [hydratedBranchCoverage, setHydratedBranchCoverage] = useState<string[]>([]);
 
     // --- UI ---
     const [isLoading, setIsLoading]           = useState(false);
@@ -722,10 +723,53 @@ function ApprovalPageContent() {
         setTimeout(() => setToast(null), 3500);
     };
 
+    const ensureBranchCoverage = useCallback(async (roles: string[], cabang: string, email: string): Promise<string[]> => {
+        const existingCoverage = getSessionBranchCoverage();
+        if (!email || !cabang) {
+            setHydratedBranchCoverage(existingCoverage);
+            return existingCoverage;
+        }
+
+        try {
+            const result = await fetchUserCabangList({ email_sat: email });
+            const normalizedCabang = cabang.trim().toUpperCase();
+            const matchingUsers = (result.data ?? []).filter((row: any) =>
+                String(row.cabang ?? "").trim().toUpperCase() === normalizedCabang
+            );
+            const selectedUser = matchingUsers.find((row: any) => {
+                const userRole = String(row.jabatan ?? "").trim().toUpperCase();
+                return roles.some(role => role === userRole || userRole.includes(role) || role.includes(userRole));
+            }) ?? matchingUsers[0];
+
+            const coverage = Array.isArray(selectedUser?.coverage)
+                ? selectedUser.coverage.map((branch: unknown) => String(branch).trim().toUpperCase()).filter(Boolean)
+                : [];
+
+            if (coverage.length > 0) {
+                sessionStorage.setItem("branchCoverage", JSON.stringify(coverage));
+                setHydratedBranchCoverage(coverage);
+                return coverage;
+            }
+            setHydratedBranchCoverage(existingCoverage);
+            return existingCoverage;
+        } catch (error) {
+            console.warn("Gagal memuat coverage approval:", error);
+            setHydratedBranchCoverage(existingCoverage);
+            return existingCoverage;
+        }
+    }, []);
+
     const refreshApprovalCounts = useCallback(async () => {
         if (!user) return;
         setIsCountsLoading(true);
         try {
+            const roles = (user.roles && user.roles.length > 0 ? user.roles : userInfo.role.split(','))
+                .map(role => String(role).trim().toUpperCase())
+                .filter(Boolean);
+            const canSeeEverything = canViewAllBranches(roles.join(','), user.isSuperHuman ?? false);
+            if (!canSeeEverything) {
+                await ensureBranchCoverage(roles, userInfo.cabang, userInfo.email);
+            }
             const counts = await fetchApprovalNotificationCounts(user);
             setApprovalCounts(counts);
         } catch {
@@ -733,7 +777,7 @@ function ApprovalPageContent() {
         } finally {
             setIsCountsLoading(false);
         }
-    }, [user]);
+    }, [ensureBranchCoverage, user, userInfo.cabang, userInfo.email, userInfo.role]);
 
     useEffect(() => {
         refreshApprovalCounts();
@@ -746,6 +790,16 @@ function ApprovalPageContent() {
         setIsLoading(true);
         setSearchQuery('');
         try {
+            const sessionRoles = userInfo.role
+                .split(',')
+                .map(r => r.trim().toUpperCase())
+                .filter(Boolean);
+            const sessionIsSuperHuman = user?.isSuperHuman ?? false;
+            const sessionCanSeeAllBranches = canViewAllBranches(userInfo.role, sessionIsSuperHuman);
+            const currentCoverage = sessionCanSeeAllBranches
+                ? []
+                : await ensureBranchCoverage(sessionRoles, userInfo.cabang, userInfo.email);
+
             let normalized: NormalizedListItem[] = [];
             if (type === 'RAB') {
                 // Approval must not rely on nama_pt at API level because older RAB data can
@@ -787,7 +841,7 @@ function ApprovalPageContent() {
                 const isSuperHumanUser = user?.isSuperHuman ?? false;
                 const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHumanUser);
                 const isRegionalManagerUser = user?.isRegionalManager ?? false;
-                const userBranchCoverage = getSessionBranchCoverage();
+                const userBranchCoverage = currentCoverage.length > 0 ? currentCoverage : getSessionBranchCoverage();
 
                 if (
                     ['RAB', 'OPNAME', 'INSTRUKSI_LAPANGAN'].includes(type)
@@ -1519,8 +1573,9 @@ function ApprovalPageContent() {
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const accessibleBranches = useMemo(() => {
         if (canSeeAllBranches) return Object.keys(BRANCH_TO_ULOK).sort();
-        return getAccessibleBranchesForUser(userInfo.role, userInfo.cabang, getSessionBranchCoverage()).sort();
-    }, [canSeeAllBranches, userInfo.cabang, userInfo.role]);
+        const coverage = hydratedBranchCoverage.length > 0 ? hydratedBranchCoverage : getSessionBranchCoverage();
+        return getAccessibleBranchesForUser(userInfo.role, userInfo.cabang, coverage).sort();
+    }, [canSeeAllBranches, hydratedBranchCoverage, userInfo.cabang, userInfo.role]);
     const showCabangFilter = canSeeAllBranches || accessibleBranches.length > 1;
 
     // Static cabang options based on user role/group
