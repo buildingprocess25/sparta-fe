@@ -86,26 +86,26 @@ export default function SystemMaintenancePage() {
   const isActive = Boolean(status?.is_active);
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <AppNavbar title="PEMELIHARAAN SISTEM" showBackButton backHref="/dashboard" variant="clean" />
+    <main className="min-h-screen bg-slate-100 text-slate-950">
+      <AppNavbar title="PEMELIHARAAN SISTEM" showBackButton backHref="/dashboard" showBuildingLogo />
 
-      <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+      <section className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Kontrol akses aplikasi</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Kontrol akses aplikasi</p>
             <h1 className="mt-2 text-2xl font-black tracking-normal text-slate-950">Pemeliharaan Sistem</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
               Aktifkan mode pemeliharaan saat aplikasi perlu dibatasi sementara. Pesan pengguna memakai template resmi.
             </p>
           </div>
-          <Button variant="outline" onClick={loadStatus} disabled={loading || saving} className="h-10 rounded-lg border-slate-200 bg-white">
+          <Button variant="outline" onClick={loadStatus} disabled={loading || saving} className="h-10 rounded-lg border-slate-200 bg-white shadow-sm">
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Refresh
           </Button>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-start gap-3">
                 <div className={`flex h-12 w-12 items-center justify-center rounded-lg border ${isActive ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
@@ -160,7 +160,7 @@ export default function SystemMaintenancePage() {
             </div>
           </section>
 
-          <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Informasi status</p>
             <dl className="mt-4 space-y-4 text-sm">
               <div>
