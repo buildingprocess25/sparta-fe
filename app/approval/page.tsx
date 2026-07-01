@@ -278,7 +278,7 @@ const isDirectorApprovalStatus = (status?: string | null) => {
 
 const isContractorDirectorApprovalStatus = (status?: string | null) => {
     const upper = String(status ?? '').trim().toUpperCase();
-    return upper.includes('DIREKTUR KONTRAKTOR') || upper.includes('DIR. KONTRAKTOR');
+    return upper.includes('DIREKTUR KONTRAKTOR') || upper.includes('DIR. KONTRAKTOR') || upper.includes('DIR KONTRAKTOR');
 };
 
 const isDirectorJabatan = (value?: ApprovalJabatan | null) =>

@@ -24,7 +24,7 @@ export type ApprovalType =
 
 export type ApprovalCounts = Record<ApprovalType, number>;
 
-type ApprovalJabatan = "KOORDINATOR" | "MANAGER" | "DIREKTUR" | "KONTRAKTOR" | null;
+type ApprovalJabatan = "KOORDINATOR" | "MANAGER" | "DIREKTUR" | "DIREKTUR_KONTRAKTOR" | "KONTRAKTOR" | null;
 
 type CountableApprovalItem = {
     tipe: ApprovalType;
@@ -109,6 +109,11 @@ const isDirectorApprovalStatus = (status?: string | null) => {
     return upper.includes("DIREKTUR") || upper.includes("DIR.");
 };
 
+const isContractorDirectorApprovalStatus = (status?: string | null) => {
+    const upper = String(status ?? "").trim().toUpperCase();
+    return upper.includes("DIREKTUR KONTRAKTOR") || upper.includes("DIR. KONTRAKTOR") || upper.includes("DIR KONTRAKTOR");
+};
+
 const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
     const normalizedUserCompany = normalizeCompanyName(userCompany);
     if (!normalizedUserCompany || !value || typeof value !== "object") return false;
@@ -126,6 +131,7 @@ const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
 const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
     const roles = user.roles;
     if (user.isSuperHuman) return "MANAGER";
+    if (roles.some(role => role === "DIREKTUR KONTRAKTOR")) return "DIREKTUR_KONTRAKTOR";
     if (roles.some(role => role.includes("DIREKTUR"))) return "DIREKTUR";
     if (roles.includes("KONTRAKTOR")) return "KONTRAKTOR";
     if (roles.includes("BRANCH BUILDING & MAINTENANCE MANAGER") || roles.includes("MANAGER")) return "MANAGER";
@@ -247,7 +253,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     const isDirectorHOUser = isHeadOfficeDirector(user);
     const canSeeAll = canViewAllBranches(user.roles, user.isSuperHuman);
 
-    if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR") {
+    if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR" && jabatan !== "DIREKTUR_KONTRAKTOR") {
         if (!isSameBranchScope(item.cabang, user)) return false;
     }
 
@@ -255,16 +261,19 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (item.tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
     if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
 
-    if (item.tipe === "RAB" && jabatan === "DIREKTUR") {
+    if (item.tipe === "RAB" && (jabatan === "DIREKTUR" || jabatan === "DIREKTUR_KONTRAKTOR")) {
         if (userCabang && !isDirectorHOUser && item.cabang) {
             if (!isSameBranchScope(item.cabang, user)) return false;
         }
 
-        return isDirectorApprovalStatus(upper);
+        return jabatan === "DIREKTUR_KONTRAKTOR"
+            ? isContractorDirectorApprovalStatus(upper)
+            : isDirectorApprovalStatus(upper);
     }
 
     if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
     if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
+    if (jabatan === "DIREKTUR_KONTRAKTOR") return isContractorDirectorApprovalStatus(upper);
     if (jabatan === "DIREKTUR") return isDirectorApprovalStatus(upper);
     if (jabatan === "KONTRAKTOR") return upper.includes("KONTRAKTOR");
     return true;
