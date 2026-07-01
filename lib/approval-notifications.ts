@@ -70,7 +70,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     RAB: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "DIREKTUR", "COORDINATOR", "MANAGER"],
     SPK: ["BRANCH MANAGER", "MANAGER"],
     PERTAMBAHAN_SPK: ["BRANCH MANAGER", "MANAGER"],
-    OPNAME: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "DIREKTUR", "COORDINATOR", "MANAGER"],
+    OPNAME: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "COORDINATOR", "MANAGER"],
     INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
     PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
 };
@@ -84,7 +84,7 @@ const isHeadOfficeDirector = (user: UserSession) =>
     normalizeBranch(user.cabang) === "HEAD OFFICE" && hasDirectorRole(user.roles);
 
 const isContractorCompanyScopedRole = (roles: string[]) =>
-    roles.some(role => role === "KONTRAKTOR" || (role.includes("KONTRAKTOR") && !role.includes("DIREKTUR KONTRAKTOR")));
+    roles.some(role => role === "KONTRAKTOR" || role.includes("DIREKTUR KONTRAKTOR"));
 
 const normalizeCompanyName = (value?: string | null) =>
     String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
@@ -121,8 +121,11 @@ const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
     const candidates = [
         getStringValue(value, "nama_pt"),
         getStringValue(value, "nama_kontraktor"),
+        getStringValue(value, "kontraktor"),
         getTokoStringValue(value, "nama_pt"),
         getTokoStringValue(value, "nama_kontraktor"),
+        getStringValue(getNestedRecord(value, "opname_final"), "nama_kontraktor"),
+        getStringValue(getNestedRecord(value, "opname_final"), "nama_pt"),
     ];
 
     return candidates.some(candidate => normalizeCompanyName(candidate) === normalizedUserCompany);
@@ -157,7 +160,9 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         allAccessibleTypes.add("PROJECT_PLANNING");
     } else if (isDirectorHO) {
         allAccessibleTypes.add("RAB");
-        allAccessibleTypes.add("OPNAME");
+        if (roles.some(role => role === "DIREKTUR KONTRAKTOR")) {
+            allAccessibleTypes.add("OPNAME");
+        }
     } else {
         roles.forEach(role => {
             (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {
@@ -240,9 +245,9 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (
         ["RAB", "OPNAME", "INSTRUKSI_LAPANGAN"].includes(item.tipe)
         && isContractorCompanyScopedRole(user.roles)
-        && user.namaPt
-        && !matchesUserCompany(item.raw, user.namaPt)
-    ) return false;
+    ) {
+        if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
+    }
 
     if (item.tipe === "PROJECT_PLANNING") {
         return canCountProjectPlanningForUser(item, user);
@@ -255,6 +260,13 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
 
     if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR" && jabatan !== "DIREKTUR_KONTRAKTOR") {
         if (!isSameBranchScope(item.cabang, user)) return false;
+    }
+
+    if (item.tipe === "OPNAME") {
+        if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
+        if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
+        if (jabatan === "DIREKTUR_KONTRAKTOR") return isContractorDirectorApprovalStatus(upper);
+        return false;
     }
 
     if (canSeeAll || user.isRegionalManager) return true;
