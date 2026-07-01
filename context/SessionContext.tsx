@@ -109,6 +109,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
+    let ignore = false;
+    setIsLoading(true);
+
     const isPublic = PUBLIC_PATHS.some(
       (p) => pathname === p || pathname.startsWith('/auth')
     );
@@ -118,7 +121,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIsTimeBlocked(false);
       setIsMaintenanceBlocked(false);
       setMaintenanceStatus(null);
-      return;
+      return () => {
+        ignore = true;
+      };
     }
 
     // Read session data
@@ -134,7 +139,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // If not authenticated → redirect to login
     if (!authenticated || !role) {
       router.push('/auth');
-      return;
+      return () => {
+        ignore = true;
+      };
     }
 
     const isHO = cabang.trim().toUpperCase() === 'HEAD OFFICE';
@@ -159,16 +166,34 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       isRegionalManager,
     };
 
-    setUser(sessionUser);
+    const hydrateSession = async () => {
+      let nextMaintenanceStatus: SystemMaintenanceStatus | null = null;
+      let nextMaintenanceBlocked = false;
 
-    // Time restriction: only Super Human is always allowed.
-    if (!isSuperHuman && !isWithinOperatingHours(roles)) {
-      setIsTimeBlocked(true);
-    } else {
-      setIsTimeBlocked(false);
-    }
+      if (!isSuperHuman) {
+        try {
+          const result = await fetchSystemMaintenanceStatus({ suppressGlobalError: true });
+          nextMaintenanceStatus = result.data;
+          nextMaintenanceBlocked = Boolean(result.data?.is_active);
+        } catch (error) {
+          console.warn('Gagal membaca status pemeliharaan sistem:', error);
+        }
+      }
 
-    setIsLoading(false);
+      if (ignore) return;
+
+      setUser(sessionUser);
+      setMaintenanceStatus(nextMaintenanceStatus);
+      setIsMaintenanceBlocked(nextMaintenanceBlocked);
+      setIsTimeBlocked(!isSuperHuman && !isWithinOperatingHours(roles));
+      setIsLoading(false);
+    };
+
+    hydrateSession();
+
+    return () => {
+      ignore = true;
+    };
   }, [pathname, router]);
 
   useEffect(() => {
