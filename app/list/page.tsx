@@ -952,14 +952,24 @@ const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] => {
             if (leftRank !== rightRank) return leftRank - rightRank;
             return Number(right.id) - Number(left.id);
         });
-        const primary = [...groupItems]
-            .filter((item) => item.link_pdf)
-            .sort((left, right) => {
-                const leftTime = new Date(left.created_at || 0).getTime();
-                const rightTime = new Date(right.created_at || 0).getTime();
-                if (leftTime !== rightTime) return rightTime - leftTime;
-                return Number(right.id || 0) - Number(left.id || 0);
-            })[0] ?? sorted[0];
+        const linkedItems = [...groupItems].filter((item) => item.link_pdf);
+        const linkedSipil = linkedItems.find((item) =>
+            String(item.toko?.lingkup_pekerjaan ?? item.lingkup_pekerjaan ?? '').trim().toUpperCase() === 'SIPIL'
+        );
+        const hasSipilAndMe = sorted.some((item) =>
+            String(item.toko?.lingkup_pekerjaan ?? item.lingkup_pekerjaan ?? '').trim().toUpperCase() === 'SIPIL'
+        ) && sorted.some((item) =>
+            String(item.toko?.lingkup_pekerjaan ?? item.lingkup_pekerjaan ?? '').trim().toUpperCase() === 'ME'
+        );
+        const primary = (hasSipilAndMe && linkedSipil)
+            ? linkedSipil
+            : linkedItems
+                .sort((left, right) => {
+                    const leftTime = new Date(left.created_at || 0).getTime();
+                    const rightTime = new Date(right.created_at || 0).getTime();
+                    if (leftTime !== rightTime) return rightTime - leftTime;
+                    return Number(right.id || 0) - Number(left.id || 0);
+                })[0] ?? sorted[0];
         const totalNilai = sorted.reduce(
             (sum, item) => sum + parseCurrency(item.nilai_opname ?? item.nilai_spk ?? item.nilai_penawaran),
             0
