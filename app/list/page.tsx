@@ -92,6 +92,7 @@ interface NormalizedDoc {
     nilai_spk?: string | null;
     nilai_opname?: string | null;
     nomor_spk_st?: string | null;
+    serah_terima_scopes?: any[];
 }
 
 interface PengawasanDocGroup {
@@ -933,30 +934,67 @@ const normalizePendingPengawasanDocs = (items: any[]): NormalizedDoc[] =>
         source_row: item.source_row,
     }));
 
-const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] =>
-    items.map(b => ({
-        id: b.id,
-        tipe: 'BERKAS_SERAH_TERIMA' as DokumenKategori,
-        nomor_ulok:    b.toko?.nomor_ulok ?? '-',
-        nama_toko:     b.toko?.nama_toko  ?? '-',
-        cabang:        b.toko?.cabang     ?? '-',
-        proyek:        b.toko?.proyek     ?? '-',
-        status:        'SELESAI',
-        email_pembuat: '-',
-        total_nilai:   parseCurrency(b.nilai_opname ?? b.nilai_spk ?? b.nilai_penawaran),
-        created_at:    b.created_at,
-        tanggal_serah_terima: b.tanggal_serah_terima_denda ?? b.created_at,
-        link_pdf:      b.link_pdf ?? null,
-        lingkup_pekerjaan: b.toko?.lingkup_pekerjaan ?? b.lingkup_pekerjaan,
-        nilai_penawaran: b.nilai_penawaran ?? null,
-        nilai_spk: b.nilai_spk ?? null,
-        nilai_opname: b.nilai_opname ?? null,
-        hari_denda: Number(b.hari_denda ?? 0),
-        nilai_denda: b.nilai_denda ?? null,
-        tanggal_akhir_spk_denda: b.tanggal_akhir_spk_denda ?? null,
-        tanggal_serah_terima_denda: b.tanggal_serah_terima_denda ?? null,
-        nomor_spk_st: b.nomor_spk ?? null,
-    }));
+const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] => {
+    const grouped = new Map<string, any[]>();
+    items.forEach((item) => {
+        const nomorUlok = item.toko?.nomor_ulok ?? item.nomor_ulok ?? `id:${item.id}`;
+        const list = grouped.get(nomorUlok) ?? [];
+        list.push(item);
+        grouped.set(nomorUlok, list);
+    });
+
+    return Array.from(grouped.values()).map((groupItems) => {
+        const sorted = [...groupItems].sort((left, right) => {
+            const leftScope = String(left.toko?.lingkup_pekerjaan ?? left.lingkup_pekerjaan ?? '').toUpperCase();
+            const rightScope = String(right.toko?.lingkup_pekerjaan ?? right.lingkup_pekerjaan ?? '').toUpperCase();
+            const leftRank = leftScope === 'SIPIL' ? 0 : leftScope === 'ME' ? 1 : 2;
+            const rightRank = rightScope === 'SIPIL' ? 0 : rightScope === 'ME' ? 1 : 2;
+            if (leftRank !== rightRank) return leftRank - rightRank;
+            return Number(right.id) - Number(left.id);
+        });
+        const primary = [...groupItems]
+            .filter((item) => item.link_pdf)
+            .sort((left, right) => {
+                const leftTime = new Date(left.created_at || 0).getTime();
+                const rightTime = new Date(right.created_at || 0).getTime();
+                if (leftTime !== rightTime) return rightTime - leftTime;
+                return Number(right.id || 0) - Number(left.id || 0);
+            })[0] ?? sorted[0];
+        const totalNilai = sorted.reduce(
+            (sum, item) => sum + parseCurrency(item.nilai_opname ?? item.nilai_spk ?? item.nilai_penawaran),
+            0
+        );
+        const scopes = sorted
+            .map((item) => String(item.toko?.lingkup_pekerjaan ?? item.lingkup_pekerjaan ?? '').trim().toUpperCase())
+            .filter(Boolean);
+        const scopeLabel = scopes.length > 1 ? scopes.join(' + ') : scopes[0];
+
+        return {
+            id: primary.id,
+            tipe: 'BERKAS_SERAH_TERIMA' as DokumenKategori,
+            nomor_ulok:    primary.toko?.nomor_ulok ?? primary.nomor_ulok ?? '-',
+            nama_toko:     primary.toko?.nama_toko  ?? primary.nama_toko ?? '-',
+            cabang:        primary.toko?.cabang     ?? primary.cabang ?? '-',
+            proyek:        primary.toko?.proyek     ?? primary.proyek ?? '-',
+            status:        'SELESAI',
+            email_pembuat: '-',
+            total_nilai:   totalNilai,
+            created_at:    primary.created_at,
+            tanggal_serah_terima: primary.tanggal_serah_terima_denda ?? primary.created_at,
+            link_pdf:      primary.link_pdf ?? null,
+            lingkup_pekerjaan: scopeLabel || (primary.toko?.lingkup_pekerjaan ?? primary.lingkup_pekerjaan),
+            nilai_penawaran: primary.nilai_penawaran ?? null,
+            nilai_spk: primary.nilai_spk ?? null,
+            nilai_opname: primary.nilai_opname ?? null,
+            hari_denda: Number(primary.hari_denda ?? 0),
+            nilai_denda: primary.nilai_denda ?? null,
+            tanggal_akhir_spk_denda: primary.tanggal_akhir_spk_denda ?? null,
+            tanggal_serah_terima_denda: primary.tanggal_serah_terima_denda ?? null,
+            nomor_spk_st: primary.nomor_spk ?? null,
+            serah_terima_scopes: sorted,
+        };
+    });
+};
 
 const normalizeInstruksiLapanganDocs = (items: any[]): NormalizedDoc[] =>
     items.map(i => ({

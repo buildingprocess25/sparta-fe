@@ -26,6 +26,7 @@ import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constan
 
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
+const GANTT_GROUP_HEIGHT = 34;
 
 // =============================================================================
 // HELPERS
@@ -1069,7 +1070,16 @@ function ScopePicForm({
                             </p>
                         </div>
 
-                        <div className="space-y-5">
+                        <UnifiedPicGanttChart
+                            targets={ganttTargets}
+                            selectedDays={selectedDays}
+                            onToggleDay={handleToggleDay}
+                            readonlyDays={isReadOnly || isPartialCompletion || isLocked}
+                            timelineStartDate={ganttTimeline.startDate}
+                            timelineDuration={ganttTimeline.duration}
+                        />
+
+                        <div className="hidden">
                             {ganttTargets
                                 .slice()
                                 .sort((a, b) => a.lingkup === 'SIPIL' ? -1 : b.lingkup === 'SIPIL' ? 1 : a.lingkup.localeCompare(b.lingkup))
@@ -1181,6 +1191,329 @@ function ScopePicForm({
                         </Button>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+function UnifiedPicGanttChart({
+    targets,
+    selectedDays,
+    onToggleDay,
+    readonlyDays,
+    timelineStartDate,
+    timelineDuration,
+}: {
+    targets: Array<{ id: number; lingkup: string; startDate: string; duration: number }>;
+    selectedDays: number[];
+    onToggleDay: (day: number) => void;
+    readonlyDays?: boolean;
+    timelineStartDate: string;
+    timelineDuration: number;
+}) {
+    const [rows, setRows] = useState<Array<{ scope: string; taskId: number; label: string; dependencies: number[]; bars: Array<{ start: number; end: number; duration: number }> }>>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const startDate = useMemo(() => parseDateOnly(timelineStartDate) || new Date(), [timelineStartDate]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setIsLoading(true);
+        Promise.all(targets.map(async (target) => {
+            const res = await fetchGanttDetail(target.id);
+            const data = res.data;
+            const ganttStart = parseDateOnly(data?.gantt?.timestamp) || startDate;
+            const rangesByCategory = new Map<string, Array<{ start: number; end: number; duration: number }>>();
+            const depMap = new Map<string, string[]>();
+            const categories = data?.kategori_pekerjaan || [];
+            const toSharedDay = (value: unknown) => {
+                const raw = String(value ?? '').trim();
+                if (!raw) return NaN;
+                if (raw.includes('/')) {
+                    const parsed = parseDateDDMMYYYY(raw);
+                    return parsed ? Math.round((parsed.getTime() - startDate.getTime()) / 86_400_000) + 1 : NaN;
+                }
+                const day = Number(raw);
+                if (!Number.isFinite(day)) return NaN;
+                const absolute = new Date(ganttStart);
+                absolute.setDate(absolute.getDate() + day - 1);
+                return Math.round((absolute.getTime() - startDate.getTime()) / 86_400_000) + 1;
+            };
+
+            (data?.day_items || []).forEach((item: any) => {
+                const start = toSharedDay(item.h_awal);
+                const end = toSharedDay(item.h_akhir);
+                if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+                const key = String(item.kategori_pekerjaan || '').trim().toLowerCase();
+                const list = rangesByCategory.get(key) || [];
+                list.push({ start, end, duration: Math.max(1, end - start + 1) });
+                rangesByCategory.set(key, list);
+            });
+
+            ((data as any)?.dependency_data || []).forEach((dep: any) => {
+                const child = String(dep.kategori_pekerjaan || '').trim().toLowerCase();
+                const parent = String(dep.kategori_pekerjaan_terikat || '').trim().toLowerCase();
+                if (!parent || !child) return;
+                const list = depMap.get(parent) || [];
+                list.push(child);
+                depMap.set(parent, list);
+            });
+
+            const taskIdByName = new Map<string, number>();
+            categories.forEach((category: any, index: number) => {
+                taskIdByName.set(String(category.kategori_pekerjaan || '').trim().toLowerCase(), index + 1);
+            });
+
+            return categories.map((category: any, index: number) => {
+                const label = String(category.kategori_pekerjaan || '-');
+                const key = label.trim().toLowerCase();
+                return {
+                    scope: normalizeScope(target.lingkup),
+                    taskId: index + 1,
+                    label,
+                    dependencies: (depMap.get(key) || [])
+                        .map((childName) => taskIdByName.get(childName))
+                        .filter((id): id is number => Number.isFinite(id)),
+                    bars: rangesByCategory.get(key) || [],
+                };
+            });
+        }))
+            .then((groups) => {
+                if (!cancelled) setRows(groups.flat());
+            })
+            .catch(console.error)
+            .finally(() => {
+                if (!cancelled) setIsLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [targets, startDate]);
+
+    if (isLoading) {
+        return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+    }
+
+    const labelWidth = 280;
+    const totalWidth = Math.max(1, timelineDuration) * DAY_WIDTH;
+    const displayRows = rows.reduce<Array<
+        | { type: 'group'; scope: string }
+        | { type: 'row'; scope: string; taskId: number; label: string; dependencies: number[]; bars: Array<{ start: number; end: number; duration: number }> }
+    >>((acc, row) => {
+        const scope = normalizeScope(row.scope);
+        const last = acc[acc.length - 1];
+        if (!last || last.scope !== scope) {
+            acc.push({ type: 'group', scope });
+        }
+        acc.push({ type: 'row', scope, taskId: row.taskId, label: row.label, dependencies: row.dependencies, bars: row.bars });
+        return acc;
+    }, []);
+    const totalHeight = displayRows.reduce((sum, row) => sum + (row.type === 'group' ? GANTT_GROUP_HEIGHT : ROW_HEIGHT), 0);
+    const connectorNodes: React.ReactNode[] = [];
+    const scopeRows = new Map<string, Array<{ y: number; taskId: number; dependencies: number[]; bars: Array<{ start: number; end: number; duration: number }> }>>();
+    let yOffset = 0;
+    displayRows.forEach((row) => {
+        if (row.type === 'group') {
+            yOffset += GANTT_GROUP_HEIGHT;
+            return;
+        }
+        const list = scopeRows.get(row.scope) || [];
+        list.push({ y: yOffset, taskId: row.taskId, dependencies: row.dependencies, bars: row.bars });
+        scopeRows.set(row.scope, list);
+        yOffset += ROW_HEIGHT;
+    });
+
+    scopeRows.forEach((list, scope) => {
+        const coordinates = new Map<number, { centerY: number; startX: number; firstEndX: number }>();
+        list.forEach((row) => {
+            if (row.bars.length === 0) return;
+            const starts = row.bars.map((bar) => Math.max(1, bar.start));
+            const minStart = Math.min(...starts);
+            const firstBar = row.bars.reduce((winner, bar) => Math.max(1, bar.start) < Math.max(1, winner.start) ? bar : winner, row.bars[0]);
+            coordinates.set(row.taskId, {
+                centerY: row.y + (ROW_HEIGHT / 2),
+                startX: (minStart - 1) * DAY_WIDTH,
+                firstEndX: Math.min(timelineDuration, firstBar.end) * DAY_WIDTH,
+            });
+        });
+
+        list.forEach((row) => {
+            row.dependencies.forEach((childId) => {
+                const parent = coordinates.get(row.taskId);
+                const child = coordinates.get(childId);
+                if (!parent || !child) return;
+                let tension = child.startX - parent.firstEndX < 40 ? 60 : 40;
+                if (child.startX - parent.firstEndX < 0) tension = 100;
+                const path = `M ${parent.firstEndX} ${parent.centerY} C ${parent.firstEndX + tension} ${parent.centerY}, ${child.startX - tension} ${child.centerY}, ${child.startX} ${child.centerY}`;
+                connectorNodes.push(
+                    <g key={`${scope}-${row.taskId}-${childId}`}>
+                        <path d={path} className="stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#picUnifiedDepArrow)" opacity="0.95" />
+                        <circle cx={parent.firstEndX} cy={parent.centerY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                        <circle cx={child.startX} cy={child.centerY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                    </g>
+                );
+            });
+        });
+    });
+
+    const scrollSync = (sourceId: string, targetId: string, axis: 'left' | 'top', value: number) => {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        if (axis === 'left' && target.scrollLeft !== value) target.scrollLeft = value;
+        if (axis === 'top' && target.scrollTop !== value) target.scrollTop = value;
+    };
+
+    return (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-xs shadow-sm">
+            <div className="border-b bg-slate-100 p-4 text-sm">
+                <h3 className="flex items-center gap-2 font-bold text-slate-800">
+                    <BarChartHorizontal className="h-4 w-4 text-blue-600" />
+                    Gantt Chart Terpadu
+                </h3>
+                <p className="text-xs text-slate-500">Klik tanggal di header untuk jadwal pengawasan bersama SIPIL + ME.</p>
+            </div>
+
+            <div className="flex border-b border-slate-300">
+                <div className="flex h-10 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-50 px-4 font-bold text-slate-600" style={{ width: labelWidth }}>
+                    Tahapan Pekerjaan
+                </div>
+                <div
+                    id="pic-unified-gantt-top"
+                    className="min-w-0 flex-1 overflow-x-auto"
+                    onScroll={(event) => scrollSync('pic-unified-gantt-top', 'pic-unified-gantt-body', 'left', event.currentTarget.scrollLeft)}
+                >
+                    <div className="flex" style={{ minWidth: totalWidth }}>
+                        {Array.from({ length: timelineDuration }).map((_, index) => {
+                            const date = new Date(startDate);
+                            date.setDate(date.getDate() + index);
+                            const day = index + 1;
+                            const selected = selectedDays.includes(day);
+                            return (
+                                <button
+                                    key={day}
+                                    type="button"
+                                    disabled={readonlyDays}
+                                    onClick={() => onToggleDay(day)}
+                                    className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${
+                                        selected ? 'bg-blue-600 text-white ring-2 ring-inset ring-blue-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                                    style={{ width: DAY_WIDTH }}
+                                >
+                                    {formatDateDDMMYYYY(date).slice(0, 5)}
+                                    {selected && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex max-h-[520px] overflow-hidden">
+                <div
+                    id="pic-unified-gantt-labels"
+                    className="shrink-0 overflow-y-auto border-r-[3px] border-slate-400 bg-white shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)]"
+                    style={{ width: labelWidth }}
+                    onScroll={(event) => scrollSync('pic-unified-gantt-labels', 'pic-unified-gantt-body', 'top', event.currentTarget.scrollTop)}
+                >
+                    {displayRows.map((row, index) => {
+                        if (row.type === 'group') {
+                            return (
+                                <div
+                                    key={`${row.scope}-group-${index}`}
+                                    className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-4 text-xs font-black text-slate-800"
+                                    style={{ height: GANTT_GROUP_HEIGHT }}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <Building2 className={`h-4 w-4 ${row.scope === 'SIPIL' ? 'text-red-600' : 'text-blue-600'}`} />
+                                        {row.scope}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500">Lingkup</span>
+                                </div>
+                            );
+                        }
+
+                        const rowNumber = displayRows.slice(0, index).filter((item) => item.type === 'row' && item.scope === row.scope).length + 1;
+                        return (
+                            <div key={`${row.scope}-${row.label}-${index}`} className="flex items-center border-b border-slate-100 px-4" style={{ height: ROW_HEIGHT }}>
+                                <span className="mr-2 text-slate-400">{rowNumber}.</span>
+                                <span className="truncate font-semibold text-slate-800" title={`${row.scope} - ${row.label}`}>{row.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div
+                    id="pic-unified-gantt-body"
+                    className="min-w-0 flex-1 overflow-auto bg-white"
+                    onScroll={(event) => {
+                        scrollSync('pic-unified-gantt-body', 'pic-unified-gantt-top', 'left', event.currentTarget.scrollLeft);
+                        scrollSync('pic-unified-gantt-body', 'pic-unified-gantt-labels', 'top', event.currentTarget.scrollTop);
+                    }}
+                >
+                    <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
+                        {Array.from({ length: timelineDuration }).map((_, index) => (
+                            <div
+                                key={index}
+                                className={`absolute top-0 bottom-0 border-r ${selectedDays.includes(index + 1) ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200'}`}
+                                style={{ left: index * DAY_WIDTH, width: DAY_WIDTH }}
+                            />
+                        ))}
+                        {connectorNodes.length > 0 && (
+                            <svg className="pointer-events-none absolute left-0 top-0 z-20 overflow-visible" style={{ width: totalWidth, height: totalHeight }}>
+                                <defs>
+                                    <marker id="picUnifiedDepArrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                                        <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6" />
+                                    </marker>
+                                </defs>
+                                {connectorNodes}
+                            </svg>
+                        )}
+                        {displayRows.reduce<{ nodes: React.ReactNode[]; y: number }>((acc, row, index) => {
+                            if (row.type === 'group') {
+                                acc.nodes.push(
+                                    <div
+                                        key={`${row.scope}-grid-group-${index}`}
+                                        className="absolute left-0 right-0 border-b border-slate-300 bg-slate-100/90"
+                                        style={{ top: acc.y, height: GANTT_GROUP_HEIGHT }}
+                                    >
+                                        <div className={`flex h-full items-center px-4 text-xs font-black ${row.scope === 'SIPIL' ? 'text-red-700' : 'text-blue-700'}`}>
+                                            {row.scope}
+                                        </div>
+                                    </div>
+                                );
+                                acc.y += GANTT_GROUP_HEIGHT;
+                                return acc;
+                            }
+
+                            const rowTop = acc.y;
+                            acc.nodes.push(
+                                <div key={`${row.scope}-${row.label}-${index}-row`} className="absolute left-0 right-0 border-b border-slate-100" style={{ top: rowTop, height: ROW_HEIGHT }} />
+                            );
+                            row.bars.forEach((bar, barIndex) => {
+                                const start = Math.max(1, bar.start);
+                                const end = Math.min(timelineDuration, bar.end);
+                                if (end < 1 || start > timelineDuration) return;
+                                acc.nodes.push(
+                                    <div
+                                        key={`${row.scope}-${row.label}-${index}-${barIndex}`}
+                                        className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-blue-500 bg-blue-100 shadow-sm"
+                                        style={{ left: (start - 1) * DAY_WIDTH, width: Math.max(24, (end - start + 1) * DAY_WIDTH - 6), top: rowTop + 8, height: ROW_HEIGHT - 16 }}
+                                    >
+                                        <div className="absolute inset-0 bg-blue-600 opacity-20" />
+                                        <span className="relative z-10 text-[10px] font-bold text-blue-800">{bar.duration} Hari</span>
+                                    </div>
+                                );
+                            });
+                            acc.y += ROW_HEIGHT;
+                            return acc;
+                        }, { nodes: [], y: 0 }).nodes}
+                    </div>
+                </div>
+            </div>
+            <div className="flex items-center gap-4 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-bold text-slate-600">
+                <span className="rounded-full bg-white px-3 py-1 text-red-700">{selectedDays.length} hari dipilih</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> SIPIL</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> ME</span>
             </div>
         </div>
     );

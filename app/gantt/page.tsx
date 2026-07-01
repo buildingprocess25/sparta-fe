@@ -17,10 +17,11 @@ import {
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
     fetchRABList, fetchRABDetail, fetchSPKList,
     fetchGanttNotes, createGanttNote, fetchInstruksiLapanganList,
-    fetchSupervisionWorkspace, createPdfSerahTerima
+    fetchSupervisionWorkspace, createPdfSerahTerimaUnified
 } from '@/lib/api';
 import type { SupervisionCheckpoint, SupervisionScope, SupervisionWorkspace } from '@/lib/api';
 import GanttViewer from '@/components/GanttViewer';
+import UnifiedSupervisionGantt from '@/components/UnifiedSupervisionGantt';
 
 const mapInstruksiLapanganToWorkItems = (items: any[] = []) =>
     items.map((item) => ({
@@ -119,6 +120,36 @@ const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const PENGAWASAN_UPLOAD_BATCH_SIZE = 20;
 const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+function parseCalendarDate(value?: string | null): Date | null {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    if (raw.includes('/')) {
+        const [dd, mm, yyyy] = raw.split('/');
+        const fullYear = yyyy?.length === 2 ? `20${yyyy}` : yyyy;
+        const parsed = new Date(Number(fullYear), Number(mm) - 1, Number(dd));
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(raw.split('T')[0] + 'T00:00:00');
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatCalendarDate(value: Date): string {
+    const yyyy = value.getFullYear();
+    const mm = String(value.getMonth() + 1).padStart(2, '0');
+    const dd = String(value.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatPengawasanDateKey(value?: string | null): string {
+    const parsed = parseCalendarDate(value);
+    if (!parsed) return String(value || '').trim();
+    const dd = String(parsed.getDate()).padStart(2, '0');
+    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+    const yyyy = parsed.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+}
 
 type PengawasanFileMap = {
     index: number;
@@ -282,9 +313,56 @@ function GanttBoard() {
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
     const [isGeneratingHandover, setIsGeneratingHandover] = useState(false);
+    const [unifiedMemoFlow, setUnifiedMemoFlow] = useState<{
+        scopes: Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
+        index: number;
+        dayIndex: number;
+        dateString: string;
+    } | null>(null);
+    const [unifiedOpnameFlow, setUnifiedOpnameFlow] = useState<{
+        scopes: Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
+        index: number;
+        dayIndex: number;
+        dateString: string;
+    } | null>(null);
+    const [unifiedMemoDrafts, setUnifiedMemoDrafts] = useState<Record<string, any>>({});
 
     const { user } = useSession();
     const isReadOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
+    const unifiedTimeline = useMemo(() => {
+        if (!supervisionWorkspace) return null;
+        const starts: Date[] = [];
+        const ends: Date[] = [];
+
+        supervisionWorkspace.scopes.forEach((scope) => {
+            const spkStart = parseCalendarDate(scope.spk_start_date);
+            const duration = Number(scope.spk_duration || 0);
+            if (spkStart) {
+                starts.push(spkStart);
+                const end = new Date(spkStart);
+                end.setDate(end.getDate() + Math.max(duration, 1) - 1);
+                ends.push(end);
+            }
+
+            (scope.checkpoints || []).forEach((checkpoint) => {
+                const date = parseCalendarDate(checkpoint.tanggal_pengawasan);
+                if (date) {
+                    starts.push(date);
+                    ends.push(date);
+                }
+            });
+        });
+
+        if (starts.length === 0 || ends.length === 0) return null;
+        const min = new Date(Math.min(...starts.map((date) => date.getTime())));
+        const max = new Date(Math.max(...ends.map((date) => date.getTime())));
+        const duration = Math.max(1, Math.round((max.getTime() - min.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        return {
+            startDate: formatCalendarDate(min),
+            duration,
+            syncGroup: `unified-${supervisionWorkspace.nomor_ulok}`.replace(/[^a-zA-Z0-9_-]/g, '-'),
+        };
+    }, [supervisionWorkspace]);
     const canWriteGanttCommunication = appMode === 'pic' && !!selectedGanttId && !isReadOnly;
 
     const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
@@ -329,6 +407,48 @@ function GanttBoard() {
         setShowMemoModal(true);
     }, [showAlert]);
 
+    const openUnifiedCheckpoint = useCallback(async (
+        checkpoint: SupervisionCheckpoint,
+        dayIndex: number
+    ) => {
+        if (!supervisionWorkspace) return;
+
+        const targetDateKey = formatPengawasanDateKey(checkpoint.tanggal_pengawasan);
+        const flowScopes = (checkpoint as any).scopes
+            ? (checkpoint as any).scopes
+                .map((entry: any) => {
+                    const scope = supervisionWorkspace.scopes.find((item) => Number(item.id_toko) === Number(entry.id_toko));
+                    const scopeCheckpoint = entry.checkpoint
+                        ?? scope?.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey)
+                        ?? null;
+                    return scope && scopeCheckpoint ? { scope, checkpoint: scopeCheckpoint } : null;
+                })
+                .filter(Boolean)
+            : supervisionWorkspace.scopes
+                .map((scope) => {
+                    const scopeCheckpoint = scope.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey);
+                    return scopeCheckpoint ? { scope, checkpoint: scopeCheckpoint } : null;
+                })
+                .filter(Boolean);
+
+        if (flowScopes.length === 0) return;
+
+        const first = flowScopes[0] as { scope: SupervisionScope; checkpoint: SupervisionCheckpoint };
+        setUnifiedMemoFlow({
+            scopes: flowScopes as Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>,
+            index: 0,
+            dayIndex,
+            dateString: checkpoint.tanggal_pengawasan,
+        });
+        await loadDataByToko(first.scope.id_toko);
+        setActiveHeaderClick({
+            dayIndex,
+            dateString: checkpoint.tanggal_pengawasan,
+            label: checkpoint.tanggal_pengawasan.slice(0, 5),
+        });
+        setShowMemoModal(true);
+    }, [supervisionWorkspace]);
+
     const isScopeReadyForSerahTerima = useCallback((scope: SupervisionScope) =>
         Boolean(scope.gantt_id)
         && Boolean(scope.opname_final_id)
@@ -337,11 +457,10 @@ function GanttBoard() {
     []);
 
     const handleGenerateUnifiedHandover = useCallback(async () => {
-        const target = supervisionWorkspace?.scopes.find((scope) => isScopeReadyForSerahTerima(scope));
-        if (!target || (!supervisionWorkspace?.serah_terima_ready && !supervisionWorkspace?.serah_terima_generated)) return;
+        if (!supervisionWorkspace?.unified_serah_terima_ready) return;
         setIsGeneratingHandover(true);
         try {
-            await createPdfSerahTerima(target.id_toko);
+            await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok);
             await loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
             showAlert({ message: "PDF Serah Terima SIPIL/ME berhasil diproses.", type: "success" });
         } catch (error: any) {
@@ -349,7 +468,7 @@ function GanttBoard() {
         } finally {
             setIsGeneratingHandover(false);
         }
-    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace, isScopeReadyForSerahTerima]);
+    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
 
     const loadGanttNotes = async (ganttId: number) => {
         setIsGanttNoteLoading(true);
@@ -1422,42 +1541,30 @@ function GanttBoard() {
                 </Card>
 
                 {projectData && (
-                    <Card className={`w-full lg:w-2/3 border shadow-sm transition-all ${
-                        String(projectData.work).toUpperCase() === 'ME'
-                            ? 'bg-slate-800 border-slate-700 text-white'
-                            : 'bg-red-50 border-red-200/80 text-slate-800'
-                    }`}>
-                        <CardContent className="p-6 flex flex-wrap gap-x-10 gap-y-6 items-center">
+                    <Card className="w-full max-w-5xl border border-slate-200 bg-white text-slate-900 shadow-sm transition-all">
+                        <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 p-5">
                             <div>
-                                <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
-                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
-                                }`}>Nama Toko</p>
-                                <p className={`text-xl font-bold ${
-                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-white' : 'text-red-950'
-                                }`}>{projectData.store}</p>
+                                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Nama Toko</p>
+                                <p className="text-base font-extrabold leading-tight text-slate-950">{projectData.store}</p>
                             </div>
-                            <div className={`h-10 w-px hidden md:block ${
-                                String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
-                            }`}></div>
+                            <div className="hidden h-10 w-px bg-slate-200 md:block" />
                             <div>
-                                <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
-                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
-                                }`}>Lingkup</p>
-                                <p className={`text-xl font-bold ${
-                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-white' : 'text-red-950'
-                                }`}>{projectData.work}</p>
+                                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Lingkup</p>
+                                <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-extrabold ${
+                                    String(projectData.work).toUpperCase() === 'ME'
+                                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                        : 'border-red-200 bg-red-50 text-red-700'
+                                }`}>
+                                    {projectData.work}
+                                </span>
                             </div>
-                            <div className={`h-10 w-px hidden md:block ${
-                                String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
-                            }`}></div>
+                            <div className="hidden h-10 w-px bg-slate-200 md:block" />
                             <div>
-                                <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
-                                    String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
-                                }`}>Status SPK</p>
-                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Status SPK</p>
+                                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
                                     spkTokoIds.has(Number(projectData.id_toko))
-                                        ? 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30'
-                                        : 'bg-amber-500/20 text-amber-700 border border-amber-500/30'
+                                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        : 'border border-amber-200 bg-amber-50 text-amber-700'
                                 }`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${spkTokoIds.has(Number(projectData.id_toko)) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                                     {spkTokoIds.has(Number(projectData.id_toko)) ? 'SUDAH SPK' : 'BELUM SPK'}
@@ -1465,27 +1572,15 @@ function GanttBoard() {
                             </div>
                             {spkInfo && (
                                 <>
-                                    <div className={`h-10 w-px hidden md:block ${
-                                        String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
-                                    }`}></div>
+                                    <div className="hidden h-10 w-px bg-slate-200 md:block" />
                                     <div>
-                                        <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
-                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-slate-400' : 'text-red-600/70'
-                                        }`}>Durasi (SPK)</p>
-                                        <p className={`text-xl font-bold ${
-                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-white' : 'text-red-950'
-                                        }`}>{spkInfo.duration} Hari</p>
+                                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Durasi (SPK)</p>
+                                        <p className="text-base font-extrabold text-slate-950">{spkInfo.duration} Hari</p>
                                     </div>
-                                    <div className={`h-10 w-px hidden md:block ${
-                                        String(projectData.work).toUpperCase() === 'ME' ? 'bg-slate-700' : 'bg-red-200'
-                                    }`}></div>
+                                    <div className="hidden h-10 w-px bg-slate-200 md:block" />
                                     <div>
-                                        <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
-                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-emerald-400/80' : 'text-green-600/70'
-                                        }`}>Tgl Mulai SPK</p>
-                                        <p className={`text-xl font-bold ${
-                                            String(projectData.work).toUpperCase() === 'ME' ? 'text-emerald-300' : 'text-green-800'
-                                        }`}>{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tgl Mulai SPK</p>
+                                        <p className="text-base font-extrabold text-emerald-700">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                     </div>
                                 </>
                             )}
@@ -1616,27 +1711,27 @@ function GanttBoard() {
                                                 <div>
                                                     <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Serah Terima</p>
                                                     <p className="mt-1 text-sm font-semibold">
-                                                        {supervisionWorkspace.serah_terima_generated
+                                                        {supervisionWorkspace.unified_serah_terima_generated
                                                             ? 'PDF sudah tersedia'
-                                                            : supervisionWorkspace.serah_terima_ready
+                                                            : supervisionWorkspace.unified_serah_terima_ready
                                                                 ? 'Siap diproses'
                                                                 : 'Menunggu pekerjaan selesai masuk Opname'}
                                                     </p>
                                                 </div>
-                                                {supervisionWorkspace.serah_terima_generated
+                                                {supervisionWorkspace.unified_serah_terima_generated
                                                     ? <CheckCircle className="h-7 w-7 text-emerald-400" />
                                                     : <ClipboardCheck className="h-7 w-7 text-red-300" />}
                                             </div>
                                             <Button
                                                 type="button"
                                                 onClick={handleGenerateUnifiedHandover}
-                                                disabled={(!supervisionWorkspace.serah_terima_ready && !supervisionWorkspace.serah_terima_generated) || isGeneratingHandover}
+                                                disabled={!supervisionWorkspace.unified_serah_terima_ready || isGeneratingHandover}
                                                 className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
                                             >
                                                 {isGeneratingHandover
                                                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                     : <FileText className="mr-2 h-4 w-4" />}
-                                                {supervisionWorkspace.serah_terima_generated ? 'Regenerate Serah Terima' : 'Generate Serah Terima'}
+                                                {supervisionWorkspace.unified_serah_terima_generated ? 'Regenerate Serah Terima' : 'Generate Serah Terima'}
                                             </Button>
                                         </div>
                                     </div>
@@ -1659,7 +1754,119 @@ function GanttBoard() {
                                 </div>
                             </div>
 
-                            <div className="space-y-5">
+                            {supervisionWorkspace.has_date_mismatch && (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                        <div>
+                                            <p className="font-extrabold">Tanggal ME belum sama dengan SIPIL</p>
+                                            <p className="mt-0.5 text-xs leading-relaxed">
+                                                Header memakai tanggal {supervisionWorkspace.master_scope || 'master'} sebagai acuan.
+                                                Jalankan backup CSV dan sinkronisasi DB sebelum cleanup data lama.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="overflow-hidden border border-slate-300 bg-white shadow-sm">
+                                <UnifiedSupervisionGantt
+                                    workspace={supervisionWorkspace}
+                                    onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}
+                                />
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
+                                    {supervisionWorkspace.scopes.map((scope, index) => {
+                                        const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+                                        const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+                                        const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
+                                        return (
+                                            <span key={scope.id_toko} className="inline-flex items-center gap-2">
+                                                <span className={`h-2.5 w-2.5 rounded-full ${scopeName === 'SIPIL' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                                                {scopeName}: {readyCount} siap opname, {opnameCount} sudah opname
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {false && unifiedTimeline && (
+                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                                    <div className="border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Timeline ULOK Terpadu</p>
+                                                <h3 className="mt-1 text-lg font-black">SIPIL + ME dalam satu kalender kerja</h3>
+                                            </div>
+                                            <Badge className="border border-white/20 bg-white/10 text-white">
+                                                {unifiedTimeline!.duration} hari kalender
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    <div className="flex border-b border-slate-200 bg-slate-100 text-xs font-black uppercase tracking-wide text-slate-500">
+                                        <div className="w-1/3 min-w-50 border-r border-slate-300 px-4 py-3">
+                                            Lingkup / Tahapan
+                                        </div>
+                                        <div
+                                            className="flex-1 overflow-x-auto"
+                                            data-gantt-sync={unifiedTimeline!.syncGroup}
+                                            onScroll={(e) => {
+                                                document.querySelectorAll<HTMLElement>(`[data-gantt-sync="${unifiedTimeline!.syncGroup}"]`).forEach((el) => {
+                                                    if (el !== e.currentTarget && el.scrollLeft !== e.currentTarget.scrollLeft) {
+                                                        el.scrollLeft = e.currentTarget.scrollLeft;
+                                                    }
+                                                });
+                                            }}
+                                        >
+                                            <div className="flex" style={{ minWidth: unifiedTimeline!.duration * DAY_WIDTH }}>
+                                                {Array.from({ length: unifiedTimeline!.duration }).map((_, dayIndex) => {
+                                                    const current = parseCalendarDate(unifiedTimeline!.startDate) || new Date();
+                                                    current.setDate(current.getDate() + dayIndex);
+                                                    const dd = String(current.getDate()).padStart(2, '0');
+                                                    const mm = String(current.getMonth() + 1).padStart(2, '0');
+                                                    const yyyy = current.getFullYear();
+                                                    const fullDate = `${dd}/${mm}/${yyyy}`;
+                                                    const checkpoint = (supervisionWorkspace!.unified_checkpoints || []).find((item) => item.tanggal_pengawasan === fullDate);
+                                                    const readyCount = Number(checkpoint?.ready_opname_items || 0);
+                                                    const opnameCount = Number(checkpoint?.opname_items || 0);
+                                                    const isReady = readyCount > 0;
+                                                    const isOpname = !isReady && opnameCount > 0;
+                                                    const hasAnyScopeCheckpoint = Boolean(checkpoint?.scopes?.some((entry) => Boolean(entry.checkpoint)));
+                                                    return (
+                                                        <button
+                                                            key={fullDate}
+                                                            type="button"
+                                                            disabled={!hasAnyScopeCheckpoint}
+                                                            onClick={() => checkpoint && openUnifiedCheckpoint(checkpoint as any, dayIndex)}
+                                                            className={`flex h-13 shrink-0 flex-col items-center justify-center border-r border-slate-300 font-bold ${
+                                                                isReady
+                                                                    ? 'bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 hover:bg-red-100'
+                                                                    : isOpname
+                                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                                        : hasAnyScopeCheckpoint
+                                                                            ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                                                            : 'bg-white text-slate-400'
+                                                            }`}
+                                                            style={{ width: DAY_WIDTH, fontSize: '9px' }}
+                                                            title={`${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`}
+                                                        >
+                                                            <span>{dd}/{mm}</span>
+                                                            {isReady ? (
+                                                                <AlertCircle className="mt-0.5 h-3 w-3 text-red-600" />
+                                                            ) : isOpname ? (
+                                                                <CheckCircle className="mt-0.5 h-3 w-3 text-emerald-600" />
+                                                            ) : hasAnyScopeCheckpoint ? (
+                                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                                                            ) : null}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="hidden">
                                 {supervisionWorkspace.scopes.map((scope, index) => {
                                     const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
                                     const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
@@ -1707,6 +1914,11 @@ function GanttBoard() {
                                                         title={`Timeline ${scopeName}`}
                                                         checkpoints={scope.checkpoints}
                                                         onCheckpointClick={(checkpoint, dayIndex) => openScopeCheckpoint(scope, checkpoint, dayIndex)}
+                                                        hideChartTitle
+                                                        hideDateHeader
+                                                        timelineStartDate={unifiedTimeline?.startDate}
+                                                        timelineDuration={unifiedTimeline?.duration}
+                                                        syncScrollGroup={unifiedTimeline?.syncGroup}
                                                     />
                                                 </div>
                                             ) : (
@@ -2009,20 +2221,79 @@ function GanttBoard() {
                 chartData={chartData} 
                 rabItems={rabItems} 
                 pengawasanHistory={pengawasanHistory}
-                onClose={() => setShowMemoModal(false)} 
+                onClose={() => {
+                    setShowMemoModal(false);
+                    setUnifiedMemoFlow(null);
+                }} 
                 selectedGanttId={selectedGanttId}
                 spkInfo={spkInfo}
                 projectData={projectData}
                 id_toko={projectData?.id_toko}
-                onSuccess={(options?: { openOpname?: boolean }) => {
+                scopeLabel={unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index]?.scope?.lingkup_pekerjaan}
+                nextScopeLabel={unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length ? unifiedMemoFlow.scopes[unifiedMemoFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
+                flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
+                draft={selectedGanttId && activeHeaderClick ? unifiedMemoDrafts[`${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
+                onDraftChange={(draft: any) => {
+                    if (!selectedGanttId || !activeHeaderClick) return;
+                    const key = `${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
+                    setUnifiedMemoDrafts((prev) => ({ ...prev, [key]: draft }));
+                }}
+                onNavigateScope={async (targetIndex: number) => {
+                    if (!unifiedMemoFlow) return;
+                    const next = unifiedMemoFlow.scopes[targetIndex];
+                    if (!next) return;
+                    setShowMemoModal(false);
+                    setUnifiedMemoFlow({ ...unifiedMemoFlow, index: targetIndex });
+                    await loadDataByToko(next.scope.id_toko);
+                    setActiveHeaderClick({
+                        dayIndex: unifiedMemoFlow.dayIndex,
+                        dateString: unifiedMemoFlow.dateString,
+                        label: unifiedMemoFlow.dateString.slice(0, 5),
+                    });
+                    setShowMemoModal(true);
+                }}
+                onSuccess={async (options?: { openOpname?: boolean }) => {
                     setShowMemoModal(false);
                     // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
                     if (selectedGanttId) loadGanttDetail(selectedGanttId);
                     if (supervisionWorkspace?.nomor_ulok) {
                         loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
                     }
+
+                    if (unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length) {
+                        const nextIndex = unifiedMemoFlow.index + 1;
+                        const next = unifiedMemoFlow.scopes[nextIndex];
+                        setUnifiedMemoFlow({ ...unifiedMemoFlow, index: nextIndex });
+                        await loadDataByToko(next.scope.id_toko);
+                        setActiveHeaderClick({
+                            dayIndex: unifiedMemoFlow.dayIndex,
+                            dateString: unifiedMemoFlow.dateString,
+                            label: unifiedMemoFlow.dateString.slice(0, 5),
+                        });
+                        setShowMemoModal(true);
+                        return;
+                    }
+                    const completedFlow = unifiedMemoFlow;
+                    setUnifiedMemoFlow(null);
                     
                     if (options?.openOpname === false) {
+                        return;
+                    }
+                    if (completedFlow && completedFlow.scopes.length > 1) {
+                        const first = completedFlow.scopes[0];
+                        setUnifiedOpnameFlow({
+                            scopes: completedFlow.scopes,
+                            index: 0,
+                            dayIndex: completedFlow.dayIndex,
+                            dateString: completedFlow.dateString,
+                        });
+                        await loadDataByToko(first.scope.id_toko);
+                        setActiveHeaderClick({
+                            dayIndex: completedFlow.dayIndex,
+                            dateString: completedFlow.dateString,
+                            label: completedFlow.dateString.slice(0, 5),
+                        });
+                        setShowOpnameModal(true);
                         return;
                     }
                     setShowOpnameModal(true);
@@ -2038,17 +2309,49 @@ function GanttBoard() {
                 id_toko={projectData?.id_toko}
                 onClose={() => {
                     setShowOpnameModal(false);
-                    setShowMemoModal(true);
+                    setUnifiedOpnameFlow(null);
+                    if (!unifiedOpnameFlow) setShowMemoModal(true);
                 }}
                 selectedGanttId={selectedGanttId}
                 spkInfo={spkInfo}
                 nomorUlok={projectData?.ulokClean}
-                onSuccess={() => {
+                scopeLabel={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.lingkup_pekerjaan}
+                nextScopeLabel={unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length ? unifiedOpnameFlow.scopes[unifiedOpnameFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
+                flowStep={unifiedOpnameFlow ? { current: unifiedOpnameFlow.index + 1, total: unifiedOpnameFlow.scopes.length } : null}
+                onNavigateScope={async (targetIndex: number) => {
+                    if (!unifiedOpnameFlow) return;
+                    const next = unifiedOpnameFlow.scopes[targetIndex];
+                    if (!next) return;
+                    setShowOpnameModal(false);
+                    setUnifiedOpnameFlow({ ...unifiedOpnameFlow, index: targetIndex });
+                    await loadDataByToko(next.scope.id_toko);
+                    setActiveHeaderClick({
+                        dayIndex: unifiedOpnameFlow.dayIndex,
+                        dateString: unifiedOpnameFlow.dateString,
+                        label: unifiedOpnameFlow.dateString.slice(0, 5),
+                    });
+                    setShowOpnameModal(true);
+                }}
+                onSuccess={async () => {
                     setShowOpnameModal(false);
                     if (selectedGanttId) loadGanttDetail(selectedGanttId);
                     if (supervisionWorkspace?.nomor_ulok) {
                         loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
                     }
+                    if (unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length) {
+                        const nextIndex = unifiedOpnameFlow.index + 1;
+                        const next = unifiedOpnameFlow.scopes[nextIndex];
+                        setUnifiedOpnameFlow({ ...unifiedOpnameFlow, index: nextIndex });
+                        await loadDataByToko(next.scope.id_toko);
+                        setActiveHeaderClick({
+                            dayIndex: unifiedOpnameFlow.dayIndex,
+                            dateString: unifiedOpnameFlow.dateString,
+                            label: unifiedOpnameFlow.dateString.slice(0, 5),
+                        });
+                        setShowOpnameModal(true);
+                        return;
+                    }
+                    setUnifiedOpnameFlow(null);
                 }}
             />
         )}
@@ -2069,8 +2372,22 @@ function parseDateAny(dateStr: string) {
     return new Date(dateStr);
 }
 
+function formatDateForInput(date: Date): string {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatDateForPengawasan(date: Date): string {
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+}
+
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess }: any) {
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
     const { user } = useSession();
@@ -2079,6 +2396,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean }>>({});
     const [isDirty, setIsDirty] = useState(false);
+    const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
     const [instruksiToast, setInstruksiToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [nextHandoverDate, setNextHandoverDate] = useState('');
@@ -2090,6 +2408,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         setInstruksiToast({ message, type });
         window.setTimeout(() => setInstruksiToast(null), 4000);
     }, []);
+
+    useEffect(() => {
+        if (!hasLoadedInitial) return;
+        onDraftChange?.(memoInputs);
+    }, [hasLoadedInitial, memoInputs]);
     
     useEffect(() => {
         if (!selectedGanttId || (!spkInfo && !projectData) || !activeHeaderClick) {
@@ -2097,15 +2420,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             return;
         }
 
-        const offset = activeHeaderClick?.dayIndex || 0;
-        const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
-        const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
-        dDate.setDate(dDate.getDate() + offset);
-        const yyyy = dDate.getFullYear();
-        const mm = String(dDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(dDate.getDate()).padStart(2, '0');
-        const formattedDate = `${yyyy}-${mm}-${dd}`;
-        const currentDateNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
+        setHasLoadedInitial(false);
+        setIsLoadingHistory(true);
+        const clickedDate = parseDateAny(activeHeaderClick.dateString);
+        const fallbackStart = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
+        const fallbackDate = new Date(fallbackStart.split('T')[0] + 'T00:00:00');
+        fallbackDate.setDate(fallbackDate.getDate() + (activeHeaderClick?.dayIndex || 0));
+        const dDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackDate;
+        const formattedDate = formatDateForInput(dDate);
+        const currentDateNumeric = parseInt(formattedDate.replace(/-/g, ''), 10);
 
         const parseDateNumeric = (value: any): number | null => {
             if (!value) return null;
@@ -2235,19 +2558,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
                     }
                 });
-                setMemoInputs(initial);
+                const mergedInitial = { ...initial, ...(draft || {}) };
+                setMemoInputs(mergedInitial);
                 // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
                 // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
-                if (Object.keys(initial).length > 0) {
+                if (Object.keys(mergedInitial).length > 0) {
                     setIsDirty(true);
                 }
                 setLatestStatusMapState(map);
                 setLatestIdMapState(idMap);
             })
             .catch(err => console.error("Gagal mendapatkan pengawasan history:", err))
-            .finally(() => setIsLoadingHistory(false));
+            .finally(() => {
+                setHasLoadedInitial(true);
+                setIsLoadingHistory(false);
+            });
         });
-    }, [selectedGanttId, spkInfo, activeHeaderClick]);
+    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick]);
     
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
@@ -2257,7 +2584,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
-        const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+        const effectiveStart = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
         const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         const checkpointDate = parseDateAny(activeHeaderClick.dateString);
         let day = activeHeaderClick.dayIndex;
@@ -2371,7 +2698,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys, spkInfo, projectData]);
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
@@ -2456,7 +2783,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (datesInNumeric.length === 0) return false;
         const maxDate = datesInNumeric[datesInNumeric.length - 1];
         
-        const effectiveStart = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
+        const effectiveStart = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
         const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         const checkpointDate = parseDateAny(activeHeaderClick.dateString);
         let offset = activeHeaderClick.dayIndex || 0;
@@ -2568,14 +2895,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             );
             const hasNextHandoverAction = isLastSupervisionDay && hasLateItems && !!nextHandoverDate;
 
-            const offset = activeHeaderClick?.dayIndex || 0;
-            const effectiveStartForSubmit = spkInfo?.startDate || projectData?.startDate || new Date().toISOString().split('T')[0];
-            const dDate = new Date(effectiveStartForSubmit.split('T')[0] + 'T00:00:00');
-            dDate.setDate(dDate.getDate() + offset);
-            const yyyy = dDate.getFullYear();
-            const mm = String(dDate.getMonth() + 1).padStart(2, '0');
-            const dd = String(dDate.getDate()).padStart(2, '0');
-            const formattedDate = String(activeHeaderClick?.dateString || '').trim() || `${dd}/${mm}/${yyyy}`;
+            const clickedDate = parseDateAny(activeHeaderClick?.dateString || '');
+            const effectiveStartForSubmit = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
+            const fallbackSubmitDate = new Date(effectiveStartForSubmit.split('T')[0] + 'T00:00:00');
+            fallbackSubmitDate.setDate(fallbackSubmitDate.getDate() + (activeHeaderClick?.dayIndex || 0));
+            const submitDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackSubmitDate;
+            const formattedDate = formatDateForPengawasan(submitDate);
 
             entriesToSubmit.forEach(([key, val]) => {
                 const pipeIdx = key.indexOf('|');
@@ -2779,6 +3104,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 {isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan"}
                             </h2>
                             <p className="text-sm text-slate-500 font-medium">{activeHeaderClick.dateString}</p>
+                            {(scopeLabel || flowStep) && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    {scopeLabel && (
+                                        <Badge className="border-none bg-slate-800 text-white">
+                                            {String(scopeLabel).toUpperCase()}
+                                        </Badge>
+                                    )}
+                                    {flowStep && (
+                                        <Badge className="border border-blue-200 bg-blue-50 text-blue-700">
+                                            Langkah {flowStep.current} dari {flowStep.total}
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -3013,6 +3352,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
+                        {flowStep && (
+                            <Button
+                                variant="outline"
+                                className="font-semibold text-slate-600"
+                                onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
+                                disabled={isSubmitting}
+                            >
+                                {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
+                            </Button>
+                        )}
                         <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && isLastSupervisionDay && hasLateItems && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                             Simpan
@@ -3057,7 +3406,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 }
 
 // Komponen OpnameModal
-function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose, selectedGanttId, onSuccess, spkInfo }: any) {
+function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose, selectedGanttId, onSuccess, spkInfo, scopeLabel, nextScopeLabel, flowStep, onNavigateScope }: any) {
     const { showAlert } = useGlobalAlert();
     const [completedItems, setCompletedItems] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -3418,6 +3767,20 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         <div>
                             <h2 className="font-bold text-xl text-slate-800 leading-tight">Opname Pekerjaan Selesai</h2>
                             <p className="text-sm text-slate-500 font-medium">Isi detail opname untuk pekerjaan yang telah diverifikasi selesai</p>
+                            {(scopeLabel || flowStep) && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    {scopeLabel && (
+                                        <Badge className="border-none bg-slate-800 text-white">
+                                            {String(scopeLabel).toUpperCase()}
+                                        </Badge>
+                                    )}
+                                    {flowStep && (
+                                        <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
+                                            Langkah {flowStep.current} dari {flowStep.total}
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6"/></button>
@@ -3596,6 +3959,16 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
                 <div className="p-5 border-t bg-white flex justify-end gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
                     <Button variant="outline" className="font-semibold" onClick={onClose}>Kembali</Button>
+                    {flowStep && (
+                        <Button
+                            variant="outline"
+                            className="font-semibold text-slate-600"
+                            onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
+                            disabled={isSubmitting}
+                        >
+                            {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
+                        </Button>
+                    )}
                     <Button 
                         onClick={handleSubmit} 
                         disabled={

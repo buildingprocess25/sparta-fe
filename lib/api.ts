@@ -1757,6 +1757,29 @@ export type SupervisionCheckpoint = {
     opname_items: number;
 };
 
+export type UnifiedSupervisionCheckpoint = {
+    tanggal_pengawasan: string;
+    total_items: number;
+    selesai_items: number;
+    ready_opname_items: number;
+    opname_items: number;
+    scopes: Array<{
+        id_toko: number;
+        gantt_id: number | null;
+        lingkup_pekerjaan: string;
+        checkpoint: SupervisionCheckpoint | null;
+    }>;
+};
+
+export type SupervisionScopeDateAlignment = {
+    id_toko: number;
+    gantt_id: number | null;
+    lingkup_pekerjaan: string;
+    is_master: boolean;
+    missing_from_scope: string[];
+    extra_in_scope: string[];
+};
+
 export type SupervisionScope = {
     id_toko: number;
     nomor_ulok: string;
@@ -1790,6 +1813,15 @@ export type SupervisionWorkspace = {
     scopes: SupervisionScope[];
     serah_terima_ready: boolean;
     serah_terima_generated: boolean;
+    unified_serah_terima_ready?: boolean;
+    unified_serah_terima_generated?: boolean;
+    master_scope?: string;
+    master_scope_id_toko?: number | null;
+    master_gantt_id?: number | null;
+    unified_dates?: string[];
+    unified_checkpoints?: UnifiedSupervisionCheckpoint[];
+    scope_date_alignment?: SupervisionScopeDateAlignment[];
+    has_date_mismatch?: boolean;
 };
 
 export const fetchSupervisionWorkspace = async (
@@ -3872,10 +3904,11 @@ export type BerkasSerahTerimaItem = {
     };
 };
 
-export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number }): Promise<{ status: string; data: BerkasSerahTerimaItem[] }> => {
+export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number; nomor_ulok?: string }): Promise<{ status: string; data: BerkasSerahTerimaItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.id_toko) params.append("id_toko", filters.id_toko.toString());
+    if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     const url = `${base}/api/berkas_serah_terima${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
@@ -3931,6 +3964,18 @@ export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
 
         throw error;
     }
+};
+
+export const createPdfSerahTerimaUnified = async (nomor_ulok: string): Promise<any> => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima_unified`;
+    const res = await apiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomor_ulok }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima gabungan.");
+    return result;
 };
 
 export const downloadSerahTerimaPdf = async (id: number): Promise<boolean> => {

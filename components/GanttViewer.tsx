@@ -29,7 +29,7 @@ function formatHeaderDate(date: Date): string {
     return `${d}/${m}`;
 }
 
-export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, title, checkpoints = [], onCheckpointClick }: {
+export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup }: {
     nomorUlok: string;
     idToko?: number;
     spkStartDate?: string;  // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
@@ -37,6 +37,11 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
     title?: string;
     checkpoints?: SupervisionCheckpoint[];
     onCheckpointClick?: (checkpoint: SupervisionCheckpoint, dayIndex: number) => void;
+    hideChartTitle?: boolean;
+    hideDateHeader?: boolean;
+    timelineStartDate?: string;
+    timelineDuration?: number;
+    syncScrollGroup?: string;
 }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
@@ -116,7 +121,12 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                 let effectiveStartDate = projectStart;
                 let effectiveDuration = duration;
                 
-                if (spkStartDate) {
+                if (timelineStartDate) {
+                    effectiveStartDate = new Date(timelineStartDate.split('T')[0] + 'T00:00:00');
+                    if (timelineDuration && timelineDuration > 0) {
+                        effectiveDuration = timelineDuration;
+                    }
+                } else if (spkStartDate) {
                     effectiveStartDate = new Date(spkStartDate.split('T')[0] + 'T00:00:00');
                     if (spkDuration && spkDuration > 0) {
                         effectiveDuration = spkDuration;
@@ -146,6 +156,14 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     }
                 }
 
+                const normalizeToSharedTimelineDay = (day: number): number => {
+                    if (!timelineStartDate || !Number.isFinite(day)) return day;
+                    const absoluteDate = new Date(projectStart);
+                    absoluteDate.setDate(absoluteDate.getDate() + day - 1);
+                    const diff = Math.round((absoluteDate.getTime() - effectiveStartDate.getTime()) / msPerDay);
+                    return diff + 1;
+                };
+
                 setProjectData({
                     duration: effectiveDuration,
                     startDate: effectiveStartDate.toISOString().split('T')[0],
@@ -160,8 +178,8 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
 
                 const categoryRangesMap: Record<string, any[]> = {};
                 day_items.forEach((entry: any) => {
-                    const startDay = toDayNumber(entry.h_awal);
-                    const endDay   = toDayNumber(entry.h_akhir);
+                    const startDay = normalizeToSharedTimelineDay(toDayNumber(entry.h_awal));
+                    const endDay   = normalizeToSharedTimelineDay(toDayNumber(entry.h_akhir));
                     
                     if (!isNaN(startDay) && !isNaN(endDay)) {
                         const key = entry.kategori_pekerjaan.toLowerCase().trim();
@@ -210,7 +228,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                 setErrorMsg(err?.message || "Gagal memuat detail Gantt Chart.");
                 setIsLoading(false);
             });
-    }, [nomorUlok, idToko, spkStartDate, spkDuration]);
+    }, [nomorUlok, idToko, spkStartDate, spkDuration, timelineStartDate, timelineDuration]);
 
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
@@ -338,17 +356,21 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden text-xs">
-            <div className="p-4 bg-slate-100 border-b flex justify-between items-center text-sm">
-                <div>
-                    <h3 className="font-bold text-slate-800">{title || 'Visualisasi Gantt Chart'}</h3>
-                    <p className="text-xs text-slate-500">Jadwal yang telah direncanakan oleh Kontraktor.</p>
+            {!hideChartTitle && (
+                <div className="p-4 bg-slate-100 border-b flex justify-between items-center text-sm">
+                    <div>
+                        <h3 className="font-bold text-slate-800">{title || 'Visualisasi Gantt Chart'}</h3>
+                        <p className="text-xs text-slate-500">Jadwal yang telah direncanakan oleh Kontraktor.</p>
+                    </div>
                 </div>
-            </div>
+            )}
             <div className="flex border-b overflow-hidden relative" style={{ maxHeight: "400px" }}>
                 <div className="w-1/3 min-w-50 border-r-[3px] border-slate-400 bg-white z-40 sticky left-0 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)] flex flex-col">
-                    <div className="h-10 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
-                        Tahapan Pekerjaan
-                    </div>
+                    {!hideDateHeader && (
+                        <div className="h-10 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
+                            Tahapan Pekerjaan
+                        </div>
+                    )}
                     <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar" id={`${viewerId}-left`} onScroll={(e) => {
                         const rightPane = document.getElementById(`${viewerId}-right`);
                         if (rightPane) rightPane.scrollTop = e.currentTarget.scrollTop;
@@ -361,12 +383,25 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     </div>
                 </div>
 
-                <div className="w-2/3 flex-1 overflow-auto bg-grid-pattern relative pb-6" id={`${viewerId}-right`} onScroll={(e) => {
-                    const leftPane = document.getElementById(`${viewerId}-left`);
-                    if (leftPane) leftPane.scrollTop = e.currentTarget.scrollTop;
-                }}>
-                    <div className="h-10 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
-                        {Array.from({ length: totalDaysToRender }).map((_, i) => {
+                <div
+                    className="w-2/3 flex-1 overflow-auto bg-grid-pattern relative pb-6"
+                    id={`${viewerId}-right`}
+                    data-gantt-sync={syncScrollGroup || undefined}
+                    onScroll={(e) => {
+                        const leftPane = document.getElementById(`${viewerId}-left`);
+                        if (leftPane) leftPane.scrollTop = e.currentTarget.scrollTop;
+                        if (syncScrollGroup) {
+                            document.querySelectorAll<HTMLElement>(`[data-gantt-sync="${syncScrollGroup}"]`).forEach((el) => {
+                                if (el !== e.currentTarget && el.scrollLeft !== e.currentTarget.scrollLeft) {
+                                    el.scrollLeft = e.currentTarget.scrollLeft;
+                                }
+                            });
+                        }
+                    }}
+                >
+                    {!hideDateHeader && (
+                        <div className="h-10 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
+                            {Array.from({ length: totalDaysToRender }).map((_, i) => {
                             let label: string = String(i + 1);
                             let isPengawasan = false;
                             let isLiveDay = false;
@@ -441,8 +476,9 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
                                 </button>
                             );
-                        })}
-                    </div>
+                            })}
+                        </div>
+                    )}
 
                     <div className="relative" style={{ width: totalChartWidth, height: svgHeight }}>
                         {/* Kolom hijau samar Live Day */}
