@@ -28,7 +28,42 @@ const parseDecimalInput = (value: string) => {
     return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
 const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
+const priceValueToNumber = (value: unknown, fallback = 0) => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed || /^(kondisional|sbo)$/i.test(trimmed)) return fallback;
+        const parsed = Number(trimmed.replace(/[.,](?=\d{3}(\D|$))/g, "").replace(",", "."));
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    return fallback;
+};
 const isConditionalPriceValue = (value: unknown) => String(value ?? "").trim().toLowerCase() === "kondisional";
+const isNumericPriceValue = (value: unknown) => {
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value !== "string") return false;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "-") return false;
+    const parsed = Number(trimmed.replace(/[.,](?=\d{3}(\D|$))/g, "").replace(",", "."));
+    return Number.isFinite(parsed);
+};
+const isTextPriceDirective = (value: unknown) =>
+    typeof value === "string" && value.trim() !== "" && value.trim() !== "-" && !isNumericPriceValue(value);
+const isManualInputFlag = (value: unknown) =>
+    value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true";
+const getManualPriceFlags = (itemData?: Record<string, unknown>) => {
+    const materialDirectiveToUpah = isTextPriceDirective(itemData?.["Harga Material"]);
+    const isMatCond = !materialDirectiveToUpah && (
+        isManualInputFlag(itemData?.["Input Material Manual"]) ||
+        isConditionalPriceValue(itemData?.["Harga Material"])
+    );
+    const isUpahCond =
+        materialDirectiveToUpah ||
+        isManualInputFlag(itemData?.["Input Upah Manual"]) ||
+        isConditionalPriceValue(itemData?.["Harga Upah"]);
+
+    return { materialDirectiveToUpah, isMatCond, isUpahCond };
+};
 const normalizePriceCategoryName = (value?: string | null) =>
     String(value ?? "").toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s&/]/gu, "").trim();
 const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: string): any[] => {
@@ -222,8 +257,7 @@ export default function InstruksiLapanganPage() {
 
             setTableRows(items.map((it: any) => {
                 const itemPriceData = getPriceItemsForCategory(prices, it.kategori_pekerjaan).find((p: any) => p["Jenis Pekerjaan"] === it.jenis_pekerjaan);
-                const isMatCond = isConditionalPriceValue(itemPriceData?.["Harga Material"]);
-                const isUpahCond = isConditionalPriceValue(itemPriceData?.["Harga Upah"]);
+                const { isMatCond, isUpahCond } = getManualPriceFlags(itemPriceData);
                 return {
                     id: Date.now() + Math.random(),
                     category: it.kategori_pekerjaan,
@@ -294,14 +328,13 @@ export default function InstruksiLapanganPage() {
                     const itemData = getPriceItemsForCategory(prices, row.category).find((item: any) => item["Jenis Pekerjaan"] === value);
                     if (itemData) {
                         updatedRow.satuan = itemData["Satuan"];
-                        const isMatCond = isConditionalPriceValue(itemData["Harga Material"]);
-                        const isUpahCond = isConditionalPriceValue(itemData["Harga Upah"]);
+                        const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
                         
                         updatedRow.isKondisional = isMatCond || isUpahCond;
                         updatedRow.isMaterialKondisional = isMatCond;
                         updatedRow.isUpahKondisional = isUpahCond;
-                        updatedRow.hargaMaterial = isMatCond ? 0 : parseFloat(itemData["Harga Material"]) || 0;
-                        updatedRow.hargaUpah = isUpahCond ? 0 : parseFloat(itemData["Harga Upah"]) || 0;
+                        updatedRow.hargaMaterial = materialDirectiveToUpah ? 0 : isMatCond ? 0 : priceValueToNumber(itemData["Harga Material"]);
+                        updatedRow.hargaUpah = isUpahCond ? 0 : priceValueToNumber(itemData["Harga Upah"]);
                         if (updatedRow.satuan === 'Ls') updatedRow.volume = '1';
                     }
                 }
