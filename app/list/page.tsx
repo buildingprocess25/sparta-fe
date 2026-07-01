@@ -30,6 +30,7 @@ import {
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
     fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline,
+    fetchUserCabangList,
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
@@ -1151,6 +1152,37 @@ export default function DaftarDokumenPage() {
         setTimeout(() => setToast(null), 3500);
     }, []);
 
+    const ensureBranchCoverage = useCallback(async (roles: string[], cabang: string, email: string): Promise<string[]> => {
+        const existingCoverage = getSessionBranchCoverage();
+        if (existingCoverage.length > 0 || !email || !cabang) return existingCoverage;
+
+        try {
+            const result = await fetchUserCabangList({ email_sat: email });
+            const normalizedCabang = cabang.trim().toUpperCase();
+            const matchingUsers = (result.data ?? []).filter((user: any) =>
+                String(user.cabang ?? "").trim().toUpperCase() === normalizedCabang
+            );
+
+            const selectedUser = matchingUsers.find((user: any) => {
+                const userRole = String(user.jabatan ?? "").trim().toUpperCase();
+                return roles.some(role => role === userRole || userRole.includes(role) || role.includes(userRole));
+            }) ?? matchingUsers[0];
+
+            const coverage = Array.isArray(selectedUser?.coverage)
+                ? selectedUser.coverage.map((branch: unknown) => String(branch).trim().toUpperCase()).filter(Boolean)
+                : [];
+
+            if (coverage.length > 0) {
+                sessionStorage.setItem("branchCoverage", JSON.stringify(coverage));
+            }
+
+            return coverage;
+        } catch (error) {
+            console.warn("Gagal memuat coverage user cabang:", error);
+            return existingCoverage;
+        }
+    }, []);
+
     // =========================================================================
     // LOAD LIST
     // =========================================================================
@@ -1159,6 +1191,11 @@ export default function DaftarDokumenPage() {
         const sessionRoles = sessionRoleRaw.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
         const sessionIsSuperHuman = hasSuperHumanRole(sessionRoles);
         const sessionCanViewAllBranches = canViewAllBranches(sessionRoles, sessionIsSuperHuman);
+        const sessionEmail = sessionStorage.getItem('loggedInUserEmail') || '';
+        const sessionCabangForCoverage = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
+        const hydratedCoverage = sessionCanViewAllBranches
+            ? []
+            : await ensureBranchCoverage(sessionRoles, sessionCabangForCoverage, sessionEmail);
         setSelectedPengawasanGroupKey(null);
         setSelectedProjectGroupKey(null);
         setSelectedDocumentGroupKey(null);
@@ -1285,7 +1322,7 @@ export default function DaftarDokumenPage() {
             // Filter by cabang for users without global branch visibility.
             const upperUserCabang = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
             if (upperUserCabang && !sessionCanViewAllBranches) {
-                const sessionCoverage = getSessionBranchCoverage();
+                const sessionCoverage = hydratedCoverage.length > 0 ? hydratedCoverage : getSessionBranchCoverage();
                 docs = docs.filter(d => canAccessBranchForUser(d.cabang, sessionRoles, upperUserCabang, sessionCoverage));
             }
 
@@ -1304,7 +1341,7 @@ export default function DaftarDokumenPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [userInfo.cabang, userInfo.nama_pt, userInfo.email, isContractor, isDirektur, showToast]);
+    }, [ensureBranchCoverage, userInfo.cabang, userInfo.nama_pt, userInfo.email, isContractor, isDirektur, showToast]);
 
     useEffect(() => {
         if (hasAppliedQueryParams || typeof window === 'undefined') return;
