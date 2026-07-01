@@ -849,7 +849,7 @@ function ApprovalPageContent() {
                     ['RAB', 'OPNAME', 'INSTRUKSI_LAPANGAN'].includes(type)
                     && isContractorCompanyScopedRole(userRoles)
                 ) {
-                    return Boolean(userInfo.nama_pt) && matchesUserCompany(item._raw, userInfo.nama_pt);
+                    if (!userInfo.nama_pt || !matchesUserCompany(item._raw, userInfo.nama_pt)) return false;
                 }
 
                 if (type === 'PROJECT_PLANNING') {
@@ -886,13 +886,9 @@ function ApprovalPageContent() {
                     return canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage);
                 }
 
-                if (canSeeAllBranches || isRegionalManagerUser) {
-                    return true;
-                }
-
                 // 1. FILTER CABANG (Wajib sesuai cabang user)
                 // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
-                if (!isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
+                if (!canSeeAllBranches && !isRegionalManagerUser && !isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
                     if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
                 }
                 
@@ -1917,9 +1913,9 @@ function ApprovalPageContent() {
                                 {approvalTotalCount} Proses
                             </Badge>
                         )}
-                        {selectedType && listData.length > 0 && activeView === 'list' && (
+                        {selectedType && filteredList.length > 0 && activeView === 'list' && (
                             <Badge className="bg-yellow-400 text-yellow-900 border-0 font-bold text-xs px-2.5">
-                                {listData.length} Item
+                                {filteredList.length} Item
                             </Badge>
                         )}
                         <Badge variant="outline" className="bg-black/10 text-white border-white/30 px-3 py-1 md:py-1.5 shadow-sm backdrop-blur-sm text-[10px] md:text-xs font-semibold hidden md:flex">

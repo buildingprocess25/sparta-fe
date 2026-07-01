@@ -262,6 +262,16 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (!isSameBranchScope(item.cabang, user)) return false;
     }
 
+    if (item.tipe === "RAB" && (jabatan === "DIREKTUR" || jabatan === "DIREKTUR_KONTRAKTOR")) {
+        if (userCabang && !isDirectorHOUser && item.cabang) {
+            if (!isSameBranchScope(item.cabang, user)) return false;
+        }
+
+        return jabatan === "DIREKTUR_KONTRAKTOR"
+            ? isContractorDirectorApprovalStatus(upper)
+            : isDirectorApprovalStatus(upper);
+    }
+
     if (item.tipe === "OPNAME") {
         if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
         if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
@@ -272,16 +282,6 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (canSeeAll || user.isRegionalManager) return true;
     if (item.tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
     if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
-
-    if (item.tipe === "RAB" && (jabatan === "DIREKTUR" || jabatan === "DIREKTUR_KONTRAKTOR")) {
-        if (userCabang && !isDirectorHOUser && item.cabang) {
-            if (!isSameBranchScope(item.cabang, user)) return false;
-        }
-
-        return jabatan === "DIREKTUR_KONTRAKTOR"
-            ? isContractorDirectorApprovalStatus(upper)
-            : isDirectorApprovalStatus(upper);
-    }
 
     if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
     if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
