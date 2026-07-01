@@ -251,7 +251,7 @@ const isHeadOfficeDirector = (cabang?: string | null, roles: string[] = []) =>
     normalizeBranch(cabang) === 'HEAD OFFICE' && hasDirectorRole(roles);
 
 const isContractorCompanyScopedRole = (roles: string[]) =>
-    roles.some(role => role.includes('KONTRAKTOR'));
+    roles.some(role => role === 'KONTRAKTOR' || (role.includes('KONTRAKTOR') && !role.includes('DIREKTUR KONTRAKTOR')));
 
 const normalizeCompanyName = (value?: string | null) =>
     String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
