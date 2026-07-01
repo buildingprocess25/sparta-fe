@@ -35,7 +35,7 @@ type UlokOption = {
     nomorUlok: string; kontraktor: string;
     spkAwal: string; spkAkhir: string; kodeToko: string; namaToko: string;
     tanggalSt: string;
-    tanggalStLocked: boolean;
+    tanggalStSource: 'SERAH_TERIMA' | 'NEEDS_ST';
     cabang: string;
 };
 
@@ -124,7 +124,7 @@ export default function FTDokumenPage() {
                         spkAwal: item.spk_awal || '',
                         spkAkhir: item.spk_akhir || '',
                         tanggalSt: item.tanggal_serah_terima || '',
-                        tanggalStLocked: item.tanggal_serah_terima_source === 'SERAH_TERIMA',
+                        tanggalStSource: item.tanggal_serah_terima_source,
                         kodeToko: item.kode_toko || '',
                         namaToko: item.nama_toko || '',
                         cabang: rabCabang,
@@ -161,6 +161,12 @@ export default function FTDokumenPage() {
         }
         if (!formData.nomorUlok) { showAlert({ message: 'Pilih Nomor ULOK terlebih dahulu.', type: 'warning' }); return; }
         if (!formData.namaToko) { showAlert({ message: 'Isi Nama Toko.', type: 'warning' }); return; }
+        const selectedUlok = ulokOptions.find(u => u.nomorUlok === formData.nomorUlok);
+        if (formData.jenisToko === 'REGULAR' && selectedUlok?.tanggalStSource === 'NEEDS_ST') {
+            showAlert({ message: 'ST harus dibuat terlebih dahulu untuk ULOK ini.', type: 'warning' });
+            return;
+        }
+        if (!formData.tanggalSt) { showAlert({ message: 'Tanggal ST wajib terisi.', type: 'warning' }); return; }
         if (formData.jenisToko === 'FRANCHISE' && submittedUloks.has(formData.nomorUlok.trim().toUpperCase())) {
             showAlert({ message: 'Nomor ULOK ini sudah pernah dibuat dokumentasi.', type: 'warning' });
             return;
@@ -348,7 +354,7 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                 kontraktor: selected.kontraktor,
                 spkAwal: selected.spkAwal,
                 spkAkhir: selected.spkAkhir,
-                tanggalSt: selected.tanggalSt || selected.spkAkhir,
+                tanggalSt: selected.tanggalSt,
                 tanggalAmbilFoto: prev.tanggalAmbilFoto || todayLocalIso(),
                 kodeToko: selected.kodeToko,
                 namaToko: selected.namaToko,
@@ -527,7 +533,15 @@ function DataFormView({ formData, onChange, onSubmit, setFormData, ulokOptions, 
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal ST <span className="text-red-500">*</span></Label>
-                            <DatePicker value={formData.tanggalSt} onChange={val => onChange('tanggalSt', val)} disabled={isReadOnly || (!isFranchise && Boolean(selectedUlok?.tanggalStLocked))} />
+                            <DatePicker
+                                value={formData.tanggalSt}
+                                onChange={val => onChange('tanggalSt', val)}
+                                disabled={isReadOnly || (!isFranchise && Boolean(selectedUlok?.tanggalStSource))}
+                                placeholder={selectedUlok?.tanggalStSource === 'NEEDS_ST' ? 'ST harus dibuat' : 'Pilih tanggal'}
+                            />
+                            {!isFranchise && selectedUlok?.tanggalStSource === 'NEEDS_ST' && (
+                                <p className="text-xs font-semibold text-red-600">ST harus dibuat</p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <Label>Tanggal Ambil Foto <span className="text-red-500">*</span></Label>

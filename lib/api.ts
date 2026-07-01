@@ -4143,7 +4143,7 @@ export type DokumentasiBangunanPrefillOption = {
     spk_awal: string;
     spk_akhir: string;
     tanggal_serah_terima: string;
-    tanggal_serah_terima_source: "SERAH_TERIMA" | "SPK_AKHIR";
+    tanggal_serah_terima_source: "SERAH_TERIMA" | "NEEDS_ST";
 };
 
 export type DokumentasiBangunanResponse = {
