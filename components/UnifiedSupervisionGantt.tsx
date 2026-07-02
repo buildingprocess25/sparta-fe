@@ -41,6 +41,12 @@ function diffDays(left: Date, right: Date): number {
     return Math.round((left.getTime() - right.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function addDays(date: Date, days: number): Date {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+}
+
 function isReasonableSpkStart(date: Date | null): date is Date {
     if (!date) return false;
     const year = date.getFullYear();
@@ -109,6 +115,15 @@ function scopeRank(scopeName: string) {
     return 2;
 }
 
+function buildTimelineFromBounds(starts: Date[], ends: Date[]): Timeline | null {
+    if (starts.length === 0 || ends.length === 0) return null;
+    const start = new Date(Math.min(...starts.map((date) => date.getTime())));
+    const end = new Date(Math.max(...ends.map((date) => date.getTime())));
+    const days = Math.max(1, diffDays(end, start) + 1);
+    const dates = Array.from({ length: days }, (_, index) => addDays(start, index));
+    return { start, days, dates };
+}
+
 export default function UnifiedSupervisionGantt({
     workspace,
     onCheckpointClick,
@@ -117,9 +132,11 @@ export default function UnifiedSupervisionGantt({
     onCheckpointClick: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
+    const [ganttFallbackTimeline, setGanttFallbackTimeline] = useState<Timeline | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
-    const timeline = useMemo(() => buildTimeline(workspace), [workspace]);
+    const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
+    const timeline = workspaceTimeline ?? ganttFallbackTimeline;
     const checkpointByDate = useMemo(() => {
         const map = new Map<string, UnifiedSupervisionCheckpoint>();
         (workspace.unified_checkpoints || []).forEach((checkpoint) => {
@@ -132,17 +149,11 @@ export default function UnifiedSupervisionGantt({
         let cancelled = false;
 
         async function load() {
-            if (!timeline) {
-                setDetails([]);
-                setIsLoading(false);
-                return;
-            }
-
             setIsLoading(true);
             setError("");
 
             try {
-                const loaded = await Promise.all(workspace.scopes
+                const rawScopes = await Promise.all(workspace.scopes
                     .filter((scope) => scope.gantt_id)
                     .sort((left, right) => scopeRank(String(left.lingkup_pekerjaan || "").toUpperCase()) - scopeRank(String(right.lingkup_pekerjaan || "").toUpperCase()))
                     .map(async (scope) => {
@@ -152,23 +163,59 @@ export default function UnifiedSupervisionGantt({
                         const spkStart = parseDate(scope.spk_start_date);
                         const ganttStart = isReasonableSpkStart(spkStart)
                             ? spkStart
-                            : parseDate(gantt?.timestamp) || timeline.start;
+                            : parseDate(gantt?.timestamp) || null;
                         const categories = data.kategori_pekerjaan || [];
                         const dayItems = data.day_gantt_data || [];
                         const dependencies = data.dependency_data || [];
+                        return { scope, ganttStart, categories, dayItems, dependencies };
+                    }));
+
+                const fallbackStarts: Date[] = [];
+                const fallbackEnds: Date[] = [];
+                rawScopes.forEach(({ ganttStart, dayItems }) => {
+                    dayItems.forEach((item: any) => {
+                        const rawStart = String(item.h_awal || "");
+                        const rawEnd = String(item.h_akhir || "");
+                        const startDate = rawStart.includes("/")
+                            ? parseDate(rawStart)
+                            : ganttStart
+                                ? addDays(ganttStart, (parseInt(rawStart, 10) || 1) - 1)
+                                : null;
+                        const endDate = rawEnd.includes("/")
+                            ? parseDate(rawEnd)
+                            : ganttStart
+                                ? addDays(ganttStart, (parseInt(rawEnd, 10) || 1) - 1)
+                                : null;
+                        if (startDate) fallbackStarts.push(startDate);
+                        if (endDate) fallbackEnds.push(endDate);
+                    });
+                });
+
+                const fallbackTimeline = buildTimelineFromBounds(fallbackStarts, fallbackEnds);
+                const activeTimeline = workspaceTimeline ?? fallbackTimeline;
+                if (!activeTimeline) {
+                    if (!cancelled) {
+                        setGanttFallbackTimeline(null);
+                        setDetails([]);
+                    }
+                    return;
+                }
+
+                const loaded = rawScopes.map(({ scope, ganttStart, categories, dayItems, dependencies }) => {
+                        const rangeStart = ganttStart || activeTimeline.start;
                         const rangesByCategory = new Map<string, Array<{ start: number; end: number; duration: number; delay: number }>>();
 
                         const toAbsoluteDay = (value: string) => {
                             if (!value) return NaN;
                             if (String(value).includes("/")) {
                                 const parsed = parseDate(value);
-                                return parsed ? diffDays(parsed, timeline.start) + 1 : NaN;
+                                return parsed ? diffDays(parsed, activeTimeline.start) + 1 : NaN;
                             }
                             const day = parseInt(String(value), 10);
                             if (!Number.isFinite(day)) return NaN;
-                            const date = new Date(ganttStart);
+                            const date = new Date(rangeStart);
                             date.setDate(date.getDate() + day - 1);
-                            return diffDays(date, timeline.start) + 1;
+                            return diffDays(date, activeTimeline.start) + 1;
                         };
 
                         dayItems.forEach((item: any) => {
@@ -221,9 +268,12 @@ export default function UnifiedSupervisionGantt({
                             status: scope.status_opname_final || "Opname belum dibuat",
                             rows,
                         };
-                    }));
+                    });
 
-                if (!cancelled) setDetails(loaded);
+                if (!cancelled) {
+                    setGanttFallbackTimeline(fallbackTimeline);
+                    setDetails(loaded);
+                }
             } catch (err: any) {
                 if (!cancelled) setError(err?.message || "Gagal memuat Gantt terpadu.");
             } finally {
@@ -235,20 +285,20 @@ export default function UnifiedSupervisionGantt({
         return () => {
             cancelled = true;
         };
-    }, [workspace, timeline]);
-
-    if (!timeline) {
-        return (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm font-semibold text-slate-500">
-                Belum ada tanggal kerja atau tanggal pengawasan untuk ULOK ini.
-            </div>
-        );
-    }
+    }, [workspace, workspaceTimeline]);
 
     if (isLoading) {
         return (
             <div className="flex items-center justify-center border-y border-slate-200 bg-white py-16 text-slate-500">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat timeline terpadu...
+            </div>
+        );
+    }
+
+    if (!timeline) {
+        return (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm font-semibold text-slate-500">
+                Belum ada tanggal kerja atau tanggal pengawasan untuk ULOK ini.
             </div>
         );
     }
