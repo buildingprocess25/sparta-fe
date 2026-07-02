@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   BarChart3,
+  CalendarClock,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -73,7 +74,7 @@ const GROUPS: NavigationGroup[] = [
     id: "control",
     label: "Kontrol Sistem",
     icon: Settings2,
-    menuIds: ["menu-approval", "menu-intervensi", "menu-users", "menu-system-maintenance", "menu-sp"],
+    menuIds: ["menu-approval", "menu-intervensi", "menu-users", "menu-system-maintenance", "menu-serah-terima-date-correction", "menu-sp"],
   },
 ];
 
@@ -82,6 +83,7 @@ const SPECIAL_ICONS: Record<string, typeof LayoutDashboard> = {
   "menu-intervensi": ShieldAlert,
   "menu-daftardokumen": FolderArchive,
   "menu-system-maintenance": SlidersHorizontal,
+  "menu-serah-terima-date-correction": CalendarClock,
 };
 
 type Props = {

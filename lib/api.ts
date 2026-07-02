@@ -3947,7 +3947,7 @@ export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean>
 export type BerkasSerahTerimaItem = {
     id: number;
     id_toko: number;
-    link_pdf: string;
+    link_pdf: string | null;
     created_at: string;
     toko: {
         id: number;
@@ -3960,6 +3960,14 @@ export type BerkasSerahTerimaItem = {
         alamat: string;
         nama_kontraktor: string;
     };
+    nilai_penawaran?: string | null;
+    nilai_spk?: string | null;
+    nilai_opname?: string | null;
+    hari_denda?: number | null;
+    nilai_denda?: string | null;
+    tanggal_akhir_spk_denda?: string | null;
+    tanggal_serah_terima_denda?: string | null;
+    nomor_spk?: string | null;
 };
 
 export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number; nomor_ulok?: string }): Promise<{ status: string; data: BerkasSerahTerimaItem[] }> => {
@@ -3969,6 +3977,42 @@ export const fetchBerkasSerahTerimaList = async (filters?: { id_toko?: number; n
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
     const url = `${base}/api/berkas_serah_terima${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
+};
+
+export type CorrectSerahTerimaDatePayload = {
+    nomor_ulok: string;
+    cabang?: string;
+    tanggal_serah_terima: string;
+    catatan?: string;
+};
+
+export type CorrectSerahTerimaDateResult = {
+    status: string;
+    message: string;
+    data: {
+        nomor_ulok: string;
+        cabang: string | null;
+        tanggal_serah_terima: string;
+        affected_count: number;
+        refreshed_denda_count: number;
+        pdf_refresh_queued_count: number;
+        items: BerkasSerahTerimaItem[];
+    };
+};
+
+export const correctSerahTerimaDate = async (
+    payload: CorrectSerahTerimaDatePayload,
+    options?: ApiRequestOptions
+): Promise<CorrectSerahTerimaDateResult> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/serah-terima/date-correction`, {
+        ...options,
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Tanggal Serah Terima gagal diperbarui.");
+    return result;
 };
 
 /**
