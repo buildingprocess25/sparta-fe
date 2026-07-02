@@ -1100,13 +1100,12 @@ export type RABApprovalResponse = {
 
 // --- Fungsi ---
 
-/** Cek status revisi RAB berdasarkan email pembuat dan cabang. */
-export const checkRevisionStatus = async (email: string, cabang: string) => {
+/** Cek status revisi RAB berdasarkan akses user aktif. */
+export const checkRevisionStatus = async (email: string, _cabang: string) => {
     try {
         // Ambil dari API List RAB — filter by email_pembuat dan cabang langsung di server
         const res = await fetchRABList({
             email_pembuat: email,
-            cabang: cabang,
         }, { suppressGlobalError: true });
         
         // Filter RAB yang ditolak/dikembalikan, dan pastikan cabang cocok (double-check client-side)
@@ -1115,8 +1114,7 @@ export const checkRevisionStatus = async (email: string, cabang: string) => {
             const s = rab.status.toUpperCase();
             const isRejected = s.includes('TOLAK') || s === 'REJECTED';
             const isMine = (rab.email_pembuat || '').toLowerCase() === (email || '').toLowerCase();
-            const isSameCabang = (rab.cabang || '').toUpperCase() === (cabang || '').toUpperCase();
-            return isMine && isRejected && isSameCabang;
+            return isMine && isRejected;
         });
 
         if (rejected.length === 0) return { rejected_submissions: [] };
@@ -5346,4 +5344,3 @@ export const processPpApproval2 = async (id: number, payload: {
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval final PP.");
     return result;
 };
-

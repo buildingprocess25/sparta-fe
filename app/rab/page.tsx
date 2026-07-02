@@ -498,31 +498,6 @@ function RABPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email, hasProjectPlanningRequest, requestedPlanningId, requestedScope, router]);
 
-  // --- FIX #1: AUTO-LOAD REVISION DATA FROM URL PARAM ---
-  useEffect(() => {
-    // Only auto-load if:
-    // 1. requestedRevisionId exists in URL
-    // 2. rejectedList has been loaded (revisionCheckDone)
-    // 3. Not already loaded this revision (autoLoadedRevisionId tracking)
-    if (!requestedRevisionId || requestedRevisionId <= 0 || !revisionCheckDone) return;
-    if (autoLoadedRevisionId === requestedRevisionId) return; // Already loaded this revision
-
-    // Find the revision item from rejectedList
-    const revisionItem = rejectedList.find(item => item.id === requestedRevisionId);
-    
-    if (revisionItem) {
-      setAutoLoadedRevisionId(requestedRevisionId);
-      handleLoadRevision(revisionItem);
-    } else {
-      // Revision ID not found in user's rejected list - might be invalid or already resolved
-      showAlert(
-        "Revisi Tidak Ditemukan", 
-        "ID revisi yang diminta tidak ditemukan atau sudah tidak valid.", 
-        "warning"
-      );
-    }
-  }, [requestedRevisionId, rejectedList, revisionCheckDone, autoLoadedRevisionId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // --- 2. FETCH HARGA OTOMATIS ---
   useEffect(() => {
     if (formData.cabang && formData.lingkupPekerjaan) {
@@ -552,11 +527,11 @@ function RABPageContent() {
       setIsRevisionLoading(true);
 
       // Ekstrak komponen ULOK jika di-load dari "Revisi Sekarang"
-      const ulokStr = data['Nomor Ulok'] || '';
-      const parts = ulokStr.split('-');
-      const lokasiCabang = parts[0] || formData.lokasiCabang;
-      const lokasiTanggal = parts[1] || formData.lokasiTanggal;
-      const lokasiManual = parts[2] || formData.lokasiManual;
+      let ulokStr = data['Nomor Ulok'] || data.nomor_ulok || '';
+      let parts = ulokStr.split('-');
+      let lokasiCabang = parts[0] || formData.lokasiCabang;
+      let lokasiTanggal = parts[1] || formData.lokasiTanggal;
+      let lokasiManual = parts[2] || formData.lokasiManual;
       let isRenovasi = parts.length > 3 && parts[3] === 'R';
 
       try {
@@ -576,6 +551,12 @@ function RABPageContent() {
 
           const tokoRef = fetchedDetailData?.toko || data;
           const rabRef = fetchedDetailData?.rab || data;
+          ulokStr = tokoRef.nomor_ulok || rabRef.nomor_ulok || data['Nomor Ulok'] || data.nomor_ulok || ulokStr;
+          parts = ulokStr.split('-');
+          lokasiCabang = parts[0] || lokasiCabang;
+          lokasiTanggal = parts[1] || lokasiTanggal;
+          lokasiManual = parts[2] || lokasiManual;
+          isRenovasi = parts.at(-1)?.toUpperCase() === 'R' || isRenovasi;
           const revisionNotes = Array.isArray(fetchedDetailData?.revisi_items)
               ? fetchedDetailData.revisi_items.reduce((acc: Record<number, string>, item: any) => {
                   const itemId = Number(item.id_rab_item);
@@ -633,7 +614,7 @@ function RABPageContent() {
 
           setFormData(prev => ({
               ...prev,
-              lokasiCabang: BRANCH_TO_ULOK[resolvedCabang] || lokasiCabang,
+              lokasiCabang: lokasiCabang || BRANCH_TO_ULOK[resolvedCabang] || prev.lokasiCabang,
               lokasiTanggal,
               lokasiManual,
               isRenovasi: isRenovasi,

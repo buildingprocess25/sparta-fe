@@ -13,7 +13,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { downloadDashboardExport, fetchDashboardAll, fetchRabProjectPlanningRequests, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
+import { downloadDashboardExport, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 import {
     EMPTY_APPROVAL_COUNTS,
     fetchApprovalNotificationCounts,
@@ -463,7 +463,6 @@ const dashboardCache = {
     projects: null as any[] | null,
     cabangList: [] as string[],
     opnameMap: {} as Record<number, any[]>,
-    rabRevisionCount: 0,
     timestamp: 0,
     email: '',
 };
@@ -591,10 +590,17 @@ export default function DashboardPage() {
             .then(setApprovalCounts)
             .catch(() => setApprovalCounts(EMPTY_APPROVAL_COUNTS));
         if (contractorFlag) {
+            fetchTaskNotifications({ suppressGlobalError: true })
+                .then((result) => {
+                    const revisionRab = (result.data?.groups || []).find(group => group.key === 'revision_rab');
+                    setRabRevisionCount(revisionRab?.count || 0);
+                })
+                .catch(() => setRabRevisionCount(0));
             fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
                 .then((result) => setRabPlanningRequestCount(result.count || 0))
                 .catch(() => setRabPlanningRequestCount(0));
         } else {
+            setRabRevisionCount(0);
             setRabPlanningRequestCount(0);
         }
         setIsLoading(false);
@@ -622,7 +628,6 @@ export default function DashboardPage() {
             setProjects(dashboardCache.projects!);
             setCabangList(dashboardCache.cabangList);
             setOpnameItemsMap(dashboardCache.opnameMap);
-            setRabRevisionCount(dashboardCache.rabRevisionCount);
             return;
         }
 
@@ -651,8 +656,6 @@ export default function DashboardPage() {
             setProjects(data);
 
             const opnameMap: Record<number, any[]> = {};
-            let rejectedRabCount = 0;
-            const normalizedEmail = (userEmail || '').toLowerCase();
 
             data.forEach((project: any) => {
                 const tokoId = project.toko?.id;
@@ -667,23 +670,14 @@ export default function DashboardPage() {
                     opnameMap[tokoId].push(...items);
                 });
 
-                const rabList = Array.isArray(project.rab) ? project.rab : (project.rab ? [project.rab] : []);
-                rejectedRabCount += rabList.filter((rab: any) => {
-                    const status = String(rab?.status || '').toUpperCase();
-                    const isRejected = status.includes('TOLAK') || status === 'REJECTED';
-                    const isMine = String(rab?.email_pembuat || '').toLowerCase() === normalizedEmail;
-                    return isRejected && (!normalizedEmail || isMine);
-                }).length;
             });
 
             setOpnameItemsMap(opnameMap);
-            setRabRevisionCount(rejectedRabCount);
 
             // Update cache
             dashboardCache.projects = data;
             dashboardCache.cabangList = allowedBranches.sort();
             dashboardCache.opnameMap = opnameMap;
-            dashboardCache.rabRevisionCount = rejectedRabCount;
             dashboardCache.timestamp = now;
             dashboardCache.email = userEmail;
 
@@ -692,7 +686,6 @@ export default function DashboardPage() {
             setProjects([]);
             setCabangList([]);
             setOpnameItemsMap({});
-            setRabRevisionCount(0);
         } finally {
             setIsDataLoading(false);
         }
