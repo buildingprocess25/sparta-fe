@@ -254,7 +254,7 @@ const isContractorCompanyScopedRole = (roles: string[]) =>
     roles.some(role => role === 'KONTRAKTOR' || role.includes('DIREKTUR KONTRAKTOR'));
 
 const normalizeCompanyName = (value?: string | null) =>
-    String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+    String(value || '').trim().replace(/\s+/g, '').toUpperCase(); // Remove ALL spaces for matching
 
 const isPendingApprovalStatus = (status?: string | null) => {
     const upper = String(status ?? '').trim().toUpperCase();
