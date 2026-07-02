@@ -707,7 +707,21 @@ function ApprovalPageContent() {
             currentJabatan = 'KOORDINATOR';
         }
 
-        setUserInfo({ name: namaLengkap.toUpperCase(), role, cabang, email, nama_pt });
+        setUserInfo({ 
+            name: namaLengkap.toUpperCase(), 
+            role, 
+            cabang, 
+            email, 
+            nama_pt: nama_pt || '' // Ensure empty string instead of undefined/null
+        });
+        
+        console.log('[Approval Page] User Info:', { 
+            role, 
+            cabang, 
+            nama_pt: nama_pt || '(empty)', 
+            jabatan: currentJabatan,
+            accessibleTypes: typesArr 
+        });
         setAccessibleTypes(typesArr);
         setJabatan(currentJabatan);
     }, [user, router]);
@@ -1142,13 +1156,25 @@ function ApprovalPageContent() {
 
             const detailUserRoles = userInfo.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
             const detailCanSeeAllBranches = canViewAllBranches(userInfo.role, user?.isSuperHuman ?? false);
+            const isDirectorRole = detailUserRoles.some(r => r.includes('DIREKTUR'));
             const detailCoverage = detailCanSeeAllBranches
                 ? []
                 : await ensureBranchCoverage(detailUserRoles, userInfo.cabang, userInfo.email);
 
+            console.log('[loadDetail] Branch check:', {
+                userRoles: detailUserRoles,
+                documentCabang: detail?.cabang,
+                userCabang: userInfo.cabang,
+                canSeeAllBranches: detailCanSeeAllBranches,
+                isDirector: isDirectorRole,
+                willCheckBranch: detail && !detailCanSeeAllBranches && !isDirectorRole && detail.cabang && detail.cabang !== '-'
+            });
+
+            // Branch scope check - SKIP for Director roles (they can see all branches for approval)
             if (
                 detail
                 && !detailCanSeeAllBranches
+                && !isDirectorRole // Directors (DIREKTUR, DIREKTUR KONTRAKTOR) can see all branches
                 && detail.cabang
                 && detail.cabang !== '-'
                 && !canAccessBranchForUser(detail.cabang, detailUserRoles, normalizeBranch(userInfo.cabang), detailCoverage)
@@ -1160,13 +1186,28 @@ function ApprovalPageContent() {
 
             // Company scope check for contractor-scoped roles (KONTRAKTOR, DIREKTUR KONTRAKTOR)
             // Only filter if user HAS nama_pt, otherwise allow (for Super Human or roles without company scope)
+            console.log('[loadDetail] Company check:', {
+                tipe: detail?.tipe,
+                isContractorRole: isContractorCompanyScopedRole(detailUserRoles),
+                userRoles: detailUserRoles,
+                userNamaPt: userInfo.nama_pt,
+                willCheckCompany: detail && ['RAB', 'OPNAME'].includes(detail.tipe) && isContractorCompanyScopedRole(detailUserRoles) && userInfo.nama_pt
+            });
+            
             if (
                 detail
                 && ['RAB', 'OPNAME'].includes(detail.tipe)
                 && isContractorCompanyScopedRole(detailUserRoles)
                 && userInfo.nama_pt // Only check company if user has nama_pt
             ) {
-                if (!matchesUserCompany(detail, userInfo.nama_pt)) {
+                const companyMatches = matchesUserCompany(detail, userInfo.nama_pt);
+                console.log('[loadDetail] Company match check:', {
+                    userCompany: userInfo.nama_pt,
+                    documentCompany: (detail as any).nama_kontraktor || (detail as any).nama_pt,
+                    matches: companyMatches
+                });
+                
+                if (!companyMatches) {
                     showToast('Anda tidak memiliki akses ke dokumen ini.', 'error');
                     setActiveView('list');
                     return;
