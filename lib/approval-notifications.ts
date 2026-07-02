@@ -273,9 +273,21 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     }
 
     if (item.tipe === "OPNAME") {
+        // Company scope check untuk role kontraktor
+        if (isContractorCompanyScopedRole(user.roles)) {
+            if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
+        }
+        
+        // Stage check
         if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
         if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
         if (jabatan === "DIREKTUR_KONTRAKTOR") return isContractorDirectorApprovalStatus(upper);
+        
+        // Super human / Regional Manager bisa lihat semua pending
+        if (canViewAllBranches(user.roles, user.isSuperHuman)) {
+            return isPendingApprovalStatus(upper);
+        }
+        
         return false;
     }
 

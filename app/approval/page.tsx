@@ -845,13 +845,6 @@ function ApprovalPageContent() {
                 const isRegionalManagerUser = user?.isRegionalManager ?? false;
                 const userBranchCoverage = currentCoverage.length > 0 ? currentCoverage : getSessionBranchCoverage();
 
-                if (
-                    ['RAB', 'OPNAME', 'INSTRUKSI_LAPANGAN'].includes(type)
-                    && isContractorCompanyScopedRole(userRoles)
-                ) {
-                    if (!userInfo.nama_pt || !matchesUserCompany(item._raw, userInfo.nama_pt)) return false;
-                }
-
                 if (type === 'PROJECT_PLANNING') {
                     if (canSeeAllBranches) return true;
                     if (!isHOUser) return false;
@@ -892,7 +885,10 @@ function ApprovalPageContent() {
                     if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
                 }
                 
-                // 2. FILTER STATUS & JABATAN (Eksisting)
+                // 2. FILTER STATUS (Harus pending/menunggu)
+                if (!isPendingApprovalStatus(upper)) return false;
+                
+                // 3. FILTER JABATAN & STATUS MATCH
                 // Khusus SPK, pastikan statusnya valid menunggu BM
                 if (type === 'SPK') {
                     return upper === 'WAITING_FOR_BM_APPROVAL';
@@ -903,6 +899,8 @@ function ApprovalPageContent() {
                     return upper === 'MENUNGGU PERSETUJUAN';
                 }
 
+                // RAB: Direktur approve based on branch + status only
+                // Company scope TIDAK di-check di FE karena data legacy
                 if (type === 'RAB' && isDirectorJabatan(jabatan)) {
                     if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
                         if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
@@ -911,14 +909,20 @@ function ApprovalPageContent() {
                     return matchesApprovalStage(jabatan, upper);
                 }
 
-                // Khusus OPNAME — tampilkan semua yang statusnya menunggu persetujuan apapun level-nya
-                // karena tidak ada jabatan multi-level seperti RAB; semua approver bisa melihat antrian
+                // OPNAME: Stage check + company scope untuk role kontraktor
                 if (type === 'OPNAME') {
-                    return matchesApprovalStage(jabatan, upper);
+                    // Stage check dulu
+                    if (!matchesApprovalStage(jabatan, upper)) return false;
+                    
+                    // Company scope hanya untuk role kontraktor
+                    if (isContractorCompanyScopedRole(userRoles)) {
+                        if (!userInfo.nama_pt || !matchesUserCompany(item._raw, userInfo.nama_pt)) return false;
+                    }
+                    
+                    return true;
                 }
 
-                // Untuk RAB & IL (Multi-level)
-                if (!isPendingApprovalStatus(upper)) return false;
+                // Untuk IL dan tipe lainnya (Multi-level)
                 return matchesApprovalStage(jabatan, upper);
             });
 
