@@ -253,8 +253,18 @@ const isHeadOfficeDirector = (cabang?: string | null, roles: string[] = []) =>
 const isContractorCompanyScopedRole = (roles: string[]) =>
     roles.some(role => role === 'KONTRAKTOR' || role.includes('DIREKTUR KONTRAKTOR'));
 
-const normalizeCompanyName = (value?: string | null) =>
-    String(value || '').trim().replace(/\s+/g, '').toUpperCase(); // Remove ALL spaces for matching
+const normalizeCompanyName = (value?: string | null) => {
+    if (!value) return '';
+    let normalized = String(value).trim().toUpperCase();
+    
+    // Remove common punctuation and spaces
+    normalized = normalized.replace(/[,.\s]+/g, '');
+    
+    // Remove PT/CV prefix/suffix to handle both "CV NAME" and "NAME, CV" formats
+    normalized = normalized.replace(/^(PT|CV)/g, '').replace(/(PT|CV)$/g, '');
+    
+    return normalized;
+};
 
 const isPendingApprovalStatus = (status?: string | null) => {
     const upper = String(status ?? '').trim().toUpperCase();
