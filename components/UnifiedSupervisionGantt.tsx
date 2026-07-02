@@ -41,6 +41,12 @@ function diffDays(left: Date, right: Date): number {
     return Math.round((left.getTime() - right.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function isReasonableSpkStart(date: Date | null): date is Date {
+    if (!date) return false;
+    const year = date.getFullYear();
+    return year >= 2024 && year <= new Date().getFullYear() + 1;
+}
+
 type ScopeDetail = {
     id_toko: number;
     scopeName: string;
@@ -143,7 +149,10 @@ export default function UnifiedSupervisionGantt({
                         const res = await fetchGanttDetailByToko(scope.id_toko);
                         const data = res as any;
                         const gantt = data.gantt_data;
-                        const ganttStart = parseDate(gantt?.timestamp) || timeline.start;
+                        const spkStart = parseDate(scope.spk_start_date);
+                        const ganttStart = isReasonableSpkStart(spkStart)
+                            ? spkStart
+                            : parseDate(gantt?.timestamp) || timeline.start;
                         const categories = data.kategori_pekerjaan || [];
                         const dayItems = data.day_gantt_data || [];
                         const dependencies = data.dependency_data || [];
