@@ -242,12 +242,6 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
 const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan: ApprovalJabatan) => {
     if (!isPendingProcessStatus(item.status, item.tipe)) return false;
     if (isViewOnlyUser(user.roles, user.isSuperHuman)) return false;
-    if (
-        ["RAB", "OPNAME", "INSTRUKSI_LAPANGAN"].includes(item.tipe)
-        && isContractorCompanyScopedRole(user.roles)
-    ) {
-        if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
-    }
 
     if (item.tipe === "PROJECT_PLANNING") {
         return canCountProjectPlanningForUser(item, user);
@@ -262,6 +256,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (!isSameBranchScope(item.cabang, user)) return false;
     }
 
+    // RAB: Direktur approve based on branch + status ONLY (NO company scope check)
     if (item.tipe === "RAB" && (jabatan === "DIREKTUR" || jabatan === "DIREKTUR_KONTRAKTOR")) {
         if (userCabang && !isDirectorHOUser && item.cabang) {
             if (!isSameBranchScope(item.cabang, user)) return false;
@@ -272,6 +267,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
             : isDirectorApprovalStatus(upper);
     }
 
+    // OPNAME: Company scope check untuk role kontraktor + stage check
     if (item.tipe === "OPNAME") {
         // Company scope check untuk role kontraktor
         if (isContractorCompanyScopedRole(user.roles)) {
@@ -289,6 +285,11 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         }
         
         return false;
+    }
+
+    // IL: Company scope check untuk role kontraktor
+    if (item.tipe === "INSTRUKSI_LAPANGAN" && isContractorCompanyScopedRole(user.roles)) {
+        if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
     }
 
     if (canSeeAll || user.isRegionalManager) return true;
@@ -311,18 +312,25 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
     const jabatan = getApprovalJabatan(user);
     const counts = { ...EMPTY_APPROVAL_COUNTS };
 
+    console.log('[fetchApprovalNotificationCounts] accessibleTypes:', accessibleTypes);
+    console.log('[fetchApprovalNotificationCounts] jabatan:', jabatan);
+    console.log('[fetchApprovalNotificationCounts] user.namaPt:', user.namaPt);
+
     for (const type of accessibleTypes) {
         try {
             if (type === "RAB") {
                 // Do not filter by nama_pt before counting: legacy RAB rows may have a
                 // wrong contractor value, but directors still need to approve by branch/status.
                 const res = await fetchRABList(undefined, { suppressGlobalError: true });
-                counts.RAB = countItems((res.data ?? []).map(item => ({
-                    tipe: "RAB",
+                const rabItems = (res.data ?? []).map(item => ({
+                    tipe: "RAB" as const,
                     status: item.status,
                     cabang: item.cabang ?? item.toko?.cabang,
                     raw: item,
-                })), user, jabatan);
+                }));
+                console.log('[RAB] Total items fetched:', rabItems.length);
+                counts.RAB = countItems(rabItems, user, jabatan);
+                console.log('[RAB] Count after filter:', counts.RAB);
             } else if (type === "SPK") {
                 const res = await fetchSPKList({ status: "WAITING_FOR_BM_APPROVAL" }, { suppressGlobalError: true });
                 counts.SPK = countItems((res.data ?? []).map((item: unknown) => ({
@@ -342,12 +350,16 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
             } else if (type === "OPNAME") {
                 const res = await fetchOpnameFinalList({ aksi: "terkunci", tipe_opname: "OPNAME_FINAL" }, { suppressGlobalError: true });
                 const rows = getOpnameRows(res.data);
-                counts.OPNAME = countItems(rows.map((item: unknown) => ({
-                    tipe: "OPNAME",
+                const opnameItems = rows.map((item: unknown) => ({
+                    tipe: "OPNAME" as const,
                     status: getStringValue(item, "status_opname_final") ?? "",
                     cabang: getStringValue(item, "cabang") ?? getTokoStringValue(item, "cabang"),
                     raw: item,
-                })), user, jabatan);
+                }));
+                console.log('[OPNAME] Total items fetched:', opnameItems.length);
+                console.log('[OPNAME] Sample item:', opnameItems[0]);
+                counts.OPNAME = countItems(opnameItems, user, jabatan);
+                console.log('[OPNAME] Count after filter:', counts.OPNAME);
             } else if (type === "INSTRUKSI_LAPANGAN") {
                 const res = await fetchInstruksiLapanganList(undefined, { suppressGlobalError: true });
                 counts.INSTRUKSI_LAPANGAN = countItems((res.data ?? []).map((item: unknown) => ({
@@ -366,11 +378,12 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                 })), user, jabatan);
             }
         } catch (error) {
-            console.warn(`Gagal memuat notifikasi approval ${type}:`, error);
+            console.error(`[${type}] Error fetching approval notifications:`, error);
             counts[type] = 0;
         }
     }
 
+    console.log('[fetchApprovalNotificationCounts] Final counts:', counts);
     return counts;
 };
 
