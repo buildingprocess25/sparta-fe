@@ -837,13 +837,30 @@ function ApprovalPageContent() {
                 const res = await fetchPertambahanSPKList({ status_persetujuan: 'Menunggu Persetujuan' });
                 normalized = normalizePertambahanSPKList(res.data ?? []);
             } else if (type === 'OPNAME') {
-                const res = await fetchOpnameFinalList({ aksi: 'terkunci', tipe_opname: 'OPNAME_FINAL' });
+                // Fetch OPNAME with pending approval statuses only
+                const pendingStatuses = jabatan === 'KOORDINATOR'
+                    ? 'Menunggu Persetujuan Koordinator'
+                    : jabatan === 'MANAGER'
+                        ? 'Menunggu Persetujuan Manajer'
+                        : jabatan === 'DIREKTUR_KONTRAKTOR'
+                            ? 'Menunggu Persetujuan Direktur Kontraktor'
+                            : null;
+                
+                console.log('[OPNAME List] Fetching with status filter:', pendingStatuses);
+                
+                const res = await fetchOpnameFinalList({
+                    aksi: 'terkunci',
+                    tipe_opname: 'OPNAME_FINAL',
+                    ...(pendingStatuses ? { status: pendingStatuses } : {})
+                });
                 const opnameListRaw = Array.isArray(res.data)
                     ? res.data
                     : Array.isArray((res.data as any)?.opname_final)
                         ? (res.data as any).opname_final
                         : [];
+                console.log('[OPNAME List] Raw items from API:', opnameListRaw.length);
                 normalized = normalizeOpnameList(opnameListRaw);
+                console.log('[OPNAME List] After normalization:', normalized.length);
             } else if (type === 'INSTRUKSI_LAPANGAN') {
                 const res = await fetchInstruksiLapanganList();
                 normalized = normalizeInstruksiLapanganList(res.data ?? []);
@@ -934,14 +951,31 @@ function ApprovalPageContent() {
                 // OPNAME: Stage check first, then company scope untuk role kontraktor
                 if (type === 'OPNAME') {
                     // Stage check dulu
-                    if (!matchesApprovalStage(jabatan, upper)) return false;
+                    const stageMatches = matchesApprovalStage(jabatan, upper);
+                    console.log('[OPNAME Filter] Item:', {
+                        status: item.status,
+                        jabatan,
+                        stageMatches,
+                        isContractorRole: isContractorCompanyScopedRole(userRoles),
+                        userNamaPt: userInfo.nama_pt,
+                        itemRaw: item._raw
+                    });
+                    
+                    if (!stageMatches) {
+                        console.log('[OPNAME Filter] REJECTED - Stage mismatch');
+                        return false;
+                    }
                     
                     // Company scope HANYA untuk role kontraktor (termasuk DIREKTUR KONTRAKTOR)
                     if (isContractorCompanyScopedRole(userRoles)) {
                         // Jika user punya nama_pt, harus cocok. Jika tidak punya, loloskan (super human fallback)
-                        if (userInfo.nama_pt && !matchesUserCompany(item._raw, userInfo.nama_pt)) return false;
+                        if (userInfo.nama_pt && !matchesUserCompany(item._raw, userInfo.nama_pt)) {
+                            console.log('[OPNAME Filter] REJECTED - Company mismatch');
+                            return false;
+                        }
                     }
                     
+                    console.log('[OPNAME Filter] ACCEPTED');
                     return true;
                 }
 
