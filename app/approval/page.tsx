@@ -1158,12 +1158,15 @@ function ApprovalPageContent() {
                 return;
             }
 
+            // Company scope check for contractor-scoped roles (KONTRAKTOR, DIREKTUR KONTRAKTOR)
+            // Only filter if user HAS nama_pt, otherwise allow (for Super Human or roles without company scope)
             if (
                 detail
                 && ['RAB', 'OPNAME'].includes(detail.tipe)
                 && isContractorCompanyScopedRole(detailUserRoles)
+                && userInfo.nama_pt // Only check company if user has nama_pt
             ) {
-                if (!userInfo.nama_pt || !matchesUserCompany(detail, userInfo.nama_pt)) {
+                if (!matchesUserCompany(detail, userInfo.nama_pt)) {
                     showToast('Anda tidak memiliki akses ke dokumen ini.', 'error');
                     setActiveView('list');
                     return;
