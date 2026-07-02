@@ -13,7 +13,9 @@ import { useSession } from "@/context/SessionContext";
 import {
   correctSerahTerimaDate,
   fetchBerkasSerahTerimaList,
+  fetchSerahTerimaDateCorrectionHistory,
   type BerkasSerahTerimaItem,
+  type SerahTerimaDateCorrectionHistoryItem,
 } from "@/lib/api";
 import {
   AlertTriangle,
@@ -21,6 +23,7 @@ import {
   CheckCircle2,
   Database,
   FileText,
+  History,
   Loader2,
   RefreshCw,
   Search,
@@ -107,7 +110,9 @@ export default function KoreksiTanggalSerahTerimaPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tanggalBaru, setTanggalBaru] = useState(todayDateInputValue);
   const [catatan, setCatatan] = useState("");
+  const [history, setHistory] = useState<SerahTerimaDateCorrectionHistoryItem[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const groups = useMemo(() => groupItems(allItems), [allItems]);
@@ -172,6 +177,34 @@ export default function KoreksiTanggalSerahTerimaPage() {
     loadItems();
   }, [isLoading, loadItems, router, showAlert, user]);
 
+  const loadHistory = useCallback(async (group: SerahTerimaGroup | null) => {
+    if (!group || group.nomorUlok === "-") {
+      setHistory([]);
+      return;
+    }
+
+    setLoadingHistory(true);
+    try {
+      const result = await fetchSerahTerimaDateCorrectionHistory(
+        {
+          nomor_ulok: group.nomorUlok,
+          cabang: group.cabang === "-" ? undefined : group.cabang,
+        },
+        { suppressGlobalError: true }
+      );
+      setHistory(result.data ?? []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user?.isSuperHuman) return;
+    loadHistory(selectedGroup);
+  }, [loadHistory, selectedGroup, user?.isSuperHuman]);
+
   const submitCorrection = async () => {
     if (!selectedGroup) return;
     setSubmitting(true);
@@ -191,6 +224,7 @@ export default function KoreksiTanggalSerahTerimaPage() {
         ...previous.filter((item) => !updatedKeys.has(item.id)),
         ...(result.data.items ?? []),
       ]);
+      await loadHistory(selectedGroup);
       showAlert({
         title: "Tanggal Diperbarui",
         message: `${result.data.affected_count} berkas diperbarui. Denda sudah dihitung ulang dan PDF terkait sedang dibuat ulang.`,
@@ -422,6 +456,46 @@ export default function KoreksiTanggalSerahTerimaPage() {
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                 Simpan Koreksi
               </Button>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
+                  <History className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-950">Riwayat Koreksi</h2>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">Catatan perubahan tanggal untuk ULOK yang dipilih.</p>
+                </div>
+              </div>
+
+              {loadingHistory ? (
+                <div className="flex min-h-24 items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memuat riwayat...
+                </div>
+              ) : history.length > 0 ? (
+                <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
+                  {history.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{item.lingkup_pekerjaan || "Scope"}</p>
+                          <p className="mt-1 text-sm font-bold text-slate-950">{formatDate(item.old_created_at)} -&gt; {formatDate(item.new_created_at)}</p>
+                        </div>
+                        <p className="shrink-0 text-right text-[11px] font-semibold text-slate-500">{formatDate(item.created_at)}</p>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-600">{item.actor_email || "-"}</p>
+                      <p className="mt-2 rounded-md bg-white p-2 text-sm leading-5 text-slate-700">{item.catatan || "Tidak ada catatan."}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 px-3 py-5 text-center text-sm text-slate-500">
+                  <History className="mb-2 h-5 w-5 text-slate-300" />
+                  Belum ada riwayat koreksi untuk pilihan ini.
+                </div>
+              )}
             </section>
           </aside>
         </form>

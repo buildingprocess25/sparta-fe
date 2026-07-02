@@ -4000,6 +4000,27 @@ export type CorrectSerahTerimaDateResult = {
     };
 };
 
+export type SerahTerimaDateCorrectionHistoryItem = {
+    id: number;
+    berkas_serah_terima_id: number;
+    id_toko: number;
+    nomor_ulok: string | null;
+    cabang: string | null;
+    old_created_at: string | null;
+    new_created_at: string;
+    old_hari_denda: number | null;
+    old_nilai_denda: string | null;
+    old_tanggal_akhir_spk_denda: string | null;
+    old_tanggal_serah_terima_denda: string | null;
+    actor_email: string | null;
+    actor_role: string | null;
+    catatan: string | null;
+    created_at: string;
+    lingkup_pekerjaan: string | null;
+    nama_toko: string | null;
+    proyek: string | null;
+};
+
 export const correctSerahTerimaDate = async (
     payload: CorrectSerahTerimaDatePayload,
     options?: ApiRequestOptions
@@ -4012,6 +4033,19 @@ export const correctSerahTerimaDate = async (
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Tanggal Serah Terima gagal diperbarui.");
+    return result;
+};
+
+export const fetchSerahTerimaDateCorrectionHistory = async (
+    filters: { nomor_ulok: string; cabang?: string },
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: SerahTerimaDateCorrectionHistoryItem[] }> => {
+    const params = new URLSearchParams();
+    params.append("nomor_ulok", filters.nomor_ulok);
+    if (filters.cabang) params.append("cabang", filters.cabang);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/serah-terima/date-correction/history?${params.toString()}`, options);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Riwayat koreksi gagal dimuat.");
     return result;
 };
 
