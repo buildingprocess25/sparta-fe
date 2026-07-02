@@ -310,11 +310,13 @@ const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
     const source = value as Record<string, any>;
     
     // Try multiple possible field locations for company name
+    // For list items (raw API data): source.nama_kontraktor, source.toko.nama_kontraktor
+    // For detail items (mapped data): source.nama_kontraktor directly
     const candidates = [
-        source.nama_pt,
-        source.nama_kontraktor,
-        source.toko?.nama_pt,
-        source.toko?.nama_kontraktor,
+        source.nama_pt,              // RAB field
+        source.nama_kontraktor,      // OPNAME field (both raw and mapped)
+        source.toko?.nama_pt,        // Nested toko object
+        source.toko?.nama_kontraktor,// Nested toko object
         source.kontraktor,
         source.pt,
         source.company,
@@ -1169,7 +1171,7 @@ function ApprovalPageContent() {
                     alamat:            toko.alamat,
                     cabang:            toko.cabang || item.cabang || '',
                     lingkup_pekerjaan: toko.lingkup_pekerjaan,
-                    nama_kontraktor:   toko.nama_kontraktor,
+                    nama_kontraktor:   toko.nama_kontraktor || (item as any)._raw?.nama_kontraktor, // Fallback to list data
                     status:            header.status_opname_final,
                     total_nilai:       parseCurrency(header.grand_total_final ?? header.grand_total_opname),
                     email_pembuat:     header.email_pembuat,
