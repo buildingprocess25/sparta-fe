@@ -1100,6 +1100,7 @@ export default function DaftarDokumenPage() {
     const [cabangFilter, setCabangFilter] = useState('');
     const [renovasiSubFilter, setRenovasiSubFilter] = useState('');
     const [hasAppliedQueryParams, setHasAppliedQueryParams] = useState(false);
+    const [branchCoverageTimestamp, setBranchCoverageTimestamp] = useState(0); // Track coverage updates
     // --- UI ---
     const [isLoading, setIsLoading] = useState(false);
     const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -1197,19 +1198,21 @@ export default function DaftarDokumenPage() {
 
             if (coverage.length > 0) {
                 sessionStorage.setItem("branchCoverage", JSON.stringify(coverage));
+                setBranchCoverageTimestamp(Date.now()); // Trigger re-render
                 return coverage;
             }
 
             // Fallback: cabang login
             const fallback = [cabang.toUpperCase()];
             sessionStorage.setItem("branchCoverage", JSON.stringify(fallback));
+            setBranchCoverageTimestamp(Date.now()); // Trigger re-render
             return fallback;
         } catch (error) {
             console.error("[ensureBranchCoverage] Failed to fetch coverage:", error);
             // Fallback to cabang login on error
             return [cabang.toUpperCase()];
         }
-    }, []);
+    }, [setBranchCoverageTimestamp]); // Add dependency
 
     // =========================================================================
     // LOAD LIST
@@ -2027,13 +2030,14 @@ export default function DaftarDokumenPage() {
         if (canSeeAllBranches) {
             return Object.keys(BRANCH_TO_ULOK).sort();
         }
-        // Use hydrated coverage from backend (fresh data)
-        if (hydratedCoverage.length > 0) {
-            return hydratedCoverage.sort();
+        // Use session storage coverage (updated by ensureBranchCoverage)
+        const sessionCoverage = getSessionBranchCoverage();
+        if (sessionCoverage.length > 0) {
+            return sessionCoverage.sort();
         }
-        // Fallback to old logic if hydration failed
-        return getAccessibleBranchesForUser(userInfo.role, upper, getSessionBranchCoverage()).sort();
-    }, [userInfo.cabang, userInfo.role, isSuperHuman, hydratedCoverage]);
+        // Fallback to old logic if session storage empty
+        return getAccessibleBranchesForUser(userInfo.role, upper, []).sort();
+    }, [userInfo.cabang, userInfo.role, isSuperHuman, branchCoverageTimestamp]); // Add timestamp as dependency
 
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const isHO = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
