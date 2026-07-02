@@ -19,11 +19,23 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  Database,
   FileText,
   Loader2,
   RefreshCw,
   Search,
 } from "lucide-react";
+
+type SerahTerimaGroup = {
+  key: string;
+  nomorUlok: string;
+  cabang: string;
+  namaToko: string;
+  proyek: string;
+  currentDate: string | null;
+  totalDenda: number;
+  items: BerkasSerahTerimaItem[];
+};
 
 const formatDate = (value?: string | null) => {
   if (!value) return "-";
@@ -48,24 +60,102 @@ const formatCurrency = (value?: string | number | null) => {
 
 const todayDateInputValue = () => {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const date = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${date}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 };
+
+const groupItems = (items: BerkasSerahTerimaItem[]): SerahTerimaGroup[] => {
+  const groups = new Map<string, BerahTerimaAccumulator>();
+
+  items.forEach((item) => {
+    const nomorUlok = String(item.toko?.nomor_ulok ?? "").trim() || "-";
+    const cabang = String(item.toko?.cabang ?? "").trim() || "-";
+    const key = `${nomorUlok}__${cabang}`;
+    const existing = groups.get(key) ?? {
+      key,
+      nomorUlok,
+      cabang,
+      namaToko: item.toko?.nama_toko || "-",
+      proyek: item.toko?.proyek || "-",
+      currentDate: item.created_at || null,
+      totalDenda: 0,
+      items: [],
+    };
+
+    existing.items.push(item);
+    existing.totalDenda += Number(item.nilai_denda ?? 0);
+    if (!existing.currentDate || new Date(item.created_at).getTime() < new Date(existing.currentDate).getTime()) {
+      existing.currentDate = item.created_at;
+    }
+    groups.set(key, existing);
+  });
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const dateA = a.currentDate ? new Date(a.currentDate).getTime() : 0;
+    const dateB = b.currentDate ? new Date(b.currentDate).getTime() : 0;
+    return dateB - dateA;
+  });
+};
+
+type BerahTerimaAccumulator = SerahTerimaGroup;
 
 export default function KoreksiTanggalSerahTerimaPage() {
   const router = useRouter();
   const { user, isLoading } = useSession();
   const { showAlert } = useGlobalAlert();
-  const [nomorUlok, setNomorUlok] = useState("");
-  const [cabang, setCabang] = useState("");
+  const [allItems, setAllItems] = useState<BerkasSerahTerimaItem[]>([]);
+  const [selectedKey, setSelectedKey] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [tanggalBaru, setTanggalBaru] = useState(todayDateInputValue);
   const [catatan, setCatatan] = useState("");
-  const [items, setItems] = useState<BerkasSerahTerimaItem[]>([]);
-  const [searched, setSearched] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const groups = useMemo(() => groupItems(allItems), [allItems]);
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.key === selectedKey) ?? groups[0] ?? null,
+    [groups, selectedKey]
+  );
+
+  const filteredGroups = useMemo(() => {
+    const query = searchQuery.trim().toUpperCase();
+    if (!query) return groups.slice(0, 60);
+    return groups.filter((group) => {
+      const haystack = [
+        group.nomorUlok,
+        group.cabang,
+        group.namaToko,
+        group.proyek,
+        ...group.items.map((item) => item.toko?.lingkup_pekerjaan || ""),
+      ].join(" ").toUpperCase();
+      return haystack.includes(query);
+    }).slice(0, 60);
+  }, [groups, searchQuery]);
+
+  const loadItems = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      const result = await fetchBerkasSerahTerimaList();
+      const data = result.data ?? [];
+      setAllItems(data);
+      setSelectedKey((current) => {
+        const nextGroups = groupItems(data);
+        if (current && nextGroups.some((group) => group.key === current)) return current;
+        return nextGroups[0]?.key ?? "";
+      });
+      if (data.length === 0) {
+        showAlert({
+          title: "Data Kosong",
+          message: "Belum ada berkas Serah Terima yang tersedia untuk dikoreksi.",
+          type: "info",
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal memuat data Serah Terima.";
+      showAlert({ title: "Data Tidak Terbaca", message, type: "error" });
+    } finally {
+      setLoadingData(false);
+    }
+  }, [showAlert]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -77,70 +167,30 @@ export default function KoreksiTanggalSerahTerimaPage() {
         type: "warning",
         onConfirm: () => router.push("/dashboard"),
       });
-    }
-  }, [isLoading, router, showAlert, user]);
-
-  const normalizedUlok = nomorUlok.trim();
-  const normalizedCabang = cabang.trim();
-
-  const loadItems = useCallback(async () => {
-    if (!normalizedUlok) {
-      showAlert({
-        title: "Nomor ULOK Diperlukan",
-        message: "Isi nomor ULOK terlebih dahulu untuk melihat berkas Serah Terima.",
-        type: "warning",
-      });
       return;
     }
-
-    setLoadingData(true);
-    setSearched(true);
-    try {
-      const result = await fetchBerkasSerahTerimaList({ nomor_ulok: normalizedUlok });
-      const filtered = normalizedCabang
-        ? (result.data ?? []).filter((item) =>
-          String(item.toko?.cabang ?? "").trim().toUpperCase() === normalizedCabang.toUpperCase()
-        )
-        : result.data ?? [];
-      setItems(filtered);
-      if (filtered.length === 0) {
-        showAlert({
-          title: "Data Tidak Ditemukan",
-          message: "Tidak ada berkas Serah Terima untuk ULOK atau cabang tersebut.",
-          type: "info",
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Gagal memuat data Serah Terima.";
-      showAlert({ title: "Pencarian Gagal", message, type: "error" });
-    } finally {
-      setLoadingData(false);
-    }
-  }, [normalizedCabang, normalizedUlok, showAlert]);
-
-  const summary = useMemo(() => {
-    const first = items[0];
-    return {
-      toko: first?.toko?.nama_toko ?? "-",
-      proyek: first?.toko?.proyek ?? "-",
-      currentDate: first?.created_at ?? null,
-      totalDenda: items.reduce((sum, item) => sum + Number(item.nilai_denda ?? 0), 0),
-    };
-  }, [items]);
+    loadItems();
+  }, [isLoading, loadItems, router, showAlert, user]);
 
   const submitCorrection = async () => {
+    if (!selectedGroup) return;
     setSubmitting(true);
     try {
       const result = await correctSerahTerimaDate(
         {
-          nomor_ulok: normalizedUlok,
-          cabang: normalizedCabang || undefined,
+          nomor_ulok: selectedGroup.nomorUlok,
+          cabang: selectedGroup.cabang === "-" ? undefined : selectedGroup.cabang,
           tanggal_serah_terima: tanggalBaru,
           catatan: catatan.trim() || undefined,
         },
         { suppressGlobalError: true }
       );
-      setItems(result.data.items ?? []);
+
+      const updatedKeys = new Set((result.data.items ?? []).map((item) => item.id));
+      setAllItems((previous) => [
+        ...previous.filter((item) => !updatedKeys.has(item.id)),
+        ...(result.data.items ?? []),
+      ]);
       showAlert({
         title: "Tanggal Diperbarui",
         message: `${result.data.affected_count} berkas diperbarui. Denda sudah dihitung ulang dan PDF terkait sedang dibuat ulang.`,
@@ -156,10 +206,10 @@ export default function KoreksiTanggalSerahTerimaPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!items.length) {
+    if (!selectedGroup) {
       showAlert({
         title: "Data Belum Dipilih",
-        message: "Cari dan pastikan berkas Serah Terima yang akan dikoreksi terlebih dahulu.",
+        message: "Pilih salah satu ULOK dari daftar Serah Terima.",
         type: "warning",
       });
       return;
@@ -175,7 +225,7 @@ export default function KoreksiTanggalSerahTerimaPage() {
 
     showAlert({
       title: "Konfirmasi Koreksi Tanggal",
-      message: `Tanggal Serah Terima ULOK ${normalizedUlok} akan diubah menjadi ${formatDate(tanggalBaru)}. Sistem akan menghitung ulang denda dan menjadwalkan pembuatan ulang dokumen terkait.`,
+      message: `Tanggal Serah Terima ULOK ${selectedGroup.nomorUlok} akan diubah dari ${formatDate(selectedGroup.currentDate)} menjadi ${formatDate(tanggalBaru)}. Sistem akan menghitung ulang denda dan menjadwalkan pembuatan ulang dokumen terkait.`,
       type: "warning",
       confirmMode: true,
       confirmText: "Proses Koreksi",
@@ -184,7 +234,7 @@ export default function KoreksiTanggalSerahTerimaPage() {
     });
   };
 
-  const canSubmit = Boolean(user?.isSuperHuman && items.length && tanggalBaru && !submitting);
+  const canSubmit = Boolean(user?.isSuperHuman && selectedGroup && tanggalBaru && !submitting && !loadingData);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950">
@@ -196,17 +246,17 @@ export default function KoreksiTanggalSerahTerimaPage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Kontrol dokumen final</p>
             <h1 className="mt-2 text-2xl font-black tracking-normal text-slate-950">Koreksi Tanggal Serah Terima</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Ubah tanggal Serah Terima berdasarkan ULOK, lalu sistem akan menyinkronkan ulang denda dan dokumen yang bergantung pada tanggal tersebut.
+              Data Serah Terima dimuat otomatis. Pilih ULOK, cek tanggal saat ini, lalu tentukan tanggal pengganti.
             </p>
           </div>
           <Button
             variant="outline"
             onClick={loadItems}
-            disabled={loadingData || submitting || !normalizedUlok}
+            disabled={loadingData || submitting}
             className="h-10 rounded-lg border-slate-200 bg-white shadow-sm"
           >
             {loadingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Refresh
+            Refresh Data
           </Button>
         </div>
 
@@ -214,69 +264,73 @@ export default function KoreksiTanggalSerahTerimaPage() {
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-5 flex items-start gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-700">
-                <Search className="h-5 w-5" />
+                <Database className="h-5 w-5" />
               </div>
-              <div>
-                <h2 className="text-lg font-black text-slate-950">Cari Berkas</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-500">Gunakan nomor ULOK. Cabang dapat diisi jika perlu membatasi scope.</p>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-black text-slate-950">Data Serah Terima</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {loadingData ? "Mengambil data dari server..." : `${groups.length.toLocaleString("id-ID")} ULOK tersedia dari ${allItems.length.toLocaleString("id-ID")} berkas.`}
+                </p>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
-              <div className="space-y-2">
-                <Label htmlFor="nomor_ulok">Nomor ULOK</Label>
-                <Input
-                  id="nomor_ulok"
-                  value={nomorUlok}
-                  onChange={(event) => setNomorUlok(event.target.value)}
-                  placeholder="Contoh: 123456"
-                  className="h-10 rounded-lg bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cabang">Cabang</Label>
-                <Input
-                  id="cabang"
-                  value={cabang}
-                  onChange={(event) => setCabang(event.target.value)}
-                  placeholder="Opsional"
-                  className="h-10 rounded-lg bg-white"
-                />
-              </div>
-              <Button type="button" onClick={loadItems} disabled={loadingData || !normalizedUlok} className="h-10 rounded-lg bg-red-700 px-5 text-white hover:bg-red-800">
-                {loadingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                Cari
-              </Button>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Cari ULOK, toko, cabang, proyek, atau scope"
+                className="h-10 rounded-lg bg-white pl-9"
+              />
             </div>
 
-            <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200">
-              <div className="grid min-w-[720px] grid-cols-[1.1fr_1fr_130px_140px] bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                <span>Scope</span>
+            <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+              <div className="grid min-w-[780px] grid-cols-[150px_1fr_120px_130px_120px] bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                <span>ULOK</span>
                 <span>Toko</span>
-                <span>Tanggal ST</span>
+                <span>Tanggal Saat Ini</span>
                 <span className="text-right">Denda</span>
+                <span className="text-right">Aksi</span>
               </div>
-              {items.length > 0 ? (
+              {loadingData ? (
+                <div className="flex min-h-48 min-w-[780px] items-center justify-center gap-2 px-4 py-8 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Mengambil data Serah Terima...
+                </div>
+              ) : filteredGroups.length > 0 ? (
                 <div className="divide-y divide-slate-100">
-                  {items.map((item) => (
-                    <div key={item.id} className="grid min-w-[720px] grid-cols-[1.1fr_1fr_130px_140px] items-center px-4 py-3 text-sm">
-                      <div>
-                        <p className="font-semibold text-slate-900">{item.toko?.lingkup_pekerjaan || "-"}</p>
-                        <p className="mt-1 text-xs text-slate-500">{item.toko?.cabang || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{item.toko?.nama_toko || "-"}</p>
-                        <p className="mt-1 text-xs text-slate-500">{item.toko?.kode_toko || item.toko?.nama_kontraktor || "-"}</p>
-                      </div>
-                      <p className="text-slate-700">{formatDate(item.created_at)}</p>
-                      <p className="text-right font-semibold text-slate-900">{formatCurrency(item.nilai_denda)}</p>
-                    </div>
-                  ))}
+                  {filteredGroups.map((group) => {
+                    const active = selectedGroup?.key === group.key;
+                    return (
+                      <button
+                        key={group.key}
+                        type="button"
+                        onClick={() => setSelectedKey(group.key)}
+                        className={`grid min-w-[780px] grid-cols-[150px_1fr_120px_130px_120px] items-center px-4 py-3 text-left text-sm transition-colors hover:bg-red-50 ${active ? "bg-red-50 shadow-[inset_4px_0_0_#dc2626]" : "bg-white"}`}
+                      >
+                        <div>
+                          <p className="font-bold text-slate-950">{group.nomorUlok}</p>
+                          <p className="mt-1 text-xs text-slate-500">{group.cabang}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">{group.namaToko}</p>
+                          <p className="mt-1 truncate text-xs text-slate-500">{group.proyek} · {group.items.map((item) => item.toko?.lingkup_pekerjaan).filter(Boolean).join(", ")}</p>
+                        </div>
+                        <p className="text-slate-700">{formatDate(group.currentDate)}</p>
+                        <p className="text-right font-semibold text-slate-900">{formatCurrency(group.totalDenda)}</p>
+                        <div className="text-right">
+                          <Badge variant="secondary" className={`rounded-md ${active ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                            {active ? "Dipilih" : `${group.items.length} berkas`}
+                          </Badge>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-slate-500">
+                <div className="flex min-h-48 min-w-[780px] flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-slate-500">
                   <FileText className="h-8 w-8 text-slate-300" />
-                  {searched ? "Berkas Serah Terima belum ditemukan." : "Cari ULOK untuk menampilkan berkas Serah Terima."}
+                  Data Serah Terima tidak ditemukan untuk pencarian ini.
                 </div>
               )}
             </div>
@@ -289,14 +343,27 @@ export default function KoreksiTanggalSerahTerimaPage() {
                   <CalendarClock className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-950">Tanggal Baru</h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">Tanggal ini akan menjadi acuan ulang untuk denda dan dokumen.</p>
+                  <h2 className="text-lg font-black text-slate-950">Tanggal Diubah</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">Pastikan perubahan tanggal sudah sesuai dengan dokumen pendukung.</p>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="grid grid-cols-[1fr_auto] gap-3 text-sm">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Tanggal saat ini</p>
+                    <p className="mt-1 font-bold text-slate-950">{formatDate(selectedGroup?.currentDate)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Diubah menjadi</p>
+                    <p className="mt-1 font-bold text-red-700">{formatDate(tanggalBaru)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="tanggal_baru">Tanggal Serah Terima</Label>
+                  <Label htmlFor="tanggal_baru">Tanggal Serah Terima Baru</Label>
                   <Input
                     id="tanggal_baru"
                     type="date"
@@ -320,34 +387,34 @@ export default function KoreksiTanggalSerahTerimaPage() {
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Ringkasan</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Ringkasan Pilihan</p>
               <div className="mt-4 space-y-4 text-sm">
                 <div>
+                  <p className="text-xs font-semibold text-slate-500">ULOK</p>
+                  <p className="mt-1 font-semibold text-slate-950">{selectedGroup?.nomorUlok ?? "-"}</p>
+                </div>
+                <div>
                   <p className="text-xs font-semibold text-slate-500">Proyek</p>
-                  <p className="mt-1 font-semibold text-slate-950">{summary.proyek}</p>
+                  <p className="mt-1 font-semibold text-slate-950">{selectedGroup?.proyek ?? "-"}</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500">Toko</p>
-                  <p className="mt-1 font-semibold text-slate-950">{summary.toko}</p>
+                  <p className="mt-1 font-semibold text-slate-950">{selectedGroup?.namaToko ?? "-"}</p>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs font-semibold text-slate-500">Berkas terdampak</span>
-                  <Badge variant="secondary" className="rounded-md bg-slate-100 text-slate-700">{items.length}</Badge>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold text-slate-500">Tanggal saat ini</span>
-                  <span className="font-semibold text-slate-900">{formatDate(summary.currentDate)}</span>
+                  <Badge variant="secondary" className="rounded-md bg-slate-100 text-slate-700">{selectedGroup?.items.length ?? 0}</Badge>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs font-semibold text-slate-500">Total denda saat ini</span>
-                  <span className="font-semibold text-slate-900">{formatCurrency(summary.totalDenda)}</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(selectedGroup?.totalDenda)}</span>
                 </div>
               </div>
 
               <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <div className="flex gap-2">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>Proses ini menghitung ulang denda saat disimpan dan membuat ulang PDF Serah Terima serta PDF Opname Final di background.</p>
+                  <p>Denda dihitung ulang saat disimpan. PDF Serah Terima dan PDF Opname Final dibuat ulang di background.</p>
                 </div>
               </div>
 
