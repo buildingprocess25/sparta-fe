@@ -35,6 +35,7 @@ import {
 } from '@/lib/api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
 import {
+    API_URL,
     BRANCH_TO_ULOK,
     getPpRoles,
     canAccessProjectPlanningByCabang,
@@ -1152,34 +1153,61 @@ export default function DaftarDokumenPage() {
         setTimeout(() => setToast(null), 3500);
     }, []);
 
+    /**
+     * Fetch user's effective branch coverage from backend.
+     * CRITICAL: Always fetch fresh data from backend to avoid stale sessionStorage.
+     * This fixes bug where users see wrong branch coverage.
+     */
     const ensureBranchCoverage = useCallback(async (roles: string[], cabang: string, email: string): Promise<string[]> => {
-        const existingCoverage = getSessionBranchCoverage();
-        if (existingCoverage.length > 0 || !email || !cabang) return existingCoverage;
+        if (!email || !cabang) {
+            return [cabang.toUpperCase()].filter(Boolean);
+        }
 
         try {
-            const result = await fetchUserCabangList({ email_sat: email });
-            const normalizedCabang = cabang.trim().toUpperCase();
-            const matchingUsers = (result.data ?? []).filter((user: any) =>
-                String(user.cabang ?? "").trim().toUpperCase() === normalizedCabang
-            );
+            // ALWAYS fetch from backend - no stale cache
+            console.log('[ensureBranchCoverage] Fetching fresh coverage from backend...', { email, cabang, roles });
+            
+            const token = sessionStorage.getItem('access_token');
+            if (!token) {
+                console.warn('[ensureBranchCoverage] No access token found');
+                return [cabang.toUpperCase()];
+            }
 
-            const selectedUser = matchingUsers.find((user: any) => {
-                const userRole = String(user.jabatan ?? "").trim().toUpperCase();
-                return roles.some(role => role === userRole || userRole.includes(role) || role.includes(userRole));
-            }) ?? matchingUsers[0];
+            const response = await fetch(`${API_URL}/api/user-cabang/my-coverage`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
-            const coverage = Array.isArray(selectedUser?.coverage)
-                ? selectedUser.coverage.map((branch: unknown) => String(branch).trim().toUpperCase()).filter(Boolean)
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            const coverage = Array.isArray(result.data?.branches)
+                ? result.data.branches.map((branch: unknown) => String(branch).trim().toUpperCase()).filter(Boolean)
                 : [];
+
+            console.log('[ensureBranchCoverage] Fresh coverage fetched:', { 
+                coverage, 
+                source: result.data?.source,
+                count: coverage.length 
+            });
 
             if (coverage.length > 0) {
                 sessionStorage.setItem("branchCoverage", JSON.stringify(coverage));
+                return coverage;
             }
 
-            return coverage;
+            // Fallback: cabang login
+            const fallback = [cabang.toUpperCase()];
+            sessionStorage.setItem("branchCoverage", JSON.stringify(fallback));
+            return fallback;
         } catch (error) {
-            console.warn("Gagal memuat coverage user cabang:", error);
-            return existingCoverage;
+            console.error("[ensureBranchCoverage] Failed to fetch coverage:", error);
+            // Fallback to cabang login on error
+            return [cabang.toUpperCase()];
         }
     }, []);
 
