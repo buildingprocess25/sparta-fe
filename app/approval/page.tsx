@@ -907,9 +907,9 @@ function ApprovalPageContent() {
                     return upper === 'MENUNGGU PERSETUJUAN';
                 }
 
-                // RAB: Direktur approve based on branch + status only
+                // RAB: Stage check untuk semua level (Koordinator, Manager, Direktur Kontraktor)
                 // Company scope TIDAK di-check di FE karena data legacy
-                if (type === 'RAB' && isDirectorJabatan(jabatan)) {
+                if (type === 'RAB') {
                     if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
                         if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
                     }
@@ -917,14 +917,15 @@ function ApprovalPageContent() {
                     return matchesApprovalStage(jabatan, upper);
                 }
 
-                // OPNAME: Stage check + company scope untuk role kontraktor
+                // OPNAME: Stage check first, then company scope untuk role kontraktor
                 if (type === 'OPNAME') {
                     // Stage check dulu
                     if (!matchesApprovalStage(jabatan, upper)) return false;
                     
-                    // Company scope hanya untuk role kontraktor
+                    // Company scope HANYA untuk role kontraktor (termasuk DIREKTUR KONTRAKTOR)
                     if (isContractorCompanyScopedRole(userRoles)) {
-                        if (!userInfo.nama_pt || !matchesUserCompany(item._raw, userInfo.nama_pt)) return false;
+                        // Jika user punya nama_pt, harus cocok. Jika tidak punya, loloskan (super human fallback)
+                        if (userInfo.nama_pt && !matchesUserCompany(item._raw, userInfo.nama_pt)) return false;
                     }
                     
                     return true;

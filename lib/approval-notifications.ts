@@ -263,35 +263,42 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (!isSameBranchScope(item.cabang, user)) return false;
     }
 
-    // RAB: Direktur approve based on branch + status ONLY (NO company scope check)
-    if (item.tipe === "RAB" && (jabatan === "DIREKTUR" || jabatan === "DIREKTUR_KONTRAKTOR")) {
+    // RAB: Stage check only for directors (NO company scope)
+    if (item.tipe === "RAB") {
         if (userCabang && !isDirectorHOUser && item.cabang) {
             if (!isSameBranchScope(item.cabang, user)) return false;
         }
-
-        return jabatan === "DIREKTUR_KONTRAKTOR"
-            ? isContractorDirectorApprovalStatus(upper)
-            : isDirectorApprovalStatus(upper);
-    }
-
-    // OPNAME: Company scope check untuk role kontraktor + stage check
-    if (item.tipe === "OPNAME") {
-        // Company scope check untuk role kontraktor
-        if (isContractorCompanyScopedRole(user.roles)) {
-            if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
-        }
         
-        // Stage check
+        // Stage-based approval check
         if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
         if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
         if (jabatan === "DIREKTUR_KONTRAKTOR") return isContractorDirectorApprovalStatus(upper);
+        if (jabatan === "DIREKTUR") return isDirectorApprovalStatus(upper);
         
-        // Super human / Regional Manager bisa lihat semua pending
-        if (canViewAllBranches(user.roles, user.isSuperHuman)) {
-            return isPendingApprovalStatus(upper);
-        }
+        // Fallback for canSeeAll
+        if (canSeeAll || user.isRegionalManager) return true;
         
         return false;
+    }
+
+    // OPNAME: Stage check first, then company scope for role kontraktor
+    if (item.tipe === "OPNAME") {
+        // Stage check first
+        if (jabatan === "KOORDINATOR" && !isCoordinatorApprovalStatus(upper)) return false;
+        if (jabatan === "MANAGER" && !isManagerApprovalStatus(upper)) return false;
+        if (jabatan === "DIREKTUR_KONTRAKTOR" && !isContractorDirectorApprovalStatus(upper)) return false;
+        
+        // Company scope check HANYA untuk role kontraktor (KOORDINATOR/MANAGER dari kontraktor)
+        // DIREKTUR_KONTRAKTOR tetap perlu check company
+        if (isContractorCompanyScopedRole(user.roles)) {
+            // Jika user punya nama_pt, harus cocok. Jika tidak punya, skip (fallback untuk super human)
+            if (user.namaPt && !matchesUserCompany(item.raw, user.namaPt)) return false;
+        }
+        
+        // Super human / Regional Manager bisa lihat semua pending dengan stage yang cocok
+        if (canSeeAll || user.isRegionalManager) return true;
+        
+        return true; // Stage sudah cocok dan company sudah valid (jika applicable)
     }
 
     // IL: Company scope check untuk role kontraktor
