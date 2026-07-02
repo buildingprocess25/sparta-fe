@@ -648,6 +648,14 @@ function ApprovalPageContent() {
         );
 
         // Find all accessible types across all roles
+        // EXCLUDE pure "KONTRAKTOR" role (without DIREKTUR prefix) karena approval bukan untuk kontraktor murni
+        const approvalRoles = roles.filter(r => {
+            const normalized = r.trim().toUpperCase();
+            // Exclude "KONTRAKTOR" murni, tapi allow "DIREKTUR KONTRAKTOR"
+            if (normalized === 'KONTRAKTOR') return false;
+            return true;
+        });
+
         const allAccessibleTypes = new Set<ApprovalType>();
         if (isRegionalManager || isSuperHuman) {
             allAccessibleTypes.add('RAB');
@@ -660,11 +668,11 @@ function ApprovalPageContent() {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isDirectorHO) {
             allAccessibleTypes.add('RAB');
-            if (roles.some(r => r === 'DIREKTUR KONTRAKTOR')) {
+            if (approvalRoles.some(r => r === 'DIREKTUR KONTRAKTOR')) {
                 allAccessibleTypes.add('OPNAME');
             }
         } else {
-            roles.forEach(r => {
+            approvalRoles.forEach(r => {
                 (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {
                     if (ROLE_ACCESS[type].some(allowedRole => allowedRole.toUpperCase() === r)) {
                         allAccessibleTypes.add(type);
@@ -672,7 +680,7 @@ function ApprovalPageContent() {
                 });
             });
         }
-        if (isHO && roles.some(r => ROLE_ACCESS.PROJECT_PLANNING.some(allowedRole => allowedRole.toUpperCase() === r))) {
+        if (isHO && approvalRoles.some(r => ROLE_ACCESS.PROJECT_PLANNING.some(allowedRole => allowedRole.toUpperCase() === r))) {
             allAccessibleTypes.add('PROJECT_PLANNING');
         }
 

@@ -143,10 +143,17 @@ const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
 };
 
 export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] => {
-    const roles = user.roles;
+    // Exclude pure "KONTRAKTOR" role (without DIREKTUR prefix) karena approval bukan untuk kontraktor murni
+    const approvalRoles = user.roles.filter(role => {
+        const normalized = role.trim().toUpperCase();
+        // Exclude "KONTRAKTOR" murni, tapi allow "DIREKTUR KONTRAKTOR"
+        if (normalized === 'KONTRAKTOR') return false;
+        return true;
+    });
+
     const isHO = normalizeBranch(user.cabang) === "HEAD OFFICE";
     const isDirectorHO = isHeadOfficeDirector(user);
-    const isProjectPlanningApprovalRole = roles.some(role =>
+    const isProjectPlanningApprovalRole = approvalRoles.some(role =>
         role.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") ||
         role.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") ||
         role.includes("PP SPECIALIST") ||
@@ -160,11 +167,11 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         allAccessibleTypes.add("PROJECT_PLANNING");
     } else if (isDirectorHO) {
         allAccessibleTypes.add("RAB");
-        if (roles.some(role => role === "DIREKTUR KONTRAKTOR")) {
+        if (approvalRoles.some(role => role === "DIREKTUR KONTRAKTOR")) {
             allAccessibleTypes.add("OPNAME");
         }
     } else {
-        roles.forEach(role => {
+        approvalRoles.forEach(role => {
             (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => {
                 if (ROLE_ACCESS[type].some(allowedRole => allowedRole.toUpperCase() === role)) {
                     allAccessibleTypes.add(type);
@@ -173,7 +180,7 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         });
     }
 
-    if (isHO && roles.some(role => ROLE_ACCESS.PROJECT_PLANNING.some(allowedRole => allowedRole.toUpperCase() === role))) {
+    if (isHO && approvalRoles.some(role => ROLE_ACCESS.PROJECT_PLANNING.some(allowedRole => allowedRole.toUpperCase() === role))) {
         allAccessibleTypes.add("PROJECT_PLANNING");
     }
 
