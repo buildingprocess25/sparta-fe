@@ -1347,12 +1347,13 @@ export default function DaftarDokumenPage() {
                 }
             }
 
-            // Filter by cabang for users without global branch visibility.
-            const upperUserCabang = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
-            if (upperUserCabang && !sessionCanViewAllBranches) {
-                const sessionCoverage = hydratedCoverage.length > 0 ? hydratedCoverage : getSessionBranchCoverage();
-                docs = docs.filter(d => canAccessBranchForUser(d.cabang, sessionRoles, upperUserCabang, sessionCoverage));
-            }
+            // REMOVED: Frontend branch filtering - backend already enforces this
+            // Trust backend response - it already filtered by user's accessible branches
+            // const upperUserCabang = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
+            // if (upperUserCabang && !sessionCanViewAllBranches) {
+            //     const sessionCoverage = hydratedCoverage.length > 0 ? hydratedCoverage : getSessionBranchCoverage();
+            //     docs = docs.filter(d => canAccessBranchForUser(d.cabang, sessionRoles, upperUserCabang, sessionCoverage));
+            // }
 
             // Sort by newest first
             docs.sort((a, b) => {
