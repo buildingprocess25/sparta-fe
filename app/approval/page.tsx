@@ -986,16 +986,17 @@ function ApprovalPageContent() {
 
                     if (!statusMatchesRole) return false;
                     if (isHOUser) return normalizeBranch(item.cabang) === upperUserCabang;
-                    if (!upperUserCabang || !item.cabang || item.cabang === '-') return true;
-
-                    return canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage);
+                    // REMOVED: Frontend branch filtering - backend already enforces this
+                    // if (!upperUserCabang || !item.cabang || item.cabang === '-') return true;
+                    // return canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage);
+                    return true; // Backend already filtered by branch
                 }
 
-                // 1. FILTER CABANG (Wajib sesuai cabang user)
-                // Jika item.cabang adalah '-' atau empty, kita loloskan agar tidak tersembunyi karena data kurang
-                if (!canSeeAllBranches && !isRegionalManagerUser && !isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
-                    if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
-                }
+                // 1. FILTER CABANG - REMOVED: Backend already enforces branch filtering
+                // Frontend should trust backend response
+                // if (!canSeeAllBranches && !isRegionalManagerUser && !isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
+                //     if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
+                // }
                 
                 // 2. FILTER STATUS (Harus pending/menunggu)
                 if (!isPendingApprovalStatus(upper)) return false;
@@ -1014,9 +1015,10 @@ function ApprovalPageContent() {
                 // RAB: Stage check untuk semua level (Koordinator, Manager, Direktur Kontraktor)
                 // Company scope TIDAK di-check di FE karena data legacy
                 if (type === 'RAB') {
-                    if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
-                        if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
-                    }
+                    // REMOVED: Frontend branch filtering - backend already handles this
+                    // if (upperUserCabang && !isDirectorHOUser && item.cabang && item.cabang !== '-') {
+                    //     if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
+                    // }
 
                     return matchesApprovalStage(jabatan, upper);
                 }
@@ -1286,19 +1288,20 @@ function ApprovalPageContent() {
                 willCheckBranch: detail && !detailCanSeeAllBranches && !isDirectorRole && detail.cabang && detail.cabang !== '-'
             });
 
-            // Branch scope check - SKIP for Director roles (they can see all branches for approval)
-            if (
-                detail
-                && !detailCanSeeAllBranches
-                && !isDirectorRole // Directors (DIREKTUR, DIREKTUR KONTRAKTOR) can see all branches
-                && detail.cabang
-                && detail.cabang !== '-'
-                && !canAccessBranchForUser(detail.cabang, detailUserRoles, normalizeBranch(userInfo.cabang), detailCoverage)
-            ) {
-                showToast('Anda tidak memiliki akses ke cabang dokumen ini.', 'error');
-                setActiveView('list');
-                return;
-            }
+            // Branch scope check - REMOVED: Backend already enforces branch filtering
+            // Frontend should trust that user can only fetch documents they have access to
+            // if (
+            //     detail
+            //     && !detailCanSeeAllBranches
+            //     && !isDirectorRole
+            //     && detail.cabang
+            //     && detail.cabang !== '-'
+            //     && !canAccessBranchForUser(detail.cabang, detailUserRoles, normalizeBranch(userInfo.cabang), detailCoverage)
+            // ) {
+            //     showToast('Anda tidak memiliki akses ke cabang dokumen ini.', 'error');
+            //     setActiveView('list');
+            //     return;
+            // }
 
             // Company scope check for contractor-scoped roles (KONTRAKTOR, DIREKTUR KONTRAKTOR)
             // Only filter if user HAS nama_pt, otherwise allow (for Super Human or roles without company scope)
