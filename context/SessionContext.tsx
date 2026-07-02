@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { Building2, CalendarDays, Clock3, LogOut, ShieldAlert } from 'lucide-react';
 import { hasRegionalManagerRole, hasSuperHumanRole } from '@/lib/constants';
 import { fetchSystemMaintenanceStatus, fetchSystemAccessSchedule, type SystemMaintenanceStatus, type SystemAccessSchedule } from '@/lib/api';
 
@@ -409,157 +410,126 @@ function TimeBlockedScreen({
   onLogout: () => void;
   schedule: SystemAccessSchedule | null;
 }) {
-  const now = new Date();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const operatingHoursLabel = getOperatingHoursLabel(user.roles, schedule);
   const dayAccessLabel = getDayAccessLabel(schedule);
+  const [openTime, closeTime] = operatingHoursLabel.split(' - ');
   const currentTime = now.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
   });
+  const currentDate = now.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.5rem',
-        fontFamily:
-          "var(--font-sans, 'Inter', system-ui, -apple-system, sans-serif)",
-      }}
-    >
-      <div
-        style={{
-          textAlign: 'center',
-          maxWidth: '420px',
-          width: '100%',
-        }}
-      >
-        {/* Clock Icon */}
-        <div
-          style={{
-            width: '96px',
-            height: '96px',
-            borderRadius: '50%',
-            background: 'rgba(239,68,68,0.12)',
-            border: '2px solid rgba(239,68,68,0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1.75rem',
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="48"
-            height="48"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="rgba(248,113,113,1)"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"
-            />
-          </svg>
-        </div>
+    <div className="min-h-screen bg-[#f3f5f8] text-slate-900">
+      <div className="absolute inset-x-0 top-0 h-2 bg-red-600" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.45] [background-image:linear-gradient(#cbd5e1_1px,transparent_1px),linear-gradient(90deg,#cbd5e1_1px,transparent_1px)] [background-size:48px_48px]" />
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-8">
+        <section className="w-full max-w-[920px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.14)]">
+          <div className="grid md:grid-cols-[0.9fr_1.1fr]">
+            <aside className="relative border-b border-slate-200 bg-slate-950 p-6 text-white md:border-b-0 md:border-r">
+              <div className="absolute inset-x-0 top-0 h-1 bg-red-600" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-md bg-red-600">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">SPARTA Building</p>
+                  <p className="text-sm font-black text-white">Access Control</p>
+                </div>
+              </div>
 
-        {/* Title */}
-        <h1
-          style={{
-            fontSize: '1.75rem',
-            fontWeight: 800,
-            color: '#f1f5f9',
-            marginBottom: '0.5rem',
-            letterSpacing: '-0.025em',
-          }}
-        >
-          Akses Terbatas
-        </h1>
+              <div className="mt-10">
+                <div className="inline-flex items-center gap-2 rounded-full border border-red-400/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-100">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Di luar jam operasional
+                </div>
+                <h1 className="mt-5 text-3xl font-black leading-tight text-white">Akses belum dibuka</h1>
+                <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">
+                  Akun Anda tetap aktif. Silakan masuk kembali saat jadwal operasional dibuka.
+                </p>
+              </div>
 
-        <p style={{ color: '#94a3b8', marginBottom: '0.25rem', fontSize: '0.9375rem' }}>
-          Halo,{' '}
-          <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
-            {user.namaLengkap}
-          </span>{' '}
-          ({user.cabang})
-        </p>
-        <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.75rem' }}>
-          Aplikasi SPARTA Building hanya dapat diakses pada jam operasional.
-        </p>
+              <div className="mt-10 rounded-md border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Sesi pengguna</p>
+                <p className="mt-2 text-sm font-black text-white">{user.namaLengkap}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-400">{user.cabang || 'Cabang tidak tersedia'}</p>
+              </div>
+            </aside>
 
-        {/* Time Box */}
-        <div
-          style={{
-            background: 'rgba(15,23,42,0.8)',
-            border: '1px solid rgba(71,85,105,0.5)',
-            borderRadius: '1rem',
-            padding: '1.5rem 2rem',
-            marginBottom: '1.25rem',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <p
-            style={{
-              color: '#f87171',
-              fontFamily: "'Geist Mono', 'Courier New', monospace",
-              fontSize: '2.75rem',
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              marginBottom: '0.25rem',
-            }}
-          >
-            {operatingHoursLabel}
-          </p>
-          <p style={{ color: '#475569', fontSize: '0.75rem' }}>
-            {dayAccessLabel} &nbsp;|&nbsp; WIB
-          </p>
-        </div>
+            <main className="p-6 md:p-8">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600">Jadwal Akses</p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">Operasional Sistem</h2>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">WIB</p>
+                  <p className="font-mono text-sm font-black text-slate-900">{currentTime}</p>
+                </div>
+              </div>
 
-        {/* Current time */}
-        <p style={{ color: '#475569', fontSize: '0.8125rem', marginBottom: '2rem' }}>
-          Waktu saat ini:{' '}
-          <span
-            style={{
-              color: '#94a3b8',
-              fontFamily: "'Geist Mono', 'Courier New', monospace",
-              fontWeight: 600,
-            }}
-          >
-            {currentTime}
-          </span>{' '}
-          WIB
-        </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                    <Clock3 className="h-4 w-4 text-emerald-600" />
+                    Mulai
+                  </div>
+                  <p className="mt-3 font-mono text-3xl font-black text-slate-950">{openTime || '--:--'}</p>
+                </div>
+                <div className="rounded-md border border-red-100 bg-red-50 p-4">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-red-500">
+                    <Clock3 className="h-4 w-4" />
+                    Selesai
+                  </div>
+                  <p className="mt-3 font-mono text-3xl font-black text-red-700">{closeTime || '--:--'}</p>
+                </div>
+              </div>
 
-        {/* Logout button */}
-        <button
-          onClick={onLogout}
-          style={{
-            padding: '0.75rem 2rem',
-            background: 'rgba(51,65,85,0.8)',
-            color: '#e2e8f0',
-            border: '1px solid rgba(71,85,105,0.5)',
-            borderRadius: '0.75rem',
-            fontSize: '0.9375rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={(e) =>
-            ((e.target as HTMLButtonElement).style.background = 'rgba(71,85,105,0.9)')
-          }
-          onMouseLeave={(e) =>
-            ((e.target as HTMLButtonElement).style.background = 'rgba(51,65,85,0.8)')
-          }
-        >
-          Keluar
-        </button>
+              <div className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+                    <CalendarDays className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-950">{dayAccessLabel}</p>
+                    <p className="mt-1 text-sm text-slate-500">{currentDate}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-900">
+                Aktivitas kontraktor dibatasi sesuai jadwal yang ditentukan tim Building. Data pekerjaan Anda aman dan dapat dilanjutkan saat akses dibuka.
+              </div>
+
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs font-semibold text-slate-500">
+                  Butuh akses di luar jadwal? Hubungi admin Building cabang.
+                </p>
+                <button
+                  onClick={onLogout}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-900 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-200"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Keluar
+                </button>
+              </div>
+            </main>
+          </div>
+        </section>
       </div>
     </div>
   );
