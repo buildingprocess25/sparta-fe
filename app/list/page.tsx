@@ -2027,8 +2027,13 @@ export default function DaftarDokumenPage() {
         if (canSeeAllBranches) {
             return Object.keys(BRANCH_TO_ULOK).sort();
         }
+        // Use hydrated coverage from backend (fresh data)
+        if (hydratedCoverage.length > 0) {
+            return hydratedCoverage.sort();
+        }
+        // Fallback to old logic if hydration failed
         return getAccessibleBranchesForUser(userInfo.role, upper, getSessionBranchCoverage()).sort();
-    }, [userInfo.cabang, userInfo.role, isSuperHuman]);
+    }, [userInfo.cabang, userInfo.role, isSuperHuman, hydratedCoverage]);
 
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const isHO = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';

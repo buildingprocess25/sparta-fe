@@ -1173,7 +1173,7 @@ export const fetchUserCabangList = async (
     if (filters?.email_sat) params.append("email_sat", filters.email_sat);
     if (filters?.nama_pt) params.append("nama_pt", filters.nama_pt);
     if (filters?.include_branch_scope) params.append("include_branch_scope", "true");
-    const url = `${base}/api/user_cabang${params.toString() ? `?${params}` : ""}`;
+    const url = `${base}/api/user-cabang${params.toString() ? `?${params}` : ""}`; // FIX: Use hyphen
     const res = await apiFetch(url, { headers: { "Content-Type": "application/json" } });
     if (!res.ok) throw new Error("Gagal mengambil data user cabang");
     return res.json();
@@ -1181,7 +1181,7 @@ export const fetchUserCabangList = async (
 
 /** Detail user cabang berdasarkan ID */
 export const fetchUserCabangDetail = async (id: number): Promise<{ status: string; data: any }> => {
-    const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang/${id}`;
+    const url = `${API_URL.replace(/\/$/, "")}/api/user-cabang/${id}`; // FIX: Use hyphen
     const res = await apiFetch(url, { headers: { "Content-Type": "application/json" } });
     if (res.status === 404) throw new Error("Data user_cabang tidak ditemukan");
     if (!res.ok) throw new Error("Gagal mengambil detail user cabang");
@@ -1189,7 +1189,7 @@ export const fetchUserCabangDetail = async (id: number): Promise<{ status: strin
 };
 
 export const createUserCabang = async (data: any) => {
-    const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang`;
+    const url = `${API_URL.replace(/\/$/, "")}/api/user-cabang`; // FIX: Use hyphen
     const res = await apiFetch(url, {
         method: 'POST',
         headers: { "Content-Type": "application/json" },
@@ -1203,7 +1203,7 @@ export const createUserCabang = async (data: any) => {
 };
 
 export const updateUserCabang = async (id: number, data: any) => {
-    const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang/${id}`;
+    const url = `${API_URL.replace(/\/$/, "")}/api/user-cabang/${id}`; // FIX: Use hyphen
     const res = await apiFetch(url, {
         method: 'PUT',
         headers: { "Content-Type": "application/json" },
@@ -1218,7 +1218,7 @@ export const updateUserCabang = async (id: number, data: any) => {
 };
 
 export const deleteUserCabang = async (id: number) => {
-    const url = `${API_URL.replace(/\/$/, "")}/api/user_cabang/${id}`;
+    const url = `${API_URL.replace(/\/$/, "")}/api/user-cabang/${id}`; // FIX: Use hyphen
     const res = await apiFetch(url, {
         method: 'DELETE',
         headers: { "Content-Type": "application/json" }
