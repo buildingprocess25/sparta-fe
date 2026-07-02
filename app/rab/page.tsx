@@ -382,7 +382,8 @@ function RABPageContent() {
             const revisions = result.rejected_submissions || [];
             setRejectedList(revisions);
             revisionHadItemsRef.current = revisions.length > 0;
-            if (revisions.length > 0) {
+            // FIX #2: Only auto-open modal if user NOT coming from direct revision link
+            if (revisions.length > 0 && !requestedRevisionId) {
                 setRevisionListDialogOpen(true); // Membuka modal notification lonceng secara otomatis ketika data ditolak terdeteksi
             }
         }).catch(err => {
@@ -496,6 +497,31 @@ function RABPageContent() {
     // Prefill hanya dijalankan ketika identitas request pada URL berubah.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email, hasProjectPlanningRequest, requestedPlanningId, requestedScope, router]);
+
+  // --- FIX #1: AUTO-LOAD REVISION DATA FROM URL PARAM ---
+  useEffect(() => {
+    // Only auto-load if:
+    // 1. requestedRevisionId exists in URL
+    // 2. rejectedList has been loaded (revisionCheckDone)
+    // 3. Not already loaded this revision (autoLoadedRevisionId tracking)
+    if (!requestedRevisionId || requestedRevisionId <= 0 || !revisionCheckDone) return;
+    if (autoLoadedRevisionId === requestedRevisionId) return; // Already loaded this revision
+
+    // Find the revision item from rejectedList
+    const revisionItem = rejectedList.find(item => item.id === requestedRevisionId);
+    
+    if (revisionItem) {
+      setAutoLoadedRevisionId(requestedRevisionId);
+      handleLoadRevision(revisionItem);
+    } else {
+      // Revision ID not found in user's rejected list - might be invalid or already resolved
+      showAlert(
+        "Revisi Tidak Ditemukan", 
+        "ID revisi yang diminta tidak ditemukan atau sudah tidak valid.", 
+        "warning"
+      );
+    }
+  }, [requestedRevisionId, rejectedList, revisionCheckDone, autoLoadedRevisionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- 2. FETCH HARGA OTOMATIS ---
   useEffect(() => {

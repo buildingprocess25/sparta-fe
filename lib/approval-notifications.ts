@@ -153,10 +153,14 @@ const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
 };
 
 export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] => {
-    // Exclude pure "KONTRAKTOR" role (without DIREKTUR prefix) karena approval bukan untuk kontraktor murni
+    // KONTRAKTOR role gets RAB type for revision tracking (rejected submissions)
+    const isContractorOnly = user.roles.some(role => role.trim().toUpperCase() === 'KONTRAKTOR');
+    
+    // Exclude pure "KONTRAKTOR" role (without DIREKTUR prefix) dari approval types lain
+    // tapi izinkan untuk RAB revisions
     const approvalRoles = user.roles.filter(role => {
         const normalized = role.trim().toUpperCase();
-        // Exclude "KONTRAKTOR" murni, tapi allow "DIREKTUR KONTRAKTOR"
+        // Exclude "KONTRAKTOR" murni untuk non-RAB approvals, tapi allow "DIREKTUR KONTRAKTOR"
         if (normalized === 'KONTRAKTOR') return false;
         return true;
     });
@@ -171,6 +175,12 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
     );
 
     const allAccessibleTypes = new Set<ApprovalType>();
+    
+    // KONTRAKTOR gets RAB type for revisions (rejected submissions they need to fix)
+    if (isContractorOnly) {
+        allAccessibleTypes.add("RAB");
+    }
+    
     if (user.isRegionalManager || user.isSuperHuman) {
         (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => allAccessibleTypes.add(type));
     } else if (isProjectPlanningApprovalRole && isHO) {
@@ -208,7 +218,15 @@ const isPendingProcessStatus = (status: string, tipe: ApprovalType) => {
     if (!upper) return false;
     if (upper === "DRAFT") return false;
     if (upper === "MENUNGGU GANTT CHART") return false;
-    if (upper.includes("TOLAK") || upper.includes("DITOLAK") || upper === "REJECTED" || upper === "SPK_REJECTED") return false;
+    
+    // For RAB, REJECTED status is valid for KONTRAKTOR revisions
+    // We'll check company matching in canCountForUser instead
+    const isRejected = upper.includes("TOLAK") || upper.includes("DITOLAK") || upper === "REJECTED" || upper === "SPK_REJECTED";
+    if (tipe === "RAB" && isRejected) return true; // Allow rejected RAB for revision tracking
+    
+    // For other types, rejected means done/closed
+    if (isRejected) return false;
+    
     if (upper.includes("DISETUJUI") || upper === "APPROVED" || upper === "SPK_APPROVED" || upper === "COMPLETED") return false;
 
     if (tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
@@ -268,13 +286,25 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     const userCabang = normalizeBranch(user.cabang);
     const isDirectorHOUser = isHeadOfficeDirector(user);
     const canSeeAll = canViewAllBranches(user.roles, user.isSuperHuman);
+    const isContractorOnly = user.roles.some(role => role.trim().toUpperCase() === 'KONTRAKTOR') 
+        && !user.roles.some(role => role.includes('DIREKTUR'));
 
     if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR" && jabatan !== "DIREKTUR_KONTRAKTOR") {
         if (!isSameBranchScope(item.cabang, user)) return false;
     }
 
-    // RAB: Stage check only for directors (NO company scope)
+    // RAB: Special logic for KONTRAKTOR to see rejected submissions they need to revise
     if (item.tipe === "RAB") {
+        // KONTRAKTOR sees only REJECTED items from their company
+        if (isContractorOnly || jabatan === "KONTRAKTOR") {
+            const isRejected = upper.includes("DITOLAK") || upper.includes("REJECTED") || upper.includes("TOLAK");
+            if (!isRejected) return false;
+            // Must match company name
+            if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
+            return true;
+        }
+        
+        // Other roles: approval flow (NOT rejected items)
         if (userCabang && !isDirectorHOUser && item.cabang) {
             if (!isSameBranchScope(item.cabang, user)) return false;
         }
