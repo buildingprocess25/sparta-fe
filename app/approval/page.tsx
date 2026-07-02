@@ -298,14 +298,44 @@ const matchesUserCompany = (value: unknown, userCompany?: string | null) => {
     if (!normalizedUserCompany || !value || typeof value !== 'object') return false;
 
     const source = value as Record<string, any>;
+    
+    // Try multiple possible field locations for company name
     const candidates = [
         source.nama_pt,
         source.nama_kontraktor,
         source.toko?.nama_pt,
         source.toko?.nama_kontraktor,
+        source.kontraktor,
+        source.pt,
+        source.company,
+        source.nama_perusahaan,
     ];
+    
+    // Enhanced debug: show complete raw data structure for OPNAME
+    console.log('[matchesUserCompany] Full Raw Data Sample:', {
+        id: source.id,
+        status_opname_final: source.status_opname_final,
+        id_toko: source.id_toko,
+        nama_kontraktor: source.nama_kontraktor,
+        toko_nama_kontraktor: source.toko?.nama_kontraktor,
+        allKeys: Object.keys(source),
+        tokoExists: !!source.toko,
+        tokoKeys: source.toko ? Object.keys(source.toko) : []
+    });
+    
+    console.log('[matchesUserCompany] Matching:', {
+        userCompany: normalizedUserCompany,
+        candidates: candidates.map((c, i) => ({ 
+            index: i,
+            raw: c, 
+            normalized: normalizeCompanyName(c),
+            matches: normalizeCompanyName(c) === normalizedUserCompany
+        }))
+    });
 
-    return candidates.some(candidate => normalizeCompanyName(candidate) === normalizedUserCompany);
+    const match = candidates.some(candidate => normalizeCompanyName(candidate) === normalizedUserCompany);
+    console.log('[matchesUserCompany] Final Match:', match);
+    return match;
 };
 
 const APPROVAL_CONFIG: Record<ApprovalType, {
@@ -953,12 +983,14 @@ function ApprovalPageContent() {
                     // Stage check dulu
                     const stageMatches = matchesApprovalStage(jabatan, upper);
                     console.log('[OPNAME Filter] Item:', {
+                        id: item.id,
                         status: item.status,
                         jabatan,
                         stageMatches,
                         isContractorRole: isContractorCompanyScopedRole(userRoles),
                         userNamaPt: userInfo.nama_pt,
-                        itemRaw: item._raw
+                        hasRaw: !!item._raw,
+                        rawKeys: item._raw ? Object.keys(item._raw).slice(0, 30) : []
                     });
                     
                     if (!stageMatches) {
@@ -969,9 +1001,16 @@ function ApprovalPageContent() {
                     // Company scope HANYA untuk role kontraktor (termasuk DIREKTUR KONTRAKTOR)
                     if (isContractorCompanyScopedRole(userRoles)) {
                         // Jika user punya nama_pt, harus cocok. Jika tidak punya, loloskan (super human fallback)
-                        if (userInfo.nama_pt && !matchesUserCompany(item._raw, userInfo.nama_pt)) {
-                            console.log('[OPNAME Filter] REJECTED - Company mismatch');
-                            return false;
+                        if (userInfo.nama_pt) {
+                            console.log('[OPNAME Filter] Calling matchesUserCompany with:', {
+                                userNamaPt: userInfo.nama_pt,
+                                rawDataPassed: item._raw
+                            });
+                            
+                            if (!matchesUserCompany(item._raw, userInfo.nama_pt)) {
+                                console.log('[OPNAME Filter] REJECTED - Company mismatch');
+                                return false;
+                            }
                         }
                     }
                     
