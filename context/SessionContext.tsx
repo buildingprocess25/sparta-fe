@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { hasRegionalManagerRole, hasSuperHumanRole } from '@/lib/constants';
-import { fetchSystemMaintenanceStatus, type SystemMaintenanceStatus } from '@/lib/api';
+import { fetchSystemMaintenanceStatus, fetchSystemAccessSchedule, type SystemMaintenanceStatus, type SystemAccessSchedule } from '@/lib/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface UserSession {
@@ -38,24 +38,17 @@ const PUBLIC_PATHS = ['/', '/auth', '/about', '/manual'];
 
 /**
  * ============================================================================
- * [KONFIGURASI BATASAN WAKTU DAN HARI AKSES]
+ * [FALLBACK BATASAN WAKTU DAN HARI AKSES]
  * ============================================================================
- * Ubah batasan waktu dan hari operasional aplikasi pada fungsi ini.
- * Pengecualian: Super Human mengabaikan aturan ini sepenuhnya.
+ * Fallback jika API gagal membaca konfigurasi jadwal akses.
+ * Konfigurasi sebenarnya dikelola melalui halaman Pemeliharaan Sistem.
  */
-const OPERATING_START_MINUTES = 6 * 60;
-const GENERAL_OPERATING_END_MINUTES = 24 * 60; // 24:00 = tengah malam
-const CONTRACTOR_OPERATING_END_MINUTES = 24 * 60; // 24:00 = tengah malam
-const TEMPORARY_ALL_ROLE_ACCESS_START = new Date('2026-06-19T00:00:00+07:00').getTime();
-const TEMPORARY_ALL_ROLE_ACCESS_END = new Date('2026-06-21T00:00:00+07:00').getTime();
+const FALLBACK_OPERATING_START_MINUTES = 6 * 60;
+const FALLBACK_GENERAL_OPERATING_END_MINUTES = 24 * 60;
+const FALLBACK_CONTRACTOR_OPERATING_END_MINUTES = 24 * 60;
 
 const isContractorRole = (roles: string[]): boolean =>
   roles.some((role) => role.includes('KONTRAKTOR'));
-
-const getOperatingEndMinutes = (roles: string[]): number =>
-  isContractorRole(roles)
-    ? CONTRACTOR_OPERATING_END_MINUTES
-    : GENERAL_OPERATING_END_MINUTES;
 
 const formatMinutesAsTime = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
@@ -63,29 +56,65 @@ const formatMinutesAsTime = (minutes: number): string => {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 };
 
-function isWithinOperatingHours(roles: string[]): boolean {
-  const now = new Date();
-
-  // Temporary overtime access for every role through Saturday, 20 June 2026
-  // at 24:00 WIB. Normal operating-hour rules resume automatically afterward.
-  if (
-    now.getTime() >= TEMPORARY_ALL_ROLE_ACCESS_START
-    && now.getTime() < TEMPORARY_ALL_ROLE_ACCESS_END
-  ) {
+function isWithinOperatingHours(roles: string[], schedule: SystemAccessSchedule | null): boolean {
+  // Jika schedule tidak diaktifkan, izinkan akses
+  if (!schedule || !schedule.is_enabled) {
     return true;
   }
 
+  const now = new Date();
   const dayOfWeek = now.getDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
   const totalMinutes = now.getHours() * 60 + now.getMinutes();
-  const operatingEndMinutes = getOperatingEndMinutes(roles);
 
-  // 1. BATASAN HARI: Block akses pada hari Sabtu (6) dan Minggu (0)
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
+  // Cek apakah hari ini adalah weekend (Sabtu/Minggu)
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  // 1. BATASAN HARI
+  if (isWeekend && !schedule.weekend_enabled) {
+    return false;
+  }
+  if (!isWeekend && !schedule.weekday_enabled) {
     return false;
   }
 
-  // 2. BATASAN WAKTU: Block akses di luar jam operasional
-  return totalMinutes >= OPERATING_START_MINUTES && totalMinutes < operatingEndMinutes;
+  // 2. BATASAN WAKTU
+  const isContractor = isContractorRole(roles);
+  const startMinutes = isContractor ? schedule.contractor_start_minutes : schedule.general_start_minutes;
+  const endMinutes = isContractor ? schedule.contractor_end_minutes : schedule.general_end_minutes;
+
+  return totalMinutes >= startMinutes && totalMinutes < endMinutes;
+}
+
+function getOperatingHoursLabel(roles: string[], schedule: SystemAccessSchedule | null): string {
+  if (!schedule) {
+    const start = formatMinutesAsTime(FALLBACK_OPERATING_START_MINUTES);
+    const end = formatMinutesAsTime(
+      isContractorRole(roles) ? FALLBACK_CONTRACTOR_OPERATING_END_MINUTES : FALLBACK_GENERAL_OPERATING_END_MINUTES
+    );
+    return `${start} - ${end}`;
+  }
+
+  const isContractor = isContractorRole(roles);
+  const start = formatMinutesAsTime(isContractor ? schedule.contractor_start_minutes : schedule.general_start_minutes);
+  const end = formatMinutesAsTime(isContractor ? schedule.contractor_end_minutes : schedule.general_end_minutes);
+  return `${start} - ${end}`;
+}
+
+function getDayAccessLabel(schedule: SystemAccessSchedule | null): string {
+  if (!schedule || !schedule.is_enabled) {
+    return 'Setiap hari';
+  }
+
+  if (schedule.weekday_enabled && schedule.weekend_enabled) {
+    return 'Setiap hari';
+  }
+  if (schedule.weekday_enabled && !schedule.weekend_enabled) {
+    return 'Senin – Jumat';
+  }
+  if (!schedule.weekday_enabled && schedule.weekend_enabled) {
+    return 'Sabtu – Minggu';
+  }
+  return 'Tidak ada akses';
 }
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -98,6 +127,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [isTimeBlocked, setIsTimeBlocked] = useState(false);
   const [isMaintenanceBlocked, setIsMaintenanceBlocked] = useState(false);
   const [maintenanceStatus, setMaintenanceStatus] = useState<SystemMaintenanceStatus | null>(null);
+  const [accessSchedule, setAccessSchedule] = useState<SystemAccessSchedule | null>(null);
 
   const logout = useCallback(() => {
     sessionStorage.clear();
@@ -105,6 +135,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setIsTimeBlocked(false);
     setIsMaintenanceBlocked(false);
     setMaintenanceStatus(null);
+    setAccessSchedule(null);
     router.push('/');
   }, [router]);
 
@@ -121,6 +152,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIsTimeBlocked(false);
       setIsMaintenanceBlocked(false);
       setMaintenanceStatus(null);
+      setAccessSchedule(null);
       return () => {
         ignore = true;
       };
@@ -169,14 +201,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const hydrateSession = async () => {
       let nextMaintenanceStatus: SystemMaintenanceStatus | null = null;
       let nextMaintenanceBlocked = false;
+      let nextAccessSchedule: SystemAccessSchedule | null = null;
 
       if (!isSuperHuman) {
         try {
-          const result = await fetchSystemMaintenanceStatus({ suppressGlobalError: true });
-          nextMaintenanceStatus = result.data;
-          nextMaintenanceBlocked = Boolean(result.data?.is_active);
+          const [maintenanceResult, scheduleResult] = await Promise.all([
+            fetchSystemMaintenanceStatus({ suppressGlobalError: true }),
+            fetchSystemAccessSchedule({ suppressGlobalError: true }),
+          ]);
+          nextMaintenanceStatus = maintenanceResult.data;
+          nextMaintenanceBlocked = Boolean(maintenanceResult.data?.is_active);
+          nextAccessSchedule = scheduleResult.data;
         } catch (error) {
-          console.warn('Gagal membaca status pemeliharaan sistem:', error);
+          console.warn('Gagal membaca status sistem:', error);
         }
       }
 
@@ -185,7 +222,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setUser(sessionUser);
       setMaintenanceStatus(nextMaintenanceStatus);
       setIsMaintenanceBlocked(nextMaintenanceBlocked);
-      setIsTimeBlocked(!isSuperHuman && !isWithinOperatingHours(roles));
+      setAccessSchedule(nextAccessSchedule);
+      setIsTimeBlocked(!isSuperHuman && !isWithinOperatingHours(roles, nextAccessSchedule));
       setIsLoading(false);
     };
 
@@ -199,20 +237,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const refreshMaintenanceLock = async () => {
+    const refreshSystemStatus = async () => {
       try {
-        const result = await fetchSystemMaintenanceStatus({ suppressGlobalError: true });
-        const data = result.data;
-        setMaintenanceStatus(data);
-        setIsMaintenanceBlocked(Boolean(data?.is_active && !user.isSuperHuman));
+        const [maintenanceResult, scheduleResult] = await Promise.all([
+          fetchSystemMaintenanceStatus({ suppressGlobalError: true }),
+          fetchSystemAccessSchedule({ suppressGlobalError: true }),
+        ]);
+        setMaintenanceStatus(maintenanceResult.data);
+        setIsMaintenanceBlocked(Boolean(maintenanceResult.data?.is_active && !user.isSuperHuman));
+        setAccessSchedule(scheduleResult.data);
+        setIsTimeBlocked(!user.isSuperHuman && !isWithinOperatingHours(user.roles, scheduleResult.data));
       } catch (error) {
-        console.warn('Gagal membaca status pemeliharaan sistem:', error);
-        setIsMaintenanceBlocked(false);
+        console.warn('Gagal membaca status sistem:', error);
       }
     };
 
-    refreshMaintenanceLock();
-    const timer = window.setInterval(refreshMaintenanceLock, 15_000);
+    refreshSystemStatus();
+    const timer = window.setInterval(refreshSystemStatus, 15_000);
     return () => window.clearInterval(timer);
   }, [user]);
 
@@ -222,7 +263,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // Show time-blocked screen instead of children
   if (!isLoading && isTimeBlocked && user) {
-    return <TimeBlockedScreen user={user} onLogout={logout} />;
+    return <TimeBlockedScreen user={user} onLogout={logout} schedule={accessSchedule} />;
   }
 
   return (
@@ -362,12 +403,15 @@ function MaintenanceBlockedScreen({
 function TimeBlockedScreen({
   user,
   onLogout,
+  schedule,
 }: {
   user: UserSession;
   onLogout: () => void;
+  schedule: SystemAccessSchedule | null;
 }) {
   const now = new Date();
-  const operatingHoursLabel = `${formatMinutesAsTime(OPERATING_START_MINUTES)} - ${formatMinutesAsTime(getOperatingEndMinutes(user.roles))}`;
+  const operatingHoursLabel = getOperatingHoursLabel(user.roles, schedule);
+  const dayAccessLabel = getDayAccessLabel(schedule);
   const currentTime = now.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
@@ -474,7 +518,7 @@ function TimeBlockedScreen({
             {operatingHoursLabel}
           </p>
           <p style={{ color: '#475569', fontSize: '0.75rem' }}>
-            Senin – Jumat &nbsp;|&nbsp; WIB
+            {dayAccessLabel} &nbsp;|&nbsp; WIB
           </p>
         </div>
 

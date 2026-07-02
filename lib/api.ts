@@ -197,6 +197,21 @@ export type SystemMaintenanceStatus = {
     can_manage: boolean;
 };
 
+export type SystemAccessSchedule = {
+    id: number;
+    is_enabled: boolean;
+    weekday_enabled: boolean;
+    weekend_enabled: boolean;
+    general_start_minutes: number;
+    general_end_minutes: number;
+    contractor_start_minutes: number;
+    contractor_end_minutes: number;
+    updated_by_email: string | null;
+    updated_by_role: string | null;
+    updated_at: string;
+    can_manage: boolean;
+};
+
 export const fetchSystemMaintenanceStatus = async (
     options?: ApiRequestOptions
 ): Promise<{ status: string; data: SystemMaintenanceStatus }> =>
@@ -210,6 +225,22 @@ export const updateSystemMaintenanceStatus = async (
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: isActive }),
+        ...options,
+    });
+
+export const fetchSystemAccessSchedule = async (
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: SystemAccessSchedule }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/system-access-schedule/schedule`, options);
+
+export const updateSystemAccessSchedule = async (
+    payload: Omit<SystemAccessSchedule, "id" | "updated_by_email" | "updated_by_role" | "updated_at" | "can_manage">,
+    options?: ApiRequestOptions
+): Promise<{ status: string; message: string; data: SystemAccessSchedule }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/system-access-schedule/schedule`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
         ...options,
     });
 
