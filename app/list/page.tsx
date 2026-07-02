@@ -1167,7 +1167,7 @@ export default function DaftarDokumenPage() {
             // ALWAYS fetch from backend - no stale cache
             console.log('[ensureBranchCoverage] Fetching fresh coverage from backend...', { email, cabang, roles });
             
-            const token = sessionStorage.getItem('access_token');
+            const token = sessionStorage.getItem('spartaAccessToken'); // FIX: Use correct token key
             if (!token) {
                 console.warn('[ensureBranchCoverage] No access token found');
                 return [cabang.toUpperCase()];
