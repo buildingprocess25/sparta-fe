@@ -462,7 +462,7 @@ export const ME_CATEGORIES = [
 export const BRANCH_GROUPS: Record<string, string[]> = {
     LOMBOK:    ["LOMBOK", "SUMBAWA"],
     CILEUNGSI: ["CILEUNGSI", "BOGOR", "BEKASI", "KARAWANG"],
-    CIKOKOL:   ["CIKOKOL", "BINTAN", "PARUNG", "BALARAJA", "SERANG"],
+    CIKOKOL:   ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG"],
     MEDAN:     ["MEDAN", "ACEH"],
     LAMPUNG:   ["LAMPUNG", "KOTABUMI"],
     PALEMBANG: ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
@@ -470,7 +470,7 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
 };
 
 const normalizeBranchValue = (branch?: string | null): string =>
-    String(branch ?? "").trim().toUpperCase();
+    String(branch ?? "").trim().replace(/_+/g, " ").replace(/\s+/g, " ").toUpperCase();
 
 export const isBranchSupportRole = (role: string | string[] | undefined | null): boolean =>
     normalizeRoles(role).some(r => r.includes("BRANCH BUILDING SUPPORT"));
@@ -508,12 +508,18 @@ export const getAccessibleBranchesForUser = (
 
     if (isBranchSupportRole(role)) {
         const group = getBranchGroupForBranch(upperCabang);
-        if (group && (group.name === "CIKOKOL" || group.name === "CILEUNGSI")) {
+        if (group) {
             return [...group.branches];
         }
     }
 
     if (normalizedCoverage.length > 0) return normalizedCoverage;
+
+    const group = getBranchGroupForBranch(upperCabang);
+    if (group && group.name !== "CIKOKOL" && group.name !== "CILEUNGSI") {
+        return [...group.branches];
+    }
+
     return upperCabang ? [upperCabang] : [];
 };
 
