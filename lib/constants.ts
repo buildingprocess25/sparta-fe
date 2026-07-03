@@ -476,7 +476,7 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
     SIDOARJO:  ["SIDOARJO", "SIDOARJO BPN_SMD", "MANOKWARI", "NTT", "SORONG"],
 };
 
-const normalizeBranchValue = (branch?: string | null): string =>
+export const normalizeBranchValue = (branch?: string | null): string =>
     String(branch ?? "").trim().replace(/_+/g, " ").replace(/\s+/g, " ").toUpperCase();
 
 export const isBranchSupportRole = (role: string | string[] | undefined | null): boolean =>
@@ -501,8 +501,10 @@ export const getSessionBranchCoverage = (): string[] => {
 export const getBranchGroupForBranch = (branch?: string | null): { name: string; branches: string[] } | null => {
     const upper = normalizeBranchValue(branch);
     if (!upper) return null;
-    const entry = Object.entries(BRANCH_GROUPS).find(([, group]) => group.includes(upper));
-    return entry ? { name: entry[0], branches: entry[1] } : null;
+    const entry = Object.entries(BRANCH_GROUPS).find(([, group]) =>
+        group.map(normalizeBranchValue).includes(upper)
+    );
+    return entry ? { name: entry[0], branches: entry[1].map(normalizeBranchValue) } : null;
 };
 
 export const getAccessibleBranchesForUser = (

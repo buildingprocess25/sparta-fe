@@ -45,6 +45,7 @@ import {
     getAccessibleBranchesForUser,
     getSessionBranchCoverage,
     canAccessBranchForUser,
+    normalizeBranchValue,
 } from '@/lib/constants';
 
 // =============================================================================
@@ -2049,7 +2050,7 @@ export default function DaftarDokumenPage() {
         return listData.filter(item => {
             // Cabang filter (HO only)
             if (cabangFilter) {
-                if (item.cabang.toUpperCase() !== cabangFilter.toUpperCase()) return false;
+                if (normalizeBranchValue(item.cabang) !== normalizeBranchValue(cabangFilter)) return false;
             }
             // Search filter
             if (q) {
