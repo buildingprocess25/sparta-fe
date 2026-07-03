@@ -209,7 +209,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const { showAlert } = useGlobalAlert();
     const isSuperHuman = userInfo.isSuperHuman ?? false;
     const isReadOnly = isViewOnlyUser(userInfo.role, isSuperHuman);
-    const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const canLockOpnameFinal = userInfo.role
         .split(',')
         .map(role => role.trim().toUpperCase())
@@ -264,23 +263,16 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             .then(([res, instruksiRes]) => {
                 const data = res.data || [];
                 const filtered = data.filter(item => {
-                    const matchCabang = canSeeAllBranches || !userInfo.cabang
-                        ? true
-                        : item.cabang?.toUpperCase() === userInfo.cabang.toUpperCase();
                     const isApproved = item.status?.toUpperCase().includes('DISETUJUI') ||
                         item.status?.toUpperCase().includes('APPROVED');
-                    return matchCabang && isApproved;
+                    return isApproved;
                 });
-                const ilProjects = mapApprovedInstruksiToOpnameProjects(instruksiRes.data || [])
-                    .filter(item => {
-                        if (canSeeAllBranches || !userInfo.cabang) return true;
-                        return item.cabang?.toUpperCase() === userInfo.cabang.toUpperCase();
-                    });
+                const ilProjects = mapApprovedInstruksiToOpnameProjects(instruksiRes.data || []);
                 setRabList(mergeOpnameProjects(filtered, ilProjects));
             })
             .catch(err => console.error("Gagal memuat RAB list:", err))
             .finally(() => setIsLoading(false));
-    }, [userInfo.cabang, canSeeAllBranches]);
+    }, []);
 
     // Filter RAB List by search
     const filteredRabList = useMemo(() => {
