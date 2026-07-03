@@ -2386,6 +2386,12 @@ function formatDateForPengawasan(date: Date): string {
     return `${dd}/${mm}/${yyyy}`;
 }
 
+function isReasonableWorkStartDate(date: Date | null): date is Date {
+    if (!date || Number.isNaN(date.getTime())) return false;
+    const year = date.getFullYear();
+    return year >= 2024 && year <= new Date().getFullYear() + 1;
+}
+
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
 function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange }: any) {
     const { showAlert } = useGlobalAlert();
@@ -2403,6 +2409,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
     const [currentPengawasanPdfLink, setCurrentPengawasanPdfLink] = useState<string | null>(null);
+
+    const getEffectiveWorkStart = useCallback(() => {
+        const spkStart = parseDateAny(spkInfo?.startDate || '');
+        if (isReasonableWorkStartDate(spkStart)) {
+            return formatDateForInput(spkStart);
+        }
+
+        const projectStart = parseDateAny(projectData?.startDate || '');
+        if (projectStart && !Number.isNaN(projectStart.getTime())) {
+            return formatDateForInput(projectStart);
+        }
+
+        return new Date().toISOString().split('T')[0];
+    }, [spkInfo?.startDate, projectData?.startDate]);
 
     const showInstruksiToast = useCallback((message: string, type: 'success' | 'error') => {
         setInstruksiToast({ message, type });
@@ -2423,7 +2443,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         setHasLoadedInitial(false);
         setIsLoadingHistory(true);
         const clickedDate = parseDateAny(activeHeaderClick.dateString);
-        const fallbackStart = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
+        const fallbackStart = getEffectiveWorkStart();
         const fallbackDate = new Date(fallbackStart.split('T')[0] + 'T00:00:00');
         fallbackDate.setDate(fallbackDate.getDate() + (activeHeaderClick?.dayIndex || 0));
         const dDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackDate;
@@ -2574,7 +2594,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 setIsLoadingHistory(false);
             });
         });
-    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick]);
+    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
     
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
@@ -2584,7 +2604,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
-        const effectiveStart = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
+        const effectiveStart = getEffectiveWorkStart();
         const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         const checkpointDate = parseDateAny(activeHeaderClick.dateString);
         let day = activeHeaderClick.dayIndex;
@@ -2698,7 +2718,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys, spkInfo, projectData]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys, getEffectiveWorkStart]);
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
@@ -2783,7 +2803,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (datesInNumeric.length === 0) return false;
         const maxDate = datesInNumeric[datesInNumeric.length - 1];
         
-        const effectiveStart = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
+        const effectiveStart = getEffectiveWorkStart();
         const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         const checkpointDate = parseDateAny(activeHeaderClick.dateString);
         let offset = activeHeaderClick.dayIndex || 0;
@@ -2800,7 +2820,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
         
         return maxDate === currentNumeric;
-    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick]);
+    }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
     const isSubmitValid = useMemo(() => {
         // Kasus khusus: semua pekerjaan sudah Selesai (memoConfig kosong), 
@@ -2896,7 +2916,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const hasNextHandoverAction = isLastSupervisionDay && hasLateItems && !!nextHandoverDate;
 
             const clickedDate = parseDateAny(activeHeaderClick?.dateString || '');
-            const effectiveStartForSubmit = projectData?.startDate || spkInfo?.startDate || new Date().toISOString().split('T')[0];
+            const effectiveStartForSubmit = getEffectiveWorkStart();
             const fallbackSubmitDate = new Date(effectiveStartForSubmit.split('T')[0] + 'T00:00:00');
             fallbackSubmitDate.setDate(fallbackSubmitDate.getDate() + (activeHeaderClick?.dayIndex || 0));
             const submitDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackSubmitDate;
