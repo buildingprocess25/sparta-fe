@@ -3,7 +3,7 @@
 // Handles caching, offline support, push notifications, and navigation.
 // =============================================================================
 
-const CACHE_NAME = 'sparta-v10-20260629-complete-task-notifications';
+const CACHE_NAME = 'sparta-v11-20260703-safe-navigation-fallback';
 
 // Static assets to cache on install for offline shell
 const STATIC_ASSETS = [
@@ -63,6 +63,37 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request)
+                .then((response) => {
+                    if (response.status === 200) {
+                        const responseClone = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
+                            cache.put(request, responseClone);
+                        });
+                    }
+                    return response;
+                })
+                .catch(async () => {
+                    const cachedPage = await caches.match(request);
+                    if (cachedPage) return cachedPage;
+
+                    const cachedHome = await caches.match('/');
+                    if (cachedHome) return cachedHome;
+
+                    return new Response(
+                        '<!doctype html><html><head><meta charset="utf-8"><title>SPARTA Offline</title></head><body><p>SPARTA sedang tidak dapat dimuat. Silakan refresh beberapa saat lagi.</p></body></html>',
+                        {
+                            status: 503,
+                            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+                        }
+                    );
+                })
+        );
+        return;
+    }
+
     event.respondWith(
         fetch(request)
             .then((response) => {
@@ -79,11 +110,6 @@ self.addEventListener('fetch', (event) => {
                 // Fallback to cache if network fails
                 return caches.match(request).then((cachedResponse) => {
                     if (cachedResponse) return cachedResponse;
-
-                    // For navigation requests, return the cached homepage
-                    if (request.mode === 'navigate') {
-                        return caches.match('/');
-                    }
 
                     return Response.error();
                 });

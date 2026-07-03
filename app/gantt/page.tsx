@@ -221,6 +221,7 @@ function GanttBoard() {
     const urlUlok = searchParams.get('ulok');
     const urlIdToko = searchParams.get('id_toko');
     const urlIdRab = searchParams.get('id_rab');
+    const urlLocked = searchParams.get('locked');
 
     const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
     const [userRole, setUserRole] = useState('');
@@ -372,6 +373,15 @@ function GanttBoard() {
             const response = await fetchSupervisionWorkspace(nomorUlok);
             setSupervisionWorkspace(response.data);
             setSelectedUlok(formatUlokWithDash(nomorUlok));
+            const scopedSpkIds = new Set<number>();
+            (response.data?.scopes || []).forEach((scope: any) => {
+                if (scope?.spk_start_date || scope?.spk_duration) {
+                    scopedSpkIds.add(Number(scope.id_toko));
+                }
+            });
+            if (scopedSpkIds.size > 0) {
+                setSpkTokoIds(scopedSpkIds);
+            }
         } catch (error: any) {
             setSupervisionWorkspace(null);
             showAlert({ message: error?.message || "Gagal memuat workspace pengawasan.", type: "error" });
@@ -558,9 +568,12 @@ function GanttBoard() {
                 .catch(err => console.error("Gagal memuat list Gantt Chart:", err));
         }
 
-        const urlLocked = searchParams.get('locked');
         if (!urlLocked && !urlUlok) {
             setIsDirectAccess(true);
+        }
+
+        if (urlUlok) {
+            return;
         }
 
         if (currentAppMode === 'pic') {
@@ -617,7 +630,7 @@ function GanttBoard() {
                 .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
         }
         
-    }, [user, urlIdToko, urlIdRab]);
+    }, [user, urlIdToko, urlIdRab, urlLocked, urlUlok, loadSupervisionWorkspace, router, showAlert]);
 
     const loadDataByRab = async (idRab: number, fallbackIdToko?: number) => {
         setIsLoading(true);
