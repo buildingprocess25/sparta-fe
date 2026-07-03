@@ -287,6 +287,31 @@ export default function UnifiedSupervisionGantt({
         };
     }, [workspace, workspaceTimeline]);
 
+    const activeScopeIdsByDate = useMemo(() => {
+        const map = new Map<string, Set<number>>();
+        if (!timeline) return map;
+
+        timeline.dates.forEach((date, dayIndex) => {
+            const absoluteDay = dayIndex + 1;
+            const scopeIds = new Set<number>();
+
+            details.forEach((scope) => {
+                const hasActiveBar = scope.rows.some((row) =>
+                    row.bars.some((bar) => {
+                        const start = Math.max(1, bar.start);
+                        const end = bar.end + Math.max(0, bar.delay);
+                        return start <= absoluteDay && absoluteDay <= end;
+                    })
+                );
+                if (hasActiveBar) scopeIds.add(Number(scope.id_toko));
+            });
+
+            map.set(formatFullDate(date), scopeIds);
+        });
+
+        return map;
+    }, [details, timeline]);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center border-y border-slate-200 bg-white py-16 text-slate-500">
@@ -371,6 +396,13 @@ export default function UnifiedSupervisionGantt({
                         {timeline.dates.map((date, dayIndex) => {
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
+                            const activeScopeIds = activeScopeIdsByDate.get(fullDate) ?? new Set<number>();
+                            const actionableCheckpoint = checkpoint && activeScopeIds.size > 0
+                                ? {
+                                    ...checkpoint,
+                                    scopes: (checkpoint.scopes || []).filter((scope) => activeScopeIds.has(Number(scope.id_toko))),
+                                }
+                                : checkpoint;
                             const readyCount = Number(checkpoint?.ready_opname_items || 0);
                             const opnameCount = Number(checkpoint?.opname_items || 0);
                             const isReady = readyCount > 0;
@@ -380,7 +412,7 @@ export default function UnifiedSupervisionGantt({
                                     key={fullDate}
                                     type="button"
                                     disabled={!checkpoint}
-                                    onClick={() => checkpoint && onCheckpointClick(checkpoint, dayIndex)}
+                                    onClick={() => actionableCheckpoint && onCheckpointClick(actionableCheckpoint, dayIndex)}
                                     className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${
                                         isReady
                                             ? "bg-red-600 text-white ring-2 ring-inset ring-red-200"
