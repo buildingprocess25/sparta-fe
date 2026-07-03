@@ -269,7 +269,7 @@ const normalizeCompanyName = (value?: string | null) => {
 
 const isPendingApprovalStatus = (status?: string | null) => {
     const upper = String(status ?? '').trim().toUpperCase();
-    return upper.includes('MENUNGGU') || upper.startsWith('PENDING');
+    return upper.includes('MENUNGGU') || upper.startsWith('PENDING') || upper.startsWith('WAITING');
 };
 
 const isCoordinatorApprovalStatus = (status?: string | null) => {
