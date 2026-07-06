@@ -315,7 +315,7 @@ export default function TarikanDataPage() {
                     </div>
 
                     <div className="grid gap-5 border-b border-slate-100 p-5 lg:grid-cols-[1.1fr_1fr]">
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-3">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-2">
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Tahun</label>
                                 <select disabled={periodMode === "all"} value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-red-300 disabled:opacity-50 disabled:bg-slate-100 disabled:cursor-not-allowed">
@@ -406,43 +406,6 @@ export default function TarikanDataPage() {
                                 </DropdownMenu>
                             </div>
                             <div>
-                                <label className="text-xs font-black uppercase text-slate-500">Item Pekerjaan</label>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0 ? "Semua item" : selectedJobTypes.size === 0 ? "Belum memilih" : `${selectedJobTypes.size} item`}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
-                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2">
-                                            <span>Item pekerjaan</span>
-                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
-                                        </DropdownMenuLabel>
-                                        <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
-                                        <div className="p-1">
-                                            <DropdownMenuCheckboxItem
-                                                checked={selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0}
-                                                onSelect={(e) => e.preventDefault()}
-                                                onCheckedChange={(checked) => {
-                                                    if (checked) setSelectedJobTypes(new Set(availableJobTypes));
-                                                    else setSelectedJobTypes(new Set());
-                                                }}
-                                                className="font-black text-slate-900"
-                                            >
-                                                Pilih Semua Item
-                                            </DropdownMenuCheckboxItem>
-                                        </div>
-                                        <DropdownMenuSeparator />
-                                        {availableJobTypes.map((jobType) => (
-                                            <DropdownMenuCheckboxItem key={jobType} checked={selectedJobTypes.has(jobType)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedJobTypes, jobType)}>
-                                                {jobType}
-                                            </DropdownMenuCheckboxItem>
-                                        ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                            <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Status SPK</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -482,6 +445,46 @@ export default function TarikanDataPage() {
                                         </span>
                                     </label>
                                 ))}
+                            </div>
+                            <div className="mt-5 border-t border-slate-100 pt-4">
+                                <div className="flex items-center gap-2 text-sm font-black text-slate-900"><FileText className="h-4 w-4 text-red-600" />Item pekerjaan</div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-3 h-11 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-sm font-black text-slate-900 hover:border-red-200 hover:bg-red-50/40">
+                                            <span className="truncate">
+                                                {selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0 ? "Semua item" : selectedJobTypes.size === 0 ? "Belum memilih" : `${selectedJobTypes.size} item dipilih`}
+                                            </span>
+                                            <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="max-h-80 w-80 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2">
+                                            <span>Item pekerjaan</span>
+                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
+                                        <div className="p-1">
+                                            <DropdownMenuCheckboxItem
+                                                checked={selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0}
+                                                onSelect={(e) => e.preventDefault()}
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) setSelectedJobTypes(new Set(availableJobTypes));
+                                                    else setSelectedJobTypes(new Set());
+                                                }}
+                                                className="font-black text-slate-900"
+                                            >
+                                                Pilih Semua Item
+                                            </DropdownMenuCheckboxItem>
+                                        </div>
+                                        <DropdownMenuSeparator />
+                                        {availableJobTypes.map((jobType) => (
+                                            <DropdownMenuCheckboxItem key={jobType} checked={selectedJobTypes.has(jobType)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedJobTypes, jobType)} className="text-xs font-semibold text-slate-700">
+                                                {jobType}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <p className="mt-2 text-xs font-medium text-slate-500">Pilih item pekerjaan yang ingin ikut masuk ke file export.</p>
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-2">
                                 {formatOptions.map((format) => (
