@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import AppNavbar from "@/components/AppNavbar";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/context/SessionContext";
@@ -21,7 +22,7 @@ import {
     type SpReason,
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
-import { AlertTriangle, CheckCircle2, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle } from "lucide-react";
 
 const SP_REASON_LABELS: Record<SpReason, string> = {
     KETERLAMBATAN: "Keterlambatan",
@@ -55,16 +56,21 @@ export default function SuratPeringatanPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [openDropdown, setOpenDropdown] = useState(false);
 
     const selected = useMemo(
-        () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? candidates[0] ?? null,
+        () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? null,
         [candidates, selectedId]
     );
 
     const filteredCandidates = useMemo(() => {
         const q = normalize(search);
-        if (!q) return candidates;
-        return candidates.filter((candidate) => [
+        const baseCandidates = reason === "KETERLAMBATAN"
+            ? candidates.filter((c) => c.hari_denda > 0)
+            : candidates;
+
+        if (!q) return baseCandidates;
+        return baseCandidates.filter((candidate) => [
             candidate.nomor_ulok,
             candidate.nama_toko,
             candidate.kode_toko,
@@ -72,7 +78,13 @@ export default function SuratPeringatanPage() {
             candidate.cabang,
             candidate.nomor_spk,
         ].some((value) => normalize(value).includes(q)));
-    }, [candidates, search]);
+    }, [candidates, search, reason]);
+
+    useEffect(() => {
+        if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0) {
+            setSelectedId(null);
+        }
+    }, [reason, selected]);
 
     const pendingActions = actions.filter((action) => action.action_type === "SP" && action.status === "WAITING_MANAGER");
     const approvedActions = actions.filter((action) => action.action_type === "SP" && action.status !== "WAITING_MANAGER");
@@ -168,123 +180,129 @@ export default function SuratPeringatanPage() {
         <div className="min-h-screen bg-slate-100 text-slate-900">
             <AppNavbar title="Surat Peringatan" showBackButton backHref="/dashboard" showLogout onLogout={logout} variant="clean" />
 
-            <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-5 md:px-6">
-                <section className="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
+            <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-5 md:px-6">
+                <section className="grid gap-3">
                     <Card className="rounded-lg border-slate-200 shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <CardContent className="p-5 md:p-6">
+                            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600">Kandidat SP</p>
-                                    <h1 className="text-xl font-black text-slate-950">Kontraktor Proyek Aktif</h1>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600 font-sans">Form SP</p>
+                                    <h2 className="text-2xl font-black text-red-600 font-sans mt-0.5">Pengajuan Surat Peringatan</h2>
                                 </div>
-                                <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-2">
-                                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                                    Refresh
-                                </Button>
-                            </div>
-
-                            <div className="mt-4 flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3">
-                                <Search className="h-4 w-4 text-slate-400" />
-                                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari ULOK, toko, kontraktor" className="border-0 px-0 shadow-none focus-visible:ring-0" />
-                            </div>
-
-                            <div className="mt-4 grid gap-2">
-                                {loading ? (
-                                    <div className="flex h-40 items-center justify-center text-sm font-semibold text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memuat data</div>
-                                ) : filteredCandidates.length === 0 ? (
-                                    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">Tidak ada kandidat SP.</div>
-                                ) : filteredCandidates.map((candidate) => {
-                                    const active = candidate.id_toko === selected?.id_toko;
-                                    return (
-                                        <button
-                                            key={candidate.id_toko}
-                                            type="button"
-                                            onClick={() => setSelectedId(candidate.id_toko)}
-                                            className={`rounded-md border p-3 text-left transition ${active ? "border-red-300 bg-red-50" : "border-slate-200 bg-white hover:border-red-200"}`}
-                                        >
-                                            <div className="flex flex-wrap items-start justify-between gap-2">
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-950">{candidate.nomor_ulok || "-"} · {candidate.nama_toko || "-"}</p>
-                                                    <p className="mt-1 text-xs font-semibold text-slate-500">{candidate.nama_kontraktor || "Kontraktor belum terisi"}</p>
-                                                </div>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {candidate.hari_denda > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700">{candidate.hari_denda} hari</Badge> : null}
-                                                    <Badge className="border-amber-200 bg-amber-50 text-amber-700">SP ke-{candidate.next_sp_level ?? "-"}</Badge>
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-                                                <span>{candidate.cabang || "-"}</span>
-                                                <span>{candidate.lingkup_pekerjaan || "-"}</span>
-                                                <span>{formatRupiah(parseCurrency(candidate.nilai_denda))}</span>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="rounded-lg border-slate-200 shadow-sm">
-                        <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600">Form SP</p>
-                                    <h2 className="text-lg font-black text-slate-950">Pengajuan Surat Peringatan</h2>
-                                </div>
-                                {selected?.has_pending_approval ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">Pending</Badge> : null}
-                            </div>
-
-                            {selected ? (
-                                <div className="mt-4 space-y-4">
-                                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                                        <p className="text-sm font-black text-slate-950">{selected.nama_kontraktor || "-"}</p>
-                                        <p className="mt-1 text-xs font-semibold text-slate-500">{selected.nomor_ulok || "-"} · {selected.nomor_spk || "SPK belum terisi"}</p>
-                                    </div>
-
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        <div>
-                                            <Label>SP Ke</Label>
-                                            <Input value={selected.next_sp_level ? `SP ${selected.next_sp_level}` : "Maksimal"} disabled className="mt-1" />
-                                        </div>
-                                        <div>
-                                            <Label>Alasan SP</Label>
-                                            <Select value={reason} onValueChange={(value) => setReason(value as SpReason)}>
-                                                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    {Object.entries(SP_REASON_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    {reason === "KETERLAMBATAN" ? (
-                                        <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">
-                                            {selected.hari_denda} hari keterlambatan · {formatRupiah(parseCurrency(selected.nilai_denda))}
-                                        </div>
-                                    ) : null}
-
-                                    <div>
-                                        <Label>Catatan</Label>
-                                        <Textarea value={note} onChange={(event) => setNote(event.target.value)} className="mt-1 min-h-28" />
-                                    </div>
-
-                                    <div>
-                                        <Label>Lampiran</Label>
-                                        <label className="mt-1 flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-sm font-semibold text-slate-500 hover:border-red-300 hover:bg-red-50">
-                                            <Upload className="mb-2 h-5 w-5" />
-                                            {file ? file.name : "Upload lampiran pendukung"}
-                                            <input type="file" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-                                        </label>
-                                    </div>
-
-                                    <Button className="w-full bg-red-600 font-black hover:bg-red-700" onClick={submitSp} disabled={!userCanSubmit || submitting || selected.has_pending_approval || !selected.next_sp_level}>
-                                        {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                                        Ajukan SP
+                                <div className="flex items-center gap-2">
+                                    {selected?.has_pending_approval ? <Badge className="border-amber-200 bg-amber-50 text-amber-700 hidden sm:inline-flex">Pending</Badge> : null}
+                                    <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-2">
+                                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                                        <span className="hidden sm:inline">Refresh</span>
                                     </Button>
                                 </div>
-                            ) : (
-                                <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">Pilih kandidat SP.</div>
-                            )}
+                            </div>
+
+                            <div className="mt-6 space-y-5">
+                                {/* Alasan SP */}
+                                <div>
+                                    <Label className="text-slate-700 font-bold mb-1.5 block">Alasan SP</Label>
+                                    <Select value={reason} onValueChange={(value) => setReason(value as SpReason)}>
+                                        <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(SP_REASON_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Kandidat SP Dropdown */}
+                                <div>
+                                    <Label className="text-slate-700 font-bold mb-1.5 block">Pilih Kandidat (ULOK)</Label>
+                                    <Popover open={openDropdown} onOpenChange={setOpenDropdown}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-between h-auto min-h-12 py-2.5 px-3.5 text-left font-normal border-slate-300 hover:bg-slate-50/50">
+                                                {selected ? (
+                                                    <div className="flex flex-col gap-0.5 items-start">
+                                                        <span className="font-bold text-slate-950 text-sm">{selected.nomor_ulok || "-"} · {selected.nama_toko || "-"}</span>
+                                                        <span className="text-xs font-medium text-slate-500">{selected.nama_kontraktor || "Kontraktor belum terisi"}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-500">Pilih kandidat...</span>
+                                                )}
+                                                <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                            <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5 bg-slate-50/50">
+                                                <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                                                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari ULOK, toko, kontraktor" className="border-0 px-0 shadow-none focus-visible:ring-0 h-8 bg-transparent" />
+                                            </div>
+                                            <div className="max-h-72 overflow-y-auto p-1.5 grid gap-1">
+                                                {loading ? (
+                                                    <div className="p-4 text-center text-sm font-medium text-slate-500">Memuat data...</div>
+                                                ) : filteredCandidates.length === 0 ? (
+                                                    <div className="p-4 text-center text-sm font-medium text-slate-500">Tidak ada kandidat ditemukan.</div>
+                                                ) : (
+                                                    filteredCandidates.map((candidate) => (
+                                                        <button
+                                                            key={candidate.id_toko}
+                                                            type="button"
+                                                            onClick={() => { setSelectedId(candidate.id_toko); setOpenDropdown(false); }}
+                                                            className={`w-full flex flex-col gap-1 rounded-md p-2.5 text-left transition hover:bg-slate-100 ${selectedId === candidate.id_toko ? "bg-red-50 text-red-950 hover:bg-red-100" : "text-slate-700"}`}
+                                                        >
+                                                            <div className="flex justify-between items-start gap-2 w-full">
+                                                                <span className="font-bold text-sm text-slate-950 line-clamp-1">{candidate.nomor_ulok} · {candidate.nama_toko}</span>
+                                                                <div className="flex gap-1 shrink-0">
+                                                                    {candidate.hari_denda > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700 text-[10px] px-1.5 py-0">Late {candidate.hari_denda}d</Badge> : null}
+                                                                    <Badge className="border-amber-200 bg-amber-50 text-amber-700 text-[10px] px-1.5 py-0">SP {candidate.next_sp_level ?? "-"}</Badge>
+                                                                </div>
+                                                            </div>
+                                                            <span className="text-xs font-semibold text-slate-500 line-clamp-1">{candidate.nama_kontraktor}</span>
+                                                            <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-semibold text-slate-400">
+                                                                <span>{candidate.cabang || "-"}</span>
+                                                                <span>{candidate.lingkup_pekerjaan || "-"}</span>
+                                                            </div>
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                {selected ? (
+                                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <div>
+                                                <Label className="text-slate-700 font-bold mb-1.5 block">SP Ke</Label>
+                                                <Input value={selected.next_sp_level ? `Surat Peringatan ${selected.next_sp_level}` : "Maksimal"} disabled className="h-11 font-medium bg-slate-50" />
+                                            </div>
+                                            {reason === "KETERLAMBATAN" ? (
+                                                <div>
+                                                    <Label className="text-slate-700 font-bold mb-1.5 block">Total Denda</Label>
+                                                    <div className="flex h-11 items-center rounded-md border border-red-200 bg-red-50 px-3 text-sm font-bold text-red-700">
+                                                        {formatRupiah(parseCurrency(selected.nilai_denda))}
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </div>
+
+                                        <div>
+                                            <Label className="text-slate-700 font-bold mb-1.5 block">Catatan</Label>
+                                            <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Masukkan catatan tambahan jika ada..." className="min-h-24 resize-none" />
+                                        </div>
+
+                                        <div>
+                                            <Label className="text-slate-700 font-bold mb-1.5 block">Lampiran</Label>
+                                            <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-sm font-semibold text-slate-500 transition hover:border-red-300 hover:bg-red-50/50">
+                                                <Upload className="mb-2 h-5 w-5 text-slate-400" />
+                                                <span className="text-slate-600">{file ? file.name : "Klik untuk upload lampiran pendukung"}</span>
+                                                <input type="file" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+                                            </label>
+                                        </div>
+
+                                        <Button className="w-full h-11 bg-red-600 font-black text-sm tracking-wide shadow-sm hover:bg-red-700 hover:shadow-md transition-all" onClick={submitSp} disabled={!userCanSubmit || submitting || selected.has_pending_approval || !selected.next_sp_level}>
+                                            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                                            {selected.has_pending_approval ? "SP Sedang Diajukan (Pending)" : "Ajukan Surat Peringatan"}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </div>
                         </CardContent>
                     </Card>
                 </section>
