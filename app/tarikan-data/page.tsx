@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -60,7 +60,6 @@ const dataTypeOptions: DataTypeOption[] = [
     { id: "rab", label: "RAB & Luasan", desc: "Status RAB, total penawaran, area, GO, dan approval." },
     { id: "spk", label: "SPK", desc: "Tanggal, durasi, nominal, pertambahan, dan real SPK." },
     { id: "opname", label: "Opname & Denda", desc: "Serah terima, keterlambatan, denda, tambah kurang." },
-    { id: "investasi", label: "Investasi", desc: "Investasi bangunan, area terbuka, dan non SBO." },
 ];
 
 const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: string }> = [
@@ -123,8 +122,7 @@ export default function TarikanDataPage() {
     }, [projects, roles, user]);
 
     useEffect(() => {
-        if (selectedBranches.size > 0 || allowedBranches.length === 0) return;
-        setSelectedBranches(new Set(allowedBranches));
+        // removed auto-select branches effect to start empty
     }, [allowedBranches, selectedBranches.size]);
 
     useEffect(() => {
@@ -237,7 +235,7 @@ export default function TarikanDataPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+        <div className="min-h-screen bg-slate-50 text-slate-900">
             <AppNavbar title="Tarikan Data" showBackButton backHref="/dashboard" variant="brand" />
             <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
                 <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -265,37 +263,51 @@ export default function TarikanDataPage() {
                         </div>
                     </div>
 
-                    <div className="grid gap-4 border-b border-slate-100 p-5 lg:grid-cols-[1.1fr_1fr]">
-                        <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
+                    <div className="grid gap-5 border-b border-slate-100 p-5 lg:grid-cols-[1.1fr_1fr]">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-3">
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Tahun</label>
-                                <select value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-red-300">
+                                <select disabled={periodMode === "all"} value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value))} className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-red-300 disabled:opacity-50 disabled:bg-slate-100 disabled:cursor-not-allowed">
                                     {availableYears.map((year) => <option key={year} value={year}>{year}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Periode</label>
-                                <div className="mt-2 grid grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-white p-1">
-                                    {(["ytd", "months", "all"] as PeriodMode[]).map((mode) => (
-                                        <button key={mode} type="button" onClick={() => setPeriodMode(mode)} className={`h-8 rounded-md text-xs font-black ${periodMode === mode ? "bg-red-700 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-                                            {mode === "ytd" ? "YTD" : mode === "months" ? "Bulan" : "Semua"}
-                                        </button>
-                                    ))}
-                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
+                                            {periodMode === "ytd" ? "YTD" : periodMode === "months" ? "Bulan" : "Semua"}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-full min-w-[200px]">
+                                        <DropdownMenuLabel>Pilih mode periode</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {(["ytd", "months", "all"] as PeriodMode[]).map((mode) => (
+                                            <DropdownMenuCheckboxItem key={mode} checked={periodMode === mode} onCheckedChange={() => setPeriodMode(mode)}>
+                                                {mode === "ytd" ? "Year-to-Date (YTD)" : mode === "months" ? "Pilih Bulan" : "Semua Periode"}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Bulan</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {monthLabel}<ChevronDown className="h-4 w-4" />
+                                        <Button disabled={periodMode !== "months"} variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold disabled:opacity-50 disabled:bg-slate-100 disabled:cursor-not-allowed">
+                                            {periodMode === "ytd" ? "Otomatis (YTD)" : periodMode === "all" ? "Otomatis (Semua)" : monthLabel}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-56">
-                                        <DropdownMenuLabel>Pilih bulan</DropdownMenuLabel>
+                                    <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
+                                        <DropdownMenuLabel className="flex items-center justify-between">
+                                            <span>Pilih bulan</span>
+                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
+                                        </DropdownMenuLabel>
                                         <DropdownMenuSeparator />
                                         {monthOptions.map((month) => (
-                                            <DropdownMenuCheckboxItem key={month.value} checked={selectedMonths.has(month.value)} onCheckedChange={() => toggleSetValue(setSelectedMonths, month.value)}>
+                                            <DropdownMenuCheckboxItem key={month.value} checked={selectedMonths.has(month.value)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedMonths, month.value)}>
                                                 {month.label}
                                             </DropdownMenuCheckboxItem>
                                         ))}
@@ -304,20 +316,38 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-2">
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Cabang</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedBranches.size === allowedBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}<ChevronDown className="h-4 w-4" />
+                                            {selectedBranches.size === 0 ? "Belum ada cabang" : selectedBranches.size === allowedBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
-                                        <DropdownMenuLabel>Cabang tersedia</DropdownMenuLabel>
+                                    <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2">
+                                            <span>Cabang tersedia</span>
+                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
+                                        <div className="p-1">
+                                            <DropdownMenuCheckboxItem
+                                                checked={selectedBranches.size === allowedBranches.length && allowedBranches.length > 0}
+                                                onSelect={(e) => e.preventDefault()}
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) setSelectedBranches(new Set(allowedBranches));
+                                                    else setSelectedBranches(new Set());
+                                                }}
+                                                className="font-black text-slate-900"
+                                            >
+                                                Pilih Semua Cabang
+                                            </DropdownMenuCheckboxItem>
+                                        </div>
                                         <DropdownMenuSeparator />
                                         {allowedBranches.map((branch) => (
-                                            <DropdownMenuCheckboxItem key={branch} checked={selectedBranches.has(branch)} onCheckedChange={() => toggleSetValue(setSelectedBranches, branch)}>
+                                            <DropdownMenuCheckboxItem key={branch} checked={selectedBranches.has(branch)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedBranches, branch)}>
                                                 {branch}
                                             </DropdownMenuCheckboxItem>
                                         ))}
@@ -326,15 +356,27 @@ export default function TarikanDataPage() {
                             </div>
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Status SPK</label>
-                                <div className="mt-2 grid grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-white p-1">
-                                    {([
-                                        ["all", "Kedua"],
-                                        ["with_spk", "Sudah"],
-                                        ["without_spk", "Belum"],
-                                    ] as Array<[SpkStatus, string]>).map(([value, label]) => (
-                                        <button key={value} type="button" onClick={() => setSpkStatus(value)} className={`h-8 rounded-md text-xs font-black ${spkStatus === value ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}</button>
-                                    ))}
-                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
+                                            {spkStatus === "all" ? "Kedua Status" : spkStatus === "with_spk" ? "Sudah SPK" : "Belum SPK"}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-full min-w-[200px]">
+                                        <DropdownMenuLabel>Status SPK</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {([
+                                            ["all", "Kedua Status"],
+                                            ["with_spk", "Sudah SPK"],
+                                            ["without_spk", "Belum SPK"],
+                                        ] as Array<[SpkStatus, string]>).map(([value, label]) => (
+                                            <DropdownMenuCheckboxItem key={value} checked={spkStatus === value} onCheckedChange={() => setSpkStatus(value)}>
+                                                {label}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
                     </div>
@@ -369,11 +411,7 @@ export default function TarikanDataPage() {
                             <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                    <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari toko, ULOK, kode toko, cabang..." className="h-10 rounded-lg border-slate-200 pl-9 font-semibold" />
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button variant="outline" className="rounded-lg font-bold" onClick={selectVisible}>Pilih hasil</Button>
-                                    <Button variant="ghost" className="rounded-lg font-bold text-slate-500" onClick={clearSelection}><X className="mr-1 h-4 w-4" />Bersihkan</Button>
+                                    <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari toko, ULOK, kode toko, cabang..." className="h-10 rounded-lg border-slate-200 pl-9 font-semibold transition-all focus:border-red-400 focus:ring-1 focus:ring-red-400" />
                                 </div>
                             </div>
 
@@ -383,9 +421,18 @@ export default function TarikanDataPage() {
                                 <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</div>
                             ) : (
                                 <div className="divide-y divide-slate-100">
-                                    <div className="flex items-center justify-between bg-slate-50 px-4 py-3 text-xs font-black uppercase text-slate-500">
-                                        <span>{selectedVisibleCount} dari {filteredProjects.length} hasil terlihat dipilih</span>
-                                        <span>{monthLabel}</span>
+                                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                                        <label className="flex cursor-pointer items-center gap-2 text-xs font-black uppercase text-slate-600 hover:text-slate-900">
+                                            <Checkbox 
+                                                checked={selectedVisibleCount === filteredProjects.length && filteredProjects.length > 0} 
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) selectVisible();
+                                                    else clearSelection();
+                                                }}
+                                            />
+                                            <span>Pilih Semua ({selectedVisibleCount}/{filteredProjects.length})</span>
+                                        </label>
+                                        <span className="text-xs font-bold text-slate-500">{periodMode === "ytd" ? "YTD" : periodMode === "all" ? "Semua Periode" : monthLabel}</span>
                                     </div>
                                     <div className="max-h-[560px] overflow-y-auto">
                                         {filteredProjects.length === 0 ? (
