@@ -27,7 +27,6 @@ import { downloadDashboardExport, fetchDashboardAll, type DashboardExportFormat 
 import { formatRupiah } from "@/lib/utils";
 import {
     AlertCircle,
-    BriefcaseBusiness,
     Building2,
     CalendarDays,
     CheckCircle2,
@@ -72,8 +71,34 @@ const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: s
 const normalizeText = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase();
 const projectId = (project: any) => Number(project?.toko?.id || 0);
 const projectBranch = (project: any) => normalizeBranchValue(project?.toko?.cabang);
-const projectJobType = (project: any) => normalizeText(project?.toko?.lingkup_pekerjaan);
 const hasSpk = (project: any) => Array.isArray(project?.spk) && project.spk.length > 0;
+
+const collectProjectWorkItems = (project: any): string[] => {
+    const values: string[] = [];
+    const push = (value: unknown) => {
+        const normalized = normalizeText(value);
+        if (normalized) values.push(normalized);
+    };
+
+    (project?.rab || []).forEach((rab: any) => {
+        (rab?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+    });
+
+    (project?.opname_final || []).forEach((opname: any) => {
+        (opname?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+    });
+
+    (project?.instruksi_lapangan || []).forEach((instruksi: any) => {
+        (instruksi?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+    });
+
+    (project?.gantt || []).forEach((gantt: any) => {
+        (gantt?.kategori_pekerjaan || []).forEach((item: any) => push(item?.kategori_pekerjaan));
+        (gantt?.pengawasan || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+    });
+
+    return Array.from(new Set(values));
+};
 
 const collectProjectDates = (project: any): Date[] => {
     const values = [
@@ -136,7 +161,7 @@ export default function TarikanDataPage() {
                     const branch = projectBranch(project);
                     return selectedBranches.size === 0 || selectedBranches.has(branch);
                 })
-                .map(projectJobType)
+                .flatMap(collectProjectWorkItems)
                 .filter(Boolean)
         )).sort();
     }, [projects, selectedBranches]);
@@ -174,9 +199,9 @@ export default function TarikanDataPage() {
         const query = normalizeText(search);
         return projects.filter((project) => {
             const branch = projectBranch(project);
-            const jobType = projectJobType(project);
+            const workItems = collectProjectWorkItems(project);
             if (selectedBranches.size > 0 && !selectedBranches.has(branch)) return false;
-            if (selectedJobTypes.size > 0 && !selectedJobTypes.has(jobType)) return false;
+            if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
             if (selectedJobTypes.size === 0) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
@@ -270,7 +295,7 @@ export default function TarikanDataPage() {
                             <div>
                                 <Badge className="border-red-100 bg-red-50 text-red-700">Export terarah</Badge>
                                 <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-950">Pilih data sebelum ditarik</h1>
-                                <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">Atur periode, cabang, jenis pekerjaan, status SPK, dan kelompok kolom. File hanya berisi data yang dicentang.</p>
+                                <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">Atur periode, cabang, item pekerjaan, status SPK, dan kelompok kolom. File hanya berisi data yang dicentang.</p>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center">
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -381,17 +406,17 @@ export default function TarikanDataPage() {
                                 </DropdownMenu>
                             </div>
                             <div>
-                                <label className="text-xs font-black uppercase text-slate-500">Jenis Pekerjaan</label>
+                                <label className="text-xs font-black uppercase text-slate-500">Item Pekerjaan</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0 ? "Semua jenis" : selectedJobTypes.size === 0 ? "Belum memilih" : `${selectedJobTypes.size} jenis`}
+                                            {selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0 ? "Semua item" : selectedJobTypes.size === 0 ? "Belum memilih" : `${selectedJobTypes.size} item`}
                                             <ChevronDown className="h-4 w-4 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
                                         <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2">
-                                            <span>Jenis pekerjaan</span>
+                                            <span>Item pekerjaan</span>
                                             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
                                         </DropdownMenuLabel>
                                         <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
@@ -405,7 +430,7 @@ export default function TarikanDataPage() {
                                                 }}
                                                 className="font-black text-slate-900"
                                             >
-                                                Pilih Semua Jenis
+                                                Pilih Semua Item
                                             </DropdownMenuCheckboxItem>
                                         </div>
                                         <DropdownMenuSeparator />
@@ -510,7 +535,6 @@ export default function TarikanDataPage() {
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <p className="truncate text-sm font-black text-slate-950">{project?.toko?.nama_toko || "-"}</p>
                                                             <Badge className="border-slate-200 bg-white font-bold text-slate-600">{project?.toko?.nomor_ulok || "-"}</Badge>
-                                                            <Badge className="bg-blue-50 text-blue-700"><BriefcaseBusiness className="mr-1 h-3 w-3" />{project?.toko?.lingkup_pekerjaan || "-"}</Badge>
                                                             {hasSpk(project) ? <Badge className="bg-emerald-50 text-emerald-700"><CheckCircle2 className="mr-1 h-3 w-3" />Sudah SPK</Badge> : <Badge className="bg-amber-50 text-amber-700">Belum SPK</Badge>}
                                                         </div>
                                                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
