@@ -2,6 +2,7 @@
 import { API_URL } from "./constants";
 
 export type DendaActionType = "SP" | "TAKEOVER";
+export type SpReason = "KETERLAMBATAN" | "MENOLAK_SPK" | "MANIPULASI";
 export type DendaActionStatus =
     | "WAITING_MANAGER"
     | "REJECTED_BY_MANAGER"
@@ -41,11 +42,14 @@ export type DendaAction = {
     nomor_ulok: string | null;
     lingkup_pekerjaan: string | null;
     cabang: string | null;
+    nama_kontraktor: string | null;
+    nomor_spk: string | null;
     action_type: DendaActionType;
     status: DendaActionStatus;
     sp_level: number | null;
     hari_denda: number;
     nilai_denda: string;
+    alasan_sp: SpReason | null;
     catatan: string | null;
     instruksi_tindak_lanjut: string | null;
     deadline_tindak_lanjut: string | null;
@@ -75,24 +79,22 @@ export type DendaAction = {
     is_active: boolean;
 };
 
-export type CreateDendaActionPayload =
-    | {
-        id_opname_final: number;
-        action_type: "SP";
-        sp_level: number;
-        catatan: string;
-        instruksi_tindak_lanjut: string;
-        deadline_tindak_lanjut: string;
-        lampiran_1_url: string;
-        lampiran_2_url: string;
-    }
-    | {
-        id_opname_final: number;
-        action_type: "TAKEOVER";
-        catatan: string;
-        lampiran_1_url?: string | null;
-        lampiran_2_url?: string | null;
-    };
+export type CreateSpActionPayload = {
+    id_opname_final: number;
+    sp_level: number;
+    alasan_sp: SpReason;
+    catatan: string;
+    lampiran?: File | null;
+    lampiran_1_url?: string | null;
+};
+
+export type CreateTakeoverActionPayload = {
+    id_opname_final: number;
+    action_type: "TAKEOVER";
+    catatan: string;
+    lampiran_1_url?: string | null;
+    lampiran_2_url?: string | null;
+};
 
 export const fetchDendaActionCandidates = async (): Promise<{ status: string; data: DendaActionCandidate[] }> =>
     safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions/candidates`);
@@ -110,8 +112,29 @@ export const fetchDendaActions = async (params: {
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions${suffix}`);
 };
 
-export const createDendaAction = async (
-    payload: CreateDendaActionPayload
+export const createSpAction = async (
+    payload: CreateSpActionPayload
+): Promise<{ status: string; message: string; data: DendaAction }> => {
+    const form = new FormData();
+    form.append("id_opname_final", String(payload.id_opname_final));
+    form.append("action_type", "SP");
+    form.append("sp_level", String(payload.sp_level));
+    form.append("alasan_sp", payload.alasan_sp);
+    form.append("catatan", payload.catatan);
+    if (payload.lampiran) form.append("lampiran", payload.lampiran);
+    if (payload.lampiran_1_url?.trim()) form.append("lampiran_1_url", payload.lampiran_1_url.trim());
+
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions`, {
+        method: "POST",
+        body: form,
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal mengajukan Surat Peringatan.");
+    return result;
+};
+
+export const createTakeoverAction = async (
+    payload: CreateTakeoverActionPayload
 ): Promise<{ status: string; message: string; data: DendaAction }> => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions`, {
         method: "POST",
@@ -119,7 +142,7 @@ export const createDendaAction = async (
         body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal mengajukan SP/Takeover.");
+    if (!res.ok) throw new Error(result.message || "Gagal mengajukan Takeover.");
     return result;
 };
 

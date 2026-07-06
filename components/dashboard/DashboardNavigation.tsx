@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Upload,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -71,6 +72,12 @@ const GROUPS: NavigationGroup[] = [
     ],
   },
   {
+    id: "reporting",
+    label: "Data & Laporan",
+    icon: Download,
+    menuIds: ["menu-tarikan-data"],
+  },
+  {
     id: "control",
     label: "Kontrol Sistem",
     icon: Settings2,
@@ -82,6 +89,7 @@ const SPECIAL_ICONS: Record<string, typeof LayoutDashboard> = {
   "menu-approval": ClipboardCheck,
   "menu-intervensi": ShieldAlert,
   "menu-daftardokumen": FolderArchive,
+  "menu-tarikan-data": Download,
   "menu-system-maintenance": SlidersHorizontal,
   "menu-serah-terima-date-correction": CalendarClock,
 };
@@ -258,7 +266,7 @@ export default function DashboardNavigation({
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] font-semibold text-slate-800">{userName || "-"}</p>
-            <p className="mt-0.5 truncate text-[9px] text-slate-400">{roleLabel} · {cabang}</p>
+            <p className="mt-0.5 truncate text-[9px] text-slate-400">{roleLabel} Â· {cabang}</p>
           </div>
         </div>
         <Button
@@ -273,3 +281,5 @@ export default function DashboardNavigation({
     </div>
   );
 }
+
+

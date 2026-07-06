@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -254,7 +254,7 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyI
         const dbDays = Number(latestOpnameFinal.hari_denda ?? 0);
 
         // If opname_final has tanggal_akhir_spk_denda set, a real denda calculation has been
-        // persisted (even if the result is 0 – e.g. ME peer delivered on time → minimum = 0).
+        // persisted (even if the result is 0 â€“ e.g. ME peer delivered on time â†’ minimum = 0).
         // In that case we MUST use the official stored values and NOT fall through to estimasi.
         const hasOfficialCalculation = Boolean(latestOpnameFinal.tanggal_akhir_spk_denda);
 
@@ -515,9 +515,9 @@ export default function DashboardPage() {
     const [exportSearch, setExportSearch] = useState('');
     const [selectedExportIds, setSelectedExportIds] = useState<Set<number>>(() => new Set());
 
-    // Opname items map keyed by id_toko — populated once via bulk fetch
+    // Opname items map keyed by id_toko â€” populated once via bulk fetch
     const [opnameItemsMap, setOpnameItemsMap] = useState<Record<number, any[]>>({});
-    // RAB items map keyed by rab.id — populated once after dashboard load
+    // RAB items map keyed by rab.id â€” populated once after dashboard load
     const [rabItemsMap, setRabItemsMap] = useState<Record<number, any[]>>({});
 
     const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
@@ -715,7 +715,7 @@ export default function DashboardPage() {
         }
     };
 
-    const canExportDashboard = canViewMonitoringDashboard && !userInfo.roles.some((role) => role.toUpperCase().includes('KONTRAKTOR'));
+    const canExportDashboard = false;
 
     const handleDownloadDashboardExport = async (format: DashboardExportFormat, tokoIds?: number[]) => {
         if (!canExportDashboard || exportingFormat) return;
@@ -793,7 +793,7 @@ export default function DashboardPage() {
     const openExportSelector = (format: DashboardExportFormat) => {
         setPendingExportFormat(format);
         setExportSearch('');
-        setSelectedExportIds(new Set(exportCandidates.map((project) => Number(project.toko.id))));
+        setSelectedExportIds(new Set());
         setExportDialogOpen(true);
     };
 
@@ -1185,11 +1185,11 @@ export default function DashboardPage() {
     // RENDER
     // =========================================================================
     return (
-        // h-screen + overflow-hidden → tidak ada scroll sama sekali
+        // h-screen + overflow-hidden â†’ tidak ada scroll sama sekali
         <div className="h-screen flex flex-col overflow-hidden bg-slate-100 font-sans text-slate-800">
 
             {/* ================================================================
-                HEADER — Menggunakan AppNavbar dengan konfigurasi khusus Dashboard
+                HEADER â€” Menggunakan AppNavbar dengan konfigurasi khusus Dashboard
             ================================================================ */}
             <AppNavbar 
                 title="SPARTA Building"
@@ -1207,7 +1207,7 @@ export default function DashboardPage() {
             ================================================================ */}
             <div className="flex flex-1 overflow-hidden relative">
 
-                {/* Overlay gelap — hanya mobile */}
+                {/* Overlay gelap â€” hanya mobile */}
                 {sidebarOpen && (
                     <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />
                 )}
@@ -1321,11 +1321,11 @@ export default function DashboardPage() {
                             <LogOut className="mr-2 h-3.5 w-3.5" />
                             Ganti Workspace
                         </Button>
-                        <p className="text-[10px] text-slate-400 text-center">SPARTA Building — Alfamart</p>
+                        <p className="text-[10px] text-slate-400 text-center">SPARTA Building â€” Alfamart</p>
                     </div>
                 </aside>
 
-                {/* ===================== MAIN — Home Portal ===================== */}
+                {/* ===================== MAIN â€” Home Portal ===================== */}
                 <main className="flex-1 flex flex-col overflow-hidden p-3 gap-2 min-w-0">
 
                     {/* === TOP BAR: info user (1 baris kompak) + judul === */}
@@ -1395,7 +1395,7 @@ export default function DashboardPage() {
                                                         <div>
                                                             <DialogTitle className="text-base font-black tracking-tight text-white">Pilih Data Export</DialogTitle>
                                                             <DialogDescription className="mt-1 text-xs text-slate-300">
-                                                                Pilih toko yang akan ditarik ke file {pendingExportFormat.toUpperCase()}. Data mengikuti cabang dan pencarian dashboard saat ini.
+                                                                Centang toko yang mau ditarik ke file {pendingExportFormat.toUpperCase()}. Tidak ada data yang dipilih otomatis.
                                                             </DialogDescription>
                                                         </div>
                                                         <Badge className="shrink-0 border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-black text-white hover:bg-white/10">
@@ -1463,7 +1463,7 @@ export default function DashboardPage() {
                                                                         />
                                                                         <span className="min-w-0">
                                                                             <span className="block truncate text-sm font-black text-slate-900">{toko.nama_toko || '-'}</span>
-                                                                            <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{toko.nomor_ulok || '-'} � {toko.kode_toko || '-'}</span>
+                                                                            <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{toko.nomor_ulok || '-'} · {toko.kode_toko || '-'}</span>
                                                                         </span>
                                                                         <span className="truncate text-xs font-bold text-slate-600">{toko.cabang || '-'}</span>
                                                                         <span className="text-right">
@@ -1903,10 +1903,10 @@ export default function DashboardPage() {
                                         ))}
                                     </div>
                                     {shouldShowFinancialBenchmarkCards && (
-                                        <button className="mt-3 w-full rounded-2xl border border-purple-100 bg-purple-50 p-4 text-left hover:border-purple-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/m²', context: 'COST_M2', subContext: '' })}>
+                                        <button className="mt-3 w-full rounded-2xl border border-purple-100 bg-purple-50 p-4 text-left hover:border-purple-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/mÂ²', context: 'COST_M2', subContext: '' })}>
                                             <div className="flex items-center justify-between gap-4">
                                                 <div>
-                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-purple-500">Cost/m²</p>
+                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-purple-500">Cost/mÂ²</p>
                                                     <p className="mt-1 text-sm font-black text-purple-900">Terbangun {formatRupiah(stats.avgCostTerbangun)}</p>
                                                 </div>
                                                 <div className="text-right text-[11px] font-bold text-purple-700">
@@ -1966,7 +1966,7 @@ export default function DashboardPage() {
                                 />
                                 {shouldShowFinancialBenchmarkCards && (
                                     <StatCard
-                                        title="Rata-rata Cost/m²"
+                                        title="Rata-rata Cost/mÂ²"
                                         value=""
                                         icon={<Layers />}
                                         bgColor="#faf5ff"
@@ -1974,7 +1974,7 @@ export default function DashboardPage() {
                                         subLabel="Rata-rata Biaya Per Meter Persegi"
                                         className="xl:col-span-2"
                                         isLoading={isDataLoading}
-                                        onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/m²', context: 'COST_M2', subContext: '' })}
+                                        onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/mÂ²', context: 'COST_M2', subContext: '' })}
                                         renderExtra={
                                             <div className="grid grid-cols-3 gap-10 w-full mt-2 md:mt-0 md:w-auto">
                                                 <div className="bg-purple-50/60 border border-purple-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-purple-100/40 transition-colors">
@@ -2645,7 +2645,7 @@ export default function DashboardPage() {
                                                                     <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                                     <td className="px-4 py-3 text-right">
                                                                         <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
-                                                                            {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/m²</span>
+                                                                            {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/mÂ²</span>
                                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
                                                                         </div>
                                                                         <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
@@ -2664,12 +2664,12 @@ export default function DashboardPage() {
                                                                                         </div>
                                                                                         <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
                                                                                             <span>Luas Area</span>
-                                                                                            <span className="font-semibold text-slate-700">{luasTerbangun} m²</span>
+                                                                                            <span className="font-semibold text-slate-700">{luasTerbangun} mÂ²</span>
                                                                                         </div>
                                                                                     </div>
                                                                                     <div className="text-right mt-1">
                                                                                         <p className="text-lg font-black text-purple-700">{formatRupiah(rTerbangun)}</p>
-                                                                                        <p className="text-[9px] text-slate-400">/ m²</p>
+                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
                                                                                     </div>
                                                                                 </div>
                                                                                 
@@ -2682,12 +2682,12 @@ export default function DashboardPage() {
                                                                                         </div>
                                                                                         <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
                                                                                             <span>Luas Area</span>
-                                                                                            <span className="font-semibold text-slate-700">{luasBangunan} m²</span>
+                                                                                            <span className="font-semibold text-slate-700">{luasBangunan} mÂ²</span>
                                                                                         </div>
                                                                                     </div>
                                                                                     <div className="text-right mt-1">
                                                                                         <p className="text-lg font-black text-blue-700">{formatRupiah(rBangunan)}</p>
-                                                                                        <p className="text-[9px] text-slate-400">/ m²</p>
+                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
                                                                                     </div>
                                                                                 </div>
 
@@ -2700,12 +2700,12 @@ export default function DashboardPage() {
                                                                                         </div>
                                                                                         <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
                                                                                             <span>Luas Area</span>
-                                                                                            <span className="font-semibold text-slate-700">{luasTerbuka} m²</span>
+                                                                                            <span className="font-semibold text-slate-700">{luasTerbuka} mÂ²</span>
                                                                                         </div>
                                                                                     </div>
                                                                                     <div className="text-right mt-1">
                                                                                         <p className="text-lg font-black text-emerald-700">{formatRupiah(rTerbuka)}</p>
-                                                                                        <p className="text-[9px] text-slate-400">/ m²</p>
+                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
@@ -2881,7 +2881,7 @@ export default function DashboardPage() {
                                                                                             <div className="font-bold text-slate-700 text-xs">{st.nama_toko}</div>
                                                                                             <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-2">
                                                                                                 <span>{st.nomor_ulok}</span>
-                                                                                                <span>•</span>
+                                                                                                <span>â€¢</span>
                                                                                                 <span>{st.cabang}</span>
                                                                                             </div>
                                                                                         </div>
@@ -3172,3 +3172,4 @@ function AnimatedNumber({ value, isLoading }: { value: string | number, isLoadin
 
     return <>{Math.floor(displayValue)}</>;
 }
+

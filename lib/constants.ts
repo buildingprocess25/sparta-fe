@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // lib/constants.ts
 // Konstanta global: URL API, konfigurasi menu, role, dan kategori pekerjaan.
 // =============================================================================
@@ -8,7 +8,7 @@ import {
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
     AlertTriangle, Activity, PieChart, ClipboardCheck,
     FileStack, ClipboardList, FileEdit, Upload, Building2,
-    ShieldAlert, SlidersHorizontal, CalendarClock,
+    ShieldAlert, SlidersHorizontal, CalendarClock, Download,
 } from "lucide-react";
 
 // -----------------------------------------------------------------------------
@@ -161,10 +161,9 @@ export const ALL_MENUS = [
     {
         id: "menu-sp",
         title: "Surat Peringatan",
-        desc: "Form surat peringatan.",
-        href: "#",
+        desc: "Pengajuan dan approval Surat Peringatan.",
+        href: "/surat-peringatan",
         icon: AlertTriangle,
-        isAlert: true,
     },
 
     {
@@ -173,6 +172,13 @@ export const ALL_MENUS = [
         desc: "Persetujuan RAB, SPK, IL, dan Pertambahan SPK.",
         href: "/approval",
         icon: ClipboardCheck,
+    },
+    {
+        id: "menu-tarikan-data",
+        title: "Tarikan Data",
+        desc: "Pilih periode, cabang, status SPK, dan jenis data untuk export.",
+        href: "/tarikan-data",
+        icon: Download,
     },
     {
         id: "menu-daftardokumen",
@@ -235,100 +241,100 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-projek-planning",
+        "menu-projek-planning", "menu-tarikan-data",
     ],
 
     "BRANCH MANAGER": [
-        "menu-approval", "menu-daftardokumen"
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
         "menu-spk", "menu-opname", "menu-tambahspk",
         "menu-gantt", "menu-dokumentasi", "menu-svdokumen", "menu-sp",
-        "menu-approval", "menu-daftardokumen", "menu-projek-planning"
+        "menu-approval", "menu-daftardokumen", "menu-projek-planning", "menu-tarikan-data",
     ],
 
     "BRANCH BUILDING COORDINATOR": [
         "menu-dokumentasi", "menu-svdokumen", "menu-gantt",
         "menu-opname", "menu-sp", "menu-approval", "menu-daftardokumen", "menu-inputpic",
-        "menu-projek-planning"
+        "menu-projek-planning", "menu-tarikan-data",
     ],
 
     "BRANCH BUILDING SUPPORT": [
         "menu-dokumentasi", "menu-opname", "menu-gantt",
-        "menu-svdokumen", "menu-sp", "menu-daftardokumen", "menu-il"
+        "menu-svdokumen", "menu-sp", "menu-daftardokumen", "menu-il", "menu-tarikan-data",
     ],
 
     "DIREKTUR KONTRAKTOR": [
-        "menu-approval", "menu-daftardokumen"
+        "menu-approval", "menu-daftardokumen",
     ],
 
     "DIREKTUR": [
-        "menu-approval", "menu-daftardokumen"
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "KONTRAKTOR": [
-        "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen"
+        "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen",
     ],
 
     "KONSULTAN SOIL INVESTIGATION": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "KONSULTAN PERENCANA": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "KONSULTAN PENGAWAS DC": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "KONTRAKTOR DC": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen",
     ],
 
     "DC BUILDING & DEVELOPMENT SPECIALIST": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "DC BUILDING & DEVELOPMENT MANAGER": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "BUILDING & DEVELOPMENT GENERAL MANAGER": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "LOCATION & DEVELOPMENT GENERAL MANAGER": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "PROPERTY DEVELOPMENT DIRECTOR": [
-        "menu-dc-development", "menu-approval", "menu-daftardokumen"
+        "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
-        "menu-approval", "menu-projek-planning", "menu-daftardokumen"
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "PROJECT PLANNING & DEVELOPMENT MANAGER": [
-        "menu-approval", "menu-projek-planning", "menu-daftardokumen"
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "BUILDING & MAINTENANCE REGIONAL MANAGER": [
-        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
     ],
 
     "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER": [
-        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
     ],
 
     "BUILDING & MAINTENANCE GENERAL MANAGER": [
-        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
     ],
 
     "STORE & BRANCH CONTROLLING SPECIALIST": [
-        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
     ],
 
     "BUILDING & MAINTENANCE SUPER HUMAN": [
@@ -337,13 +343,11 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-serah-terima-date-correction", "menu-projek-planning",
-        // Pusat Migrasi
         "menu-migrasi-rab", "menu-migrasi-spk", "menu-migrasi-tambahspk",
         "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final",
-        "menu-migrasi-dokumen", "menu-migrasi-il", "menu-migrasi-serah-terima",
+        "menu-migrasi-dokumen", "menu-migrasi-il", "menu-migrasi-serah-terima", "menu-tarikan-data",
     ],
 };
-
 export const canAccessProjectPlanningByCabang = (cabang?: string | null): boolean =>
     String(cabang ?? "").trim().toUpperCase() === "HEAD OFFICE";
 
@@ -463,7 +467,7 @@ export const ME_CATEGORIES = [
 // -----------------------------------------------------------------------------
 
 /**
- * Pengelompokan cabang — beberapa cabang kecil berada di bawah satu cabang induk.
+ * Pengelompokan cabang â€” beberapa cabang kecil berada di bawah satu cabang induk.
  * Digunakan untuk filter dan tampilan dashboard.
  */
 export const BRANCH_GROUPS: Record<string, string[]> = {
@@ -617,3 +621,6 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
     
     return { isCoor, isBM, isPP, isPPMgr };
 };
+
+
+

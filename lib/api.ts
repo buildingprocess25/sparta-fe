@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // lib/api.ts
 // Seluruh fungsi komunikasi ke backend API.
 //
@@ -1103,7 +1103,7 @@ export type RABApprovalResponse = {
 /** Cek status revisi RAB berdasarkan akses user aktif. */
 export const checkRevisionStatus = async (email: string, _cabang: string) => {
     try {
-        // Ambil dari API List RAB — filter by email_pembuat dan cabang langsung di server
+        // Ambil dari API List RAB â€” filter by email_pembuat dan cabang langsung di server
         const res = await fetchRABList({
             email_pembuat: email,
         }, { suppressGlobalError: true });
@@ -3032,7 +3032,7 @@ export const commitInstruksiLapanganMigration = (
     selections: Array<{ source_candidate_id: number; action: InstruksiLapanganMigrationAction }>
 ) => postInstruksiLapanganMigration<InstruksiLapanganMigrationCommitResult>("commit", file, actorRole, actorEmail, selections);
 
-// ─── Migrasi IL dari rab_kedua.xlsx ──────────────────────────────────────────
+// â”€â”€â”€ Migrasi IL dari rab_kedua.xlsx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type InstruksiLapanganMigrationRab2PreviewDetail = {
     source_candidate_id: number;
@@ -4478,7 +4478,7 @@ export const generateDokumentasiBangunanPdf = async (id: number) => {
 };
 
 // =============================================================================
-// DASHBOARD  â€” Monitoring Transaksi ULOK
+// DASHBOARD  Ã¢â‚¬â€ Monitoring Transaksi ULOK
 // =============================================================================
 
 /**
@@ -4513,6 +4513,12 @@ export const downloadDashboardExport = async (params: {
     cabang?: string;
     search?: string;
     tokoIds?: number[];
+    months?: number[];
+    year?: number;
+    periodMode?: 'months' | 'ytd' | 'all';
+    dataTypes?: string[];
+    cabangs?: string[];
+    spkStatus?: 'all' | 'with_spk' | 'without_spk';
 }): Promise<boolean> => {
     const query = new URLSearchParams();
     query.set("format", params.format);
@@ -4521,6 +4527,12 @@ export const downloadDashboardExport = async (params: {
     if (params.cabang && params.cabang !== "ALL") query.set("cabang", params.cabang);
     if (params.search?.trim()) query.set("search", params.search.trim());
     if (params.tokoIds?.length) query.set("toko_ids", params.tokoIds.join(","));
+    if (params.months?.length) query.set("months", params.months.join(","));
+    if (params.year) query.set("year", String(params.year));
+    if (params.periodMode) query.set("period_mode", params.periodMode);
+    if (params.dataTypes?.length) query.set("data_types", params.dataTypes.join(","));
+    if (params.cabangs?.length) query.set("cabangs", params.cabangs.join(","));
+    if (params.spkStatus && params.spkStatus !== "all") query.set("spk_status", params.spkStatus);
 
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
     if (!res.ok) {
@@ -4689,7 +4701,7 @@ export const fetchPenyimpananDokumenDetail = async (
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/doc/penyimpanan-dokumen/${id}`);
 };
 
-/** Upload dokumen penyimpanan â€” bulk (POST /api/doc/penyimpanan-dokumen) */
+/** Upload dokumen penyimpanan Ã¢â‚¬â€ bulk (POST /api/doc/penyimpanan-dokumen) */
 export const uploadPenyimpananDokumen = async (
     payload: {
         id_toko?: number;
@@ -4778,7 +4790,7 @@ export const sendEmailNotification = async (payload: {
 };
 
 // =============================================================================
-// PROJECT PLANNING (FPD — Form Permintaan Desain)
+// PROJECT PLANNING (FPD â€” Form Permintaan Desain)
 // =============================================================================
 
 // --- Types ---
@@ -5033,7 +5045,7 @@ export const submitProjekPlanning = async (
     return result;
 };
 
-/** Resubmit FPD (Coordinator — update record DRAFT). */
+/** Resubmit FPD (Coordinator â€” update record DRAFT). */
 export const resubmitProjekPlanning = async (
     id: number, 
     payload: Record<string, unknown>, 
@@ -5424,3 +5436,4 @@ export const processPpApproval2 = async (id: number, payload: {
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval final PP.");
     return result;
 };
+
