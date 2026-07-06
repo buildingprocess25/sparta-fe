@@ -27,6 +27,7 @@ import { downloadDashboardExport, fetchDashboardAll, type DashboardExportFormat 
 import { formatRupiah } from "@/lib/utils";
 import {
     AlertCircle,
+    BriefcaseBusiness,
     Building2,
     CalendarDays,
     CheckCircle2,
@@ -71,6 +72,7 @@ const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: s
 const normalizeText = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase();
 const projectId = (project: any) => Number(project?.toko?.id || 0);
 const projectBranch = (project: any) => normalizeBranchValue(project?.toko?.cabang);
+const projectJobType = (project: any) => normalizeText(project?.toko?.lingkup_pekerjaan);
 const hasSpk = (project: any) => Array.isArray(project?.spk) && project.spk.length > 0;
 
 const collectProjectDates = (project: any): Date[] => {
@@ -102,6 +104,8 @@ export default function TarikanDataPage() {
     const [periodMode, setPeriodMode] = useState<PeriodMode>("ytd");
     const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(dataTypeOptions.map((item) => item.id)));
     const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
+    const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
+    const [jobTypesInitialized, setJobTypesInitialized] = useState(false);
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [exporting, setExporting] = useState<DashboardExportFormat | null>(null);
@@ -124,6 +128,24 @@ export default function TarikanDataPage() {
     useEffect(() => {
         // removed auto-select branches effect to start empty
     }, [allowedBranches, selectedBranches.size]);
+
+    const availableJobTypes = useMemo(() => {
+        return Array.from(new Set(
+            projects
+                .filter((project) => {
+                    const branch = projectBranch(project);
+                    return selectedBranches.size === 0 || selectedBranches.has(branch);
+                })
+                .map(projectJobType)
+                .filter(Boolean)
+        )).sort();
+    }, [projects, selectedBranches]);
+
+    useEffect(() => {
+        if (jobTypesInitialized || availableJobTypes.length === 0) return;
+        setSelectedJobTypes(new Set(availableJobTypes));
+        setJobTypesInitialized(true);
+    }, [availableJobTypes, jobTypesInitialized]);
 
     useEffect(() => {
         if (!user) return;
@@ -152,7 +174,10 @@ export default function TarikanDataPage() {
         const query = normalizeText(search);
         return projects.filter((project) => {
             const branch = projectBranch(project);
+            const jobType = projectJobType(project);
             if (selectedBranches.size > 0 && !selectedBranches.has(branch)) return false;
+            if (selectedJobTypes.size > 0 && !selectedJobTypes.has(jobType)) return false;
+            if (selectedJobTypes.size === 0) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
 
@@ -168,7 +193,7 @@ export default function TarikanDataPage() {
                 .map(normalizeText)
                 .some((value) => value.includes(query));
         }).sort((a, b) => String(a?.toko?.nama_toko || "").localeCompare(String(b?.toko?.nama_toko || ""), "id"));
-    }, [periodMode, projects, search, selectedBranches, selectedMonths, selectedYear, spkStatus]);
+    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus]);
 
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
@@ -186,7 +211,7 @@ export default function TarikanDataPage() {
     const clearSelection = () => setSelectedIds(new Set());
 
     const handleExport = useCallback(async (format: DashboardExportFormat) => {
-        if (!user || selectedIds.size === 0 || selectedDataTypes.size === 0 || exporting) return;
+        if (!user || selectedIds.size === 0 || selectedDataTypes.size === 0 || selectedJobTypes.size === 0 || exporting) return;
         setExporting(format);
         setNotice("");
         try {
@@ -199,6 +224,7 @@ export default function TarikanDataPage() {
                 year: selectedYear,
                 periodMode,
                 dataTypes: Array.from(selectedDataTypes),
+                jobTypes: Array.from(selectedJobTypes),
                 cabangs: Array.from(selectedBranches),
                 spkStatus,
             });
@@ -208,7 +234,7 @@ export default function TarikanDataPage() {
         } finally {
             setExporting(null);
         }
-    }, [exporting, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedMonths, selectedYear, spkStatus, user]);
+    }, [exporting, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
 
     const monthLabel = periodMode === "ytd"
         ? `YTD ${selectedYear}`
@@ -244,7 +270,7 @@ export default function TarikanDataPage() {
                             <div>
                                 <Badge className="border-red-100 bg-red-50 text-red-700">Export terarah</Badge>
                                 <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-950">Pilih data sebelum ditarik</h1>
-                                <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">Atur periode, cabang, status SPK, dan kelompok kolom. File hanya berisi data yang dicentang.</p>
+                                <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">Atur periode, cabang, jenis pekerjaan, status SPK, dan kelompok kolom. File hanya berisi data yang dicentang.</p>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center">
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -316,13 +342,13 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-2">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-3">
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Cabang</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedBranches.size === 0 ? "Belum ada cabang" : selectedBranches.size === allowedBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
+                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === allowedBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
                                             <ChevronDown className="h-4 w-4 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -349,6 +375,43 @@ export default function TarikanDataPage() {
                                         {allowedBranches.map((branch) => (
                                             <DropdownMenuCheckboxItem key={branch} checked={selectedBranches.has(branch)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedBranches, branch)}>
                                                 {branch}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                            <div>
+                                <label className="text-xs font-black uppercase text-slate-500">Jenis Pekerjaan</label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
+                                            {selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0 ? "Semua jenis" : selectedJobTypes.size === 0 ? "Belum memilih" : `${selectedJobTypes.size} jenis`}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2">
+                                            <span>Jenis pekerjaan</span>
+                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
+                                        <div className="p-1">
+                                            <DropdownMenuCheckboxItem
+                                                checked={selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0}
+                                                onSelect={(e) => e.preventDefault()}
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) setSelectedJobTypes(new Set(availableJobTypes));
+                                                    else setSelectedJobTypes(new Set());
+                                                }}
+                                                className="font-black text-slate-900"
+                                            >
+                                                Pilih Semua Jenis
+                                            </DropdownMenuCheckboxItem>
+                                        </div>
+                                        <DropdownMenuSeparator />
+                                        {availableJobTypes.map((jobType) => (
+                                            <DropdownMenuCheckboxItem key={jobType} checked={selectedJobTypes.has(jobType)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedJobTypes, jobType)}>
+                                                {jobType}
                                             </DropdownMenuCheckboxItem>
                                         ))}
                                     </DropdownMenuContent>
@@ -397,7 +460,7 @@ export default function TarikanDataPage() {
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-2">
                                 {formatOptions.map((format) => (
-                                    <Button key={format.id} variant="outline" className="h-16 flex-col gap-1 rounded-lg" disabled={selectedIds.size === 0 || selectedDataTypes.size === 0 || Boolean(exporting)} onClick={() => handleExport(format.id)}>
+                                    <Button key={format.id} variant="outline" className="h-16 flex-col gap-1 rounded-lg" disabled={selectedIds.size === 0 || selectedDataTypes.size === 0 || selectedJobTypes.size === 0 || Boolean(exporting)} onClick={() => handleExport(format.id)}>
                                         {exporting === format.id ? <Loader2 className="h-4 w-4 animate-spin" /> : format.id === "pdf" ? <FileText className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}
                                         <span className="text-xs font-black">{format.label}</span>
                                         <span className="text-[10px] font-bold text-slate-400">{format.helper}</span>
@@ -447,11 +510,12 @@ export default function TarikanDataPage() {
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <p className="truncate text-sm font-black text-slate-950">{project?.toko?.nama_toko || "-"}</p>
                                                             <Badge className="border-slate-200 bg-white font-bold text-slate-600">{project?.toko?.nomor_ulok || "-"}</Badge>
+                                                            <Badge className="bg-blue-50 text-blue-700"><BriefcaseBusiness className="mr-1 h-3 w-3" />{project?.toko?.lingkup_pekerjaan || "-"}</Badge>
                                                             {hasSpk(project) ? <Badge className="bg-emerald-50 text-emerald-700"><CheckCircle2 className="mr-1 h-3 w-3" />Sudah SPK</Badge> : <Badge className="bg-amber-50 text-amber-700">Belum SPK</Badge>}
                                                         </div>
                                                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-500">
                                                             <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{project?.toko?.cabang || "-"}</span>
-                                                            <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" />{project?.toko?.lingkup_pekerjaan || "-"}</span>
+                                                            <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" />{project?.toko?.kode_toko || "-"}</span>
                                                             <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{collectProjectDates(project)[0]?.toLocaleDateString("id-ID") || "Tanggal belum ada"}</span>
                                                         </div>
                                                     </div>

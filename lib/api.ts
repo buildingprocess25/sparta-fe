@@ -4517,6 +4517,7 @@ export const downloadDashboardExport = async (params: {
     year?: number;
     periodMode?: 'months' | 'ytd' | 'all';
     dataTypes?: string[];
+    jobTypes?: string[];
     cabangs?: string[];
     spkStatus?: 'all' | 'with_spk' | 'without_spk';
 }): Promise<boolean> => {
@@ -4531,6 +4532,7 @@ export const downloadDashboardExport = async (params: {
     if (params.year) query.set("year", String(params.year));
     if (params.periodMode) query.set("period_mode", params.periodMode);
     if (params.dataTypes?.length) query.set("data_types", params.dataTypes.join(","));
+    if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join(","));
     if (params.cabangs?.length) query.set("cabangs", params.cabangs.join(","));
     if (params.spkStatus && params.spkStatus !== "all") query.set("spk_status", params.spkStatus);
 
