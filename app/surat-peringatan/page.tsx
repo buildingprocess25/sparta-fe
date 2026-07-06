@@ -57,7 +57,7 @@ export default function SuratPeringatanPage() {
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
     const selected = useMemo(
-        () => candidates.find((candidate) => candidate.opname_final_id === selectedId) ?? candidates[0] ?? null,
+        () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? candidates[0] ?? null,
         [candidates, selectedId]
     );
 
@@ -90,7 +90,7 @@ export default function SuratPeringatanPage() {
             const nextCandidates = candidateResult.data.filter((candidate) => candidate.next_sp_level !== null || candidate.has_pending_approval);
             setCandidates(nextCandidates);
             setActions(actionResult.data.filter((action) => action.action_type === "SP"));
-            setSelectedId((current) => current ?? nextCandidates[0]?.opname_final_id ?? null);
+            setSelectedId((current) => current ?? nextCandidates[0]?.id_toko ?? null);
         } catch (error) {
             setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal memuat Surat Peringatan." });
         } finally {
@@ -112,6 +112,7 @@ export default function SuratPeringatanPage() {
         setMessage(null);
         try {
             const result = await createSpAction({
+                id_toko: selected.id_toko,
                 id_opname_final: selected.opname_final_id,
                 sp_level: selected.next_sp_level,
                 alasan_sp: reason,
@@ -174,7 +175,7 @@ export default function SuratPeringatanPage() {
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-600">Kandidat SP</p>
-                                    <h1 className="text-xl font-black text-slate-950">Kontraktor Terlambat 11+ Hari</h1>
+                                    <h1 className="text-xl font-black text-slate-950">Kontraktor Proyek Aktif</h1>
                                 </div>
                                 <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-2">
                                     <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -193,12 +194,12 @@ export default function SuratPeringatanPage() {
                                 ) : filteredCandidates.length === 0 ? (
                                     <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">Tidak ada kandidat SP.</div>
                                 ) : filteredCandidates.map((candidate) => {
-                                    const active = candidate.opname_final_id === selected?.opname_final_id;
+                                    const active = candidate.id_toko === selected?.id_toko;
                                     return (
                                         <button
-                                            key={candidate.opname_final_id}
+                                            key={candidate.id_toko}
                                             type="button"
-                                            onClick={() => setSelectedId(candidate.opname_final_id)}
+                                            onClick={() => setSelectedId(candidate.id_toko)}
                                             className={`rounded-md border p-3 text-left transition ${active ? "border-red-300 bg-red-50" : "border-slate-200 bg-white hover:border-red-200"}`}
                                         >
                                             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -207,7 +208,7 @@ export default function SuratPeringatanPage() {
                                                     <p className="mt-1 text-xs font-semibold text-slate-500">{candidate.nama_kontraktor || "Kontraktor belum terisi"}</p>
                                                 </div>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    <Badge className="border-red-200 bg-red-50 text-red-700">{candidate.hari_denda} hari</Badge>
+                                                    {candidate.hari_denda > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700">{candidate.hari_denda} hari</Badge> : null}
                                                     <Badge className="border-amber-200 bg-amber-50 text-amber-700">SP ke-{candidate.next_sp_level ?? "-"}</Badge>
                                                 </div>
                                             </div>

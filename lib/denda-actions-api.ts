@@ -12,7 +12,7 @@ export type DendaActionStatus =
     | "ACKNOWLEDGED_BY_CONTRACTOR";
 
 export type DendaActionCandidate = {
-    opname_final_id: number;
+    opname_final_id: number | null;
     id_toko: number;
     nomor_ulok: string | null;
     lingkup_pekerjaan: string | null;
@@ -38,7 +38,7 @@ export type DendaActionCandidate = {
 export type DendaAction = {
     id: number;
     id_toko: number;
-    id_opname_final: number;
+    id_opname_final: number | null;
     nomor_ulok: string | null;
     lingkup_pekerjaan: string | null;
     cabang: string | null;
@@ -80,7 +80,8 @@ export type DendaAction = {
 };
 
 export type CreateSpActionPayload = {
-    id_opname_final: number;
+    id_toko: number;
+    id_opname_final?: number | null;
     sp_level: number;
     alasan_sp: SpReason;
     catatan: string;
@@ -116,7 +117,8 @@ export const createSpAction = async (
     payload: CreateSpActionPayload
 ): Promise<{ status: string; message: string; data: DendaAction }> => {
     const form = new FormData();
-    form.append("id_opname_final", String(payload.id_opname_final));
+    form.append("id_toko", String(payload.id_toko));
+    if (payload.id_opname_final) form.append("id_opname_final", String(payload.id_opname_final));
     form.append("action_type", "SP");
     form.append("sp_level", String(payload.sp_level));
     form.append("alasan_sp", payload.alasan_sp);
