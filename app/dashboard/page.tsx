@@ -43,8 +43,18 @@ import TaskNotificationBell from '@/components/TaskNotificationBell';
 const normalizeDashboardText = (value: unknown) =>
     String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
 
+const isHeadOfficeCabang = (value: unknown) => normalizeDashboardText(value) === 'HEAD OFFICE';
+
+const isHeadOfficeProject = (project: any) => isHeadOfficeCabang(project?.toko?.cabang);
+
 const PAUSED_STORE_DOCUMENT_MESSAGE =
     "Akses Penyimpanan Dokumen Toko diberhentikan sementara. Penyimpanan dokumen saat ini terpusat di GDrive regional.";
+const DENDA_TIER_1_DAYS = 5;
+const DENDA_TIER_1_RATE = 1_000_000;
+const DENDA_TIER_2_DAYS = 5;
+const DENDA_TIER_2_RATE = 500_000;
+const DENDA_MAX_NOMINAL = 7_500_000;
+const DENDA_ACTION_THRESHOLD_DAYS = 11;
 
 const readDashboardField = (value: unknown, key: string) => {
     if (!value || typeof value !== 'object') return undefined;
@@ -190,9 +200,9 @@ const calculateProjectLateDays = (project: any, compareFallback = new Date()) =>
 
 const calculateProjectPenalty = (lateDays: number) => {
     if (lateDays <= 0) return 0;
-    const hariPertama = Math.min(lateDays, 5);
-    const hariBerikutnya = Math.max(0, Math.min(lateDays - 5, 10));
-    return Math.min((hariPertama * 1000000) + (hariBerikutnya * 500000), 10000000);
+    const hariPertama = Math.min(lateDays, DENDA_TIER_1_DAYS);
+    const hariBerikutnya = Math.max(0, Math.min(lateDays - DENDA_TIER_1_DAYS, DENDA_TIER_2_DAYS));
+    return Math.min((hariPertama * DENDA_TIER_1_RATE) + (hariBerikutnya * DENDA_TIER_2_RATE), DENDA_MAX_NOMINAL);
 };
 
 const normalizeStorePenaltyKeyPart = (value: unknown) => {
@@ -228,6 +238,8 @@ type ProjectPenaltyInfo = {
     days: number;
     source: 'Resmi' | 'Estimasi';
     targetKategori: 'OPNAME_FINAL';
+    requiresAction: boolean;
+    actionOptions: Array<'SP' | 'TAKEOVER'>;
 };
 
 const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyInfo => {
@@ -250,6 +262,8 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyI
                 days: dbDays,
                 source: 'Resmi' as const,
                 targetKategori: 'OPNAME_FINAL',
+                requiresAction: dbDays >= DENDA_ACTION_THRESHOLD_DAYS,
+                actionOptions: dbDays >= DENDA_ACTION_THRESHOLD_DAYS ? ['SP', 'TAKEOVER'] : [],
             };
         }
     }
@@ -259,6 +273,8 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyI
         days: calculatedDays,
         source: 'Estimasi' as const,
         targetKategori: 'OPNAME_FINAL',
+        requiresAction: calculatedDays >= DENDA_ACTION_THRESHOLD_DAYS,
+        actionOptions: calculatedDays >= DENDA_ACTION_THRESHOLD_DAYS ? ['SP', 'TAKEOVER'] : [],
     };
 };
 
@@ -625,8 +641,9 @@ export default function DashboardPage() {
         const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail;
 
         if (isCacheValid) {
-            setProjects(dashboardCache.projects!);
-            setCabangList(dashboardCache.cabangList);
+            const cachedProjects = dashboardCache.projects!.filter((p: any) => !isHeadOfficeProject(p));
+            setProjects(cachedProjects);
+            setCabangList(dashboardCache.cabangList.filter((cabang) => !isHeadOfficeCabang(cabang)));
             setOpnameItemsMap(dashboardCache.opnameMap);
             return;
         }
@@ -636,6 +653,7 @@ export default function DashboardPage() {
             // Fetch dari API real
             const json = await fetchDashboardAll();
             let data = json.data || [];
+            data = data.filter((p: any) => !isHeadOfficeProject(p));
             
             // Head Office, Super Human, dan role global view-only melihat semua cabang.
             // User cabang biasa hanya melihat cabang session-nya sendiri.
@@ -721,6 +739,7 @@ export default function DashboardPage() {
     // Logic for filtered projects
     const filteredProjects = useMemo(() => {
         return projects.filter(p => {
+            if (isHeadOfficeProject(p)) return false;
             const matchSearch = 
                 p.toko.nomor_ulok?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.toko.nama_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -2214,7 +2233,14 @@ export default function DashboardPage() {
                                                     headline = 'Nilai Denda';
                                                     headlineValue = formatRupiah(penaltyInfo.amount);
                                                     tone = 'border-rose-100 bg-rose-50/50';
-                                                    badges = <Badge className="border-rose-100 bg-white font-black text-rose-700">{penaltyInfo.days} hari</Badge>;
+                                                    badges = (
+                                                        <div className="flex flex-wrap justify-end gap-1">
+                                                            <Badge className="border-rose-100 bg-white font-black text-rose-700">{penaltyInfo.days} hari</Badge>
+                                                            {penaltyInfo.requiresAction && (
+                                                                <Badge className="border-amber-200 bg-amber-50 font-black text-amber-700">SP/Takeover</Badge>
+                                                            )}
+                                                        </div>
+                                                    );
                                                 } else if (detailModal.context === 'NILAI_TOKO') {
                                                     headline = 'Nilai Toko';
                                                     headlineValue = `${quality.total.toFixed(1)} poin`;
@@ -2748,11 +2774,14 @@ export default function DashboardPage() {
                                                                 }
                                                             </div>
                                                             {detailModal.context === 'DENDA' && penaltyInfo ? (
-                                                                <div className="mt-1 flex justify-end gap-1.5 text-[9px]">
+                                                                <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[9px]">
                                                                     <span className={`rounded px-1.5 py-0.5 font-bold ${penaltyInfo.source === 'Resmi' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                                                                         {penaltyInfo.source}
                                                                     </span>
                                                                     <span className="text-slate-400 italic">{penaltyInfo.days} hari</span>
+                                                                    {penaltyInfo.requiresAction && (
+                                                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 font-bold text-amber-700">SP/Takeover</span>
+                                                                    )}
                                                                 </div>
                                                             ) : (
                                                                 <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
