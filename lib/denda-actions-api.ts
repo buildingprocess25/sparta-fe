@@ -1,7 +1,14 @@
-import { apiFetch, safeFetchJSON } from "./api";
+﻿import { apiFetch, safeFetchJSON } from "./api";
 import { API_URL } from "./constants";
 
 export type DendaActionType = "SP" | "TAKEOVER";
+export type DendaActionStatus =
+    | "WAITING_MANAGER"
+    | "REJECTED_BY_MANAGER"
+    | "APPROVED"
+    | "SENT_TO_CONTRACTOR"
+    | "VIEWED_BY_CONTRACTOR"
+    | "ACKNOWLEDGED_BY_CONTRACTOR";
 
 export type DendaActionCandidate = {
     opname_final_id: number;
@@ -17,9 +24,14 @@ export type DendaActionCandidate = {
     nilai_denda: string;
     tanggal_akhir_spk_denda: string | null;
     tanggal_serah_terima_denda: string | null;
+    active_sp_count: number;
+    next_sp_level: number | null;
+    has_pending_approval: boolean;
     latest_action_type: DendaActionType | null;
-    latest_action_status: string | null;
+    latest_action_status: DendaActionStatus | null;
     latest_action_created_at: string | null;
+    latest_action_expires_at: string | null;
+    latest_action_is_expired: boolean;
 };
 
 export type DendaAction = {
@@ -30,16 +42,57 @@ export type DendaAction = {
     lingkup_pekerjaan: string | null;
     cabang: string | null;
     action_type: DendaActionType;
-    status: string;
+    status: DendaActionStatus;
+    sp_level: number | null;
     hari_denda: number;
     nilai_denda: string;
     catatan: string | null;
+    instruksi_tindak_lanjut: string | null;
+    deadline_tindak_lanjut: string | null;
+    lampiran_1_url: string | null;
+    lampiran_2_url: string | null;
+    nomor_surat: string | null;
     link_pdf: string | null;
+    submitted_by_email: string | null;
+    submitted_by_role: string | null;
+    submitted_at: string | null;
+    manager_approved_by: string | null;
+    manager_approved_role: string | null;
+    manager_approved_at: string | null;
+    manager_rejected_by: string | null;
+    manager_rejected_role: string | null;
+    manager_rejected_at: string | null;
+    manager_rejected_reason: string | null;
+    sent_to_contractor_at: string | null;
+    viewed_by_contractor_at: string | null;
+    acknowledged_by_contractor_at: string | null;
+    expires_at: string | null;
     actor_email: string | null;
     actor_role: string | null;
     created_at: string;
     updated_at: string;
+    is_expired: boolean;
+    is_active: boolean;
 };
+
+export type CreateDendaActionPayload =
+    | {
+        id_opname_final: number;
+        action_type: "SP";
+        sp_level: number;
+        catatan: string;
+        instruksi_tindak_lanjut: string;
+        deadline_tindak_lanjut: string;
+        lampiran_1_url: string;
+        lampiran_2_url: string;
+    }
+    | {
+        id_opname_final: number;
+        action_type: "TAKEOVER";
+        catatan: string;
+        lampiran_1_url?: string | null;
+        lampiran_2_url?: string | null;
+    };
 
 export const fetchDendaActionCandidates = async (): Promise<{ status: string; data: DendaActionCandidate[] }> =>
     safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions/candidates`);
@@ -57,17 +110,40 @@ export const fetchDendaActions = async (params: {
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions${suffix}`);
 };
 
-export const createDendaAction = async (payload: {
-    id_opname_final: number;
-    action_type: DendaActionType;
-    catatan?: string | null;
-}): Promise<{ status: string; message: string; data: DendaAction }> => {
+export const createDendaAction = async (
+    payload: CreateDendaActionPayload
+): Promise<{ status: string; message: string; data: DendaAction }> => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.message || "Gagal menyimpan keputusan SP/Takeover.");
+    if (!res.ok) throw new Error(result.message || "Gagal mengajukan SP/Takeover.");
+    return result;
+};
+
+export const approveDendaAction = async (
+    id: number
+): Promise<{ status: string; message: string; data: DendaAction }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/${id}/approve`, {
+        method: "POST",
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal approve SP/Takeover.");
+    return result;
+};
+
+export const rejectDendaAction = async (
+    id: number,
+    alasan_penolakan: string
+): Promise<{ status: string; message: string; data: DendaAction }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alasan_penolakan }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal reject SP/Takeover.");
     return result;
 };

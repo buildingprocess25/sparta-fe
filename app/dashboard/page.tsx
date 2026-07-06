@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -508,6 +510,10 @@ export default function DashboardPage() {
     const [selectedCabang, setSelectedCabang] = useState('ALL');
     const [cabangList, setCabangList] = useState<string[]>([]);
     const [exportingFormat, setExportingFormat] = useState<DashboardExportFormat | null>(null);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
+    const [pendingExportFormat, setPendingExportFormat] = useState<DashboardExportFormat>("xlsx");
+    const [exportSearch, setExportSearch] = useState('');
+    const [selectedExportIds, setSelectedExportIds] = useState<Set<number>>(() => new Set());
 
     // Opname items map keyed by id_toko â€” populated once via bulk fetch
     const [opnameItemsMap, setOpnameItemsMap] = useState<Record<number, any[]>>({});
@@ -711,8 +717,17 @@ export default function DashboardPage() {
 
     const canExportDashboard = canViewMonitoringDashboard && !userInfo.roles.some((role) => role.toUpperCase().includes('KONTRAKTOR'));
 
-    const handleDownloadDashboardExport = async (format: DashboardExportFormat) => {
+    const handleDownloadDashboardExport = async (format: DashboardExportFormat, tokoIds?: number[]) => {
         if (!canExportDashboard || exportingFormat) return;
+        if (tokoIds && tokoIds.length === 0) {
+            setFeatureAlert({
+                title: "Pilih Data Export",
+                description: "Centang minimal satu toko sebelum menarik data.",
+            });
+            setFeatureAlertOpen(true);
+            return;
+        }
+
         setExportingFormat(format);
         try {
             await downloadDashboardExport({
@@ -721,7 +736,9 @@ export default function DashboardPage() {
                 actorCabang: userInfo.cabang,
                 cabang: selectedCabang,
                 search: searchQuery,
+                tokoIds,
             });
+            setExportDialogOpen(false);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Gagal mengunduh export dashboard.';
             setFeatureAlert({
@@ -751,6 +768,54 @@ export default function DashboardPage() {
             return matchSearch && matchCabang;
         });
     }, [projects, searchQuery, selectedCabang]);
+
+    const exportCandidates = useMemo(() => {
+        return filteredProjects
+            .filter((project) => Number(project?.toko?.id) > 0)
+            .sort((a, b) => String(a?.toko?.nama_toko || '').localeCompare(String(b?.toko?.nama_toko || ''), 'id'));
+    }, [filteredProjects]);
+
+    const visibleExportCandidates = useMemo(() => {
+        const query = exportSearch.trim().toLowerCase();
+        if (!query) return exportCandidates;
+        return exportCandidates.filter((project) => {
+            const toko = project.toko || {};
+            return [toko.nama_toko, toko.nomor_ulok, toko.kode_toko, toko.cabang, toko.lingkup_pekerjaan]
+                .some((value) => String(value || '').toLowerCase().includes(query));
+        });
+    }, [exportCandidates, exportSearch]);
+
+    const selectedExportCount = selectedExportIds.size;
+    const visibleExportIds = visibleExportCandidates.map((project) => Number(project.toko.id));
+    const allVisibleExportSelected = visibleExportIds.length > 0
+        && visibleExportIds.every((id) => selectedExportIds.has(id));
+
+    const openExportSelector = (format: DashboardExportFormat) => {
+        setPendingExportFormat(format);
+        setExportSearch('');
+        setSelectedExportIds(new Set(exportCandidates.map((project) => Number(project.toko.id))));
+        setExportDialogOpen(true);
+    };
+
+    const toggleExportSelection = (id: number, checked: boolean) => {
+        setSelectedExportIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+        });
+    };
+
+    const toggleVisibleExportSelection = (checked: boolean) => {
+        setSelectedExportIds((prev) => {
+            const next = new Set(prev);
+            visibleExportIds.forEach((id) => {
+                if (checked) next.add(id);
+                else next.delete(id);
+            });
+            return next;
+        });
+    };
 
     const handleOpenPenaltyProject = useCallback((project: any) => {
         const penaltyInfo = getProjectPenaltyInfo(project);
@@ -1289,38 +1354,152 @@ export default function DashboardPage() {
                                 )}
 
                                 {canExportDashboard && (
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                className="h-8 rounded-lg border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 shadow-sm"
-                                                disabled={Boolean(exportingFormat)}
-                                            >
-                                                {exportingFormat ? (
-                                                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                ) : (
-                                                    <Download className="w-3.5 h-3.5 mr-1.5" />
-                                                )}
-                                                {exportingFormat ? "Mendownload..." : "Download Data"}
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-40 rounded-xl">
-                                            {[
-                                                { format: "xlsx" as const, label: "Excel (.xlsx)", icon: FileSpreadsheet },
-                                                { format: "csv" as const, label: "CSV (.csv)", icon: Download },
-                                                { format: "pdf" as const, label: "PDF Document", icon: FileDown },
-                                            ].map(({ format, label, icon: Icon }) => (
-                                                <DropdownMenuItem
-                                                    key={format}
-                                                    onClick={() => handleDownloadDashboardExport(format)}
-                                                    className="cursor-pointer text-xs font-medium focus:bg-red-50 focus:text-red-700 rounded-lg py-2"
+                                    <>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    className="h-8 rounded-lg border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 shadow-sm"
+                                                    disabled={Boolean(exportingFormat)}
                                                 >
-                                                    <Icon className="mr-2 h-3.5 w-3.5" />
-                                                    {label}
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                                    {exportingFormat ? (
+                                                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                    ) : (
+                                                        <Download className="w-3.5 h-3.5 mr-1.5" />
+                                                    )}
+                                                    {exportingFormat ? "Mendownload..." : "Download Data"}
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48 rounded-xl border-slate-200 p-1 shadow-xl">
+                                                {[
+                                                    { format: "xlsx" as const, label: "Excel (.xlsx)", icon: FileSpreadsheet },
+                                                    { format: "csv" as const, label: "CSV (.csv)", icon: Download },
+                                                    { format: "pdf" as const, label: "PDF Document", icon: FileDown },
+                                                ].map(({ format, label, icon: Icon }) => (
+                                                    <DropdownMenuItem
+                                                        key={format}
+                                                        onClick={() => openExportSelector(format)}
+                                                        className="cursor-pointer rounded-lg py-2 text-xs font-semibold text-slate-700 focus:bg-red-50 focus:text-red-700"
+                                                    >
+                                                        <Icon className="mr-2 h-3.5 w-3.5" />
+                                                        {label}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+                                            <DialogContent className="max-w-3xl overflow-hidden rounded-2xl border-slate-200 p-0 shadow-2xl">
+                                                <DialogHeader className="border-b border-slate-100 bg-slate-950 px-5 py-4 text-white">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div>
+                                                            <DialogTitle className="text-base font-black tracking-tight text-white">Pilih Data Export</DialogTitle>
+                                                            <DialogDescription className="mt-1 text-xs text-slate-300">
+                                                                Pilih toko yang akan ditarik ke file {pendingExportFormat.toUpperCase()}. Data mengikuti cabang dan pencarian dashboard saat ini.
+                                                            </DialogDescription>
+                                                        </div>
+                                                        <Badge className="shrink-0 border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-black text-white hover:bg-white/10">
+                                                            {selectedExportCount} dipilih
+                                                        </Badge>
+                                                    </div>
+                                                </DialogHeader>
+
+                                                <div className="space-y-3 bg-white px-5 py-4">
+                                                    <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                                                        <div className="relative">
+                                                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                                            <Input
+                                                                value={exportSearch}
+                                                                onChange={(event) => setExportSearch(event.target.value)}
+                                                                placeholder="Cari nama toko, ULOK, cabang, atau lingkup..."
+                                                                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-sm font-semibold"
+                                                            />
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="h-10 rounded-xl border-slate-200 px-3 text-xs font-black text-slate-700"
+                                                            onClick={() => toggleVisibleExportSelection(!allVisibleExportSelected)}
+                                                            disabled={visibleExportIds.length === 0}
+                                                        >
+                                                            {allVisibleExportSelected ? "Hapus hasil filter" : "Pilih hasil filter"}
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="h-10 rounded-xl border-red-100 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100"
+                                                            onClick={() => setSelectedExportIds(new Set())}
+                                                            disabled={selectedExportCount === 0}
+                                                        >
+                                                            Bersihkan
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="overflow-hidden rounded-2xl border border-slate-200">
+                                                        <div className="grid grid-cols-[42px_1fr_110px_82px] border-b border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                                            <span />
+                                                            <span>Toko</span>
+                                                            <span>Cabang</span>
+                                                            <span className="text-right">Lingkup</span>
+                                                        </div>
+                                                        <div className="max-h-[360px] overflow-y-auto bg-white">
+                                                            {visibleExportCandidates.length === 0 ? (
+                                                                <div className="px-4 py-10 text-center text-sm font-semibold text-slate-400">
+                                                                    Tidak ada data yang cocok dengan pencarian.
+                                                                </div>
+                                                            ) : visibleExportCandidates.map((project) => {
+                                                                const toko = project.toko || {};
+                                                                const id = Number(toko.id);
+                                                                const checked = selectedExportIds.has(id);
+                                                                return (
+                                                                    <label
+                                                                        key={id}
+                                                                        className={`grid cursor-pointer grid-cols-[42px_1fr_110px_82px] items-center border-b border-slate-100 px-3 py-3 transition-colors last:border-b-0 ${checked ? 'bg-red-50/55' : 'bg-white hover:bg-slate-50'}`}
+                                                                    >
+                                                                        <Checkbox
+                                                                            checked={checked}
+                                                                            onCheckedChange={(value) => toggleExportSelection(id, Boolean(value))}
+                                                                            className="border-slate-300 data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600"
+                                                                        />
+                                                                        <span className="min-w-0">
+                                                                            <span className="block truncate text-sm font-black text-slate-900">{toko.nama_toko || '-'}</span>
+                                                                            <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{toko.nomor_ulok || '-'} · {toko.kode_toko || '-'}</span>
+                                                                        </span>
+                                                                        <span className="truncate text-xs font-bold text-slate-600">{toko.cabang || '-'}</span>
+                                                                        <span className="text-right">
+                                                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600">
+                                                                                {toko.lingkup_pekerjaan || '-'}
+                                                                            </span>
+                                                                        </span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <DialogFooter className="flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                                    <p className="text-xs font-semibold text-slate-500">
+                                                        {visibleExportCandidates.length} data tampil dari {exportCandidates.length} data yang bisa ditarik.
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => setExportDialogOpen(false)}>
+                                                            Batal
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            className="rounded-xl bg-red-700 px-4 font-black text-white hover:bg-red-800"
+                                                            disabled={Boolean(exportingFormat) || selectedExportCount === 0}
+                                                            onClick={() => handleDownloadDashboardExport(pendingExportFormat, Array.from(selectedExportIds))}
+                                                        >
+                                                            {exportingFormat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                                            Tarik {selectedExportCount} Data
+                                                        </Button>
+                                                    </div>
+                                                </DialogFooter>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </>
                                 )}
 
                                 {/* Refresh Button */}

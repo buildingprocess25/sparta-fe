@@ -4512,6 +4512,7 @@ export const downloadDashboardExport = async (params: {
     actorCabang: string;
     cabang?: string;
     search?: string;
+    tokoIds?: number[];
 }): Promise<boolean> => {
     const query = new URLSearchParams();
     query.set("format", params.format);
@@ -4519,6 +4520,7 @@ export const downloadDashboardExport = async (params: {
     query.set("actor_cabang", params.actorCabang);
     if (params.cabang && params.cabang !== "ALL") query.set("cabang", params.cabang);
     if (params.search?.trim()) query.set("search", params.search.trim());
+    if (params.tokoIds?.length) query.set("toko_ids", params.tokoIds.join(","));
 
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
     if (!res.ok) {
