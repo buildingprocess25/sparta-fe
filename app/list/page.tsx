@@ -1265,13 +1265,9 @@ export default function DaftarDokumenPage() {
                 // Read directly from sessionStorage to avoid stale closure
                 const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
                 const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
-                const sessionCabang = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
                 const isKontraktorOrDirektur = sessionRole.includes('KONTRAKTOR') || sessionRole.includes('DIREKTUR');
                 if (isKontraktorOrDirektur && sessionNamaPt) {
                     filters.nama_kontraktor = sessionNamaPt;
-                }
-                if (sessionCabang && !sessionCanViewAllBranches) {
-                    filters.cabang = sessionCabang;
                 }
                 const res = await fetchSPKList(Object.keys(filters).length > 0 ? filters : undefined);
                 docs = normalizeSPKDocs(res.data ?? []);
