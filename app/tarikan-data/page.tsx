@@ -130,7 +130,6 @@ export default function TarikanDataPage() {
     const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(dataTypeOptions.map((item) => item.id)));
     const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
     const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
-    const [jobTypesInitialized, setJobTypesInitialized] = useState(false);
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [exporting, setExporting] = useState<DashboardExportFormat | null>(null);
@@ -165,12 +164,6 @@ export default function TarikanDataPage() {
                 .filter(Boolean)
         )).sort();
     }, [projects, selectedBranches]);
-
-    useEffect(() => {
-        if (jobTypesInitialized || availableJobTypes.length === 0) return;
-        setSelectedJobTypes(new Set(availableJobTypes));
-        setJobTypesInitialized(true);
-    }, [availableJobTypes, jobTypesInitialized]);
 
     useEffect(() => {
         if (!user) return;
@@ -286,7 +279,7 @@ export default function TarikanDataPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
             <AppNavbar title="Tarikan Data" showBackButton backHref="/dashboard" variant="brand" />
             <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
                 <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -367,7 +360,7 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-3">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-2">
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500">Cabang</label>
                                 <DropdownMenu>
@@ -457,8 +450,8 @@ export default function TarikanDataPage() {
                                             <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start" className="max-h-80 w-80 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
-                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2">
+                                    <DropdownMenuContent side="bottom" align="start" sideOffset={8} avoidCollisions={false} className="max-h-64 w-80 overflow-y-auto rounded-lg border-slate-200 bg-white font-sans shadow-lg" onCloseAutoFocus={(e) => e.preventDefault()}>
+                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2 font-sans">
                                             <span>Item pekerjaan</span>
                                             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
                                         </DropdownMenuLabel>
