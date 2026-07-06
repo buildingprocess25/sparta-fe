@@ -116,6 +116,8 @@ import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isV
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
+type GanttDetailResponse = Awaited<ReturnType<typeof fetchGanttDetail>>;
+
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const PENGAWASAN_UPLOAD_BATCH_SIZE = 20;
@@ -705,7 +707,18 @@ function GanttBoard() {
             const validRabId = rab?.id || fallbackIdRab;
 
             if (gantt_data) {
-                await loadGanttDetail(gantt_data.id, validRabId, instruksi_lapangan_items || []);
+                await loadGanttDetail(gantt_data.id, validRabId, instruksi_lapangan_items || [], {
+                    status: "success",
+                    data: {
+                        gantt: gantt_data,
+                        toko,
+                        kategori_pekerjaan: res.kategori_pekerjaan || [],
+                        day_items: res.day_gantt_data || [],
+                        dependencies: res.dependency_data || [],
+                        pengawasan: res.pengawasan_data || [],
+                        instruksi_lapangan_items: instruksi_lapangan_items || []
+                    }
+                });
             } else {
                 setSelectedGanttId(null);
                 setGanttNotes([]);
@@ -782,7 +795,12 @@ function GanttBoard() {
         }
     };
     
-    const loadGanttDetail = async (ganttId: number, idRabFallback?: number, instruksiLapanganFallback: any[] = []) => {
+    const loadGanttDetail = async (
+        ganttId: number,
+        idRabFallback?: number,
+        instruksiLapanganFallback: any[] = [],
+        preloadedDetail?: GanttDetailResponse
+    ) => {
         if (!ganttId) return;
         setIsLoading(true);
         setSelectedGanttId(ganttId);
@@ -790,7 +808,7 @@ function GanttBoard() {
         loadGanttNotes(ganttId);
 
         try {
-            const { data } = await fetchGanttDetail(ganttId);
+            const { data } = preloadedDetail ?? await fetchGanttDetail(ganttId);
             const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan, instruksi_lapangan_items } = data;
             let baseCategories: string[] = [];
             const instruksiItems = mapInstruksiLapanganToWorkItems(
