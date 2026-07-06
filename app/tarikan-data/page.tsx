@@ -441,42 +441,31 @@ export default function TarikanDataPage() {
                             </div>
                             <div className="mt-5 border-t border-slate-100 pt-4">
                                 <div className="flex items-center gap-2 text-sm font-black text-slate-900"><FileText className="h-4 w-4 text-red-600" />Item pekerjaan</div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-3 h-11 w-full justify-between rounded-lg border-slate-200 bg-white px-3 text-left text-sm font-black text-slate-900 hover:border-red-200 hover:bg-red-50/40">
-                                            <span className="truncate">
-                                                {selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0 ? "Semua item" : selectedJobTypes.size === 0 ? "Belum memilih" : `${selectedJobTypes.size} item dipilih`}
-                                            </span>
-                                            <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent side="bottom" align="start" sideOffset={8} avoidCollisions={false} className="max-h-64 w-80 overflow-y-auto rounded-lg border-slate-200 bg-white font-sans shadow-lg" onCloseAutoFocus={(e) => e.preventDefault()}>
-                                        <DropdownMenuLabel className="sticky top-0 z-10 flex items-center justify-between bg-white py-2 font-sans">
-                                            <span>Item pekerjaan</span>
-                                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs font-bold text-slate-500" onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))}>Selesai</Button>
-                                        </DropdownMenuLabel>
-                                        <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
-                                        <div className="p-1">
-                                            <DropdownMenuCheckboxItem
+                                <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                    <label className="flex cursor-pointer items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2.5 hover:bg-red-50/40">
+                                        <span className="flex min-w-0 items-center gap-2">
+                                            <Checkbox
                                                 checked={selectedJobTypes.size === availableJobTypes.length && availableJobTypes.length > 0}
-                                                onSelect={(e) => e.preventDefault()}
                                                 onCheckedChange={(checked) => {
                                                     if (checked) setSelectedJobTypes(new Set(availableJobTypes));
                                                     else setSelectedJobTypes(new Set());
                                                 }}
-                                                className="font-black text-slate-900"
-                                            >
-                                                Pilih Semua Item
-                                            </DropdownMenuCheckboxItem>
-                                        </div>
-                                        <DropdownMenuSeparator />
-                                        {availableJobTypes.map((jobType) => (
-                                            <DropdownMenuCheckboxItem key={jobType} checked={selectedJobTypes.has(jobType)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedJobTypes, jobType)} className="text-xs font-semibold text-slate-700">
-                                                {jobType}
-                                            </DropdownMenuCheckboxItem>
+                                            />
+                                            <span className="text-xs font-black uppercase text-slate-700">Pilih semua item</span>
+                                        </span>
+                                        <span className="shrink-0 text-[11px] font-bold text-slate-500">{selectedJobTypes.size}/{availableJobTypes.length}</span>
+                                    </label>
+                                    <div className="max-h-56 overflow-y-auto p-1.5">
+                                        {availableJobTypes.length === 0 ? (
+                                            <div className="px-2 py-4 text-center text-xs font-bold text-slate-400">Item pekerjaan belum tersedia.</div>
+                                        ) : availableJobTypes.map((jobType) => (
+                                            <label key={jobType} className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 hover:bg-red-50/50">
+                                                <Checkbox checked={selectedJobTypes.has(jobType)} onCheckedChange={() => toggleSetValue(setSelectedJobTypes, jobType)} className="mt-0.5" />
+                                                <span className="min-w-0 text-xs font-bold leading-5 text-slate-700">{jobType}</span>
+                                            </label>
                                         ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                    </div>
+                                </div>
                                 <p className="mt-2 text-xs font-medium text-slate-500">Pilih item pekerjaan yang ingin ikut masuk ke file export.</p>
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-2">
