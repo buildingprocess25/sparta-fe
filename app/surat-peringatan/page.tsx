@@ -24,7 +24,7 @@ import {
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
 import { canAccessBranchForUser, getSessionBranchCoverage } from "@/lib/constants";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle, ArrowLeft, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, FileText, Loader2, RefreshCw, Search, Upload, XCircle, ArrowLeft, Plus } from "lucide-react";
 
 const SP_REASON_LABELS: Record<SpReason, string> = {
     KETERLAMBATAN: "Keterlambatan",
@@ -289,52 +289,53 @@ export default function SuratPeringatanPage() {
                             </div>
                         ) : null}
 
-                        <div className="grid gap-6 lg:grid-cols-2">
-                            <Card className="rounded-xl border-slate-200 shadow-sm">
-                                <div className="p-4 border-b border-slate-100 bg-white rounded-t-xl flex items-center gap-2">
-                                    <Clock3 className="h-5 w-5 text-amber-600" />
-                                    <h2 className="font-bold text-slate-800">Menunggu Approval</h2>
-                                </div>
-                                <CardContent className="p-4 bg-slate-50/50">
-                                    <div className="grid gap-3">
-                                        {pendingActions.length === 0 ? <p className="text-sm font-semibold text-slate-500 text-center py-4">Tidak ada pengajuan pending.</p> : pendingActions.map((action) => (
-                                            <div key={action.id} onClick={() => { setSelectedDetailAction(action); setViewMode("detail"); }} className="cursor-pointer rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300">
-                                                <div className="flex flex-wrap items-start justify-between gap-2">
-                                                    <div>
-                                                        <p className="text-sm font-bold text-slate-800">SP {action.sp_level} &middot; {action.nama_kontraktor || "-"}</p>
-                                                        <p className="mt-1 text-xs font-semibold text-slate-500">{action.nomor_ulok || "-"} &middot; {SP_REASON_LABELS[action.alasan_sp ?? "KETERLAMBATAN"]}</p>
-                                                    </div>
-                                                    <Badge className="border-amber-200 bg-amber-50 text-amber-700 shadow-none">{statusLabel(action.status)}</Badge>
+                        {loading ? (
+                            <div className="flex justify-center items-center py-16">
+                                <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+                            </div>
+                        ) : (pendingActions.length === 0 && approvedActions.length === 0) ? (
+                            <div className="text-center py-16 text-slate-400">
+                                <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                                <p className="font-semibold">Belum ada Surat Peringatan.</p>
+                                {userCanSubmit && <p className="text-sm mt-1">Klik "Buat Peringatan Baru" untuk mengajukan SP pertama.</p>}
+                            </div>
+                        ) : (
+                            <div className="grid gap-3">
+                                {[...pendingActions, ...approvedActions].map((action) => {
+                                    const isPending = action.status === "WAITING_MANAGER";
+                                    const isRejected = action.status === "REJECTED_BY_MANAGER";
+                                    return (
+                                        <div
+                                            key={action.id}
+                                            onClick={() => { setSelectedDetailAction(action); setViewMode("detail"); }}
+                                            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300 flex items-center justify-between gap-3"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`shrink-0 w-2 h-10 rounded-full ${isPending ? "bg-amber-400" : isRejected ? "bg-red-400" : "bg-emerald-400"}`} />
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-bold text-slate-800 truncate">
+                                                        SP {action.sp_level} &nbsp;&middot;&nbsp; {action.nama_kontraktor || "-"}
+                                                    </p>
+                                                    <p className="mt-0.5 text-xs text-slate-500 truncate">
+                                                        {action.nomor_ulok || "—"} &nbsp;&middot;&nbsp; {SP_REASON_LABELS[action.alasan_sp ?? "KETERLAMBATAN"]}
+                                                        {action.cabang ? ` · ${action.cabang}` : ""}
+                                                    </p>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="rounded-xl border-slate-200 shadow-sm">
-                                <div className="p-4 border-b border-slate-100 bg-white rounded-t-xl flex items-center gap-2">
-                                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                                    <h2 className="font-bold text-slate-800">Riwayat Surat Peringatan</h2>
-                                </div>
-                                <CardContent className="p-4 bg-slate-50/50">
-                                    <div className="grid gap-3">
-                                        {approvedActions.length === 0 ? <p className="text-sm font-semibold text-slate-500 text-center py-4">Riwayat SP belum ada.</p> : approvedActions.map((action) => (
-                                            <div key={action.id} onClick={() => { setSelectedDetailAction(action); setViewMode("detail"); }} className="cursor-pointer rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300">
-                                                <div className="flex flex-wrap items-start justify-between gap-2">
-                                                    <div>
-                                                        <p className="text-sm font-bold text-slate-800">SP {action.sp_level} &middot; {action.nama_kontraktor || "-"}</p>
-                                                        <p className="mt-1 text-xs font-semibold text-slate-500">{action.nomor_ulok || "-"} &middot; {SP_REASON_LABELS[action.alasan_sp ?? "KETERLAMBATAN"]}</p>
-                                                    </div>
-                                                    <Badge className={action.status === "REJECTED_BY_MANAGER" ? "border-red-200 bg-red-50 text-red-700 shadow-none" : "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none"}>{statusLabel(action.status)}</Badge>
-                                                </div>
-                                                {action.expires_at ? <p className="mt-2 text-[10px] font-bold text-slate-400">Expired: {new Date(action.expires_at).toLocaleDateString("id-ID")}</p> : null}
+                                            <div className="shrink-0">
+                                                <Badge className={
+                                                    isPending ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none" :
+                                                    isRejected ? "border-red-200 bg-red-50 text-red-700 shadow-none" :
+                                                    "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none"
+                                                }>
+                                                    {statusLabel(action.status)}
+                                                </Badge>
                                             </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
 

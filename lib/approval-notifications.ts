@@ -350,13 +350,15 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
     }
 
-    if (canSeeAll || user.isRegionalManager) return true;
-    if (item.tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
-    if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
+    // SURAT_PERINGATAN: handled purely by status (Branch Manager sees all WAITING_MANAGER)
     if (item.tipe === "SURAT_PERINGATAN") {
         if (jabatan === "KOORDINATOR") return upper.includes("REJECT");
         return upper === "WAITING_MANAGER";
     }
+
+    if (canSeeAll || user.isRegionalManager) return true;
+    if (item.tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
+    if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
 
     if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
     if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
