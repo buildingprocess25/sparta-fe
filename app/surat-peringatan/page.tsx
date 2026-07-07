@@ -70,8 +70,12 @@ export default function SuratPeringatanPage() {
     const filteredCandidates = useMemo(() => {
         let base = candidates;
         
-        if (user && !user.isHO && !user.roles.includes("SUPER HUMAN")) {
-            base = base.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
+        if (user && !user.roles.includes("SUPER HUMAN")) {
+            if (user.isHO) {
+                base = base.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
+            } else {
+                base = base.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
+            }
         }
         
         if (selectedContractor) {
@@ -94,11 +98,17 @@ export default function SuratPeringatanPage() {
     }, [candidates, search, reason, selectedContractor, user]);
 
     const availableContractors = useMemo(() => {
-        if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) {
+        if (!user || user.roles.includes("SUPER HUMAN")) {
             return contractors;
         }
         
-        const branchCandidates = candidates.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
+        let branchCandidates = candidates;
+        if (user.isHO) {
+            branchCandidates = candidates.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
+        } else {
+            branchCandidates = candidates.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
+        }
+        
         const validContractors = new Set(branchCandidates.map((c) => normalize(c.nama_kontraktor)));
         
         return contractors.filter((c) => validContractors.has(normalize(c)));
@@ -114,13 +124,15 @@ export default function SuratPeringatanPage() {
 
     const pendingActions = actions.filter((action) => {
         if (action.action_type !== "SP" || action.status !== "WAITING_MANAGER") return false;
-        if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) return true;
+        if (!user || user.roles.includes("SUPER HUMAN")) return true;
+        if (user.isHO) return normalize(action.cabang) === "HEAD OFFICE";
         return canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage());
     });
     
     const approvedActions = actions.filter((action) => {
         if (action.action_type !== "SP" || action.status === "WAITING_MANAGER") return false;
-        if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) return true;
+        if (!user || user.roles.includes("SUPER HUMAN")) return true;
+        if (user.isHO) return normalize(action.cabang) === "HEAD OFFICE";
         return canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage());
     });
     const userCanApprove = canApprove(user?.roles ?? [], Boolean(user?.isHO));
