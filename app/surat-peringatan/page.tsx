@@ -23,6 +23,7 @@ import {
     type SpReason,
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
+import { canAccessBranchForUser } from "@/lib/constants";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle } from "lucide-react";
 
 const SP_REASON_LABELS: Record<SpReason, string> = {
@@ -69,6 +70,10 @@ export default function SuratPeringatanPage() {
     const filteredCandidates = useMemo(() => {
         let base = candidates;
         
+        if (user && !user.isHO && !user.roles.includes("SUPER HUMAN")) {
+            base = base.filter((c) => canAccessBranchForUser(user, c.cabang));
+        }
+        
         if (selectedContractor) {
             base = base.filter(c => normalize(c.nama_kontraktor) === normalize(selectedContractor));
         }
@@ -86,7 +91,18 @@ export default function SuratPeringatanPage() {
             candidate.cabang,
             candidate.nomor_spk,
         ].some((value) => normalize(value).includes(q)));
-    }, [candidates, search, reason, selectedContractor]);
+    }, [candidates, search, reason, selectedContractor, user]);
+
+    const availableContractors = useMemo(() => {
+        if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) {
+            return contractors;
+        }
+        
+        const branchCandidates = candidates.filter((c) => canAccessBranchForUser(user, c.cabang));
+        const validContractors = new Set(branchCandidates.map((c) => normalize(c.nama_kontraktor)));
+        
+        return contractors.filter((c) => validContractors.has(normalize(c)));
+    }, [contractors, candidates, user]);
 
     useEffect(() => {
         if (reason === "MANIPULASI") {
@@ -96,8 +112,17 @@ export default function SuratPeringatanPage() {
         }
     }, [reason, selected]);
 
-    const pendingActions = actions.filter((action) => action.action_type === "SP" && action.status === "WAITING_MANAGER");
-    const approvedActions = actions.filter((action) => action.action_type === "SP" && action.status !== "WAITING_MANAGER");
+    const pendingActions = actions.filter((action) => {
+        if (action.action_type !== "SP" || action.status !== "WAITING_MANAGER") return false;
+        if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) return true;
+        return canAccessBranchForUser(user, action.cabang);
+    });
+    
+    const approvedActions = actions.filter((action) => {
+        if (action.action_type !== "SP" || action.status === "WAITING_MANAGER") return false;
+        if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) return true;
+        return canAccessBranchForUser(user, action.cabang);
+    });
     const userCanApprove = canApprove(user?.roles ?? [], Boolean(user?.isHO));
     const userCanSubmit = canSubmit(user?.roles ?? [], Boolean(user?.isHO));
 
@@ -247,7 +272,7 @@ export default function SuratPeringatanPage() {
                                     <Select value={selectedContractor} onValueChange={(val) => { setSelectedContractor(val); setSelectedId(null); }}>
                                         <SelectTrigger className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-red-500 h-11"><SelectValue placeholder="Pilih kontraktor..." /></SelectTrigger>
                                         <SelectContent>
-                                            {contractors.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                            {availableContractors.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>
