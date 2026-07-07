@@ -43,7 +43,7 @@ const statusLabel = (status: string) => ({
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
 const canApprove = (roles: string[], isHO: boolean) => isHO || roles.some((role) => role.includes("MANAGER") || role.includes("SUPER HUMAN"));
-const canSubmit = (roles: string[], isHO: boolean) => isHO || roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN"));
+const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
 
 export default function SuratPeringatanPage() {
     const { user } = useSession();
@@ -61,6 +61,7 @@ export default function SuratPeringatanPage() {
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [openDropdown, setOpenDropdown] = useState(false);
+    const [spLevel, setSpLevel] = useState<1 | 2 | 3>(1);
 
     const selected = useMemo(
         () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? null,
@@ -171,7 +172,7 @@ export default function SuratPeringatanPage() {
         
         const isManipulasi = reason === "MANIPULASI";
         
-        if (!isManipulasi && (!selected || !selected.next_sp_level)) {
+        if (!isManipulasi && !selected) {
             setMessage({ type: "error", text: "Pilih kandidat ULOK untuk alasan selain Manipulasi." });
             return;
         }
@@ -184,7 +185,7 @@ export default function SuratPeringatanPage() {
         setMessage(null);
         try {
             const payload: any = {
-                sp_level: isManipulasi ? 1 : selected!.next_sp_level, // Fallback ke SP 1 jika tidak ada ULOK, (sebenarnya bisa diubah manual jika diperlukan)
+                sp_level: reason === "MANIPULASI" ? spLevel : spLevel,
                 alasan_sp: reason,
                 catatan: note,
                 lampiran: file,
@@ -342,7 +343,6 @@ export default function SuratPeringatanPage() {
                                                                 <span className="font-bold text-sm text-slate-950 line-clamp-1">{candidate.nomor_ulok} · {candidate.nama_toko}</span>
                                                                 <div className="flex gap-1 shrink-0">
                                                                     {candidate.hari_denda > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700 text-[10px] px-1.5 py-0">Late {candidate.hari_denda}d</Badge> : null}
-                                                                    <Badge className="border-amber-200 bg-amber-50 text-amber-700 text-[10px] px-1.5 py-0">SP {candidate.next_sp_level ?? "-"}</Badge>
                                                                 </div>
                                                             </div>
                                                             <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-semibold text-slate-400">
@@ -366,7 +366,33 @@ export default function SuratPeringatanPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label className="text-sm font-bold text-slate-700">Tingkat SP</Label>
-                                        <Input value={reason === "MANIPULASI" ? "Surat Peringatan Khusus" : selected?.next_sp_level ? `Surat Peringatan Ke-${selected.next_sp_level}` : "Maksimal SP"} disabled className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 font-bold outline-none cursor-not-allowed" />
+                                        {(() => {
+                                            // Tentukan level yang sudah ada untuk toko/kontraktor ini
+                                            const existingLevels = new Set(
+                                                actions
+                                                    .filter((a) => a.action_type === "SP" &&
+                                                        (reason === "MANIPULASI"
+                                                            ? normalize(a.nama_kontraktor) === normalize(selectedContractor)
+                                                            : a.id_toko === selected?.id_toko) &&
+                                                        ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status))
+                                                    .map((a) => a.sp_level)
+                                            );
+                                            const allLevels = [1, 2, 3] as const;
+                                            return (
+                                                <Select value={String(spLevel)} onValueChange={(v) => setSpLevel(Number(v) as 1 | 2 | 3)}>
+                                                    <SelectTrigger className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-red-500 h-11">
+                                                        <SelectValue placeholder="Pilih tingkat SP..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {allLevels.map((lvl) => (
+                                                            <SelectItem key={lvl} value={String(lvl)} disabled={existingLevels.has(lvl)}>
+                                                                Surat Peringatan Ke-{lvl}{existingLevels.has(lvl) ? " (sudah ada)" : ""}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            );
+                                        })()}
                                     </div>
                                     {reason === "KETERLAMBATAN" && selected ? (
                                         <div className="space-y-2">
@@ -399,7 +425,7 @@ export default function SuratPeringatanPage() {
 
                         {selectedContractor && (reason === "MANIPULASI" || selected) ? (
                             <div className="pt-2">
-                                <Button className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl" onClick={submitSp} disabled={!userCanSubmit || submitting || (reason !== "MANIPULASI" && (selected?.has_pending_approval || !selected?.next_sp_level))}>
+                                <Button className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl" onClick={submitSp} disabled={!userCanSubmit || submitting || (reason !== "MANIPULASI" && selected?.has_pending_approval)}>
                                     {submitting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <FileText className="mr-2 h-6 w-6" />}
                                     {reason !== "MANIPULASI" && selected?.has_pending_approval ? "SP Sedang Dalam Proses Approval" : "Ajukan Surat Peringatan"}
                                 </Button>
