@@ -182,6 +182,7 @@ interface NormalizedDetail {
     nilai_denda?: string;
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
+    _raw?: any;
 }
 
 // =============================================
