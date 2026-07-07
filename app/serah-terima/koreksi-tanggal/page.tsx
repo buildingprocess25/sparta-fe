@@ -165,10 +165,11 @@ export default function KoreksiTanggalSerahTerimaPage() {
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    if (!user.isSuperHuman) {
+    const isStoreBranchControlling = user?.roles?.some(role => role.toUpperCase() === "STORE & BRANCH CONTROLLING SPECIALIST");
+    if (!user.isSuperHuman && !isStoreBranchControlling) {
       showAlert({
         title: "Akses Ditolak",
-        message: "Halaman ini hanya tersedia untuk akun yang memiliki otorisasi kontrol sistem.",
+        message: "Halaman ini hanya tersedia untuk Super Human dan Store & Branch Controlling Specialist.",
         type: "warning",
         onConfirm: () => router.push("/dashboard"),
       });

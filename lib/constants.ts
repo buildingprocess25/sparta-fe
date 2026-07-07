@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // lib/constants.ts
 // Konstanta global: URL API, konfigurasi menu, role, dan kategori pekerjaan.
 // =============================================================================
@@ -335,6 +335,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     "STORE & BRANCH CONTROLLING SPECIALIST": [
         "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
+        "menu-intervensi", "menu-serah-terima-date-correction",
     ],
 
     "BUILDING & MAINTENANCE SUPER HUMAN": [

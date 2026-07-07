@@ -676,10 +676,12 @@ export default function IntervensiPage() {
     }, []);
 
     const isSuperHuman = !!user?.isSuperHuman;
-    const canSubmit = isSuperHuman && !!user && !isSubmitting;
+    const isStoreBranchControlling = user?.roles?.some(role => role.toUpperCase() === "STORE & BRANCH CONTROLLING SPECIALIST");
+    const canAccessIntervensi = isSuperHuman || isStoreBranchControlling;
+    const canSubmit = canAccessIntervensi && !!user && !isSubmitting;
 
     const loadDocuments = useCallback(async () => {
-        if (!isSuperHuman) return;
+        if (!canAccessIntervensi) return;
         setIsFetching(true);
         try {
             const results = await Promise.all(Object.values(interventionAdapters).map((adapter) => adapter.fetchList()));
@@ -695,13 +697,13 @@ export default function IntervensiPage() {
         } finally {
             setIsFetching(false);
         }
-    }, [isSuperHuman, showToast]);
+    }, [canAccessIntervensi, showToast]);
 
     useEffect(() => {
-        if (!isLoading && isSuperHuman) {
+        if (!isLoading && canAccessIntervensi) {
             loadDocuments();
         }
-    }, [isLoading, isSuperHuman, loadDocuments]);
+    }, [isLoading, canAccessIntervensi, loadDocuments]);
 
     const selectedDoc = useMemo(() => {
         if (!selectedId) return null;
@@ -806,7 +808,7 @@ export default function IntervensiPage() {
         );
     }
 
-    if (!isSuperHuman) {
+    if (!canAccessIntervensi) {
         return (
             <div className="min-h-screen bg-slate-100">
                 <AppNavbar title="INTERVENSI" showBackButton backHref="/dashboard" showLogout onLogout={logout} />
@@ -816,9 +818,9 @@ export default function IntervensiPage() {
                             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
                                 <ShieldAlert className="h-7 w-7" />
                             </div>
-                            <h1 className="text-xl font-bold text-slate-900">Akses khusus Super Human</h1>
+                            <h1 className="text-xl font-bold text-slate-900">Akses Terbatas</h1>
                             <p className="mt-2 text-sm text-slate-500">
-                                Halaman ini berisi tindakan perubahan status sensitif dan hanya tersedia untuk akun Super Human.
+                                Halaman ini hanya tersedia untuk akun Super Human dan Store & Branch Controlling Specialist.
                             </p>
                         </CardContent>
                     </Card>
