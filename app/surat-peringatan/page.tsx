@@ -23,7 +23,7 @@ import {
     type SpReason,
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
-import { canAccessBranchForUser } from "@/lib/constants";
+import { canAccessBranchForUser, getSessionBranchCoverage } from "@/lib/constants";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle } from "lucide-react";
 
 const SP_REASON_LABELS: Record<SpReason, string> = {
@@ -71,7 +71,7 @@ export default function SuratPeringatanPage() {
         let base = candidates;
         
         if (user && !user.isHO && !user.roles.includes("SUPER HUMAN")) {
-            base = base.filter((c) => canAccessBranchForUser(user, c.cabang));
+            base = base.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
         }
         
         if (selectedContractor) {
@@ -98,7 +98,7 @@ export default function SuratPeringatanPage() {
             return contractors;
         }
         
-        const branchCandidates = candidates.filter((c) => canAccessBranchForUser(user, c.cabang));
+        const branchCandidates = candidates.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
         const validContractors = new Set(branchCandidates.map((c) => normalize(c.nama_kontraktor)));
         
         return contractors.filter((c) => validContractors.has(normalize(c)));
@@ -115,13 +115,13 @@ export default function SuratPeringatanPage() {
     const pendingActions = actions.filter((action) => {
         if (action.action_type !== "SP" || action.status !== "WAITING_MANAGER") return false;
         if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) return true;
-        return canAccessBranchForUser(user, action.cabang);
+        return canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage());
     });
     
     const approvedActions = actions.filter((action) => {
         if (action.action_type !== "SP" || action.status === "WAITING_MANAGER") return false;
         if (!user || user.isHO || user.roles.includes("SUPER HUMAN")) return true;
-        return canAccessBranchForUser(user, action.cabang);
+        return canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage());
     });
     const userCanApprove = canApprove(user?.roles ?? [], Boolean(user?.isHO));
     const userCanSubmit = canSubmit(user?.roles ?? [], Boolean(user?.isHO));
