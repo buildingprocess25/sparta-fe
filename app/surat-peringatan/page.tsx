@@ -23,8 +23,8 @@ import {
     type SpReason,
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
-import { canAccessBranchForUser, getSessionBranchCoverage } from "@/lib/constants";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle, ArrowLeft, Plus } from "lucide-react";
+import { canAccessBranchForUser, getSessionBranchCoverage, API_URL } from "@/lib/constants";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle, ArrowLeft, Plus, FileDown } from "lucide-react";
 
 const SP_REASON_LABELS: Record<SpReason, string> = {
     KETERLAMBATAN: "Keterlambatan",
@@ -599,6 +599,21 @@ export default function SuratPeringatanPage() {
                                         </div>
                                     )}
                                 </div>
+
+                                {selectedDetailGroup.latest.lampiran_1_url && (
+                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-2">
+                                        <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Dokumen Lampiran Pendukung</Label>
+                                        <a
+                                            href={\`\${API_URL.replace(/\\/$/, "")}${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=\${encodeURIComponent(selectedDetailGroup.latest.lampiran_1_url)}\`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors"
+                                        >
+                                            <FileDown className="w-4 h-4 text-slate-500" />
+                                            Lihat Lampiran Pendukung
+                                        </a>
+                                    </div>
+                                )}
 
                                 
                                 {selectedDetailGroup.history.length > 1 && (

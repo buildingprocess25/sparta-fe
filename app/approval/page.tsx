@@ -2628,7 +2628,7 @@ function ApprovalPageContent() {
                                                 )}
                                                 {selectedDetail.link_lampiran_pendukung && (
                                                     <a
-                                                        href={`\/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.link_lampiran_pendukung)}`}
+                                                        href={`${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.link_lampiran_pendukung)}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors"
@@ -2673,7 +2673,7 @@ function ApprovalPageContent() {
                                             {selectedDetail.link_lampiran_pendukung && (
                                                 <div className="mt-4 flex flex-wrap gap-3">
                                                     <a
-                                                        href={`\/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.link_lampiran_pendukung)}`}
+                                                        href={`${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.link_lampiran_pendukung)}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-200 transition-colors"
