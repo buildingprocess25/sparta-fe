@@ -80,21 +80,14 @@ const collectProjectWorkItems = (project: any): string[] => {
         if (normalized) values.push(normalized);
     };
 
+    // Sumber utama: RAB
     (project?.rab || []).forEach((rab: any) => {
         (rab?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
     });
 
-    (project?.opname_final || []).forEach((opname: any) => {
-        (opname?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
-    });
-
+    // Sumber tambahan: Instruksi Lapangan (jika ada)
     (project?.instruksi_lapangan || []).forEach((instruksi: any) => {
         (instruksi?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
-    });
-
-    (project?.gantt || []).forEach((gantt: any) => {
-        (gantt?.kategori_pekerjaan || []).forEach((item: any) => push(item?.kategori_pekerjaan));
-        (gantt?.pengawasan || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
     });
 
     return Array.from(new Set(values));
