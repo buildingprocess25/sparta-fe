@@ -195,7 +195,6 @@ export default function TarikanDataPage() {
             const workItems = collectProjectWorkItems(project);
             if (selectedBranches.size > 0 && !selectedBranches.has(branch)) return false;
             if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
-            if (selectedJobTypes.size === 0) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
 
@@ -229,7 +228,7 @@ export default function TarikanDataPage() {
     const clearSelection = () => setSelectedIds(new Set());
 
     const handleExport = useCallback(async (format: DashboardExportFormat) => {
-        if (!user || selectedIds.size === 0 || selectedJobTypes.size === 0 || exporting) return;
+        if (!user || selectedIds.size === 0 || (selectedDataTypes.size === 0 && selectedJobTypes.size === 0) || exporting) return;
         setExporting(format);
         setNotice("");
         try {
@@ -470,7 +469,7 @@ export default function TarikanDataPage() {
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-2">
                                 {formatOptions.map((format) => (
-                                    <Button key={format.id} variant="outline" className="h-16 flex-col gap-1 rounded-lg" disabled={selectedIds.size === 0 || selectedJobTypes.size === 0 || Boolean(exporting)} onClick={() => handleExport(format.id)}>
+                                    <Button key={format.id} variant="outline" className="h-16 flex-col gap-1 rounded-lg" disabled={selectedIds.size === 0 || (selectedDataTypes.size === 0 && selectedJobTypes.size === 0) || Boolean(exporting)} onClick={() => handleExport(format.id)}>
                                         {exporting === format.id ? <Loader2 className="h-4 w-4 animate-spin" /> : format.id === "pdf" ? <FileText className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}
                                         <span className="text-xs font-black">{format.label}</span>
                                         <span className="text-[10px] font-bold text-slate-400">{format.helper}</span>
