@@ -554,7 +554,7 @@ export default function SuratPeringatanPage() {
                                     </div>
                                     <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Kandidat (ULOK)</Label>
-                                        <p className="font-medium text-slate-800">{selectedDetailAction.nomor_ulok ? `${selectedDetailAction.nomor_ulok} - ${selectedDetailAction.nama_toko}` : "-"}</p>
+                                        <p className="font-medium text-slate-800">{selectedDetailAction.nomor_ulok ? selectedDetailAction.nomor_ulok : "-"}</p>
                                     </div>
                                     <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Alasan SP</Label>
