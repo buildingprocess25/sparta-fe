@@ -45,6 +45,11 @@ const normalize = (value?: string | null) => String(value ?? "").trim().toUpperC
 const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH MANAGER" || role.includes("SUPER HUMAN"));
 const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
 
+type GroupedSpAction = {
+    latest: DendaAction;
+    history: DendaAction[];
+};
+
 export default function SuratPeringatanPage() {
     const { user } = useSession();
     const [candidates, setCandidates] = useState<DendaActionCandidate[]>([]);
@@ -63,7 +68,7 @@ export default function SuratPeringatanPage() {
     const [openDropdown, setOpenDropdown] = useState(false);
     const [spLevel, setSpLevel] = useState<1 | 2 | 3>(1);
     const [viewMode, setViewMode] = useState<"list" | "form" | "detail">("list");
-    const [selectedDetailAction, setSelectedDetailAction] = useState<DendaAction | null>(null);
+    const [selectedDetailGroup, setSelectedDetailGroup] = useState<GroupedSpAction | null>(null);
 
     const selected = useMemo(
         () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? null,
@@ -125,19 +130,35 @@ export default function SuratPeringatanPage() {
         }
     }, [reason, selected]);
 
-    const pendingActions = actions.filter((action) => {
-        if (action.action_type !== "SP" || action.status !== "WAITING_MANAGER") return false;
-        if (!user || user.roles.includes("SUPER HUMAN")) return true;
-        if (user.isHO) return normalize(action.cabang) === "HEAD OFFICE";
-        return canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage());
-    });
-    
-    const approvedActions = actions.filter((action) => {
-        if (action.action_type !== "SP" || action.status === "WAITING_MANAGER") return false;
-        if (!user || user.roles.includes("SUPER HUMAN")) return true;
-        if (user.isHO) return normalize(action.cabang) === "HEAD OFFICE";
-        return canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage());
-    });
+    const groupedActions = useMemo(() => {
+        const map = new Map<string, DendaAction[]>();
+        actions.forEach(action => {
+            if (action.action_type !== "SP") return;
+            if (user && !user.roles.includes("SUPER HUMAN")) {
+                if (user.isHO && normalize(action.cabang) !== "HEAD OFFICE") return;
+                if (!user.isHO && !canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage())) return;
+            }
+            
+            // Group by toko/kontraktor AND SP level, so SP 1 and SP 2 for same store are separate threads
+            const key = `${action.id_toko || 'no-toko'}-${normalize(action.nama_kontraktor)}-${action.sp_level}`;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key)!.push(action);
+        });
+
+        const groups = Array.from(map.values()).map(group => {
+            group.sort((a, b) => b.id - a.id); // latest first
+            return { latest: group[0], history: group } as GroupedSpAction;
+        });
+        
+        // Sort groups: WAITING_MANAGER first, then by latest ID
+        groups.sort((a, b) => {
+            if (a.latest.status === "WAITING_MANAGER" && b.latest.status !== "WAITING_MANAGER") return -1;
+            if (a.latest.status !== "WAITING_MANAGER" && b.latest.status === "WAITING_MANAGER") return 1;
+            return b.latest.id - a.latest.id;
+        });
+
+        return groups;
+    }, [actions, user]);
     const userCanApprove = canApprove(user?.roles ?? [], Boolean(user?.isHO));
     const userCanSubmit = canSubmit(user?.roles ?? [], Boolean(user?.isHO));
 
@@ -293,7 +314,7 @@ export default function SuratPeringatanPage() {
                             <div className="flex justify-center items-center py-16">
                                 <Loader2 className="h-8 w-8 animate-spin text-red-500" />
                             </div>
-                        ) : (pendingActions.length === 0 && approvedActions.length === 0) ? (
+                        ) : (groupedActions.length === 0) ? (
                             <div className="text-center py-16 text-slate-400">
                                 <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-30" />
                                 <p className="font-semibold">Belum ada Surat Peringatan.</p>
@@ -301,13 +322,14 @@ export default function SuratPeringatanPage() {
                             </div>
                         ) : (
                             <div className="grid gap-3">
-                                {[...pendingActions, ...approvedActions].map((action) => {
+                                {groupedActions.map((group) => {
+                                    const action = group.latest;
                                     const isPending = action.status === "WAITING_MANAGER";
                                     const isRejected = action.status === "REJECTED_BY_MANAGER";
                                     return (
                                         <div
-                                            key={action.id}
-                                            onClick={() => { setSelectedDetailAction(action); setViewMode("detail"); }}
+                                            key={`group-${action.id}`}
+                                            onClick={() => { setSelectedDetailGroup(group); setViewMode("detail"); }}
                                             className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300 flex items-center justify-between gap-3"
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
@@ -322,7 +344,12 @@ export default function SuratPeringatanPage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="shrink-0">
+                                            <div className="shrink-0 flex items-center gap-3">
+                                                {group.history.length > 1 && (
+                                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full hidden sm:inline-block">
+                                                        {group.history.length} Riwayat
+                                                    </span>
+                                                )}
                                                 <Badge className={
                                                     isPending ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none" :
                                                     isRejected ? "border-red-200 bg-red-50 text-red-700 shadow-none" :
@@ -520,9 +547,9 @@ export default function SuratPeringatanPage() {
                     </div>
                 )}
 
-                {viewMode === "detail" && selectedDetailAction && (
+                {viewMode === "detail" && selectedDetailGroup && (
                     <div className="space-y-4">
-                        <Button variant="ghost" onClick={() => { setViewMode("list"); setSelectedDetailAction(null); }} className="mb-2 text-slate-600 hover:text-slate-900">
+                        <Button variant="ghost" onClick={() => { setViewMode("list"); setSelectedDetailGroup(null); }} className="mb-2 text-slate-600 hover:text-slate-900">
                             <ArrowLeft className="h-4 w-4 mr-2"/>
                             Kembali ke Daftar
                         </Button>
@@ -534,8 +561,8 @@ export default function SuratPeringatanPage() {
                                         <h2 className="text-xl font-bold text-slate-800">Detail Surat Peringatan</h2>
                                         <p className="text-sm text-slate-500">Informasi lengkap pengajuan SP dan persetujuan.</p>
                                     </div>
-                                    <Badge className={selectedDetailAction.status === "REJECTED_BY_MANAGER" ? "border-red-200 bg-red-50 text-red-700 shadow-none px-3 py-1" : selectedDetailAction.status === "WAITING_MANAGER" ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none px-3 py-1" : "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none px-3 py-1"}>
-                                        {statusLabel(selectedDetailAction.status)}
+                                    <Badge className={selectedDetailGroup.latest.status === "REJECTED_BY_MANAGER" ? "border-red-200 bg-red-50 text-red-700 shadow-none px-3 py-1" : selectedDetailGroup.latest.status === "WAITING_MANAGER" ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none px-3 py-1" : "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none px-3 py-1"}>
+                                        {statusLabel(selectedDetailGroup.latest.status)}
                                     </Badge>
                                 </div>
                             </div>
@@ -551,29 +578,48 @@ export default function SuratPeringatanPage() {
                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Kontraktor</Label>
-                                        <p className="font-medium text-slate-800">{selectedDetailAction.nama_kontraktor || "-"}</p>
+                                        <p className="font-medium text-slate-800">{selectedDetailGroup.latest.nama_kontraktor || "-"}</p>
                                     </div>
                                     <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Kandidat (ULOK)</Label>
-                                        <p className="font-medium text-slate-800">{selectedDetailAction.nomor_ulok ? selectedDetailAction.nomor_ulok : "-"}</p>
+                                        <p className="font-medium text-slate-800">{selectedDetailGroup.latest.nomor_ulok ? selectedDetailGroup.latest.nomor_ulok : "-"}</p>
                                     </div>
                                     <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Alasan SP</Label>
-                                        <p className="font-medium text-slate-800">{SP_REASON_LABELS[selectedDetailAction.alasan_sp ?? "KETERLAMBATAN"]}</p>
+                                        <p className="font-medium text-slate-800">{SP_REASON_LABELS[selectedDetailGroup.latest.alasan_sp ?? "KETERLAMBATAN"]}</p>
                                     </div>
                                     <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Tingkat SP</Label>
-                                        <p className="font-medium text-slate-800">SP {selectedDetailAction.sp_level}</p>
+                                        <p className="font-medium text-slate-800">SP {selectedDetailGroup.latest.sp_level}</p>
                                     </div>
-                                    {selectedDetailAction.catatan && (
+                                    {selectedDetailGroup.latest.catatan && (
                                         <div className="md:col-span-2 mt-2">
                                             <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Catatan Tambahan</Label>
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap">{selectedDetailAction.catatan}</div>
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap">{selectedDetailGroup.latest.catatan}</div>
                                         </div>
                                     )}
                                 </div>
 
-                                {selectedDetailAction.status === "WAITING_MANAGER" && userCanApprove && (
+                                
+                                {selectedDetailGroup.history.length > 1 && (
+                                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-6">
+                                        <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">Riwayat Pengajuan</h3>
+                                        <div className="space-y-4">
+                                            {selectedDetailGroup.history.map((hist, idx) => (
+                                                <div key={hist.id} className={`relative pl-6 ${idx !== selectedDetailGroup.history.length - 1 ? "border-l-2 border-slate-100 pb-4" : ""}`}>
+                                                    <div className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full ${hist.status === "WAITING_MANAGER" ? "bg-amber-400" : hist.status === "REJECTED_BY_MANAGER" ? "bg-red-400" : "bg-emerald-400"}`} />
+                                                    <p className="text-xs font-bold text-slate-500 mb-1">{new Date(hist.created_at || Date.now()).toLocaleDateString("id-ID", { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <Badge className={`text-[10px] px-2 py-0 ${hist.status === "WAITING_MANAGER" ? "bg-amber-50 text-amber-700 border-amber-200" : hist.status === "REJECTED_BY_MANAGER" ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>{statusLabel(hist.status)}</Badge>
+                                                    </div>
+                                                    {hist.catatan && <p className="text-sm text-slate-700 mt-1">Catatan: {hist.catatan}</p>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+{selectedDetailGroup.latest.status === "WAITING_MANAGER" && userCanApprove && (
                                     <div className="bg-white p-5 rounded-xl border border-amber-200 shadow-sm mt-6">
                                         <h3 className="font-bold text-amber-700 border-b border-amber-100 pb-2 mb-4 flex items-center gap-2">
                                             <Clock3 className="h-5 w-5" /> Tindakan Approval
@@ -581,13 +627,13 @@ export default function SuratPeringatanPage() {
                                         <div className="space-y-4">
                                             <div>
                                                 <Label className="text-sm font-bold text-slate-700 mb-2 block">Alasan / Catatan Penolakan (Wajib jika menolak)</Label>
-                                                <Textarea value={rejectNote[selectedDetailAction.id] ?? ""} onChange={(event) => setRejectNote((prev) => ({ ...prev, [selectedDetailAction.id]: event.target.value }))} placeholder="Isi alasan penolakan di sini..." className="min-h-24 text-sm resize-none rounded-lg" />
+                                                <Textarea value={rejectNote[selectedDetailGroup.latest.id] ?? ""} onChange={(event) => setRejectNote((prev) => ({ ...prev, [selectedDetailGroup.latest.id]: event.target.value }))} placeholder="Isi alasan penolakan di sini..." className="min-h-24 text-sm resize-none rounded-lg" />
                                             </div>
                                             <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                                                <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-12 shadow-sm" onClick={() => handleApprove(selectedDetailAction.id)} disabled={submitting}>
+                                                <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-12 shadow-sm" onClick={() => handleApprove(selectedDetailGroup.latest.id)} disabled={submitting}>
                                                     <CheckCircle2 className="mr-2 h-5 w-5" /> Setujui Pengajuan
                                                 </Button>
-                                                <Button variant="outline" className="flex-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 h-12 shadow-sm" onClick={() => handleReject(selectedDetailAction.id)} disabled={submitting}>
+                                                <Button variant="outline" className="flex-1 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 h-12 shadow-sm" onClick={() => handleReject(selectedDetailGroup.latest.id)} disabled={submitting}>
                                                     <XCircle className="mr-2 h-5 w-5" /> Tolak Pengajuan
                                                 </Button>
                                             </div>
@@ -595,22 +641,22 @@ export default function SuratPeringatanPage() {
                                     </div>
                                 )}
 
-                                {selectedDetailAction.status === "REJECTED_BY_MANAGER" && userCanSubmit && (
+                                {selectedDetailGroup.latest.status === "REJECTED_BY_MANAGER" && userCanSubmit && (
                                     <div className="bg-white p-5 rounded-xl border border-red-200 shadow-sm mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
                                         <div>
                                             <h3 className="font-bold text-red-700">Surat Peringatan Ditolak</h3>
                                             <p className="text-sm text-red-600 mt-1">Anda dapat memperbaiki dan mengajukan ulang SP tingkat ini dengan form baru.</p>
                                         </div>
                                         <Button className="bg-red-600 hover:bg-red-700 text-white shadow-sm whitespace-nowrap" onClick={() => {
-                                            if (selectedDetailAction.alasan_sp) {
-                                                setReason(selectedDetailAction.alasan_sp);
+                                            if (selectedDetailGroup.latest.alasan_sp) {
+                                                setReason(selectedDetailGroup.latest.alasan_sp);
                                             }
-                                            setSelectedContractor(selectedDetailAction.nama_kontraktor || "");
-                                            if (selectedDetailAction.id_toko) {
-                                                setSelectedId(selectedDetailAction.id_toko);
+                                            setSelectedContractor(selectedDetailGroup.latest.nama_kontraktor || "");
+                                            if (selectedDetailGroup.latest.id_toko) {
+                                                setSelectedId(selectedDetailGroup.latest.id_toko);
                                             }
-                                            setSpLevel(selectedDetailAction.sp_level as 1|2|3);
-                                            setNote(selectedDetailAction.catatan || "");
+                                            setSpLevel(selectedDetailGroup.latest.sp_level as 1|2|3);
+                                            setNote(selectedDetailGroup.latest.catatan || "");
                                             setViewMode("form");
                                         }}>
                                             <AlertTriangle className="h-4 w-4 mr-2" />
