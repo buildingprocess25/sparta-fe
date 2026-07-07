@@ -183,10 +183,13 @@ export default function TarikanDataPage() {
 
     const filteredProjects = useMemo(() => {
         const query = normalizeText(search);
+        // Saat selectedBranches kosong (= "Semua cabang akses"), tetap enforce ke allowedBranches
+        // agar ULOK dari cabang lain tidak bocor ke tampilan
+        const effectiveBranches = selectedBranches.size > 0 ? selectedBranches : new Set(allowedBranches);
         return projects.filter((project) => {
             const branch = projectBranch(project);
             const workItems = collectProjectWorkItems(project);
-            if (selectedBranches.size > 0 && !selectedBranches.has(branch)) return false;
+            if (allowedBranches.length > 0 && !effectiveBranches.has(branch)) return false;
             if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
@@ -235,7 +238,9 @@ export default function TarikanDataPage() {
                 periodMode,
                 dataTypes: Array.from(selectedDataTypes),
                 jobTypes: Array.from(selectedJobTypes),
-                cabangs: Array.from(selectedBranches),
+                // Selalu kirim cabangs yang diizinkan agar BE bisa enforce filter cabang
+                // Jika user memilih "Semua cabang" (selectedBranches kosong), kirim semua allowedBranches
+                cabangs: selectedBranches.size > 0 ? Array.from(selectedBranches) : allowedBranches,
                 spkStatus,
             });
             setNotice("Export berhasil dibuat sesuai pilihan data.");
