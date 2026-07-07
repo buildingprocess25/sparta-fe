@@ -84,7 +84,7 @@ export default function SuratPeringatanPage() {
         }
 
         if (reason === "KETERLAMBATAN") {
-            base = base.filter((c) => Number(c.hari_denda) > 0);
+            base = base.filter((c) => Number(c.hari_denda) > 0 || normalize(c.cabang) === "HEAD OFFICE");
         }
 
         const q = normalize(search);
@@ -118,7 +118,7 @@ export default function SuratPeringatanPage() {
     useEffect(() => {
         if (reason === "MANIPULASI") {
             setSelectedId(null);
-        } else if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0) {
+        } else if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0 && normalize(selected.cabang) !== "HEAD OFFICE") {
             setSelectedId(null);
         }
     }, [reason, selected]);
