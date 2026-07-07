@@ -42,7 +42,7 @@ const statusLabel = (status: string) => ({
 }[status] ?? status);
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
-const canApprove = (roles: string[], isHO: boolean) => isHO || roles.some((role) => role.includes("MANAGER") || role.includes("SUPER HUMAN"));
+const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH MANAGER" || role.includes("SUPER HUMAN"));
 const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
 
 export default function SuratPeringatanPage() {
