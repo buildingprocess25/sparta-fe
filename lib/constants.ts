@@ -240,7 +240,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "HEAD OFFICE": [
         "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
-        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
+        "menu-gantt", "menu-approval", "menu-daftardokumen",
         "menu-projek-planning", "menu-tarikan-data",
     ],
 
@@ -262,7 +262,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     "BRANCH BUILDING SUPPORT": [
         "menu-dokumentasi", "menu-opname", "menu-gantt",
-        "menu-svdokumen", "menu-sp", "menu-daftardokumen", "menu-il", "menu-tarikan-data",
+        "menu-svdokumen", "menu-daftardokumen", "menu-il", "menu-tarikan-data",
     ],
 
     "DIREKTUR KONTRAKTOR": [
@@ -274,7 +274,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "KONTRAKTOR": [
-        "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen",
+        "menu-rab", "menu-opname", "menu-gantt", "menu-daftardokumen", "menu-sp",
     ],
 
     "KONSULTAN SOIL INVESTIGATION": [

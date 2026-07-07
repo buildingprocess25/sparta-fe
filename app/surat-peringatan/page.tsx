@@ -15,6 +15,7 @@ import {
     approveDendaAction,
     createSpAction,
     fetchDendaActionCandidates,
+    fetchDendaActionKontraktor,
     fetchDendaActions,
     rejectDendaAction,
     type DendaAction,
@@ -46,7 +47,9 @@ const canSubmit = (roles: string[], isHO: boolean) => isHO || roles.some((role) 
 export default function SuratPeringatanPage() {
     const { user } = useSession();
     const [candidates, setCandidates] = useState<DendaActionCandidate[]>([]);
+    const [contractors, setContractors] = useState<string[]>([]);
     const [actions, setActions] = useState<DendaAction[]>([]);
+    const [selectedContractor, setSelectedContractor] = useState<string>("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [search, setSearch] = useState("");
     const [reason, setReason] = useState<SpReason>("KETERLAMBATAN");
@@ -64,24 +67,31 @@ export default function SuratPeringatanPage() {
     );
 
     const filteredCandidates = useMemo(() => {
-        const q = normalize(search);
-        const baseCandidates = reason === "KETERLAMBATAN"
-            ? candidates.filter((c) => Number(c.hari_denda) > 0)
-            : candidates;
+        let base = candidates;
+        
+        if (selectedContractor) {
+            base = base.filter(c => normalize(c.nama_kontraktor) === normalize(selectedContractor));
+        }
 
-        if (!q) return baseCandidates;
-        return baseCandidates.filter((candidate) => [
+        if (reason === "KETERLAMBATAN") {
+            base = base.filter((c) => Number(c.hari_denda) > 0);
+        }
+
+        const q = normalize(search);
+        if (!q) return base;
+        return base.filter((candidate) => [
             candidate.nomor_ulok,
             candidate.nama_toko,
             candidate.kode_toko,
-            candidate.nama_kontraktor,
             candidate.cabang,
             candidate.nomor_spk,
         ].some((value) => normalize(value).includes(q)));
-    }, [candidates, search, reason]);
+    }, [candidates, search, reason, selectedContractor]);
 
     useEffect(() => {
-        if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0) {
+        if (reason === "MANIPULASI") {
+            setSelectedId(null);
+        } else if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0) {
             setSelectedId(null);
         }
     }, [reason, selected]);
@@ -95,14 +105,19 @@ export default function SuratPeringatanPage() {
         setLoading(true);
         setMessage(null);
         try {
-            const [candidateResult, actionResult] = await Promise.all([
+            const [candidateResult, actionResult, kontraktorResult] = await Promise.all([
                 fetchDendaActionCandidates(),
                 fetchDendaActions(),
+                fetchDendaActionKontraktor(),
             ]);
             const nextCandidates = candidateResult.data.filter((candidate) => candidate.next_sp_level !== null || candidate.has_pending_approval);
             setCandidates(nextCandidates);
+            setContractors(kontraktorResult.data);
             setActions(actionResult.data.filter((action) => action.action_type === "SP"));
-            setSelectedId((current) => current ?? nextCandidates[0]?.id_toko ?? null);
+            
+            if (!selectedContractor && kontraktorResult.data.length > 0) {
+                setSelectedContractor(kontraktorResult.data[0]);
+            }
         } catch (error) {
             setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal memuat Surat Peringatan." });
         } finally {
@@ -115,7 +130,15 @@ export default function SuratPeringatanPage() {
     }, []);
 
     const submitSp = async () => {
-        if (!selected || !selected.next_sp_level || submitting) return;
+        if (submitting || !selectedContractor) return;
+        
+        const isManipulasi = reason === "MANIPULASI";
+        
+        if (!isManipulasi && (!selected || !selected.next_sp_level)) {
+            setMessage({ type: "error", text: "Pilih kandidat ULOK untuk alasan selain Manipulasi." });
+            return;
+        }
+        
         if (!file) {
             setMessage({ type: "error", text: "Lampiran pendukung wajib diupload." });
             return;
@@ -123,14 +146,21 @@ export default function SuratPeringatanPage() {
         setSubmitting(true);
         setMessage(null);
         try {
-            const result = await createSpAction({
-                id_toko: selected.id_toko,
-                id_opname_final: selected.opname_final_id,
-                sp_level: selected.next_sp_level,
+            const payload: any = {
+                sp_level: isManipulasi ? 1 : selected!.next_sp_level, // Fallback ke SP 1 jika tidak ada ULOK, (sebenarnya bisa diubah manual jika diperlukan)
                 alasan_sp: reason,
                 catatan: note,
                 lampiran: file,
-            });
+            };
+            
+            if (isManipulasi) {
+                payload.nama_kontraktor = selectedContractor;
+            } else {
+                payload.id_toko = selected!.id_toko;
+                payload.id_opname_final = selected!.opname_final_id;
+            }
+
+            const result = await createSpAction(payload);
             setMessage({ type: "success", text: result.message });
             setNote("");
             setFile(null);
@@ -211,6 +241,17 @@ export default function SuratPeringatanPage() {
                             <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">1. Data Kandidat &amp; Alasan SP</h3>
                             
                             <div className="grid gap-6 md:grid-cols-2">
+                                {/* Kontraktor Dropdown */}
+                                <div>
+                                    <Label className="text-sm font-bold text-slate-700 mb-2 block">Pilih Kontraktor *</Label>
+                                    <Select value={selectedContractor} onValueChange={(val) => { setSelectedContractor(val); setSelectedId(null); }}>
+                                        <SelectTrigger className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-red-500 h-11"><SelectValue placeholder="Pilih kontraktor..." /></SelectTrigger>
+                                        <SelectContent>
+                                            {contractors.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 {/* Alasan SP */}
                                 <div>
                                     <Label className="text-sm font-bold text-slate-700 mb-2 block">Alasan Surat Peringatan *</Label>
@@ -221,19 +262,21 @@ export default function SuratPeringatanPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                            </div>
 
-                                {/* Kandidat SP Dropdown */}
-                                <div>
+                            {/* Kandidat SP Dropdown */}
+                            {reason !== "MANIPULASI" && (
+                                <div className="mt-6">
                                     <Label className="text-sm font-bold text-slate-700 mb-2 block">Pilih Kandidat (ULOK) *</Label>
                                     <Popover open={openDropdown} onOpenChange={setOpenDropdown}>
                                         <PopoverTrigger asChild>
-                                            <Button variant="outline" className="w-full justify-between h-auto min-h-11 py-2.5 px-3.5 text-left font-normal border-slate-300 hover:bg-slate-50">
+                                            <Button variant="outline" className="w-full justify-between h-auto min-h-11 py-2.5 px-3.5 text-left font-normal border-slate-300 hover:bg-slate-50" disabled={!selectedContractor}>
                                                 {selected ? (
                                                     <div className="flex flex-col gap-0.5 items-start">
                                                         <span className="font-bold text-slate-950 text-sm line-clamp-1">{selected.nomor_ulok || "-"} · {selected.nama_toko || "-"}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-500">Klik untuk memilih kandidat...</span>
+                                                    <span className="text-slate-500">{!selectedContractor ? "Pilih kontraktor terlebih dahulu..." : "Klik untuk memilih kandidat..."}</span>
                                                 )}
                                                 <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0" />
                                             </Button>
@@ -241,14 +284,14 @@ export default function SuratPeringatanPage() {
                                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl" align="start">
                                             <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5 bg-slate-50/50 rounded-t-xl">
                                                 <Search className="h-4 w-4 text-slate-400 shrink-0" />
-                                                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari ULOK, toko, kontraktor" className="border-0 px-0 shadow-none focus-visible:ring-0 h-8 bg-transparent" />
+                                                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari ULOK, toko" className="border-0 px-0 shadow-none focus-visible:ring-0 h-8 bg-transparent" />
                                             </div>
                                             <div className="max-h-72 overflow-y-auto p-1.5 grid gap-1">
                                                 {loading ? (
                                                     <div className="p-4 text-center text-sm font-medium text-slate-500">Memuat data...</div>
                                                 ) : filteredCandidates.length === 0 ? (
                                                     <div className="p-4 text-center text-sm font-medium text-slate-500">
-                                                        {reason === "KETERLAMBATAN" ? "Tidak ada kandidat yang terlambat saat ini." : "Tidak ada kandidat ditemukan."}
+                                                        {reason === "KETERLAMBATAN" ? "Tidak ada kandidat yang terlambat saat ini untuk kontraktor ini." : "Tidak ada kandidat ditemukan untuk kontraktor ini."}
                                                     </div>
                                                 ) : (
                                                     filteredCandidates.map((candidate) => (
@@ -265,7 +308,6 @@ export default function SuratPeringatanPage() {
                                                                     <Badge className="border-amber-200 bg-amber-50 text-amber-700 text-[10px] px-1.5 py-0">SP {candidate.next_sp_level ?? "-"}</Badge>
                                                                 </div>
                                                             </div>
-                                                            <span className="text-xs font-semibold text-slate-500 line-clamp-1">{candidate.nama_kontraktor}</span>
                                                             <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-semibold text-slate-400">
                                                                 <span>{candidate.cabang || "-"}</span>
                                                                 <span>{candidate.lingkup_pekerjaan || "-"}</span>
@@ -277,19 +319,19 @@ export default function SuratPeringatanPage() {
                                         </PopoverContent>
                                     </Popover>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
-                        {selected ? (
+                        {selectedContractor && (reason === "MANIPULASI" || selected) ? (
                             <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
                                 <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">2. Detail SP &amp; Lampiran</h3>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label className="text-sm font-bold text-slate-700">Tingkat SP</Label>
-                                        <Input value={selected.next_sp_level ? `Surat Peringatan Ke-${selected.next_sp_level}` : "Maksimal SP"} disabled className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 font-bold outline-none cursor-not-allowed" />
+                                        <Input value={reason === "MANIPULASI" ? "Surat Peringatan Khusus" : selected?.next_sp_level ? `Surat Peringatan Ke-${selected.next_sp_level}` : "Maksimal SP"} disabled className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 font-bold outline-none cursor-not-allowed" />
                                     </div>
-                                    {reason === "KETERLAMBATAN" ? (
+                                    {reason === "KETERLAMBATAN" && selected ? (
                                         <div className="space-y-2">
                                             <Label className="text-sm font-bold text-slate-700">Total Denda Sementara</Label>
                                             <div className="flex h-11 items-center rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-bold text-red-700">
@@ -318,11 +360,11 @@ export default function SuratPeringatanPage() {
                             </div>
                         ) : null}
 
-                        {selected ? (
+                        {selectedContractor && (reason === "MANIPULASI" || selected) ? (
                             <div className="pt-2">
-                                <Button className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl" onClick={submitSp} disabled={!userCanSubmit || submitting || selected.has_pending_approval || !selected.next_sp_level}>
+                                <Button className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl" onClick={submitSp} disabled={!userCanSubmit || submitting || (reason !== "MANIPULASI" && (selected?.has_pending_approval || !selected?.next_sp_level))}>
                                     {submitting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <FileText className="mr-2 h-6 w-6" />}
-                                    {selected.has_pending_approval ? "SP Sedang Dalam Proses Approval" : "Ajukan Surat Peringatan"}
+                                    {reason !== "MANIPULASI" && selected?.has_pending_approval ? "SP Sedang Dalam Proses Approval" : "Ajukan Surat Peringatan"}
                                 </Button>
                             </div>
                         ) : null}

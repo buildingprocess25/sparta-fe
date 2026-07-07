@@ -35,6 +35,10 @@ import {
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail,
     processInstruksiLapanganApproval, downloadInstruksiLapanganPdf
 } from '@/lib/api';
+import {
+    fetchDendaActions, approveDendaAction, rejectDendaAction,
+    type DendaAction,
+} from '@/lib/denda-actions-api';
 
 import { parseCurrency } from '@/lib/utils';
 import {
@@ -56,7 +60,7 @@ import {
 // =============================================
 // TYPES INTERNAL
 // =============================================
-type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING';
+type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'SURAT_PERINGATAN';
 type ActiveView = 'menu' | 'list' | 'detail';
 type RabBeanspotType = '' | 'TIDAK' | 'ADVANCE' | 'MEDIUM' | 'RTD_ONLY';
 type YesNoValue = '' | 'YA' | 'TIDAK';
@@ -233,6 +237,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     OPNAME: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'DIREKTUR KONTRAKTOR', 'COORDINATOR', 'MANAGER'],
     INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'COORDINATOR', 'MANAGER'],
     PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
+    SURAT_PERINGATAN: ['BRANCH BUILDING & MAINTENANCE MANAGER'],
 };
 
 type ApprovalJabatan = 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'DIREKTUR_KONTRAKTOR' | 'KONTRAKTOR';
@@ -416,9 +421,24 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         description: 'FPD Project Planning yang memerlukan review atau persetujuan.',
         emptyMsg: 'Tidak ada project planning yang menunggu persetujuan.',
     },
+    SURAT_PERINGATAN: {
+        label: 'Approval Surat Peringatan',
+        icon: <AlertTriangle className="w-10 h-10" />,
+        color: 'text-red-700',
+        hoverBorder: 'hover:border-red-500',
+        badgeColor: 'bg-red-100 text-red-700 border-red-200',
+        description: 'Surat Peringatan yang menunggu persetujuan manager.',
+        emptyMsg: 'Tidak ada Surat Peringatan yang menunggu persetujuan.',
+    },
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
+    // SP
+    WAITING_MANAGER:                    'bg-orange-100 text-orange-700 border-orange-200',
+    REJECTED_BY_MANAGER:                'bg-red-100 text-red-700 border-red-200',
+    SENT_TO_CONTRACTOR:                 'bg-blue-100 text-blue-700 border-blue-200',
+    VIEWED_BY_CONTRACTOR:               'bg-indigo-100 text-indigo-700 border-indigo-200',
+    ACKNOWLEDGED_BY_CONTRACTOR:         'bg-green-100 text-green-700 border-green-200',
     'MENUNGGU GANTT CHART': 'bg-slate-100 text-slate-700 border-slate-200',
     PENDING:             'bg-yellow-100 text-yellow-700 border-yellow-200',
     PENDING_KOORDINATOR: 'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -456,6 +476,12 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+    // SP
+    WAITING_MANAGER:                    'PENDING (MGR.)',
+    REJECTED_BY_MANAGER:                'REJECTED (MGR.)',
+    SENT_TO_CONTRACTOR:                 'DIKIRIM',
+    VIEWED_BY_CONTRACTOR:               'DIBACA',
+    ACKNOWLEDGED_BY_CONTRACTOR:         'DISETUJUI',
     'MENUNGGU GANTT CHART': 'MENUNGGU GANTT',
     PENDING:             'PENDING',
     PENDING_KOORDINATOR: 'PENDING (KOORD.)',
@@ -707,6 +733,7 @@ function ApprovalPageContent() {
             allAccessibleTypes.add('OPNAME');
             allAccessibleTypes.add('INSTRUKSI_LAPANGAN');
             allAccessibleTypes.add('PROJECT_PLANNING');
+            allAccessibleTypes.add('SURAT_PERINGATAN');
         } else if (isProjectPlanningApprovalRole && isHO) {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isDirectorHO) {
@@ -940,6 +967,22 @@ function ApprovalPageContent() {
             } else if (type === 'PROJECT_PLANNING') {
                 const res = await fetchProjekPlanningList();
                 normalized = normalizeProjekPlanningList(res.data ?? []);
+            } else if (type === 'SURAT_PERINGATAN') {
+                const res = await fetchDendaActions({ action_type: 'SP' });
+                normalized = (res.data ?? [])
+                    .filter((action: DendaAction) => action.status === 'WAITING_MANAGER')
+                    .map((action: DendaAction) => ({
+                        id: action.id,
+                        tipe: 'SURAT_PERINGATAN' as ApprovalType,
+                        nomor_ulok: action.nomor_ulok || '-',
+                        nama_toko: '-',
+                        cabang: action.cabang || '-',
+                        status: action.status,
+                        total_nilai: Number(action.nilai_denda || 0),
+                        email_pembuat: action.submitted_by_email || '-',
+                        created_at: action.created_at,
+                        _raw: action,
+                    }));
             }
 
             // Filter Berdasarkan Role & Jabatan & Cabang
@@ -1270,6 +1313,32 @@ function ApprovalPageContent() {
                         catatan:         it.catatan,
                     })),
                 };
+            } else if (item.tipe === 'SURAT_PERINGATAN') {
+                const res = await fetchDendaActions();
+                const listData = res.data ?? [];
+                const d = listData.find((a: DendaAction) => a.id === item.id);
+                if (!d) throw new Error('Detail Surat Peringatan tidak ditemukan');
+                
+                detail = {
+                    id: d.id,
+                    tipe: 'SURAT_PERINGATAN',
+                    id_toko: d.id_toko,
+                    nomor_ulok: d.nomor_ulok || item.nomor_ulok || '-',
+                    nama_toko: (d as any).action?.toko?.nama_toko || item.nama_toko || '-',
+                    cabang: d.cabang || item.cabang || '-',
+                    status: d.status || item.status,
+                    total_nilai: Number(d.nilai_denda) || 0,
+                    email_pembuat: d.submitted_by_email || item.email_pembuat,
+                    created_at: d.created_at || item.created_at,
+                    alasan_penolakan: d.manager_rejected_reason,
+                    link_pdf_gabungan: d.link_pdf,
+                    link_lampiran_pendukung: d.lampiran_1_url,
+                    approval_manager: { pemberi: d.manager_approved_by, waktu: d.manager_approved_at },
+                    items: [], // Surat peringatan tidak memiliki rincian item pekerjaan
+                    _raw: d,
+                    hari_denda: d.hari_denda,
+                    nilai_denda: d.nilai_denda,
+                };
             }
 
             const detailUserRoles = userInfo.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
@@ -1505,6 +1574,8 @@ function ApprovalPageContent() {
                     tindakan:       'APPROVE',
                     catatan_approval: catatanApproval,
                 });
+            } else if (item.tipe === 'SURAT_PERINGATAN') {
+                await approveDendaAction(item.id);
             }
             // Hapus item dari list karena sudah bukan giliran role ini lagi
             setListData(prev => prev.filter(d => d.id !== item.id));
@@ -1608,6 +1679,8 @@ function ApprovalPageContent() {
                     alasan_penolakan: rejectNote,
                     catatan_approval: rejectNote,
                 });
+            } else if (item.tipe === 'SURAT_PERINGATAN') {
+                await rejectDendaAction(item.id, rejectNote);
             }
             // Hapus item dari list karena sudah ditolak
             setListData(prev => prev.filter(d => d.id !== item.id));
@@ -1751,6 +1824,11 @@ function ApprovalPageContent() {
         // Pertambahan SPK — status "Menunggu Persetujuan"
         if (tipe === 'PERTAMBAHAN_SPK') {
             return upper === 'MENUNGGU PERSETUJUAN';
+        }
+
+        // Surat Peringatan — status WAITING_MANAGER untuk Manager
+        if (tipe === 'SURAT_PERINGATAN') {
+            return upper === 'WAITING_MANAGER';
         }
 
         // OPNAME (Final) — multi-level mirip RAB tapi status dalam Bahasa Indonesia
@@ -2334,6 +2412,17 @@ function ApprovalPageContent() {
                                         {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download Instruksi Lapangan'}
                                     </Button>
                                 )}
+                                {selectedDetail?.tipe === 'SURAT_PERINGATAN' && selectedDetail.link_pdf_gabungan && (
+                                    <a
+                                        href={selectedDetail.link_pdf_gabungan}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center h-10 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-md text-sm font-bold hover:bg-red-50 transition-colors"
+                                    >
+                                        <FileDown className="w-4 h-4 mr-2" />
+                                        Download SP (PDF)
+                                    </a>
+                                )}
                             </div>
                         </div>
 
@@ -2432,6 +2521,14 @@ function ApprovalPageContent() {
                                                     <>
                                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Perpanjangan</p>
                                                         <p className="text-3xl font-extrabold text-emerald-700">+{selectedDetail.pertambahan_hari} Hari</p>
+                                                    </>
+                                                ) : selectedDetail.tipe === 'SURAT_PERINGATAN' ? (
+                                                    <>
+                                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Denda</p>
+                                                        <p className="text-3xl font-extrabold text-red-700">{formatRupiah(selectedDetail.total_nilai)}</p>
+                                                        <p className="text-xs font-semibold text-red-500 mt-1">
+                                                            Durasi Denda: {selectedDetail.hari_denda ?? 0} hari
+                                                        </p>
                                                     </>
                                                 ) : selectedDetail.tipe !== 'PROJECT_PLANNING' ? (
                                                     <>
@@ -2540,6 +2637,51 @@ function ApprovalPageContent() {
                                                     </a>
                                                 )}
                                             </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* Surat Peringatan Detail Card */}
+                                {selectedDetail.tipe === 'SURAT_PERINGATAN' && (
+                                    <Card className="mb-6 shadow-sm border-red-200 bg-white">
+                                        <CardContent className="p-6">
+                                            <h3 className="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                                                Detail Surat Peringatan
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status SP</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail._raw?.status || '-'}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Alasan SP</p>
+                                                    <p className="text-sm font-bold text-red-700">{selectedDetail._raw?.alasan_sp || '-'}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai Denda</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
+                                                </div>
+                                            </div>
+                                            {/* Catatan SP */}
+                                            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                                                <p className="text-[11px] font-bold text-red-600 uppercase tracking-wider mb-1">Catatan</p>
+                                                <p className="text-sm text-slate-800">{selectedDetail._raw?.catatan || '-'}</p>
+                                            </div>
+                                            {/* Lampiran links */}
+                                            {selectedDetail.link_lampiran_pendukung && (
+                                                <div className="mt-4 flex flex-wrap gap-3">
+                                                    <a
+                                                        href={selectedDetail.link_lampiran_pendukung}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-200 transition-colors"
+                                                    >
+                                                        <FileDown className="w-4 h-4" />
+                                                        Lihat Lampiran Pendukung
+                                                    </a>
+                                                </div>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 )}

@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1148,11 +1148,12 @@ export default function DashboardPage() {
         { label: 'Denda', value: formatRupiah(stats.totalDenda), icon: <AlertCircle className="w-4 h-4" />, context: 'DENDA', color: 'text-red-700 bg-red-50 border-red-100' },
         { label: 'Nilai Toko', value: `${stats.avgNilaiToko} Poin`, icon: <Tag className="w-4 h-4" />, context: 'NILAI_TOKO', color: 'text-amber-700 bg-amber-50 border-amber-100' },
     ];
-    const focusCards = [
+    const focusCards: Array<{ label: string; value: number | string; helper: string; icon: React.ReactNode; context: string; subContext: string; tone: string }> = [
         { label: 'Total Toko', value: stats.total, helper: 'Semua toko pada filter aktif', icon: <Store className="w-4 h-4" />, context: 'PROJECT', subContext: '', tone: 'border-slate-200 bg-white text-slate-900' },
         { label: 'Perlu Dicek', value: stats.attention, helper: 'Lewat SLA atau punya risiko denda', icon: <AlertTriangle className="w-4 h-4" />, context: 'ATTENTION', subContext: '', tone: 'border-red-200 bg-red-50 text-red-700' },
         { label: 'Ongoing', value: stats.miniStats.Ongoing, helper: 'Sudah SPK dan masih berjalan', icon: <HardHat className="w-4 h-4" />, context: 'PROJECT', subContext: 'Ongoing', tone: 'border-blue-200 bg-blue-50 text-blue-700' },
         { label: 'Done / ST', value: stats.miniStats.Done, helper: 'Sudah opname final atau serah terima', icon: <CheckCircle2 className="w-4 h-4" />, context: 'PROJECT', subContext: 'Done', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+        { label: 'SP Pending', value: approvalCounts.SURAT_PERINGATAN || 0, helper: 'Surat Peringatan Menunggu Approval', icon: <AlertTriangle className="w-4 h-4" />, context: 'APPROVAL', subContext: 'SP', tone: 'border-amber-200 bg-amber-50 text-amber-700' },
     ];
     const secondaryMetrics = [
         { label: 'JHK Pekerjaan', value: `${stats.avgJHK} hari`, helper: 'Durasi SPK + tambah hari', context: 'JHK', icon: <Calendar className="w-4 h-4" /> },
@@ -1578,7 +1579,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5">
                                     {focusCards.map(item => (
                                         <button
                                             key={item.label}

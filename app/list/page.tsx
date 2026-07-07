@@ -33,6 +33,7 @@ import {
     fetchUserCabangList,
     type ProjekPlanningItem,
 } from '@/lib/api';
+import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
 import {
     API_URL,
@@ -51,7 +52,7 @@ import {
 // =============================================================================
 // TYPES
 // =============================================================================
-type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN';
+type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN' | 'SURAT_PERINGATAN';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
@@ -106,6 +107,7 @@ interface NormalizedDoc {
     nilai_opname?: string | null;
     nomor_spk_st?: string | null;
     serah_terima_scopes?: any[];
+    rawDendaAction?: any;
 }
 
 interface PengawasanDocGroup {
@@ -265,6 +267,8 @@ interface NormalizedDetail {
     pic_dokumentasi?: string;
     dokumentasi_items?: any[];
     activity_logs?: ActivityLog[];
+    // Surat Peringatan specific
+    rawDendaAction?: DendaAction;
 }
 
 // =============================================================================
@@ -390,6 +394,17 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         hoverBorder: 'hover:border-amber-400',
         badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
         description: 'Daftar dokumen dokumentasi bangunan toko baru.',
+    },
+    SURAT_PERINGATAN: {
+        label: 'Surat Peringatan',
+        fullLabel: 'Surat Peringatan',
+        icon: <AlertTriangle className="w-10 h-10" />,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-200',
+        hoverBorder: 'hover:border-red-400',
+        badgeColor: 'bg-red-100 text-red-700 border-red-200',
+        description: 'Daftar dokumen Surat Peringatan & Takeover.',
     },
 };
 
@@ -1274,6 +1289,32 @@ export default function DaftarDokumenPage() {
             } else if (kategori === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKList();
                 docs = normalizePertambahanSPKDocs(res.data ?? []);
+            } else if (kategori === 'SURAT_PERINGATAN') {
+                const normalizedList: NormalizedDoc[] = [];
+                const spData = await fetchDendaActions({ action_type: "SP" });
+                if (Array.isArray(spData?.data)) {
+                    spData.data.forEach((item: DendaAction) => {
+                        const anyItem = item as any;
+                        normalizedList.push({
+                            id: item.id,
+                            tipe: 'SURAT_PERINGATAN',
+                            nomor_ulok: item.nomor_ulok || '-',
+                            nama_toko: anyItem.toko?.nama_toko || '-',
+                            cabang: item.cabang || '-',
+                            proyek: item.lingkup_pekerjaan || '-',
+                            email_pembuat: anyItem.submitted_by_email || '-',
+                            total_nilai: 0,
+                            link_pdf: null,
+                            lingkup_pekerjaan: item.lingkup_pekerjaan || '-',
+                            nama_kontraktor: item.nama_kontraktor || '-',
+                            status: item.status,
+                            created_at: item.created_at || new Date().toISOString(),
+                            nomor_spk: item.nomor_spk || undefined,
+                            rawDendaAction: item,
+                        });
+                    });
+                }
+                docs = normalizedList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             } else if (kategori === 'OPNAME' || kategori === 'OPNAME_FINAL') {
                 let filters: any = undefined;
                 const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
@@ -1711,6 +1752,23 @@ export default function DaftarDokumenPage() {
                     pp2_approval:      { pemberi: d.pp2_approver_email, waktu: d.pp2_waktu_persetujuan },
                     pp_manager_approval: { pemberi: d.pp_manager_approver_email, waktu: d.pp_manager_waktu_persetujuan },
                 };
+            } else if (doc.tipe === 'SURAT_PERINGATAN' && doc.rawDendaAction) {
+                const action = doc.rawDendaAction;
+                detail = {
+                    id: action.id,
+                    tipe: 'SURAT_PERINGATAN',
+                    nomor_ulok: action.nomor_ulok || '-',
+                    nama_toko: '-',
+                    cabang: action.cabang || '-',
+                    proyek: action.lingkup_pekerjaan || '-',
+                    status: action.status,
+                    email_pembuat: action.submitted_by_email || '-',
+                    total_nilai: Number(action.nilai_denda || 0),
+                    created_at: action.created_at,
+                    nama_kontraktor: action.nama_kontraktor,
+                    nomor_spk: action.nomor_spk,
+                    rawDendaAction: action,
+                };
             } else if (doc.tipe === 'DOKUMENTASI_BANGUNAN') {
                 const res = await fetchDokumentasiBangunanDetail(doc.id);
                 const d = res.data.dokumentasi;
@@ -1792,6 +1850,14 @@ export default function DaftarDokumenPage() {
                 await downloadSerahTerimaPdf(id);
             } else if (tipe === 'DOKUMENTASI_BANGUNAN') {
                 await downloadDokumentasiBangunanPdf(id);
+            } else if (tipe === 'SURAT_PERINGATAN') {
+                const spDetail = await fetchDendaActions({ action_type: "SP" });
+                const action = spDetail.data.find((a) => a.id === id);
+                if (action?.link_pdf) {
+                    window.open(action.link_pdf, '_blank');
+                } else {
+                    throw new Error('Link PDF Surat Peringatan tidak ditemukan (belum diapprove/digenerate).');
+                }
             }
             showToast('PDF berhasil diunduh.', 'success');
         } catch (err: any) {
@@ -3197,12 +3263,43 @@ export default function DaftarDokumenPage() {
                                                     )}
                                                 </>
                                             )}
+                                            {/* Surat Peringatan-specific fields */}
+                                            {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction && (() => {
+                                                const action = selectedDetail.rawDendaAction;
+                                                const SP_REASON_LABELS: Record<string, string> = {
+                                                    KETERLAMBATAN: 'Keterlambatan',
+                                                    MENOLAK_SPK: 'Menolak SPK',
+                                                    MANIPULASI: 'Manipulasi',
+                                                };
+                                                return (
+                                                    <>
+                                                        {action.alasan_sp && <InfoRow icon={<AlertTriangle className="w-4 h-4" />} label="Alasan SP" value={SP_REASON_LABELS[action.alasan_sp] ?? action.alasan_sp} />}
+                                                        {action.sp_level && <InfoRow icon={<Hash className="w-4 h-4" />} label="Tingkat SP" value={`SP ${action.sp_level}`} />}
+                                                        {action.nama_kontraktor && <InfoRow icon={<Building2 className="w-4 h-4" />} label="Kontraktor" value={action.nama_kontraktor} />}
+                                                        {action.nomor_ulok && <InfoRow icon={<MapPin className="w-4 h-4" />} label="Nomor ULOK" value={action.nomor_ulok} />}
+                                                        {action.nomor_surat && <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor Surat" value={action.nomor_surat} />}
+                                                        {action.catatan && (
+                                                            <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                                <InfoRow icon={<FileText className="w-4 h-4" />} label="Catatan" value={action.catatan} />
+                                                            </div>
+                                                        )}
+                                                        {action.manager_approved_by && <InfoRow icon={<User className="w-4 h-4" />} label="Disetujui Oleh" value={action.manager_approved_by} />}
+                                                        {action.link_pdf && (
+                                                            <div className="col-span-1 sm:col-span-2 lg:col-span-2">
+                                                                <a href={action.link_pdf} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-red-600 font-semibold hover:underline">
+                                                                    <ExternalLink className="w-4 h-4" /> Lihat PDF Surat Peringatan
+                                                                </a>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN, PROJECT_PLANNING, DOKUMENTASI_BANGUNAN & BERKAS_SERAH_TERIMA */}
-                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && selectedDetail.tipe !== 'BERKAS_SERAH_TERIMA' && (
+                                {/* Nilai Kontrak Card — hide for PERTAMBAHAN_SPK, PENGAWASAN, PROJECT_PLANNING, DOKUMENTASI_BANGUNAN, BERKAS_SERAH_TERIMA, SURAT_PERINGATAN */}
+                                {selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'PENGAWASAN' && selectedDetail.tipe !== 'PROJECT_PLANNING' && selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && selectedDetail.tipe !== 'BERKAS_SERAH_TERIMA' && selectedDetail.tipe !== 'SURAT_PERINGATAN' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                                     <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                                         <div className="w-1.5 h-5 bg-red-500 rounded-full" />

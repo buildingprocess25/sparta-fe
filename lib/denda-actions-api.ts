@@ -1,4 +1,4 @@
-﻿import { apiFetch, safeFetchJSON } from "./api";
+import { apiFetch, safeFetchJSON } from "./api";
 import { API_URL } from "./constants";
 
 export type DendaActionType = "SP" | "TAKEOVER";
@@ -80,7 +80,8 @@ export type DendaAction = {
 };
 
 export type CreateSpActionPayload = {
-    id_toko: number;
+    id_toko?: number | null;
+    nama_kontraktor?: string;
     id_opname_final?: number | null;
     sp_level: number;
     alasan_sp: SpReason;
@@ -100,15 +101,20 @@ export type CreateTakeoverActionPayload = {
 export const fetchDendaActionCandidates = async (): Promise<{ status: string; data: DendaActionCandidate[] }> =>
     safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions/candidates`);
 
+export const fetchDendaActionKontraktor = async (): Promise<{ status: string; data: string[] }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions/kontraktor`);
+
 export const fetchDendaActions = async (params: {
     id_toko?: number;
     id_opname_final?: number;
     nomor_ulok?: string;
+    action_type?: DendaActionType;
 } = {}): Promise<{ status: string; data: DendaAction[] }> => {
     const query = new URLSearchParams();
     if (params.id_toko) query.set("id_toko", String(params.id_toko));
     if (params.id_opname_final) query.set("id_opname_final", String(params.id_opname_final));
     if (params.nomor_ulok?.trim()) query.set("nomor_ulok", params.nomor_ulok.trim());
+    if (params.action_type) query.set("action_type", params.action_type);
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions${suffix}`);
 };
@@ -117,7 +123,8 @@ export const createSpAction = async (
     payload: CreateSpActionPayload
 ): Promise<{ status: string; message: string; data: DendaAction }> => {
     const form = new FormData();
-    form.append("id_toko", String(payload.id_toko));
+    if (payload.id_toko) form.append("id_toko", String(payload.id_toko));
+    if (payload.nama_kontraktor) form.append("nama_kontraktor", payload.nama_kontraktor);
     if (payload.id_opname_final) form.append("id_opname_final", String(payload.id_opname_final));
     form.append("action_type", "SP");
     form.append("sp_level", String(payload.sp_level));

@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // lib/api.ts
 // Seluruh fungsi komunikasi ke backend API.
 //
@@ -4777,6 +4777,7 @@ export const sendEmailNotification = async (payload: {
     cabang: string;
     id_toko?: number | string;
     id_spk?: number | string;
+    id_denda_action?: number | string;
     flag: string;
 }) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/send-email-notification`, {

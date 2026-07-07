@@ -13,6 +13,7 @@ import {
     fetchRABList,
     fetchSPKList,
 } from "@/lib/api";
+import { fetchDendaActions } from "@/lib/denda-actions-api";
 
 export type ApprovalType =
     | "RAB"
@@ -20,7 +21,8 @@ export type ApprovalType =
     | "PERTAMBAHAN_SPK"
     | "OPNAME"
     | "INSTRUKSI_LAPANGAN"
-    | "PROJECT_PLANNING";
+    | "PROJECT_PLANNING"
+    | "SURAT_PERINGATAN";
 
 export type ApprovalCounts = Record<ApprovalType, number>;
 
@@ -64,6 +66,7 @@ export const EMPTY_APPROVAL_COUNTS: ApprovalCounts = {
     OPNAME: 0,
     INSTRUKSI_LAPANGAN: 0,
     PROJECT_PLANNING: 0,
+    SURAT_PERINGATAN: 0,
 };
 
 const ROLE_ACCESS: Record<ApprovalType, string[]> = {
@@ -73,6 +76,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     OPNAME: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "COORDINATOR", "MANAGER"],
     INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
     PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
+    SURAT_PERINGATAN: ["BRANCH BUILDING & MAINTENANCE MANAGER", "BRANCH BUILDING COORDINATOR"],
 };
 
 const normalizeBranch = (branch?: string | null) => (branch ?? "").trim().toUpperCase();
@@ -349,6 +353,10 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (canSeeAll || user.isRegionalManager) return true;
     if (item.tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
     if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
+    if (item.tipe === "SURAT_PERINGATAN") {
+        if (jabatan === "KOORDINATOR") return upper.includes("REJECT");
+        return upper === "WAITING_MANAGER";
+    }
 
     if (jabatan === "KOORDINATOR") return isCoordinatorApprovalStatus(upper);
     if (jabatan === "MANAGER") return isManagerApprovalStatus(upper);
@@ -428,6 +436,20 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                     tipe: "PROJECT_PLANNING",
                     status: getStringValue(item, "status") ?? "",
                     cabang: getStringValue(item, "cabang"),
+                    raw: item,
+                })), user, jabatan);
+            } else if (type === "SURAT_PERINGATAN") {
+                const res = await fetchDendaActions(
+                    jabatan === "KOORDINATOR" ? { action_type: "SP" } : { action_type: "SP" }
+                );
+                counts.SURAT_PERINGATAN = countItems((res.data ?? []).filter((item) => 
+                    jabatan === "KOORDINATOR" 
+                        ? String(item.status || '').toUpperCase().includes("REJECT")
+                        : item.status === "WAITING_MANAGER"
+                ).map((item) => ({
+                    tipe: "SURAT_PERINGATAN" as const,
+                    status: item.status,
+                    cabang: item.cabang,
                     raw: item,
                 })), user, jabatan);
             }
@@ -550,6 +572,20 @@ export const fetchApprovalNotificationItems = async (user: UserSession): Promise
                     tipe: "PROJECT_PLANNING",
                     status: getStringValue(item, "status") ?? "",
                     cabang: getStringValue(item, "cabang"),
+                    raw: item,
+                }));
+            } else if (type === "SURAT_PERINGATAN") {
+                const res = await fetchDendaActions(
+                    jabatan === "KOORDINATOR" ? { action_type: "SP" } : { action_type: "SP" }
+                );
+                countableItems = (res.data ?? []).filter((item) => 
+                    jabatan === "KOORDINATOR" 
+                        ? String(item.status || '').toUpperCase().includes("REJECT")
+                        : item.status === "WAITING_MANAGER"
+                ).map((item) => ({
+                    tipe: "SURAT_PERINGATAN" as const,
+                    status: item.status,
+                    cabang: item.cabang,
                     raw: item,
                 }));
             }
