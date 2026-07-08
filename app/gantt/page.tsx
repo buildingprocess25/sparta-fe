@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -1747,17 +1747,50 @@ function GanttBoard() {
                                                         ? <CheckCircle className="h-7 w-7 text-emerald-400" />
                                                         : <ClipboardCheck className="h-7 w-7 text-red-300" />}
                                                 </div>
-                                                <Button
-                                                    type="button"
-                                                    onClick={handleGenerateUnifiedHandover}
-                                                    disabled={!supervisionWorkspace.unified_serah_terima_ready || isGeneratingHandover}
-                                                    className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
-                                                >
-                                                    {isGeneratingHandover
-                                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                        : <FileText className="mr-2 h-4 w-4" />}
-                                                    {supervisionWorkspace.unified_serah_terima_generated ? 'Download Serah Terima' : 'Generate Serah Terima'}
-                                                </Button>
+                                                {supervisionWorkspace.unified_serah_terima_generated ? (
+                                                    <div className="flex flex-col gap-2">
+                                                        {(() => {
+                                                            const masterScope = supervisionWorkspace.scopes.find(
+                                                                (s) => Number(s.id_toko) === supervisionWorkspace.master_scope_id_toko
+                                                            ) ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima);
+                                                            const pdfLink = masterScope?.link_pdf_serah_terima ?? null;
+                                                            return (
+                                                                <a
+                                                                    href={pdfLink ?? '#'}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className={`flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white hover:bg-emerald-500 transition-colors ${!pdfLink ? 'pointer-events-none opacity-50' : ''}`}
+                                                                >
+                                                                    <FileText className="mr-2 h-4 w-4" />
+                                                                    Buka PDF Serah Terima
+                                                                </a>
+                                                            );
+                                                        })()}
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handleGenerateUnifiedHandover}
+                                                            disabled={!supervisionWorkspace.unified_serah_terima_ready || isGeneratingHandover}
+                                                            className="h-9 w-full bg-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-300 disabled:opacity-50"
+                                                        >
+                                                            {isGeneratingHandover
+                                                                ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                                : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                                                            Generate Ulang
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <Button
+                                                        type="button"
+                                                        onClick={handleGenerateUnifiedHandover}
+                                                        disabled={!supervisionWorkspace.unified_serah_terima_ready || isGeneratingHandover}
+                                                        className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
+                                                    >
+                                                        {isGeneratingHandover
+                                                            ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            : <FileText className="mr-2 h-4 w-4" />}
+                                                        Generate Serah Terima
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
