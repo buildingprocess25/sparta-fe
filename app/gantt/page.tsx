@@ -432,14 +432,15 @@ function GanttBoard() {
                     const scope = supervisionWorkspace.scopes.find((item) => Number(item.id_toko) === Number(entry.id_toko));
                     const scopeCheckpoint = entry.checkpoint
                         ?? scope?.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey)
-                        ?? null;
-                    return scope && scopeCheckpoint ? { scope, checkpoint: scopeCheckpoint } : null;
+                        ?? { tanggal_pengawasan: checkpoint.tanggal_pengawasan, total_items: 0, ready_opname_items: 0, opname_items: 0 };
+                    return scope ? { scope, checkpoint: scopeCheckpoint } : null;
                 })
                 .filter(Boolean)
             : supervisionWorkspace.scopes
                 .map((scope) => {
-                    const scopeCheckpoint = scope.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey);
-                    return scopeCheckpoint ? { scope, checkpoint: scopeCheckpoint } : null;
+                    const scopeCheckpoint = scope.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey)
+                        ?? { tanggal_pengawasan: targetDateKey, total_items: 0, ready_opname_items: 0, opname_items: 0 };
+                    return { scope, checkpoint: scopeCheckpoint };
                 })
                 .filter(Boolean);
 
@@ -3403,7 +3404,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
-                        {flowStep && (
+                        {flowStep && flowStep.total > 1 && (
                             <Button
                                 variant="outline"
                                 className="font-semibold text-slate-600"
