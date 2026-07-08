@@ -29,7 +29,7 @@ import {
     fetchActivityLogs, type ActivityLog,
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
-    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline,
+    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline, createPdfSerahTerimaUnified,
     fetchUserCabangList,
     type ProjekPlanningItem,
 } from '@/lib/api';
@@ -1918,6 +1918,20 @@ export default function DaftarDokumenPage() {
         }
     }, [selectedDetail, showToast]);
 
+    const handleRegenerateSerahTerimaPdf = useCallback(async () => {
+        if (!selectedDetail || selectedDetail.tipe !== 'BERKAS_SERAH_TERIMA') return;
+
+        setDownloadingId(selectedDetail.id);
+        try {
+            await createPdfSerahTerimaUnified(selectedDetail.nomor_ulok);
+            await handleDownloadPDF(selectedDetail.id, selectedDetail.tipe);
+        } catch (err: any) {
+            showToast(err.message || 'Gagal generate ulang PDF Serah Terima.', 'error');
+        } finally {
+            setDownloadingId(null);
+        }
+    }, [selectedDetail, showToast, handleDownloadPDF]);
+
     const handleDownloadProjectPlanningAttachment = useCallback(async (field: string, itemIndex?: number) => {
         if (!selectedDetail || selectedDetail.tipe !== 'PROJECT_PLANNING') return;
         setDownloadingId(selectedDetail.id);
@@ -3735,6 +3749,22 @@ export default function DaftarDokumenPage() {
                                                     <Download className="w-4 h-4 mr-2" />
                                                 )}
                                                 Unduh PDF {selectedDetail.tipe}
+                                            </Button>
+                                        )}
+
+                                        {selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' && (
+                                            <Button
+                                                variant="outline"
+                                                className="border-teal-200 text-teal-700 hover:bg-teal-50"
+                                                disabled={downloadingId === selectedDetail.id}
+                                                onClick={handleRegenerateSerahTerimaPdf}
+                                            >
+                                                {downloadingId === selectedDetail.id ? (
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                                )}
+                                                Generate Ulang PDF
                                             </Button>
                                         )}
 
