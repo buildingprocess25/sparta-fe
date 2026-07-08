@@ -12,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import {
-    fetchGanttDetail, fetchGanttList, submitGanttChart, 
-    updateGanttChart, lockGanttChart, deleteGanttChart, 
+    fetchGanttDetail, fetchGanttList, submitGanttChart,
+    updateGanttChart, lockGanttChart, deleteGanttChart,
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
     fetchRABList, fetchRABDetail, fetchSPKList,
     fetchGanttNotes, createGanttNote, fetchInstruksiLapanganList,
@@ -194,7 +194,7 @@ function formatUlokWithDash(ulok: string) {
     if (ulok.includes("-")) return ulok;
     const clean = ulok.replace(/[^a-zA-Z0-9]/g, '');
     if (clean.length === 11 || clean.length === 12) {
-        return `${clean.substring(0,4)}-${clean.substring(4,8)}-${clean.substring(8)}`;
+        return `${clean.substring(0, 4)}-${clean.substring(4, 8)}-${clean.substring(8)}`;
     }
     return ulok;
 }
@@ -219,7 +219,7 @@ function GanttBoard() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { showAlert } = useGlobalAlert();
-    
+
     const urlUlok = searchParams.get('ulok');
     const urlIdToko = searchParams.get('id_toko');
     const urlIdRab = searchParams.get('id_rab');
@@ -243,7 +243,7 @@ function GanttBoard() {
             try {
                 await document.documentElement.requestFullscreen();
                 if (window.screen && window.screen.orientation && (window.screen.orientation as any).lock) {
-                    await (window.screen.orientation as any).lock('landscape').catch(() => {});
+                    await (window.screen.orientation as any).lock('landscape').catch(() => { });
                 }
             } catch (err) {
                 console.warn("Fullscreen failed:", err);
@@ -261,7 +261,7 @@ function GanttBoard() {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-    
+
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
     const [spkTokoIds, setSpkTokoIds] = useState<Set<number>>(new Set());
@@ -271,7 +271,7 @@ function GanttBoard() {
     const [ganttNoteInput, setGanttNoteInput] = useState('');
     const [isGanttNoteLoading, setIsGanttNoteLoading] = useState(false);
     const [isGanttNoteSending, setIsGanttNoteSending] = useState(false);
-    
+
     const [projectData, setProjectData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isProjectLocked, setIsProjectLocked] = useState(false);
@@ -291,7 +291,7 @@ function GanttBoard() {
                 return ulok.includes(lowerSearch) || nama.includes(lowerSearch) || cabang.includes(lowerSearch);
             });
         }
-        
+
         if (spkFilter === 'spk') {
             return list.filter((toko: any) => spkTokoIds.has(Number(toko.id_toko || toko.id)));
         } else if (spkFilter === 'no_spk') {
@@ -308,7 +308,7 @@ function GanttBoard() {
     const [spkInfo, setSpkInfo] = useState<{ startDate: string; duration: number } | null>(null);
     const [pengawasanDates, setPengawasanDates] = useState<string[]>([]);
     const [pengawasanHistory, setPengawasanHistory] = useState<any[]>([]);
-    
+
     const [rabItems, setRabItems] = useState<any[]>([]);
     const [showMemoModal, setShowMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
@@ -467,7 +467,7 @@ function GanttBoard() {
         && Boolean(scope.opname_final_id)
         && (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0) > 0
         && (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0) === 0,
-    []);
+        []);
 
     const handleGenerateUnifiedHandover = useCallback(async () => {
         if (!supervisionWorkspace?.unified_serah_terima_ready) return;
@@ -535,7 +535,7 @@ function GanttBoard() {
         let currentAppMode: 'kontraktor' | 'pic' = 'kontraktor';
         const picRoles = ['BUILDING & MAINTENANCE SUPER HUMAN', ...GLOBAL_VIEW_ONLY_ROLES, 'BRANCH BUILDING & MAINTENANCE MANAGER', 'BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING SUPPORT', 'DIREKTUR KONTRAKTOR', 'DIREKTUR'];
         const canSeeAllBranches = canViewAllBranches(roles, user.isSuperHuman ?? false);
-        
+
         if (roles.includes('KONTRAKTOR')) {
             currentAppMode = 'kontraktor';
             setAppMode('kontraktor');
@@ -632,7 +632,7 @@ function GanttBoard() {
                 })
                 .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
         }
-        
+
     }, [user, urlIdToko, urlIdRab, urlLocked, urlUlok, loadSupervisionWorkspace, router, showAlert]);
 
     const loadDataByRab = async (idRab: number, fallbackIdToko?: number) => {
@@ -648,7 +648,7 @@ function GanttBoard() {
             setIsProjectLocked(false);
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
             setSpkInfo(null);
-            
+
             const rData: any = rab;
             const rDuration = rData?.durasi_pekerjaan ? parseInt(String(rData.durasi_pekerjaan).replace(/\D/g, '')) || 1 : 1;
 
@@ -669,30 +669,30 @@ function GanttBoard() {
             if (items) {
                 items.forEach((item: any) => {
                     if (item.kategori_pekerjaan && item.volume > 0) {
-                         uniqueCats.add(item.kategori_pekerjaan);
+                        uniqueCats.add(item.kategori_pekerjaan);
                     }
                 });
             }
-            
+
             let finalCategories = uniqueCats.size > 0 ? Array.from(uniqueCats) : ["PERSIAPAN"];
 
             const generatedTasks = finalCategories.map((kName: string, idx: number) => ({
-                id: idx + 1, 
-                name: kName, 
-                dependencies: [], 
-                ranges: [{ start: '', end: '', keterlambatan: 0 }], 
+                id: idx + 1,
+                name: kName,
+                dependencies: [],
+                ranges: [{ start: '', end: '', keterlambatan: 0 }],
                 keterlambatan: 0
             }));
-            
+
             setTasks(generatedTasks);
             setRawDayGanttData([]);
 
         } catch (err: any) {
             console.error("loadDataByRab Error:", err);
             if (fallbackIdToko) {
-                 loadDataByToko(fallbackIdToko);
+                loadDataByToko(fallbackIdToko);
             } else {
-                 showAlert({ message: `Gagal memuat data RAB: ${err.message}`, type: "error" });
+                showAlert({ message: `Gagal memuat data RAB: ${err.message}`, type: "error" });
             }
         } finally {
             setIsLoading(false);
@@ -727,7 +727,7 @@ function GanttBoard() {
                 setIsProjectLocked(false);
                 setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
                 setSpkInfo(null);
-                
+
                 if (!validRabId) {
                     showAlert({ message: "Info: RAB belum disetujui atau belum ada untuk toko ini.", type: "info" });
                 }
@@ -748,7 +748,7 @@ function GanttBoard() {
                             const uniqueCats = new Set<string>();
                             rabDetailRes.data.items.forEach((item: any) => {
                                 if (item.kategori_pekerjaan && item.volume > 0) {
-                                     uniqueCats.add(item.kategori_pekerjaan);
+                                    uniqueCats.add(item.kategori_pekerjaan);
                                 }
                             });
                             if (uniqueCats.size > 0) {
@@ -756,10 +756,10 @@ function GanttBoard() {
                             }
                         }
                     } catch (e) {
-                         console.error("Gagal mengambil kategori dari RAB Detail:", e);
+                        console.error("Gagal mengambil kategori dari RAB Detail:", e);
                     }
                 }
-                
+
                 setProjectData({
                     ganttId: null,
                     id_toko: toko.id,
@@ -772,19 +772,19 @@ function GanttBoard() {
                     duration: rDuration,
                     startDate: new Date().toISOString().split('T')[0],
                 });
-                
+
                 if (!validRabId) {
                     setRabItems(instruksiItems);
                 }
 
                 const generatedTasks = finalCategories.map((kName: string, idx: number) => ({
-                    id: idx + 1, 
-                    name: kName, 
-                    dependencies: [], 
-                ranges: [{ start: '', end: '', keterlambatan: 0 }], 
+                    id: idx + 1,
+                    name: kName,
+                    dependencies: [],
+                    ranges: [{ start: '', end: '', keterlambatan: 0 }],
                     keterlambatan: 0
                 }));
-                
+
                 setTasks(generatedTasks);
                 setRawDayGanttData([]);
             }
@@ -795,7 +795,7 @@ function GanttBoard() {
             setIsLoading(false);
         }
     };
-    
+
     const loadGanttDetail = async (
         ganttId: number,
         idRabFallback?: number,
@@ -849,7 +849,7 @@ function GanttBoard() {
 
             let projectStart = new Date();
             if (gantt.timestamp) {
-                const parts = gantt.timestamp.split('T')[0].split('-'); 
+                const parts = gantt.timestamp.split('T')[0].split('-');
                 if (parts.length === 3) {
                     projectStart = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
                 }
@@ -883,16 +883,16 @@ function GanttBoard() {
 
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
             setProjectData({
-                ganttId:    gantt.id,
-                id_toko:    toko.id,
-                ulokClean:  formatUlokWithDash(toko.nomor_ulok),
-                store:      toko.nama_toko || "Data Toko Ditemukan",
-                kode_toko:  toko.kode_toko || "-",
-                work:       toko.lingkup_pekerjaan || "SIPIL",
-                cabang:     toko.cabang || "-",
+                ganttId: gantt.id,
+                id_toko: toko.id,
+                ulokClean: formatUlokWithDash(toko.nomor_ulok),
+                store: toko.nama_toko || "Data Toko Ditemukan",
+                kode_toko: toko.kode_toko || "-",
+                work: toko.lingkup_pekerjaan || "SIPIL",
+                cabang: toko.cabang || "-",
                 kontraktor: toko.nama_kontraktor || "-",
                 duration,
-                startDate:  projectStart.toISOString().split('T')[0],
+                startDate: projectStart.toISOString().split('T')[0],
             });
 
             const pDates = (pengawasan || [])
@@ -922,12 +922,12 @@ function GanttBoard() {
             }
 
             const normalizedRaw = day_items.map(d => ({
-                Kategori:  d.kategori_pekerjaan,
-                h_awal:    d.h_awal,
-                h_akhir:   d.h_akhir,
+                Kategori: d.kategori_pekerjaan,
+                h_awal: d.h_awal,
+                h_akhir: d.h_akhir,
                 keterlambatan: d.keterlambatan ?? 0,
-                kecepatan:     d.kecepatan ?? "",
-                _id:       d.id,
+                kecepatan: d.kecepatan ?? "",
+                _id: d.id,
                 _id_gantt: d.id_gantt,
             }));
             setRawDayGanttData(normalizedRaw);
@@ -943,15 +943,15 @@ function GanttBoard() {
             const categoryRangesMap: Record<string, any[]> = {};
             day_items.forEach(entry => {
                 const startDay = toDayNumber(entry.h_awal);
-                const endDay   = toDayNumber(entry.h_akhir);
-                
+                const endDay = toDayNumber(entry.h_akhir);
+
                 if (!isNaN(startDay) && !isNaN(endDay)) {
                     const key = entry.kategori_pekerjaan.toLowerCase().trim();
                     if (!categoryRangesMap[key]) categoryRangesMap[key] = [];
                     categoryRangesMap[key].push({
-                        start:         startDay,
-                        end:           endDay,
-                        duration:      endDay - startDay + 1,
+                        start: startDay,
+                        end: endDay,
+                        duration: endDay - startDay + 1,
                         keterlambatan: parseInt(String(entry.keterlambatan || 0)),
                     });
                 }
@@ -961,7 +961,7 @@ function GanttBoard() {
             // (dep.kategori_pekerjaan = child, dep.kategori_pekerjaan_terikat = parent)
             const depMap: Record<string, string[]> = {};
             dependencies.forEach(dep => {
-                const child  = dep.kategori_pekerjaan.toLowerCase().trim();
+                const child = dep.kategori_pekerjaan.toLowerCase().trim();
                 const parent = dep.kategori_pekerjaan_terikat.toLowerCase().trim();
                 if (!depMap[child]) depMap[child] = [];
                 depMap[child].push(parent);
@@ -983,7 +983,7 @@ function GanttBoard() {
 
                 return {
                     ...task,
-                    ranges:       matchedRanges.length > 0 ? matchedRanges : [{ start: '', end: '', keterlambatan: 0 }],
+                    ranges: matchedRanges.length > 0 ? matchedRanges : [{ start: '', end: '', keterlambatan: 0 }],
                     dependencies: parentIds,
                 };
             });
@@ -1000,7 +1000,7 @@ function GanttBoard() {
         }
     };
 
-    const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start'|'end', value: string) => {
+    const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start' | 'end', value: string) => {
         let parsedVal = parseInt(value);
         if (!isNaN(parsedVal)) {
             const maxDuration = projectData?.duration || 99;
@@ -1011,10 +1011,10 @@ function GanttBoard() {
         const finalValue = isNaN(parsedVal) && value !== '' ? '' : (value === '' ? '' : parsedVal.toString());
 
         setTasks(prev => prev.map(t => {
-            if(t.id === taskId) {
+            if (t.id === taskId) {
                 const newRanges = [...t.ranges];
                 newRanges[rangeIdx][field] = finalValue;
-                return {...t, ranges: newRanges};
+                return { ...t, ranges: newRanges };
             }
             return t;
         }));
@@ -1022,8 +1022,8 @@ function GanttBoard() {
 
     const handleDependencyChange = (taskId: number, parentIdStr: string) => {
         setTasks(prev => prev.map(t => {
-            if(t.id === taskId) {
-                return {...t, dependencies: parentIdStr ? [parseInt(parentIdStr)] : []};
+            if (t.id === taskId) {
+                return { ...t, dependencies: parentIdStr ? [parseInt(parentIdStr)] : [] };
             }
             return t;
         }));
@@ -1031,8 +1031,8 @@ function GanttBoard() {
 
     const addRange = (taskId: number) => {
         setTasks(prev => prev.map(t => {
-            if(t.id === taskId) {
-                return {...t, ranges: [...t.ranges, {start: '', end: '', keterlambatan: 0}]};
+            if (t.id === taskId) {
+                return { ...t, ranges: [...t.ranges, { start: '', end: '', keterlambatan: 0 }] };
             }
             return t;
         }));
@@ -1043,17 +1043,17 @@ function GanttBoard() {
         if (!taskObj) return;
 
         const rangeToRemove = taskObj.ranges[rangeIdx];
-        
+
         if (rangeToRemove.start && rangeToRemove.end) {
             const isConfirmed = window.confirm("Hapus periode ini? Jangan lupa untuk klik 'Simpan Draft' agar penghapusan tersimpan di server.");
             if (!isConfirmed) return;
         }
 
         setTasks(prev => prev.map(t => {
-            if(t.id === taskId) {
+            if (t.id === taskId) {
                 const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
-                if (newRanges.length === 0) newRanges.push({start: '', end: '', keterlambatan: 0});
-                return {...t, ranges: newRanges};
+                if (newRanges.length === 0) newRanges.push({ start: '', end: '', keterlambatan: 0 });
+                return { ...t, ranges: newRanges };
             }
             return t;
         }));
@@ -1090,20 +1090,20 @@ function GanttBoard() {
                 if (!kategoriName) return;
 
                 kategori_pekerjaan.push(kategoriName);
-                
+
                 if (t.ranges && t.ranges.length > 0) {
                     t.ranges.forEach((r: any) => {
                         if (!r.start || !r.end) return;
-                        
+
                         const dayItem: any = {
                             kategori_pekerjaan: kategoriName,
                             h_awal: String(r.start),
                             h_akhir: String(r.end),
                         };
-                        
+
                         dayItem.keterlambatan = r.keterlambatan ? String(r.keterlambatan) : "";
-                        dayItem.kecepatan = ""; 
-                        
+                        dayItem.kecepatan = "";
+
                         day_items.push(dayItem);
                     });
                 }
@@ -1114,7 +1114,7 @@ function GanttBoard() {
                         if (cTask && cTask.name?.trim()) {
                             dependencies.push({
                                 kategori_pekerjaan: cTask.name.toUpperCase().trim(),
-                                kategori_pekerjaan_terikat: kategoriName 
+                                kategori_pekerjaan_terikat: kategoriName
                             });
                         }
                     });
@@ -1130,7 +1130,7 @@ function GanttBoard() {
             if (selectedGanttId) {
                 const updatePayload = {
                     day_items: day_items,
-                    kategori_pekerjaan: [], 
+                    kategori_pekerjaan: [],
                     pengawasan: [],
                     dependencies: dependencies
                 };
@@ -1138,7 +1138,7 @@ function GanttBoard() {
                 await updateGanttChart(selectedGanttId, updatePayload);
 
                 if (status === 'Terkunci') {
-                    await lockGanttChart(selectedGanttId, email); 
+                    await lockGanttChart(selectedGanttId, email);
                 }
             } else {
                 const payload: any = {
@@ -1158,7 +1158,7 @@ function GanttBoard() {
                 };
 
                 submitRes = await submitGanttChart(payload);
-                
+
                 if (status === 'Terkunci' && submitRes.data?.id) {
                     await lockGanttChart(submitRes.data.id, email);
                 }
@@ -1194,12 +1194,12 @@ function GanttBoard() {
         try {
             await deleteGanttChart(selectedGanttId);
             showAlert({ message: "Draft jadwal berhasil dihapus.", type: "success" });
-            
+
             setSelectedGanttId(null);
             setProjectData(null);
             setTasks([]);
-            
-            window.location.reload(); 
+
+            window.location.reload();
         } catch (error: any) {
             showAlert({ message: `Gagal menghapus: ${error.message}`, type: "error" });
         } finally {
@@ -1214,29 +1214,29 @@ function GanttBoard() {
         let maxTaskEndDay = 0;
         let effectiveEndDates: Record<number, number> = {};
 
-        processedTasks.forEach(task => { 
+        processedTasks.forEach(task => {
             let maxShift = 0;
             const myParents = processedTasks.filter(pt => pt.dependencies && pt.dependencies.includes(task.id));
             if (myParents.length > 0) {
                 myParents.forEach(parentTask => {
                     const parentShift = parentTask.computed?.shift || 0;
                     const pRanges = parentTask.ranges || [];
-                    const parentDelay = pRanges.length > 0 ? (parseInt(pRanges[pRanges.length-1].keterlambatan) || 0) : 0;
+                    const parentDelay = pRanges.length > 0 ? (parseInt(pRanges[pRanges.length - 1].keterlambatan) || 0) : 0;
                     const potentialShift = parentShift + parentDelay;
                     if (potentialShift > maxShift) maxShift = potentialShift;
                 });
             }
-            
+
             task.computed = { shift: maxShift };
 
             const ranges = task.ranges || [];
             if (ranges.length > 0 && ranges[0].start) {
                 const lastRange = ranges[ranges.length - 1];
                 effectiveEndDates[task.id] = parseInt(lastRange.end) + maxShift + (parseInt(lastRange.keterlambatan) || 0);
-                
+
                 ranges.forEach((r: any) => {
                     const endVal = parseInt(r.end) + maxShift + (parseInt(r.keterlambatan) || 0);
-                    if(endVal > maxTaskEndDay) maxTaskEndDay = endVal;
+                    if (endVal > maxTaskEndDay) maxTaskEndDay = endVal;
                 });
             }
         });
@@ -1269,15 +1269,15 @@ function GanttBoard() {
         if (totalDaysToRender < 0) totalDaysToRender = 0;
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
         const svgHeight = processedTasks.length * ROW_HEIGHT;
-        
+
         let taskCoordinates: Record<number, any> = {};
         processedTasks.forEach((task, idx) => {
             const shift = task.computed.shift || 0;
             const ranges = task.ranges || [];
-            if(ranges.length > 0 && ranges[0].start) {
-                const maxEnd = Math.max(...ranges.map((r:any) => parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0)));
-                const minStart = Math.min(...ranges.map((r:any) => parseInt(r.start || 0) + shift));
-                
+            if (ranges.length > 0 && ranges[0].start) {
+                const maxEnd = Math.max(...ranges.map((r: any) => parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0)));
+                const minStart = Math.min(...ranges.map((r: any) => parseInt(r.start || 0) + shift));
+
                 let firstPeriodEnd = maxEnd;
                 let lowestStart = Infinity;
                 ranges.forEach((r: any) => {
@@ -1297,13 +1297,13 @@ function GanttBoard() {
             }
         });
         let svgLines = [];
-        for (let i=0; i < processedTasks.length; i++) {
-            const task = processedTasks[i]; 
-            if(task.dependencies && task.dependencies.length > 0) {
+        for (let i = 0; i < processedTasks.length; i++) {
+            const task = processedTasks[i];
+            if (task.dependencies && task.dependencies.length > 0) {
                 for (let cId of task.dependencies) {
                     const parentCoordinates = taskCoordinates[task.id];
                     const childCoordinates = taskCoordinates[cId];
-                    if(parentCoordinates && childCoordinates && parentCoordinates.firstEndX !== undefined && childCoordinates.startX !== undefined) {
+                    if (parentCoordinates && childCoordinates && parentCoordinates.firstEndX !== undefined && childCoordinates.startX !== undefined) {
                         const startX = parentCoordinates.firstEndX, startY = parentCoordinates.centerY;
                         const endX = childCoordinates.startX, endY = childCoordinates.centerY;
                         let tension = (endX - startX) < 40 ? 60 : 40;
@@ -1326,7 +1326,7 @@ function GanttBoard() {
             const td = String(today.getDate()).padStart(2, '0');
             const tm = String(today.getMonth() + 1).padStart(2, '0');
             const ty = today.getFullYear();
-            
+
             for (let i = 0; i < totalDaysToRender; i++) {
                 const d = new Date(spkInfo.startDate.split('T')[0] + 'T00:00:00');
                 d.setDate(d.getDate() + i);
@@ -1339,893 +1339,884 @@ function GanttBoard() {
                 }
             }
         }
-        
+
         return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex };
     }, [tasks, projectData, spkInfo, pengawasanDates]);
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
-        
-        <AppNavbar 
-            title="Gantt Chart"
-            showBackButton={true}
-            backHref="/dashboard"
-            rightActions={
-                <div className="flex items-center gap-2">
-                    {user?.isSuperHuman && <Link href="/serah-terima/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" /><span className="hidden md:inline">Migrasi ST</span></Button></Link>}
-                    <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm whitespace-nowrap font-bold">
-                        {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
-                        {(() => {
-                            const scopeSuffix = supervisionWorkspace 
-                                ? supervisionWorkspace.scopes.map(s => String(s.lingkup_pekerjaan || '').toUpperCase()).sort().join(' + ')
-                                : (projectData?.work ? String(projectData.work).toUpperCase() : '');
-                            return scopeSuffix ? ` · ${scopeSuffix}` : '';
-                        })()}
-                    </Badge>
-                </div>
-            }
-        />
 
-        <main className="p-4 md:p-8 max-w-350 mx-auto mt-2">
-            <div className="flex flex-col lg:flex-row gap-6 mb-6">
-                <Card className="w-full lg:w-1/3 shadow-sm">
-                    <CardContent className="p-6">
-                        <div className="space-y-3">
-                            <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
-                            {(urlIdToko || urlUlok) && !isDirectAccess ? (
-                                <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
-                                    <span>{selectedUlok || projectData?.ulokClean || "Memuat..."}</span><Lock className="w-5 h-5 text-slate-400" />
-                                </div>
-                            ) : (
-                                <>
-                                    {!((urlIdToko || urlUlok) && !isDirectAccess) && (
-                                        <>
-                                            {/* Search */}
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
-                                                <Input
-                                                    placeholder="Cari Nomor / Toko / Cabang..."
-                                                    className="pl-9 h-11 text-sm focus-visible:ring-blue-500 bg-white"
-                                                    value={searchUlokInput}
-                                                    onChange={(e) => setSearchUlokInput(e.target.value)}
-                                                />
-                                            </div>
-                                            {/* Filter SPK - Collapsible dropdown */}
-                                            <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSpkFilterOpen(prev => !prev)}
-                                                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-                                                        <span>Filter SPK</span>
-                                                        {spkFilter !== 'all' && (
-                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                                                spkFilter === 'spk' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-700'
-                                                            }`}>
-                                                                {spkFilter === 'spk' ? 'Sudah SPK' : 'Belum SPK'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {spkFilterOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
-                                                </button>
-                                                {spkFilterOpen && (
-                                                    <div className="border-t border-slate-100 p-1.5 grid grid-cols-3 gap-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setSpkFilter('all'); setSpkFilterOpen(false); }}
-                                                            className={`py-2 text-[11px] font-bold rounded-md transition-all ${
-                                                                spkFilter === 'all'
-                                                                    ? 'bg-slate-900 text-white shadow-sm'
-                                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                                                            }`}
-                                                        >
-                                                            Semua<br/>
-                                                            <span className="font-normal text-[10px] opacity-70">{allTokoList.length} proyek</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setSpkFilter('spk'); setSpkFilterOpen(false); }}
-                                                            className={`py-2 text-[11px] font-bold rounded-md transition-all ${
-                                                                spkFilter === 'spk'
-                                                                    ? 'bg-red-600 text-white shadow-sm'
-                                                                    : 'text-slate-600 hover:text-red-700 hover:bg-red-50'
-                                                            }`}
-                                                        >
-                                                            Sudah SPK<br/>
-                                                            <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setSpkFilter('no_spk'); setSpkFilterOpen(false); }}
-                                                            className={`py-2 text-[11px] font-bold rounded-md transition-all ${
-                                                                spkFilter === 'no_spk'
-                                                                    ? 'bg-amber-600 text-white shadow-sm'
-                                                                    : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
-                                                            }`}
-                                                        >
-                                                            Belum SPK<br/>
-                                                            <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => !spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                    {/* Dropdown Pilih Proyek */}
-                                    <Select
-                                    value={(() => {
-                                        if (appMode === 'pic' && supervisionWorkspace?.nomor_ulok) {
-                                            return `ulok-${encodeURIComponent(supervisionWorkspace.nomor_ulok)}`;
-                                        }
-                                        const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko) : null);
-                                        if (!targetTokoId) return '';
-                                        
-                                        const ganttMatch = availableProjects.find((p: any) => {
-                                            if (p.id_toko && targetTokoId) return p.id_toko === targetTokoId;
-                                            if (p.id === selectedGanttId) return true;
-                                            return false;
-                                        });
-                                        return ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${targetTokoId}`;
-                                    })()}
-                                    onValueChange={(val) => {
-                                        if (!val) return;
+            <AppNavbar
+                title="Gantt Chart"
+                showBackButton={true}
+                backHref="/dashboard"
+                rightActions={
+                    <div className="flex items-center gap-2">
+                        {user?.isSuperHuman && <Link href="/serah-terima/migrasi"><Button variant="outline" className="gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"><Database className="h-4 w-4" /><span className="hidden md:inline">Migrasi ST</span></Button></Link>}
+                        <Badge variant="outline" className="bg-black/20 text-white border-white/30 px-3 py-1 shadow-sm whitespace-nowrap font-bold">
+                            {appMode === 'kontraktor' ? 'MODE KONTRAKTOR' : 'MODE PENGAWASAN'}
+                            {(() => {
+                                const scopeSuffix = supervisionWorkspace
+                                    ? supervisionWorkspace.scopes.map(s => String(s.lingkup_pekerjaan || '').toUpperCase()).sort().join(' + ')
+                                    : (projectData?.work ? String(projectData.work).toUpperCase() : '');
+                                return scopeSuffix ? ` · ${scopeSuffix}` : '';
+                            })()}
+                        </Badge>
+                    </div>
+                }
+            />
 
-                                        if (val.startsWith('ulok-')) {
-                                            const nomorUlok = decodeURIComponent(val.slice(5));
-                                            const newUrl = new URL(window.location.href);
-                                            newUrl.searchParams.set('ulok', nomorUlok);
-                                            newUrl.searchParams.delete('id_toko');
-                                            window.history.pushState({}, '', newUrl.toString());
-                                            loadSupervisionWorkspace(nomorUlok);
-                                        } else if (val.startsWith('gantt-')) {
-                                            const gId = parseInt(val.replace('gantt-', ''));
-                                            const proj = availableProjects.find(p => p.id === gId);
-                                            if (proj?.id_toko) {
-                                                const newUrl = new URL(window.location.href);
-                                                newUrl.searchParams.set('id_toko', proj.id_toko.toString());
-                                                window.history.pushState({}, '', newUrl.toString());
-                                                loadDataByToko(proj.id_toko);
-                                            } else {
-                                                loadGanttDetail(gId);
-                                            }
-                                        } else if (val.startsWith('toko-')) {
-                                            const tId = parseInt(val.replace('toko-', ''));
-                                            const newUrl = new URL(window.location.href);
-                                            newUrl.searchParams.set('id_toko', tId.toString());
-                                            window.history.pushState({}, '', newUrl.toString());
-                                            loadDataByToko(tId);
-                                        }
-                                    }}
-                                >
-                                    <SelectTrigger className="h-12 w-full text-base focus:ring-blue-500 font-medium text-slate-700 bg-white">
-                                        <SelectValue placeholder="-- Pilih Proyek / RAB Anda --" />
-                                    </SelectTrigger>
-                                    <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
-                                        {(() => {
-                                            const uniqueMap = new Map();
-                                            filteredTokoList.forEach((toko) => {
-                                                const tID = toko.id_toko || toko.id;
-                                                if (appMode === 'pic') {
-                                                    const val = `ulok-${encodeURIComponent(toko.nomor_ulok)}`;
-                                                    const existing = uniqueMap.get(val);
-                                                    const scopes = new Set<string>(existing?.scopes || []);
-                                                    if (toko.lingkup_pekerjaan) scopes.add(String(toko.lingkup_pekerjaan).toUpperCase());
-                                                    uniqueMap.set(val, {
-                                                        toko: existing?.toko || toko,
-                                                        val,
-                                                        scopes: Array.from(scopes),
-                                                    });
-                                                    return;
+            <main className="p-4 md:p-8 max-w-350 mx-auto mt-2">
+                <div className="flex flex-col lg:flex-row gap-6 mb-6">
+                    <Card className="w-full lg:w-1/3 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="space-y-3">
+                                <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
+                                {(urlIdToko || urlUlok) && !isDirectAccess ? (
+                                    <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
+                                        <span>{selectedUlok || projectData?.ulokClean || "Memuat..."}</span><Lock className="w-5 h-5 text-slate-400" />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {!((urlIdToko || urlUlok) && !isDirectAccess) && (
+                                            <>
+                                                {/* Search */}
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                                                    <Input
+                                                        placeholder="Cari Nomor / Toko / Cabang..."
+                                                        className="pl-9 h-11 text-sm focus-visible:ring-blue-500 bg-white"
+                                                        value={searchUlokInput}
+                                                        onChange={(e) => setSearchUlokInput(e.target.value)}
+                                                    />
+                                                </div>
+                                                {/* Filter SPK - Collapsible dropdown */}
+                                                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSpkFilterOpen(prev => !prev)}
+                                                        className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
+                                                            <span>Filter SPK</span>
+                                                            {spkFilter !== 'all' && (
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${spkFilter === 'spk' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-700'
+                                                                    }`}>
+                                                                    {spkFilter === 'spk' ? 'Sudah SPK' : 'Belum SPK'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {spkFilterOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                                    </button>
+                                                    {spkFilterOpen && (
+                                                        <div className="border-t border-slate-100 p-1.5 grid grid-cols-3 gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setSpkFilter('all'); setSpkFilterOpen(false); }}
+                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'all'
+                                                                        ? 'bg-slate-900 text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                                                    }`}
+                                                            >
+                                                                Semua<br />
+                                                                <span className="font-normal text-[10px] opacity-70">{allTokoList.length} proyek</span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setSpkFilter('spk'); setSpkFilterOpen(false); }}
+                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'spk'
+                                                                        ? 'bg-red-600 text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:text-red-700 hover:bg-red-50'
+                                                                    }`}
+                                                            >
+                                                                Sudah SPK<br />
+                                                                <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setSpkFilter('no_spk'); setSpkFilterOpen(false); }}
+                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'no_spk'
+                                                                        ? 'bg-amber-600 text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
+                                                                    }`}
+                                                            >
+                                                                Belum SPK<br />
+                                                                <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => !spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                        {/* Dropdown Pilih Proyek */}
+                                        <Select
+                                            value={(() => {
+                                                if (appMode === 'pic' && supervisionWorkspace?.nomor_ulok) {
+                                                    return `ulok-${encodeURIComponent(supervisionWorkspace.nomor_ulok)}`;
                                                 }
+                                                const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko) : null);
+                                                if (!targetTokoId) return '';
+
                                                 const ganttMatch = availableProjects.find((p: any) => {
-                                                    if (p.id_toko && tID) return p.id_toko === tID;
-                                                    const matchUlok = p.nomor_ulok === toko.nomor_ulok;
-                                                    const matchLingkup = !p.lingkup_pekerjaan || !toko.lingkup_pekerjaan || (p.lingkup_pekerjaan?.toUpperCase() === toko.lingkup_pekerjaan?.toUpperCase());
-                                                    return matchUlok && matchLingkup;
+                                                    if (p.id_toko && targetTokoId) return p.id_toko === targetTokoId;
+                                                    if (p.id === selectedGanttId) return true;
+                                                    return false;
                                                 });
-                                                const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
-                                                
-                                                if (!uniqueMap.has(val)) {
-                                                    uniqueMap.set(val, { toko, ganttMatch, val });
+                                                return ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${targetTokoId}`;
+                                            })()}
+                                            onValueChange={(val) => {
+                                                if (!val) return;
+
+                                                if (val.startsWith('ulok-')) {
+                                                    const nomorUlok = decodeURIComponent(val.slice(5));
+                                                    const newUrl = new URL(window.location.href);
+                                                    newUrl.searchParams.set('ulok', nomorUlok);
+                                                    newUrl.searchParams.delete('id_toko');
+                                                    window.history.pushState({}, '', newUrl.toString());
+                                                    loadSupervisionWorkspace(nomorUlok);
+                                                } else if (val.startsWith('gantt-')) {
+                                                    const gId = parseInt(val.replace('gantt-', ''));
+                                                    const proj = availableProjects.find(p => p.id === gId);
+                                                    if (proj?.id_toko) {
+                                                        const newUrl = new URL(window.location.href);
+                                                        newUrl.searchParams.set('id_toko', proj.id_toko.toString());
+                                                        window.history.pushState({}, '', newUrl.toString());
+                                                        loadDataByToko(proj.id_toko);
+                                                    } else {
+                                                        loadGanttDetail(gId);
+                                                    }
+                                                } else if (val.startsWith('toko-')) {
+                                                    const tId = parseInt(val.replace('toko-', ''));
+                                                    const newUrl = new URL(window.location.href);
+                                                    newUrl.searchParams.set('id_toko', tId.toString());
+                                                    window.history.pushState({}, '', newUrl.toString());
+                                                    loadDataByToko(tId);
                                                 }
-                                            });
-                                            
-                                            const dedupedList = Array.from(uniqueMap.values());
-                                            
-                                            if (dedupedList.length === 0) {
-                                                return (
-                                                    <div className="px-2 py-4 text-center text-sm text-slate-500">
-                                                        Pencarian tidak ditemukan
-                                                    </div>
-                                                );
-                                            }
+                                            }}
+                                        >
+                                            <SelectTrigger className="h-12 w-full text-base focus:ring-blue-500 font-medium text-slate-700 bg-white">
+                                                <SelectValue placeholder="-- Pilih Proyek / RAB Anda --" />
+                                            </SelectTrigger>
+                                            <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
+                                                {(() => {
+                                                    const uniqueMap = new Map();
+                                                    filteredTokoList.forEach((toko) => {
+                                                        const tID = toko.id_toko || toko.id;
+                                                        if (appMode === 'pic') {
+                                                            const val = `ulok-${encodeURIComponent(toko.nomor_ulok)}`;
+                                                            const existing = uniqueMap.get(val);
+                                                            const scopes = new Set<string>(existing?.scopes || []);
+                                                            if (toko.lingkup_pekerjaan) scopes.add(String(toko.lingkup_pekerjaan).toUpperCase());
+                                                            uniqueMap.set(val, {
+                                                                toko: existing?.toko || toko,
+                                                                val,
+                                                                scopes: Array.from(scopes),
+                                                            });
+                                                            return;
+                                                        }
+                                                        const ganttMatch = availableProjects.find((p: any) => {
+                                                            if (p.id_toko && tID) return p.id_toko === tID;
+                                                            const matchUlok = p.nomor_ulok === toko.nomor_ulok;
+                                                            const matchLingkup = !p.lingkup_pekerjaan || !toko.lingkup_pekerjaan || (p.lingkup_pekerjaan?.toUpperCase() === toko.lingkup_pekerjaan?.toUpperCase());
+                                                            return matchUlok && matchLingkup;
+                                                        });
+                                                        const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
 
-                                            return dedupedList.map(({ toko, ganttMatch, val, scopes }) => {
-                                                const ulok = formatUlokWithDash(toko.nomor_ulok);
-                                                const scopeLabel = appMode === 'pic'
-                                                    ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
-                                                    : toko.lingkup_pekerjaan;
-                                                const hasSpk = spkTokoIds.has(Number(toko.id_toko || toko.id));
-                                                const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' · Terkunci' : ganttMatch?.status === 'active' ? ' · Aktif' : '';
-                                                const spkLabel = hasSpk ? ' ✓SPK' : ' ○Belum SPK';
-                                                const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
-                                                    .filter(Boolean).join(' · ');
-                                                
-                                                return (
-                                                    <SelectItem key={val} value={val}>
-                                                        <span className="flex items-center gap-1.5">
-                                                            <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${hasSpk ? 'bg-red-500' : 'bg-slate-300'}`} />
-                                                            <span>{label || ulok}{ganttStatusLabel}</span>
-                                                            <span className={`text-[10px] font-bold ${hasSpk ? 'text-red-600' : 'text-slate-400'}`}>{spkLabel}</span>
-                                                        </span>
-                                                    </SelectItem>
-                                                );
-                                            });
-                                        })()}
-                                    </SelectContent>
-                                </Select>
-                                </>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                                                        if (!uniqueMap.has(val)) {
+                                                            uniqueMap.set(val, { toko, ganttMatch, val });
+                                                        }
+                                                    });
 
-                {projectData && (
-                    <Card className="w-full max-w-5xl border border-slate-200 bg-white text-slate-900 shadow-sm transition-all">
-                        <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 p-5">
-                            <div>
-                                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Nama Toko</p>
-                                <p className="text-base font-extrabold leading-tight text-slate-950">{projectData.store}</p>
+                                                    const dedupedList = Array.from(uniqueMap.values());
+
+                                                    if (dedupedList.length === 0) {
+                                                        return (
+                                                            <div className="px-2 py-4 text-center text-sm text-slate-500">
+                                                                Pencarian tidak ditemukan
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return dedupedList.map(({ toko, ganttMatch, val, scopes }) => {
+                                                        const ulok = formatUlokWithDash(toko.nomor_ulok);
+                                                        const scopeLabel = appMode === 'pic'
+                                                            ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
+                                                            : toko.lingkup_pekerjaan;
+                                                        const hasSpk = spkTokoIds.has(Number(toko.id_toko || toko.id));
+                                                        const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' · Terkunci' : ganttMatch?.status === 'active' ? ' · Aktif' : '';
+                                                        const spkLabel = hasSpk ? ' ✓SPK' : ' ○Belum SPK';
+                                                        const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
+                                                            .filter(Boolean).join(' · ');
+
+                                                        return (
+                                                            <SelectItem key={val} value={val}>
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${hasSpk ? 'bg-red-500' : 'bg-slate-300'}`} />
+                                                                    <span>{label || ulok}{ganttStatusLabel}</span>
+                                                                    <span className={`text-[10px] font-bold ${hasSpk ? 'text-red-600' : 'text-slate-400'}`}>{spkLabel}</span>
+                                                                </span>
+                                                            </SelectItem>
+                                                        );
+                                                    });
+                                                })()}
+                                            </SelectContent>
+                                        </Select>
+                                    </>
+                                )}
                             </div>
-                            <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                            <div>
-                                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Lingkup</p>
-                                <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-extrabold ${
-                                    String(projectData.work).toUpperCase() === 'ME'
-                                        ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                        : 'border-red-200 bg-red-50 text-red-700'
-                                }`}>
-                                    {projectData.work}
-                                </span>
-                            </div>
-                            <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                            <div>
-                                <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Status SPK</p>
-                                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                                    spkTokoIds.has(Number(projectData.id_toko))
-                                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                                        : 'border border-amber-200 bg-amber-50 text-amber-700'
-                                }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${spkTokoIds.has(Number(projectData.id_toko)) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                    {spkTokoIds.has(Number(projectData.id_toko)) ? 'SUDAH SPK' : 'BELUM SPK'}
-                                </span>
-                            </div>
-                            {spkInfo && (
-                                <>
-                                    <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                                    <div>
-                                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Durasi (SPK)</p>
-                                        <p className="text-base font-extrabold text-slate-950">{spkInfo.duration} Hari</p>
-                                    </div>
-                                    <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                                    <div>
-                                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tgl Mulai SPK</p>
-                                        <p className="text-base font-extrabold text-emerald-700">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                                    </div>
-                                </>
-                            )}
                         </CardContent>
                     </Card>
-                )}
 
-                {projectData && selectedGanttId && appMode === 'pic' && (
-                    <Card className="w-full lg:w-2/3 border-slate-200 bg-white shadow-sm">
-                        <CardContent className="p-5">
-                            <div className="flex items-start gap-3">
-                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                                    <MessageSquare className="h-4 w-4" />
+                    {projectData && (
+                        <Card className="w-full max-w-5xl border border-slate-200 bg-white text-slate-900 shadow-sm transition-all">
+                            <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 p-5">
+                                <div>
+                                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Nama Toko</p>
+                                    <p className="text-base font-extrabold leading-tight text-slate-950">{projectData.store}</p>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <div className="hidden h-10 w-px bg-slate-200 md:block" />
+                                <div>
+                                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Lingkup</p>
+                                    <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-extrabold ${String(projectData.work).toUpperCase() === 'ME'
+                                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                            : 'border-red-200 bg-red-50 text-red-700'
+                                        }`}>
+                                        {projectData.work}
+                                    </span>
+                                </div>
+                                <div className="hidden h-10 w-px bg-slate-200 md:block" />
+                                <div>
+                                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Status SPK</p>
+                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${spkTokoIds.has(Number(projectData.id_toko))
+                                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                            : 'border border-amber-200 bg-amber-50 text-amber-700'
+                                        }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${spkTokoIds.has(Number(projectData.id_toko)) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                        {spkTokoIds.has(Number(projectData.id_toko)) ? 'SUDAH SPK' : 'BELUM SPK'}
+                                    </span>
+                                </div>
+                                {spkInfo && (
+                                    <>
+                                        <div className="hidden h-10 w-px bg-slate-200 md:block" />
                                         <div>
-                                            <h3 className="text-sm font-bold text-slate-900">Catatan Pengawasan</h3>
-                                            <p className="text-xs text-slate-500">Komunikasi antar role selama mode pengawasan.</p>
+                                            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Durasi (SPK)</p>
+                                            <p className="text-base font-extrabold text-slate-950">{spkInfo.duration} Hari</p>
                                         </div>
-                                        <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
-                                    </div>
+                                        <div className="hidden h-10 w-px bg-slate-200 md:block" />
+                                        <div>
+                                            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tgl Mulai SPK</p>
+                                            <p className="text-base font-extrabold text-emerald-700">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                        </div>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
-                                    <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                        {isGanttNoteLoading ? (
-                                            <div className="flex items-center justify-center py-6 text-sm text-slate-500">
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat catatan...
+                    {projectData && selectedGanttId && appMode === 'pic' && (
+                        <Card className="w-full lg:w-2/3 border-slate-200 bg-white shadow-sm">
+                            <CardContent className="p-5">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                        <MessageSquare className="h-4 w-4" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <h3 className="text-sm font-bold text-slate-900">Catatan Pengawasan</h3>
+                                                <p className="text-xs text-slate-500">Komunikasi antar role selama mode pengawasan.</p>
                                             </div>
-                                        ) : ganttNotes.length === 0 ? (
-                                            <p className="py-6 text-center text-sm text-slate-500">Belum ada catatan pengawasan.</p>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {ganttNotes.map(note => (
-                                                    <div key={note.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                                            <div className="min-w-0">
-                                                                <p className="truncate text-xs font-bold text-slate-800">{note.author_name}</p>
-                                                                <p className="truncate text-[11px] text-slate-500">{note.author_role}</p>
+                                            <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
+                                        </div>
+
+                                        <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                            {isGanttNoteLoading ? (
+                                                <div className="flex items-center justify-center py-6 text-sm text-slate-500">
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat catatan...
+                                                </div>
+                                            ) : ganttNotes.length === 0 ? (
+                                                <p className="py-6 text-center text-sm text-slate-500">Belum ada catatan pengawasan.</p>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {ganttNotes.map(note => (
+                                                        <div key={note.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                                            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-xs font-bold text-slate-800">{note.author_name}</p>
+                                                                    <p className="truncate text-[11px] text-slate-500">{note.author_role}</p>
+                                                                </div>
+                                                                <span className="text-[11px] text-slate-400">
+                                                                    {new Date(note.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                                                                </span>
                                                             </div>
-                                                            <span className="text-[11px] text-slate-400">
-                                                                {new Date(note.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
-                                                            </span>
+                                                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{note.note}</p>
                                                         </div>
-                                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{note.note}</p>
-                                                    </div>
-                                                ))}
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {canWriteGanttCommunication && (
+                                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                                <textarea
+                                                    value={ganttNoteInput}
+                                                    onChange={(e) => setGanttNoteInput(e.target.value)}
+                                                    rows={2}
+                                                    className="min-h-11 flex-1 resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                                    placeholder="Tulis catatan pengawasan..."
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    className="h-11 bg-blue-600 px-5 font-semibold text-white hover:bg-blue-700"
+                                                    disabled={isGanttNoteSending || !ganttNoteInput.trim()}
+                                                    onClick={handleSendGanttNote}
+                                                >
+                                                    {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="mr-2 h-4 w-4" /> Kirim</>}
+                                                </Button>
                                             </div>
                                         )}
                                     </div>
-
-                                    {canWriteGanttCommunication && (
-                                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                                            <textarea
-                                                value={ganttNoteInput}
-                                                onChange={(e) => setGanttNoteInput(e.target.value)}
-                                                rows={2}
-                                                className="min-h-11 flex-1 resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                                                placeholder="Tulis catatan pengawasan..."
-                                            />
-                                            <Button
-                                                type="button"
-                                                className="h-11 bg-blue-600 px-5 font-semibold text-white hover:bg-blue-700"
-                                                disabled={isGanttNoteSending || !ganttNoteInput.trim()}
-                                                onClick={handleSendGanttNote}
-                                            >
-                                                {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="mr-2 h-4 w-4" /> Kirim</>}
-                                            </Button>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
-
-            {appMode === 'pic' && (isWorkspaceLoading || supervisionWorkspace) && (
-                <section className="mb-8 space-y-5">
-                    {isWorkspaceLoading ? (
-                        <Card className="border-slate-200 bg-white shadow-sm">
-                            <CardContent className="flex min-h-52 items-center justify-center">
-                                <Loader2 className="mr-3 h-7 w-7 animate-spin text-red-600" />
-                                <span className="font-semibold text-slate-600">Menyiapkan workspace SIPIL &amp; ME...</span>
                             </CardContent>
                         </Card>
-                    ) : supervisionWorkspace ? (
-                        <>
-                            <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
-                                <div className="relative p-6 md:p-7 text-slate-900">
-                                    <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                                        <div>
-                                            <div className="mb-2 flex flex-wrap items-center gap-2">
-                                                <Badge className="border border-red-200 bg-red-50 text-red-700 font-bold">WORKSPACE PENGAWASAN</Badge>
-                                                <Badge className="border border-red-200 bg-red-600 text-white font-bold">
-                                                    {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
-                                                </Badge>
-                                                {(() => {
-                                                    const hasSpk = supervisionWorkspace.scopes.some(scope => spkTokoIds.has(Number(scope.id_toko)));
-                                                    return (
-                                                        <Badge className={`border font-bold shadow-xs ${
-                                                            hasSpk 
-                                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700' 
-                                                                : 'border-amber-200 bg-amber-50 text-amber-700'
-                                                        }`}>
-                                                            {hasSpk ? '✓ SUDAH SPK' : '○ BELUM SPK'}
-                                                        </Badge>
-                                                    );
-                                                })()}
-                                            </div>
-                                            <h2 className="text-2xl font-black tracking-tight md:text-3xl">
-                                                {formatUlokWithDash(supervisionWorkspace.nomor_ulok)}
-                                            </h2>
-                                            <p className="mt-1 text-sm text-slate-500">
-                                                {supervisionWorkspace.nama_toko || '-'} · {supervisionWorkspace.cabang || '-'}
-                                            </p>
-                                            <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold">
-                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                                                    PIC: {supervisionWorkspace.pic_bersama || 'Belum ditentukan'}
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                                                    SIPIL di atas · ME di bawah
-                                                </span>
-                                            </div>
-                                        </div>
+                    )}
+                </div>
 
-                                        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:w-auto lg:min-w-96">
-                                            <div className="mb-3 flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Serah Terima</p>
-                                                    <p className="mt-1 text-sm font-semibold">
-                                                        {supervisionWorkspace.unified_serah_terima_generated
-                                                            ? 'PDF sudah tersedia'
-                                                            : supervisionWorkspace.unified_serah_terima_ready
-                                                                ? 'Siap diproses'
-                                                                : 'Menunggu pekerjaan selesai masuk Opname'}
-                                                    </p>
+                {appMode === 'pic' && (isWorkspaceLoading || supervisionWorkspace) && (
+                    <section className="mb-8 space-y-5">
+                        {isWorkspaceLoading ? (
+                            <Card className="border-slate-200 bg-white shadow-sm">
+                                <CardContent className="flex min-h-52 items-center justify-center">
+                                    <Loader2 className="mr-3 h-7 w-7 animate-spin text-red-600" />
+                                    <span className="font-semibold text-slate-600">Menyiapkan workspace SIPIL &amp; ME...</span>
+                                </CardContent>
+                            </Card>
+                        ) : supervisionWorkspace ? (
+                            <>
+                                <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
+                                    <div className="relative p-6 md:p-7 text-slate-900">
+                                        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                                            <div>
+                                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                    <Badge className="border border-red-200 bg-red-50 text-red-700 font-bold">WORKSPACE PENGAWASAN</Badge>
+                                                    <Badge className="border border-red-200 bg-red-600 text-white font-bold">
+                                                        {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
+                                                    </Badge>
+                                                    {(() => {
+                                                        const hasSpk = supervisionWorkspace.scopes.some(scope => spkTokoIds.has(Number(scope.id_toko)));
+                                                        return (
+                                                            <Badge className={`border font-bold shadow-xs ${hasSpk
+                                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                                                                }`}>
+                                                                {hasSpk ? '✓ SUDAH SPK' : '○ BELUM SPK'}
+                                                            </Badge>
+                                                        );
+                                                    })()}
                                                 </div>
-                                                {supervisionWorkspace.unified_serah_terima_generated
-                                                    ? <CheckCircle className="h-7 w-7 text-emerald-400" />
-                                                    : <ClipboardCheck className="h-7 w-7 text-red-300" />}
+                                                <h2 className="text-2xl font-black tracking-tight md:text-3xl">
+                                                    {formatUlokWithDash(supervisionWorkspace.nomor_ulok)}
+                                                </h2>
+                                                <p className="mt-1 text-sm text-slate-500">
+                                                    {supervisionWorkspace.nama_toko || '-'} · {supervisionWorkspace.cabang || '-'}
+                                                </p>
+                                                <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold">
+                                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                                                        PIC: {supervisionWorkspace.pic_bersama || 'Belum ditentukan'}
+                                                    </span>
+                                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                                                        SIPIL di atas · ME di bawah
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <Button
-                                                type="button"
-                                                onClick={handleGenerateUnifiedHandover}
-                                                disabled={!supervisionWorkspace.unified_serah_terima_ready || isGeneratingHandover}
-                                                className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
-                                            >
-                                                {isGeneratingHandover
-                                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    : <FileText className="mr-2 h-4 w-4" />}
-                                                {supervisionWorkspace.unified_serah_terima_generated ? 'Regenerate Serah Terima' : 'Generate Serah Terima'}
-                                            </Button>
+
+                                            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:w-auto lg:min-w-96">
+                                                <div className="mb-3 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Serah Terima</p>
+                                                        <p className="mt-1 text-sm font-semibold">
+                                                            {supervisionWorkspace.unified_serah_terima_generated
+                                                                ? 'PDF sudah tersedia'
+                                                                : supervisionWorkspace.unified_serah_terima_ready
+                                                                    ? 'Siap diproses'
+                                                                    : 'Menunggu pekerjaan selesai masuk Opname'}
+                                                        </p>
+                                                    </div>
+                                                    {supervisionWorkspace.unified_serah_terima_generated
+                                                        ? <CheckCircle className="h-7 w-7 text-emerald-400" />
+                                                        : <ClipboardCheck className="h-7 w-7 text-red-300" />}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    onClick={handleGenerateUnifiedHandover}
+                                                    disabled={!supervisionWorkspace.unified_serah_terima_ready || isGeneratingHandover}
+                                                    className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
+                                                >
+                                                    {isGeneratingHandover
+                                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        : <FileText className="mr-2 h-4 w-4" />}
+                                                    {supervisionWorkspace.unified_serah_terima_generated ? 'Download Serah Terima' : 'Generate Serah Terima'}
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
-                                <div className="flex items-start gap-3">
-                                    <span className="relative mt-1 flex h-3 w-3 shrink-0">
-                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                                        <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
-                                    </span>
-                                    <div>
-                                        <p className="font-extrabold">Petunjuk Opname</p>
-                                        <p className="mt-0.5 text-xs leading-relaxed text-red-700">
-                                            Titik merah berkedip hanya muncul ketika ada pekerjaan selesai yang belum masuk Opname.
-                                            Checkpoint sesudahnya tidak akan memunculkan form kosong.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {supervisionWorkspace.has_date_mismatch && (
-                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
                                     <div className="flex items-start gap-3">
-                                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                        <span className="relative mt-1 flex h-3 w-3 shrink-0">
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                                            <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
+                                        </span>
                                         <div>
-                                            <p className="font-extrabold">Tanggal ME belum sama dengan SIPIL</p>
-                                            <p className="mt-0.5 text-xs leading-relaxed">
-                                                Header memakai tanggal {supervisionWorkspace.master_scope || 'master'} sebagai acuan.
-                                                Jalankan backup CSV dan sinkronisasi DB sebelum cleanup data lama.
+                                            <p className="font-extrabold">Petunjuk Opname</p>
+                                            <p className="mt-0.5 text-xs leading-relaxed text-red-700">
+                                                Titik merah berkedip hanya muncul ketika ada pekerjaan selesai yang belum masuk Opname.
+                                                Checkpoint sesudahnya tidak akan memunculkan form kosong.
                                             </p>
                                         </div>
                                     </div>
                                 </div>
-                            )}
 
-                            <div className="overflow-hidden border border-slate-300 bg-white shadow-sm">
-                                <UnifiedSupervisionGantt
-                                    workspace={supervisionWorkspace}
-                                    onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}
-                                />
-                                <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
+                                {supervisionWorkspace.has_date_mismatch && (
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                                        <div className="flex items-start gap-3">
+                                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                            <div>
+                                                <p className="font-extrabold">Tanggal ME belum sama dengan SIPIL</p>
+                                                <p className="mt-0.5 text-xs leading-relaxed">
+                                                    Header memakai tanggal {supervisionWorkspace.master_scope || 'master'} sebagai acuan.
+                                                    Jalankan backup CSV dan sinkronisasi DB sebelum cleanup data lama.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="overflow-hidden border border-slate-300 bg-white shadow-sm">
+                                    <UnifiedSupervisionGantt
+                                        workspace={supervisionWorkspace}
+                                        onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}
+                                    />
+                                    <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
+                                        {supervisionWorkspace.scopes.map((scope, index) => {
+                                            const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+                                            const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+                                            const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
+                                            return (
+                                                <span key={scope.id_toko} className="inline-flex items-center gap-2">
+                                                    <span className={`h-2.5 w-2.5 rounded-full ${scopeName === 'SIPIL' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                                                    {scopeName}: {readyCount} siap opname, {opnameCount} sudah opname
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {false && unifiedTimeline && (
+                                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                                        <div className="border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Timeline ULOK Terpadu</p>
+                                                    <h3 className="mt-1 text-lg font-black">SIPIL + ME dalam satu kalender kerja</h3>
+                                                </div>
+                                                <Badge className="border border-white/20 bg-white/10 text-white">
+                                                    {unifiedTimeline!.duration} hari kalender
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                        <div className="flex border-b border-slate-200 bg-slate-100 text-xs font-black uppercase tracking-wide text-slate-500">
+                                            <div className="w-1/3 min-w-50 border-r border-slate-300 px-4 py-3">
+                                                Lingkup / Tahapan
+                                            </div>
+                                            <div
+                                                className="flex-1 overflow-x-auto"
+                                                data-gantt-sync={unifiedTimeline!.syncGroup}
+                                                onScroll={(e) => {
+                                                    document.querySelectorAll<HTMLElement>(`[data-gantt-sync="${unifiedTimeline!.syncGroup}"]`).forEach((el) => {
+                                                        if (el !== e.currentTarget && el.scrollLeft !== e.currentTarget.scrollLeft) {
+                                                            el.scrollLeft = e.currentTarget.scrollLeft;
+                                                        }
+                                                    });
+                                                }}
+                                            >
+                                                <div className="flex" style={{ minWidth: unifiedTimeline!.duration * DAY_WIDTH }}>
+                                                    {Array.from({ length: unifiedTimeline!.duration }).map((_, dayIndex) => {
+                                                        const current = parseCalendarDate(unifiedTimeline!.startDate) || new Date();
+                                                        current.setDate(current.getDate() + dayIndex);
+                                                        const dd = String(current.getDate()).padStart(2, '0');
+                                                        const mm = String(current.getMonth() + 1).padStart(2, '0');
+                                                        const yyyy = current.getFullYear();
+                                                        const fullDate = `${dd}/${mm}/${yyyy}`;
+                                                        const checkpoint = (supervisionWorkspace!.unified_checkpoints || []).find((item) => item.tanggal_pengawasan === fullDate);
+                                                        const readyCount = Number(checkpoint?.ready_opname_items || 0);
+                                                        const opnameCount = Number(checkpoint?.opname_items || 0);
+                                                        const isReady = readyCount > 0;
+                                                        const isOpname = !isReady && opnameCount > 0;
+                                                        const hasAnyScopeCheckpoint = Boolean(checkpoint?.scopes?.some((entry) => Boolean(entry.checkpoint)));
+                                                        return (
+                                                            <button
+                                                                key={fullDate}
+                                                                type="button"
+                                                                disabled={!hasAnyScopeCheckpoint}
+                                                                onClick={() => checkpoint && openUnifiedCheckpoint(checkpoint as any, dayIndex)}
+                                                                className={`flex h-13 shrink-0 flex-col items-center justify-center border-r border-slate-300 font-bold ${isReady
+                                                                        ? 'bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 hover:bg-red-100'
+                                                                        : isOpname
+                                                                            ? 'bg-emerald-50 text-emerald-700'
+                                                                            : hasAnyScopeCheckpoint
+                                                                                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                                                                : 'bg-white text-slate-400'
+                                                                    }`}
+                                                                style={{ width: DAY_WIDTH, fontSize: '9px' }}
+                                                                title={`${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`}
+                                                            >
+                                                                <span>{dd}/{mm}</span>
+                                                                {isReady ? (
+                                                                    <AlertCircle className="mt-0.5 h-3 w-3 text-red-600" />
+                                                                ) : isOpname ? (
+                                                                    <CheckCircle className="mt-0.5 h-3 w-3 text-emerald-600" />
+                                                                ) : hasAnyScopeCheckpoint ? (
+                                                                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                                                                ) : null}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="hidden">
                                     {supervisionWorkspace.scopes.map((scope, index) => {
                                         const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
                                         const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
                                         const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
                                         return (
-                                            <span key={scope.id_toko} className="inline-flex items-center gap-2">
-                                                <span className={`h-2.5 w-2.5 rounded-full ${scopeName === 'SIPIL' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                                                {scopeName}: {readyCount} siap opname, {opnameCount} sudah opname
-                                            </span>
+                                            <div key={scope.id_toko} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
+                                                <div className={`flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${scopeName === 'SIPIL' ? 'bg-red-700 text-white' : 'bg-slate-800 text-white'
+                                                    }`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white`}>
+                                                            <Building2 className="h-5 w-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-lg font-black">{scopeName}</h3>
+                                                            <p className="text-xs text-white/65">
+                                                                Gantt #{scope.gantt_id || '-'} · {scope.gantt_status || 'Belum tersedia'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {readyCount > 0 && (
+                                                            <Badge className="border border-red-300/40 bg-red-500 text-white">
+                                                                <Sparkles className="mr-1 h-3 w-3" /> {readyCount} siap Opname
+                                                            </Badge>
+                                                        )}
+                                                        {opnameCount > 0 && (
+                                                            <Badge className="border border-emerald-300/30 bg-emerald-500/20 text-emerald-100">
+                                                                {opnameCount} sudah Opname
+                                                            </Badge>
+                                                        )}
+                                                        <Badge className="border border-white/20 bg-white/10 text-white">
+                                                            {scope.status_opname_final || 'Opname belum dibuat'}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+
+                                                {scope.gantt_id ? (
+                                                    <div className="p-4">
+                                                        <GanttViewer
+                                                            nomorUlok={scope.nomor_ulok}
+                                                            idToko={scope.id_toko}
+                                                            spkStartDate={scope.spk_start_date || undefined}
+                                                            spkDuration={scope.spk_duration || undefined}
+                                                            title={`Timeline ${scopeName}`}
+                                                            checkpoints={scope.checkpoints}
+                                                            onCheckpointClick={(checkpoint, dayIndex) => openScopeCheckpoint(scope, checkpoint, dayIndex)}
+                                                            hideChartTitle
+                                                            hideDateHeader
+                                                            timelineStartDate={unifiedTimeline?.startDate}
+                                                            timelineDuration={unifiedTimeline?.duration}
+                                                            syncScrollGroup={unifiedTimeline?.syncGroup}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="m-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-8 text-center">
+                                                        <AlertCircle className="mx-auto mb-2 h-7 w-7 text-amber-500" />
+                                                        <p className="font-bold text-amber-800">Gantt {scopeName} belum tersedia</p>
+                                                        <p className="mt-1 text-xs text-amber-700">Lingkup lain tetap dapat digunakan.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         );
                                     })}
                                 </div>
-                            </div>
+                            </>
+                        ) : null}
+                    </section>
+                )}
 
-                            {false && unifiedTimeline && (
-                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                                    <div className="border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
-                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Timeline ULOK Terpadu</p>
-                                                <h3 className="mt-1 text-lg font-black">SIPIL + ME dalam satu kalender kerja</h3>
-                                            </div>
-                                            <Badge className="border border-white/20 bg-white/10 text-white">
-                                                {unifiedTimeline!.duration} hari kalender
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                    <div className="flex border-b border-slate-200 bg-slate-100 text-xs font-black uppercase tracking-wide text-slate-500">
-                                        <div className="w-1/3 min-w-50 border-r border-slate-300 px-4 py-3">
-                                            Lingkup / Tahapan
-                                        </div>
-                                        <div
-                                            className="flex-1 overflow-x-auto"
-                                            data-gantt-sync={unifiedTimeline!.syncGroup}
-                                            onScroll={(e) => {
-                                                document.querySelectorAll<HTMLElement>(`[data-gantt-sync="${unifiedTimeline!.syncGroup}"]`).forEach((el) => {
-                                                    if (el !== e.currentTarget && el.scrollLeft !== e.currentTarget.scrollLeft) {
-                                                        el.scrollLeft = e.currentTarget.scrollLeft;
-                                                    }
-                                                });
-                                            }}
-                                        >
-                                            <div className="flex" style={{ minWidth: unifiedTimeline!.duration * DAY_WIDTH }}>
-                                                {Array.from({ length: unifiedTimeline!.duration }).map((_, dayIndex) => {
-                                                    const current = parseCalendarDate(unifiedTimeline!.startDate) || new Date();
-                                                    current.setDate(current.getDate() + dayIndex);
-                                                    const dd = String(current.getDate()).padStart(2, '0');
-                                                    const mm = String(current.getMonth() + 1).padStart(2, '0');
-                                                    const yyyy = current.getFullYear();
-                                                    const fullDate = `${dd}/${mm}/${yyyy}`;
-                                                    const checkpoint = (supervisionWorkspace!.unified_checkpoints || []).find((item) => item.tanggal_pengawasan === fullDate);
-                                                    const readyCount = Number(checkpoint?.ready_opname_items || 0);
-                                                    const opnameCount = Number(checkpoint?.opname_items || 0);
-                                                    const isReady = readyCount > 0;
-                                                    const isOpname = !isReady && opnameCount > 0;
-                                                    const hasAnyScopeCheckpoint = Boolean(checkpoint?.scopes?.some((entry) => Boolean(entry.checkpoint)));
-                                                    return (
+                {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
+                        <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
+                            <div>
+                                <h2 className="font-bold text-slate-800 text-lg">Input Jadwal & Keterikatan (Dependencies)</h2>
+                                <p className="text-sm text-slate-500">Item pekerjaan ditarik otomatis dari form RAB yang telah disubmit.</p>
+                            </div>
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{tasks.length} Item Pekerjaan</Badge>
+                        </div>
+
+                        {tasks.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse" style={{ minWidth: '900px' }}>
+                                    <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
+                                        <tr>
+                                            <th className="p-4 w-12 text-center border-r">No</th>
+                                            <th className="p-4 w-[30%] border-r">Tahapan Pekerjaan</th>
+                                            <th className="p-4 w-[25%] border-r">Keterikatan (Dilanjutkan ke..)</th>
+                                            <th className="p-4">Durasi (Hari Ke-)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {tasks.map(task => (
+                                            <tr key={task.id} className="border-b hover:bg-slate-50/50 transition-colors">
+                                                <td className="p-4 text-center font-bold text-slate-500 border-r">{task.id}</td>
+                                                <td className="p-4 font-semibold text-slate-800 border-r">{task.name}</td>
+
+                                                <td className="p-4 border-r">
+                                                    <select
+                                                        disabled={isReadOnly}
+                                                        className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-xs"
+                                                        value={task.dependencies[0] || ''}
+                                                        onChange={(e) => handleDependencyChange(task.id, e.target.value)}
+                                                    >
+                                                        <option value="">- Tidak Ada -</option>
+                                                        {tasks.filter(t => t.id > task.id).map(opt => (
+                                                            <option key={opt.id} value={opt.id}>{opt.id}. {opt.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="p-4 space-y-2">
+                                                    {task.ranges.map((r: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-2 mb-2">
+                                                            <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
+                                                                <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
+                                                                <input
+                                                                    readOnly={isReadOnly}
+                                                                    type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800"
+                                                                    value={r.start} onChange={(e) => handleRangeChange(task.id, idx, 'start', e.target.value)}
+                                                                    placeholder="Start" min="1" max={projectData?.duration || 99}
+                                                                />
+                                                            </div>
+                                                            <span className="text-slate-400 text-xs">➜</span>
+                                                            <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
+                                                                <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
+                                                                <input
+                                                                    readOnly={isReadOnly}
+                                                                    type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800"
+                                                                    value={r.end} onChange={(e) => handleRangeChange(task.id, idx, 'end', e.target.value)}
+                                                                    placeholder="End" min="1" max={projectData?.duration || 99}
+                                                                />
+                                                            </div>
+
+                                                            {!isReadOnly && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeRange(task.id, idx)}
+                                                                    className="text-red-500 hover:bg-red-50 p-1.5 rounded border border-transparent hover:border-red-200 transition-colors"
+                                                                    title="Hapus Periode"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+
+                                                    {!isReadOnly && (
                                                         <button
-                                                            key={fullDate}
                                                             type="button"
-                                                            disabled={!hasAnyScopeCheckpoint}
-                                                            onClick={() => checkpoint && openUnifiedCheckpoint(checkpoint as any, dayIndex)}
-                                                            className={`flex h-13 shrink-0 flex-col items-center justify-center border-r border-slate-300 font-bold ${
-                                                                isReady
-                                                                    ? 'bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 hover:bg-red-100'
-                                                                    : isOpname
-                                                                        ? 'bg-emerald-50 text-emerald-700'
-                                                                        : hasAnyScopeCheckpoint
-                                                                            ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                                                            : 'bg-white text-slate-400'
-                                                            }`}
-                                                            style={{ width: DAY_WIDTH, fontSize: '9px' }}
-                                                            title={`${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`}
+                                                            onClick={() => addRange(task.id)}
+                                                            className="text-xs text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-1 flex items-center"
                                                         >
-                                                            <span>{dd}/{mm}</span>
-                                                            {isReady ? (
-                                                                <AlertCircle className="mt-0.5 h-3 w-3 text-red-600" />
-                                                            ) : isOpname ? (
-                                                                <CheckCircle className="mt-0.5 h-3 w-3 text-emerald-600" />
-                                                            ) : hasAnyScopeCheckpoint ? (
-                                                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
-                                                            ) : null}
+                                                            <Plus className="w-3 h-3 mr-1" /> Tambah Periode Terputus
                                                         </button>
-                                                    );
-                                                })}
-                                            </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center text-slate-500">
+                                <p className="font-semibold mb-1">Data Pekerjaan Kosong</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {!(appMode === 'pic' && supervisionWorkspace) && (
+                    <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
+                        <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
+                            <div className="flex justify-center gap-6">
+                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Progress</div>
+                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-200">
+                                {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
+                            </Button>
+                        </div>
+
+                        <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
+                            {isLoading ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
+                                    <Loader2 className="w-12 h-12 animate-spin text-red-600 mb-4" />
+                                    <p className="font-semibold text-slate-700">Mempersiapkan Jadwal Proyek...</p>
+                                </div>
+                            ) : chartData ? (
+                                <div style={{ width: 'max-content', minWidth: '100%' }}>
+                                    <div className="flex sticky top-0 bg-white z-20 border-b-2 border-slate-300 shadow-sm" style={{ width: labelColWidth + chartData.totalChartWidth }}>
+                                        <div className="shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>Tahapan</div>
+                                        <div className="flex" style={{ width: chartData.totalChartWidth }}>
+                                            {Array.from({ length: chartData.totalDaysToRender }).map((_, i) => {
+                                                let label: string = String(i + 1);
+                                                let isPengawasan = false;
+                                                let isLiveDay = false;
+                                                let fullDateString = '';
+
+                                                const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
+                                                if (effectiveStartDate) {
+                                                    const d = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
+                                                    d.setDate(d.getDate() + i);
+                                                    const dd = String(d.getDate()).padStart(2, '0');
+                                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                                    const yyyy = d.getFullYear();
+
+                                                    if (spkInfo) {
+                                                        label = `${dd}/${mm}`;
+                                                    }
+
+                                                    fullDateString = `${dd}/${mm}/${yyyy}`;
+
+                                                    const today = new Date();
+                                                    const td = String(today.getDate()).padStart(2, '0');
+                                                    const tm = String(today.getMonth() + 1).padStart(2, '0');
+                                                    const ty = today.getFullYear();
+
+                                                    if (dd === td && mm === tm && yyyy === ty) {
+                                                        isLiveDay = true;
+                                                    }
+                                                    if (pengawasanDates.includes(fullDateString)) {
+                                                        isPengawasan = true;
+                                                    }
+                                                }
+                                                const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly;
+                                                return (
+                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
+                                                        onClick={() => {
+                                                            if (isClickable) {
+                                                                setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
+                                                                setShowMemoModal(true);
+                                                            }
+                                                        }}>
+                                                        <span>{label}</span>
+                                                        {isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />}
+                                                        {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
                                     </div>
+
+                                    <div className="relative" style={{ width: labelColWidth + chartData.totalChartWidth }}>
+                                        {/* Garis Live Day - kolom hijau samar full height */}
+                                        {chartData.liveDayIndex !== -1 && (
+                                            <div
+                                                className="absolute top-0 bottom-0 pointer-events-none"
+                                                style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH), width: DAY_WIDTH, zIndex: 5, backgroundColor: 'rgba(34, 197, 94, 0.08)' }}
+                                            />
+                                        )}
+                                        {chartData.liveDayIndex !== -1 && (
+                                            <div
+                                                className="absolute top-0 bottom-0 pointer-events-none"
+                                                style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH) + (DAY_WIDTH / 2), width: 2, zIndex: 16, backgroundColor: 'rgba(34, 197, 94, 0.7)' }}
+                                            />
+                                        )}
+
+                                        {/* Garis pemisah tegas antara Tahapan Pekerjaan dan Hari */}
+                                        <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: labelColWidth, borderRight: '3px solid #94a3b8', zIndex: 18, boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }} />
+
+                                        {/* Garis vertikal pembatas kolom - full height */}
+                                        {Array.from({ length: chartData.totalDaysToRender }).map((_, ci) => (
+                                            <div key={`vl-${ci}`} className="absolute top-0 bottom-0 pointer-events-none z-0" style={{ left: labelColWidth + ((ci + 1) * DAY_WIDTH), borderRight: '1px solid #e2e8f0' }} />
+                                        ))}
+
+                                        {chartData.processedTasks.map((task: any, idx: number) => {
+                                            const shift = task.computed.shift || 0;
+                                            const isIlTask = String(task.name || '').startsWith('[IL]');
+                                            return (
+                                                <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
+                                                    <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
+                                                        <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 truncate">
+                                                            {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
+                                                            <span className="truncate" title={task.name}>{task.name}</span>
+                                                        </span>
+                                                    </div>
+                                                    <div className="relative" style={{ width: chartData.totalChartWidth }}>
+                                                        {task.ranges && task.ranges.map((r: any, rIdx: number) => {
+                                                            if (!r.start || !r.end) return null;
+                                                            const s = parseInt(r.start) + shift;
+                                                            const e = parseInt(r.end) + shift;
+                                                            const dur = e - s + 1;
+                                                            const delay = parseInt(r.keterlambatan) || 0;
+                                                            return (
+                                                                <React.Fragment key={rIdx}>
+                                                                    <div
+                                                                        className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
+                                                                        style={{ left: (s - 1) * DAY_WIDTH, width: dur * DAY_WIDTH - 1 }}
+                                                                    >
+                                                                        {dur} Hari
+                                                                    </div>
+                                                                    {delay > 0 && (
+                                                                        <div
+                                                                            className="absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
+                                                                            style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
+                                                                        >
+                                                                            +{delay}
+                                                                        </div>
+                                                                    )}
+                                                                </React.Fragment>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+
+                                        <svg className="absolute top-0 pointer-events-none z-20 overflow-visible" style={{ left: labelColWidth, width: chartData.totalChartWidth, height: chartData.svgHeight }}>
+                                            <defs>
+                                                <marker id="depArrow" viewBox="0 0 10 6" refX="7" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+                                                    <path d="M0,0 L10,3 L0,6 Z" fill="#3b82f6" />
+                                                </marker>
+                                            </defs>
+                                            {chartData.svgLines}
+                                        </svg>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                                    <p>Silakan pilih proyek / ulok di atas untuk mulai</p>
                                 </div>
                             )}
-
-                            <div className="hidden">
-                                {supervisionWorkspace.scopes.map((scope, index) => {
-                                    const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
-                                    const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
-                                    const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
-                                    return (
-                                        <div key={scope.id_toko} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
-                                            <div className={`flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${
-                                                scopeName === 'SIPIL' ? 'bg-red-700 text-white' : 'bg-slate-800 text-white'
-                                            }`}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white`}>
-                                                        <Building2 className="h-5 w-5" />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-lg font-black">{scopeName}</h3>
-                                                        <p className="text-xs text-white/65">
-                                                            Gantt #{scope.gantt_id || '-'} · {scope.gantt_status || 'Belum tersedia'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {readyCount > 0 && (
-                                                        <Badge className="border border-red-300/40 bg-red-500 text-white">
-                                                            <Sparkles className="mr-1 h-3 w-3" /> {readyCount} siap Opname
-                                                        </Badge>
-                                                    )}
-                                                    {opnameCount > 0 && (
-                                                        <Badge className="border border-emerald-300/30 bg-emerald-500/20 text-emerald-100">
-                                                            {opnameCount} sudah Opname
-                                                        </Badge>
-                                                    )}
-                                                    <Badge className="border border-white/20 bg-white/10 text-white">
-                                                        {scope.status_opname_final || 'Opname belum dibuat'}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-
-                                            {scope.gantt_id ? (
-                                                <div className="p-4">
-                                                    <GanttViewer
-                                                        nomorUlok={scope.nomor_ulok}
-                                                        idToko={scope.id_toko}
-                                                        spkStartDate={scope.spk_start_date || undefined}
-                                                        spkDuration={scope.spk_duration || undefined}
-                                                        title={`Timeline ${scopeName}`}
-                                                        checkpoints={scope.checkpoints}
-                                                        onCheckpointClick={(checkpoint, dayIndex) => openScopeCheckpoint(scope, checkpoint, dayIndex)}
-                                                        hideChartTitle
-                                                        hideDateHeader
-                                                        timelineStartDate={unifiedTimeline?.startDate}
-                                                        timelineDuration={unifiedTimeline?.duration}
-                                                        syncScrollGroup={unifiedTimeline?.syncGroup}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="m-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-8 text-center">
-                                                    <AlertCircle className="mx-auto mb-2 h-7 w-7 text-amber-500" />
-                                                    <p className="font-bold text-amber-800">Gantt {scopeName} belum tersedia</p>
-                                                    <p className="mt-1 text-xs text-amber-700">Lingkup lain tetap dapat digunakan.</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </>
-                    ) : null}
-                </section>
-            )}
-
-            {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
-                    <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
-                        <div>
-                            <h2 className="font-bold text-slate-800 text-lg">Input Jadwal & Keterikatan (Dependencies)</h2>
-                            <p className="text-sm text-slate-500">Item pekerjaan ditarik otomatis dari form RAB yang telah disubmit.</p>
                         </div>
-                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{tasks.length} Item Pekerjaan</Badge>
-                    </div>
-                    
-                    {tasks.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left border-collapse" style={{ minWidth: '900px' }}>
-                                <thead className="bg-slate-50 text-slate-700 font-semibold border-b">
-                                    <tr>
-                                        <th className="p-4 w-12 text-center border-r">No</th>
-                                        <th className="p-4 w-[30%] border-r">Tahapan Pekerjaan</th>
-                                        <th className="p-4 w-[25%] border-r">Keterikatan (Dilanjutkan ke..)</th>
-                                        <th className="p-4">Durasi (Hari Ke-)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {tasks.map(task => (
-                                        <tr key={task.id} className="border-b hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-4 text-center font-bold text-slate-500 border-r">{task.id}</td>
-                                            <td className="p-4 font-semibold text-slate-800 border-r">{task.name}</td>
-                                            
-                                            <td className="p-4 border-r">
-                                                <select 
-                                                    disabled={isReadOnly}
-                                                    className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-xs"
-                                                    value={task.dependencies[0] || ''}
-                                                    onChange={(e) => handleDependencyChange(task.id, e.target.value)}
-                                                >
-                                                    <option value="">- Tidak Ada -</option>
-                                                    {tasks.filter(t => t.id > task.id).map(opt => (
-                                                        <option key={opt.id} value={opt.id}>{opt.id}. {opt.name}</option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                            <td className="p-4 space-y-2">
-                                                {task.ranges.map((r: any, idx: number) => (
-                                                    <div key={idx} className="flex items-center gap-2 mb-2">
-                                                        <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
-                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
-                                                            <input 
-                                                                readOnly={isReadOnly}
-                                                                type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
-                                                                value={r.start} onChange={(e) => handleRangeChange(task.id, idx, 'start', e.target.value)}
-                                                                placeholder="Start" min="1" max={projectData?.duration || 99}
-                                                            />
-                                                        </div>
-                                                        <span className="text-slate-400 text-xs">➜</span>
-                                                        <div className="flex items-center border border-slate-300 rounded-md overflow-hidden bg-white shadow-sm">
-                                                            <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
-                                                            <input 
-                                                                readOnly={isReadOnly}
-                                                                type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800" 
-                                                                value={r.end} onChange={(e) => handleRangeChange(task.id, idx, 'end', e.target.value)}
-                                                                placeholder="End" min="1" max={projectData?.duration || 99}
-                                                            />
-                                                        </div>
-                                                        
-                                                        {!isReadOnly && (
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => removeRange(task.id, idx)} 
-                                                            className="text-red-500 hover:bg-red-50 p-1.5 rounded border border-transparent hover:border-red-200 transition-colors"
-                                                            title="Hapus Periode"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                                
-                                                {!isReadOnly && (
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => addRange(task.id)} 
-                                                    className="text-xs text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded transition-colors mt-1 flex items-center"
-                                                >
-                                                    <Plus className="w-3 h-3 mr-1" /> Tambah Periode Terputus
-                                                </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div className="p-8 text-center text-slate-500">
-                            <p className="font-semibold mb-1">Data Pekerjaan Kosong</p>
-                        </div>
-                    )}
-                </div>
-            )}
-            {!(appMode === 'pic' && supervisionWorkspace) && (
-            <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
-                <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
-                    <div className="flex justify-center gap-6">
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 bg-green-500 rounded shadow-inner"></div> Progress</div>
-                        <div className="flex items-center gap-2"><div className="w-4 h-4 bg-linear-to-r from-pink-500 to-orange-500 rounded shadow-inner"></div> Terlambat</div>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-200">
-                        {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
-                    </Button>
-                </div>
-                
-                <div className="p-0 overflow-x-auto min-h-100 relative bg-white pb-10" id="ganttChartContainer">
-                    {isLoading ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
-                            <Loader2 className="w-12 h-12 animate-spin text-red-600 mb-4" />
-                            <p className="font-semibold text-slate-700">Mempersiapkan Jadwal Proyek...</p>
-                        </div>
-                    ) : chartData ? (
-                        <div style={{ width: 'max-content', minWidth: '100%' }}>
-                            <div className="flex sticky top-0 bg-white z-20 border-b-2 border-slate-300 shadow-sm" style={{ width: labelColWidth + chartData.totalChartWidth }}>
-                                <div className="shrink-0 font-bold text-slate-600 p-2.5 bg-white border-r-[3px] border-slate-400 sticky left-0 z-30 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>Tahapan</div>
-                                <div className="flex" style={{ width: chartData.totalChartWidth }}>
-                                {Array.from({length: chartData.totalDaysToRender}).map((_, i) => {
-                                    let label: string = String(i + 1);
-                                    let isPengawasan = false;
-                                    let isLiveDay = false;
-                                    let fullDateString = '';
-                                    
-                                    const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
-                                    if (effectiveStartDate) {
-                                        const d = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
-                                        d.setDate(d.getDate() + i);
-                                        const dd = String(d.getDate()).padStart(2, '0');
-                                        const mm = String(d.getMonth() + 1).padStart(2, '0');
-                                        const yyyy = d.getFullYear();
-                                        
-                                        if (spkInfo) {
-                                            label = `${dd}/${mm}`;
-                                        }
-                                        
-                                        fullDateString = `${dd}/${mm}/${yyyy}`;
-                                        
-                                        const today = new Date();
-                                        const td = String(today.getDate()).padStart(2, '0');
-                                        const tm = String(today.getMonth() + 1).padStart(2, '0');
-                                        const ty = today.getFullYear();
-                                        
-                                        if (dd === td && mm === tm && yyyy === ty) {
-                                            isLiveDay = true;
-                                        }
-                                        if (pengawasanDates.includes(fullDateString)) {
-                                            isPengawasan = true;
-                                        }
-                                    }
-                                    const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly;
-                                    return (
-                                        <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
-                                             onClick={() => {
-                                                 if (isClickable) {
-                                                     setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
-                                                     setShowMemoModal(true);
-                                                 }
-                                             }}>
-                                            <span>{label}</span>
-                                            {isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />}
-                                            {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
-                                        </div>
-                                    )
-                                })}
-                                </div>
-                            </div>
-                            
-                            <div className="relative" style={{ width: labelColWidth + chartData.totalChartWidth }}>
-                                {/* Garis Live Day - kolom hijau samar full height */}
-                                {chartData.liveDayIndex !== -1 && (
-                                    <div 
-                                        className="absolute top-0 bottom-0 pointer-events-none"
-                                        style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH), width: DAY_WIDTH, zIndex: 5, backgroundColor: 'rgba(34, 197, 94, 0.08)' }} 
-                                    />
-                                )}
-                                {chartData.liveDayIndex !== -1 && (
-                                    <div 
-                                        className="absolute top-0 bottom-0 pointer-events-none"
-                                        style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH) + (DAY_WIDTH / 2), width: 2, zIndex: 16, backgroundColor: 'rgba(34, 197, 94, 0.7)' }} 
-                                    />
-                                )}
+                    </Card>
+                )}
 
-                                {/* Garis pemisah tegas antara Tahapan Pekerjaan dan Hari */}
-                                <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: labelColWidth, borderRight: '3px solid #94a3b8', zIndex: 18, boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }} />
-
-                                {/* Garis vertikal pembatas kolom - full height */}
-                                {Array.from({ length: chartData.totalDaysToRender }).map((_, ci) => (
-                                    <div key={`vl-${ci}`} className="absolute top-0 bottom-0 pointer-events-none z-0" style={{ left: labelColWidth + ((ci + 1) * DAY_WIDTH), borderRight: '1px solid #e2e8f0' }} />
-                                ))}
-
-                                {chartData.processedTasks.map((task: any, idx: number) => {
-                                    const shift = task.computed.shift || 0;
-                                    const isIlTask = String(task.name || '').startsWith('[IL]');
-                                    return (
-                                        <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
-                                            <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
-                                                <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 truncate">
-                                                    {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
-                                                    <span className="truncate" title={task.name}>{task.name}</span>
-                                                </span>
-                                            </div>
-                                            <div className="relative" style={{ width: chartData.totalChartWidth }}>
-                                                {task.ranges && task.ranges.map((r: any, rIdx: number) => {
-                                                    if(!r.start || !r.end) return null;
-                                                    const s = parseInt(r.start) + shift;
-                                                    const e = parseInt(r.end) + shift;
-                                                    const dur = e - s + 1;
-                                                    const delay = parseInt(r.keterlambatan) || 0;
-                                                    return (
-                                                        <React.Fragment key={rIdx}>
-                                                            <div 
-                                                                className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
-                                                                style={{ left: (s - 1) * DAY_WIDTH, width: dur * DAY_WIDTH - 1 }}
-                                                            >
-                                                                {dur} Hari
-                                                            </div>
-                                                            {delay > 0 && (
-                                                                <div 
-                                                                    className="absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
-                                                                    style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
-                                                                >
-                                                                    +{delay}
-                                                                </div>
-                                                            )}
-                                                        </React.Fragment>
-                                                    )
-                                                })}
-                                             </div>
-                                        </div>
-                                    )
-                                })}
-
-                                <svg className="absolute top-0 pointer-events-none z-20 overflow-visible" style={{ left: labelColWidth, width: chartData.totalChartWidth, height: chartData.svgHeight }}>
-                                    <defs>
-                                        <marker id="depArrow" viewBox="0 0 10 6" refX="7" refY="3" markerWidth="8" markerHeight="6" orient="auto">
-                                            <path d="M0,0 L10,3 L0,6 Z" fill="#3b82f6" />
-                                        </marker>
-                                    </defs>
-                                    {chartData.svgLines}
-                                </svg>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
-                            <p>Silakan pilih proyek / ulok di atas untuk mulai</p>
-                        </div>
-                    )}
-                </div>
-            </Card>
-            )}
-
-            {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
-                <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
+                {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
+                    <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
                         <>
                             {/* Tombol Hapus Draft */}
                             {selectedGanttId && (
@@ -2233,69 +2224,49 @@ function GanttBoard() {
                                     <Trash2 className="w-5 h-5 mr-2" /> {isApplying ? "Loading..." : "Hapus Draft"}
                                 </Button>
                             )}
-                            
+
                             {/* Tombol Simpan & Kunci (Bawaan Lama) */}
                             <Button variant="outline" onClick={() => handleSaveData('Active')} disabled={isApplying} className="h-12 border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-6 w-full md:w-auto">
-                                {isApplying ? <Loader2 className="w-5 h-5 animate-spin mr-2"/> : "Simpan Draft"}
+                                {isApplying ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Simpan Draft"}
                             </Button>
                             <Button onClick={() => handleSaveData('Terkunci')} disabled={isApplying} className="h-12 bg-red-600 hover:bg-red-700 shadow-md font-bold px-8 text-[15px] w-full md:w-auto">
                                 <Lock className="w-5 h-5 mr-2" /> {isApplying ? "Menyimpan..." : "Kunci & Publish Jadwal"}
                             </Button>
                         </>
-                </div>
-            )}
-        </main>
+                    </div>
+                )}
+            </main>
 
-        {/* MODAL 2: Memo Pengawasan Detail */}
-        {showMemoModal && (
-            <MemoPengawasanModal 
-                activeHeaderClick={activeHeaderClick} 
-                chartData={chartData} 
-                rabItems={rabItems} 
-                pengawasanHistory={pengawasanHistory}
-                onClose={() => {
-                    setShowMemoModal(false);
-                    setUnifiedMemoFlow(null);
-                }} 
-                selectedGanttId={selectedGanttId}
-                spkInfo={spkInfo}
-                projectData={projectData}
-                id_toko={projectData?.id_toko}
-                scopeLabel={unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index]?.scope?.lingkup_pekerjaan}
-                nextScopeLabel={unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length ? unifiedMemoFlow.scopes[unifiedMemoFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
-                flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
-                draft={selectedGanttId && activeHeaderClick ? unifiedMemoDrafts[`${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
-                onDraftChange={(draft: any) => {
-                    if (!selectedGanttId || !activeHeaderClick) return;
-                    const key = `${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
-                    setUnifiedMemoDrafts((prev) => ({ ...prev, [key]: draft }));
-                }}
-                onNavigateScope={async (targetIndex: number) => {
-                    if (!unifiedMemoFlow) return;
-                    const next = unifiedMemoFlow.scopes[targetIndex];
-                    if (!next) return;
-                    setShowMemoModal(false);
-                    setUnifiedMemoFlow({ ...unifiedMemoFlow, index: targetIndex });
-                    await loadDataByToko(next.scope.id_toko);
-                    setActiveHeaderClick({
-                        dayIndex: unifiedMemoFlow.dayIndex,
-                        dateString: unifiedMemoFlow.dateString,
-                        label: unifiedMemoFlow.dateString.slice(0, 5),
-                    });
-                    setShowMemoModal(true);
-                }}
-                onSuccess={async (options?: { openOpname?: boolean }) => {
-                    setShowMemoModal(false);
-                    // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
-                    if (selectedGanttId) loadGanttDetail(selectedGanttId);
-                    if (supervisionWorkspace?.nomor_ulok) {
-                        loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
-                    }
-
-                    if (unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length) {
-                        const nextIndex = unifiedMemoFlow.index + 1;
-                        const next = unifiedMemoFlow.scopes[nextIndex];
-                        setUnifiedMemoFlow({ ...unifiedMemoFlow, index: nextIndex });
+            {/* MODAL 2: Memo Pengawasan Detail */}
+            {showMemoModal && (
+                <MemoPengawasanModal
+                    activeHeaderClick={activeHeaderClick}
+                    chartData={chartData}
+                    rabItems={rabItems}
+                    pengawasanHistory={pengawasanHistory}
+                    onClose={() => {
+                        setShowMemoModal(false);
+                        setUnifiedMemoFlow(null);
+                    }}
+                    selectedGanttId={selectedGanttId}
+                    spkInfo={spkInfo}
+                    projectData={projectData}
+                    id_toko={projectData?.id_toko}
+                    scopeLabel={unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index]?.scope?.lingkup_pekerjaan}
+                    nextScopeLabel={unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length ? unifiedMemoFlow.scopes[unifiedMemoFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
+                    flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
+                    draft={selectedGanttId && activeHeaderClick ? unifiedMemoDrafts[`${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
+                    onDraftChange={(draft: any) => {
+                        if (!selectedGanttId || !activeHeaderClick) return;
+                        const key = `${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
+                        setUnifiedMemoDrafts((prev) => ({ ...prev, [key]: draft }));
+                    }}
+                    onNavigateScope={async (targetIndex: number) => {
+                        if (!unifiedMemoFlow) return;
+                        const next = unifiedMemoFlow.scopes[targetIndex];
+                        if (!next) return;
+                        setShowMemoModal(false);
+                        setUnifiedMemoFlow({ ...unifiedMemoFlow, index: targetIndex });
                         await loadDataByToko(next.scope.id_toko);
                         setActiveHeaderClick({
                             dayIndex: unifiedMemoFlow.dayIndex,
@@ -2303,77 +2274,79 @@ function GanttBoard() {
                             label: unifiedMemoFlow.dateString.slice(0, 5),
                         });
                         setShowMemoModal(true);
-                        return;
-                    }
-                    const completedFlow = unifiedMemoFlow;
-                    setUnifiedMemoFlow(null);
-                    
-                    if (options?.openOpname === false) {
-                        return;
-                    }
-                    if (completedFlow && completedFlow.scopes.length > 1) {
-                        const first = completedFlow.scopes[0];
-                        setUnifiedOpnameFlow({
-                            scopes: completedFlow.scopes,
-                            index: 0,
-                            dayIndex: completedFlow.dayIndex,
-                            dateString: completedFlow.dateString,
-                        });
-                        await loadDataByToko(first.scope.id_toko);
-                        setActiveHeaderClick({
-                            dayIndex: completedFlow.dayIndex,
-                            dateString: completedFlow.dateString,
-                            label: completedFlow.dateString.slice(0, 5),
-                        });
-                        setShowOpnameModal(true);
-                        return;
-                    }
-                    setShowOpnameModal(true);
-                }}
-            />
-        )}
+                    }}
+                    onSuccess={async (options?: { openOpname?: boolean }) => {
+                        setShowMemoModal(false);
+                        // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
+                        if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                        if (supervisionWorkspace?.nomor_ulok) {
+                            loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+                        }
 
-        {/* MODAL 3: Opname Hasil Evaluasi */}
-        {showOpnameModal && (
-            <OpnameModal
-                activeHeaderClick={activeHeaderClick}
-                rabItems={rabItems}
-                id_toko={projectData?.id_toko}
-                onClose={() => {
-                    setShowOpnameModal(false);
-                    setUnifiedOpnameFlow(null);
-                    if (!unifiedOpnameFlow) setShowMemoModal(true);
-                }}
-                selectedGanttId={selectedGanttId}
-                spkInfo={spkInfo}
-                nomorUlok={projectData?.ulokClean}
-                scopeLabel={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.lingkup_pekerjaan}
-                nextScopeLabel={unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length ? unifiedOpnameFlow.scopes[unifiedOpnameFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
-                flowStep={unifiedOpnameFlow ? { current: unifiedOpnameFlow.index + 1, total: unifiedOpnameFlow.scopes.length } : null}
-                onNavigateScope={async (targetIndex: number) => {
-                    if (!unifiedOpnameFlow) return;
-                    const next = unifiedOpnameFlow.scopes[targetIndex];
-                    if (!next) return;
-                    setShowOpnameModal(false);
-                    setUnifiedOpnameFlow({ ...unifiedOpnameFlow, index: targetIndex });
-                    await loadDataByToko(next.scope.id_toko);
-                    setActiveHeaderClick({
-                        dayIndex: unifiedOpnameFlow.dayIndex,
-                        dateString: unifiedOpnameFlow.dateString,
-                        label: unifiedOpnameFlow.dateString.slice(0, 5),
-                    });
-                    setShowOpnameModal(true);
-                }}
-                onSuccess={async () => {
-                    setShowOpnameModal(false);
-                    if (selectedGanttId) loadGanttDetail(selectedGanttId);
-                    if (supervisionWorkspace?.nomor_ulok) {
-                        loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
-                    }
-                    if (unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length) {
-                        const nextIndex = unifiedOpnameFlow.index + 1;
-                        const next = unifiedOpnameFlow.scopes[nextIndex];
-                        setUnifiedOpnameFlow({ ...unifiedOpnameFlow, index: nextIndex });
+                        if (unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length) {
+                            const nextIndex = unifiedMemoFlow.index + 1;
+                            const next = unifiedMemoFlow.scopes[nextIndex];
+                            setUnifiedMemoFlow({ ...unifiedMemoFlow, index: nextIndex });
+                            await loadDataByToko(next.scope.id_toko);
+                            setActiveHeaderClick({
+                                dayIndex: unifiedMemoFlow.dayIndex,
+                                dateString: unifiedMemoFlow.dateString,
+                                label: unifiedMemoFlow.dateString.slice(0, 5),
+                            });
+                            setShowMemoModal(true);
+                            return;
+                        }
+                        const completedFlow = unifiedMemoFlow;
+                        setUnifiedMemoFlow(null);
+
+                        if (options?.openOpname === false) {
+                            return;
+                        }
+                        if (completedFlow && completedFlow.scopes.length > 1) {
+                            const first = completedFlow.scopes[0];
+                            setUnifiedOpnameFlow({
+                                scopes: completedFlow.scopes,
+                                index: 0,
+                                dayIndex: completedFlow.dayIndex,
+                                dateString: completedFlow.dateString,
+                            });
+                            await loadDataByToko(first.scope.id_toko);
+                            setActiveHeaderClick({
+                                dayIndex: completedFlow.dayIndex,
+                                dateString: completedFlow.dateString,
+                                label: completedFlow.dateString.slice(0, 5),
+                            });
+                            setShowOpnameModal(true);
+                            return;
+                        }
+                        setShowOpnameModal(true);
+                    }}
+                />
+            )}
+
+            {/* MODAL 3: Opname Hasil Evaluasi */}
+            {showOpnameModal && (
+                <OpnameModal
+                    activeHeaderClick={activeHeaderClick}
+                    rabItems={rabItems}
+                    id_toko={projectData?.id_toko}
+                    onClose={() => {
+                        setShowOpnameModal(false);
+                        setUnifiedOpnameFlow(null);
+                        if (!unifiedOpnameFlow) setShowMemoModal(true);
+                    }}
+                    selectedGanttId={selectedGanttId}
+                    spkInfo={spkInfo}
+                    nomorUlok={projectData?.ulokClean}
+                    scopeLabel={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.lingkup_pekerjaan}
+                    nextScopeLabel={unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length ? unifiedOpnameFlow.scopes[unifiedOpnameFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
+                    flowStep={unifiedOpnameFlow ? { current: unifiedOpnameFlow.index + 1, total: unifiedOpnameFlow.scopes.length } : null}
+                    onNavigateScope={async (targetIndex: number) => {
+                        if (!unifiedOpnameFlow) return;
+                        const next = unifiedOpnameFlow.scopes[targetIndex];
+                        if (!next) return;
+                        setShowOpnameModal(false);
+                        setUnifiedOpnameFlow({ ...unifiedOpnameFlow, index: targetIndex });
                         await loadDataByToko(next.scope.id_toko);
                         setActiveHeaderClick({
                             dayIndex: unifiedOpnameFlow.dayIndex,
@@ -2381,12 +2354,30 @@ function GanttBoard() {
                             label: unifiedOpnameFlow.dateString.slice(0, 5),
                         });
                         setShowOpnameModal(true);
-                        return;
-                    }
-                    setUnifiedOpnameFlow(null);
-                }}
-            />
-        )}
+                    }}
+                    onSuccess={async () => {
+                        setShowOpnameModal(false);
+                        if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                        if (supervisionWorkspace?.nomor_ulok) {
+                            loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+                        }
+                        if (unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length) {
+                            const nextIndex = unifiedOpnameFlow.index + 1;
+                            const next = unifiedOpnameFlow.scopes[nextIndex];
+                            setUnifiedOpnameFlow({ ...unifiedOpnameFlow, index: nextIndex });
+                            await loadDataByToko(next.scope.id_toko);
+                            setActiveHeaderClick({
+                                dayIndex: unifiedOpnameFlow.dayIndex,
+                                dateString: unifiedOpnameFlow.dateString,
+                                label: unifiedOpnameFlow.dateString.slice(0, 5),
+                            });
+                            setShowOpnameModal(true);
+                            return;
+                        }
+                        setUnifiedOpnameFlow(null);
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -2465,7 +2456,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (!hasLoadedInitial) return;
         onDraftChange?.(memoInputs);
     }, [hasLoadedInitial, memoInputs]);
-    
+
     useEffect(() => {
         if (!selectedGanttId || (!spkInfo && !projectData) || !activeHeaderClick) {
             setIsLoadingHistory(false);
@@ -2519,115 +2510,115 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 fetchPengawasanList({ id_gantt: selectedGanttId }),
                 id_toko ? fetchOpnameList({ id_toko }) : Promise.resolve({ data: [] })
             ])
-            .then(([resLive, resAll, resOpname]) => {
-                const dataLive = resLive.data || [];
-                if (dataLive.length > 0) {
-                    setCurrentPengawasanGanttId(dataLive[0].id_pengawasan_gantt);
-                    setCurrentPengawasanPdfLink(
-                        dataLive.find((item: any) => item.berkas_pengawasan?.link_pdf_pengawasan)
-                            ?.berkas_pengawasan?.link_pdf_pengawasan ?? null
-                    );
-                } else {
-                    setCurrentPengawasanGanttId(null);
-                    setCurrentPengawasanPdfLink(null);
-                }
-                const dataAll = resAll.data || [];
-                const dataOpname = resOpname.data || [];
-
-                const blockedOpnameIds = new Set<string>();
-                dataOpname.forEach((op: any) => {
-                    const status = (op.status || '').toLowerCase();
-                    if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
-                        blockedOpnameIds.add(getOpnameItemKey(op));
+                .then(([resLive, resAll, resOpname]) => {
+                    const dataLive = resLive.data || [];
+                    if (dataLive.length > 0) {
+                        setCurrentPengawasanGanttId(dataLive[0].id_pengawasan_gantt);
+                        setCurrentPengawasanPdfLink(
+                            dataLive.find((item: any) => item.berkas_pengawasan?.link_pdf_pengawasan)
+                                ?.berkas_pengawasan?.link_pdf_pengawasan ?? null
+                        );
+                    } else {
+                        setCurrentPengawasanGanttId(null);
+                        setCurrentPengawasanPdfLink(null);
                     }
-                });
-                setBlockedOpnameItemKeys(blockedOpnameIds);
+                    const dataAll = resAll.data || [];
+                    const dataOpname = resOpname.data || [];
 
-                setLiveHistory(dataLive);
-                
-                const initial: Record<string, any> = {};
-                const map = new Map<string, string>();
-                const idMap = new Map<string, number>();
-                const getCategoryLateDays = (kategoriPekerjaan: string) => {
-                    const matchedTask = chartData?.processedTasks?.find((t: any) => t.name.toUpperCase() === kategoriPekerjaan.toUpperCase());
-                    let categoryLateDays = 0;
-                    if (matchedTask && matchedTask.ranges) {
-                        matchedTask.ranges.forEach((r: any) => {
-                            if (r.keterlambatan) {
-                                categoryLateDays += parseInt(r.keterlambatan) || 0;
+                    const blockedOpnameIds = new Set<string>();
+                    dataOpname.forEach((op: any) => {
+                        const status = (op.status || '').toLowerCase();
+                        if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
+                            blockedOpnameIds.add(getOpnameItemKey(op));
+                        }
+                    });
+                    setBlockedOpnameItemKeys(blockedOpnameIds);
+
+                    setLiveHistory(dataLive);
+
+                    const initial: Record<string, any> = {};
+                    const map = new Map<string, string>();
+                    const idMap = new Map<string, number>();
+                    const getCategoryLateDays = (kategoriPekerjaan: string) => {
+                        const matchedTask = chartData?.processedTasks?.find((t: any) => t.name.toUpperCase() === kategoriPekerjaan.toUpperCase());
+                        let categoryLateDays = 0;
+                        if (matchedTask && matchedTask.ranges) {
+                            matchedTask.ranges.forEach((r: any) => {
+                                if (r.keterlambatan) {
+                                    categoryLateDays += parseInt(r.keterlambatan) || 0;
+                                }
+                            });
+                        }
+                        return categoryLateDays;
+                    };
+
+                    dataLive.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            if (p.id) idMap.set(key, p.id);
+                            if (p.status.toLowerCase() !== 'selesai') {
+                                initial[key] = {
+                                    status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+                                    lateDays: getCategoryLateDays(p.kategori_pekerjaan),
+                                    catatan: p.catatan || '',
+                                    file: null,
+                                    dokumentasiUrl: p.dokumentasi || null,
+                                    isSaved: true
+                                };
                             }
-                        });
-                    }
-                    return categoryLateDays;
-                };
+                        }
+                    });
 
-                dataLive.forEach((p: any) => {
-                    if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
-                        const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
-                        if (p.id) idMap.set(key, p.id);
-                        if (p.status.toLowerCase() !== 'selesai') {
-                            initial[key] = {
-                                status: p.status.charAt(0).toUpperCase() + p.status.slice(1), 
-                                lateDays: getCategoryLateDays(p.kategori_pekerjaan),
-                                catatan: p.catatan || '',
-                                file: null, 
-                                dokumentasiUrl: p.dokumentasi || null,
-                                isSaved: true
-                            };
-                        }
-                    }
-                });
-                
-                dataAll.forEach((p: any) => {
-                    if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
-                        const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
-                        const normalizedStatus = p.status.charAt(0).toUpperCase() + p.status.slice(1);
-                        
-                        // dataAll sudah diurutkan terbaru lebih dulu dari backend.
-                        // Jangan biarkan record lama menimpa status terbaru.
-                        if (!map.has(key)) {
-                            map.set(key, normalizedStatus);
-                        }
+                    dataAll.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            const normalizedStatus = p.status.charAt(0).toUpperCase() + p.status.slice(1);
 
-                        // Jika item Progress/Terlambat dari hari sebelumnya belum punya record hari ini,
-                        // tetap masukkan ke form tanggal pengawasan berikutnya agar bisa diupdate.
-                        if (
-                            !initial[key] &&
-                            map.get(key) === normalizedStatus &&
-                            p.status.toLowerCase() !== 'selesai' &&
-                            isPreviousPengawasanBeforeCurrent(getPengawasanDateById(p.id_pengawasan_gantt))
-                        ) {
-                            initial[key] = {
-                                status: '',
-                                lateDays: 0,
-                                catatan: '',
-                                file: null,
-                                dokumentasiUrl: null,
-                                isSaved: false,
-                                previousStatus: normalizedStatus,
-                                previousLateDays: getCategoryLateDays(p.kategori_pekerjaan)
-                            };
+                            // dataAll sudah diurutkan terbaru lebih dulu dari backend.
+                            // Jangan biarkan record lama menimpa status terbaru.
+                            if (!map.has(key)) {
+                                map.set(key, normalizedStatus);
+                            }
+
+                            // Jika item Progress/Terlambat dari hari sebelumnya belum punya record hari ini,
+                            // tetap masukkan ke form tanggal pengawasan berikutnya agar bisa diupdate.
+                            if (
+                                !initial[key] &&
+                                map.get(key) === normalizedStatus &&
+                                p.status.toLowerCase() !== 'selesai' &&
+                                isPreviousPengawasanBeforeCurrent(getPengawasanDateById(p.id_pengawasan_gantt))
+                            ) {
+                                initial[key] = {
+                                    status: '',
+                                    lateDays: 0,
+                                    catatan: '',
+                                    file: null,
+                                    dokumentasiUrl: null,
+                                    isSaved: false,
+                                    previousStatus: normalizedStatus,
+                                    previousLateDays: getCategoryLateDays(p.kategori_pekerjaan)
+                                };
+                            }
                         }
+                    });
+                    const mergedInitial = { ...initial, ...(draft || {}) };
+                    setMemoInputs(mergedInitial);
+                    // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
+                    // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
+                    if (Object.keys(mergedInitial).length > 0) {
+                        setIsDirty(true);
                     }
+                    setLatestStatusMapState(map);
+                    setLatestIdMapState(idMap);
+                })
+                .catch(err => console.error("Gagal mendapatkan pengawasan history:", err))
+                .finally(() => {
+                    setHasLoadedInitial(true);
+                    setIsLoadingHistory(false);
                 });
-                const mergedInitial = { ...initial, ...(draft || {}) };
-                setMemoInputs(mergedInitial);
-                // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
-                // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
-                if (Object.keys(mergedInitial).length > 0) {
-                    setIsDirty(true);
-                }
-                setLatestStatusMapState(map);
-                setLatestIdMapState(idMap);
-            })
-            .catch(err => console.error("Gagal mendapatkan pengawasan history:", err))
-            .finally(() => {
-                setHasLoadedInitial(true);
-                setIsLoadingHistory(false);
-            });
         });
     }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
-    
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
     const [latestIdMapState, setLatestIdMapState] = useState<Map<string, number>>(new Map());
@@ -2644,7 +2635,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const diffTime = checkpointDate.getTime() - startD.getTime();
             day = Math.round(diffTime / (1000 * 3600 * 24));
         }
-        
+
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
         return chartData.processedTasks.map((task: any) => {
             const shift = task.computed.shift || 0;
@@ -2652,25 +2643,25 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             let isLastDay = false;
             let hideOnProgress = true; // default hidden
             let rawRangeMatch: any = null;
-            
+
             task.ranges?.forEach((r: any) => {
                 if (!r.start || !r.end) return;
                 const s = parseInt(r.start) + shift - 1;
                 const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
-                
+
                 if (s <= day && day <= e) isScheduledToday = true;
-                
+
                 // Cek apakah hari terakhir kategori ini bertepatan dengan hari pengawasan
                 if (day === e) {
                     isLastDay = true;
                 }
-                
+
                 // Progress harus muncul HANYA jika hari ini berjalan di dalam rentang waktu (day >= s) 
                 // TETAPI belum mencapai hari terakhir (day < e).
                 if (day >= s && day < e) {
                     hideOnProgress = false;
                 }
-                
+
                 // Kita prioritaskan rawRangeMatch untuk rentang yang benar-benar aktif atau yang sudah terlewati
                 if (day >= s && day <= e) {
                     rawRangeMatch = r;
@@ -2678,18 +2669,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     rawRangeMatch = r;
                 }
             });
-            
+
             if (!rawRangeMatch && task.ranges?.length > 0) {
                 rawRangeMatch = task.ranges[0];
             }
-            
+
             const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
-            
+
             // Juga ambil item dari liveHistory yang kategorinya cocok (untuk proyek migrasi)
             const historyItemsForCat = liveHistory
                 .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase())
                 .filter((lh: any) => !catItems.some((ci: any) => ci.jenis_pekerjaan?.toUpperCase() === lh.jenis_pekerjaan?.toUpperCase()));
-            
+
             // Bangun list akhir: gabungkan catItems + item baru dari history
             const historyDerivedItems = historyItemsForCat.map((lh: any) => ({
                 id: `hist-${lh.id || lh.jenis_pekerjaan}`,
@@ -2705,9 +2696,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 total_upah: 0,
                 total_harga: 0,
             }));
-            
+
             const allCatItems = [...catItems, ...historyDerivedItems];
-            
+
             // Fallback: jika masih kosong DAN hari ini dijadwalkan → buat 1 placeholder
             const effectiveItems = allCatItems.length > 0 ? allCatItems : (isScheduledToday ? [{
                 id: `placeholder-${task.name}`,
@@ -2723,28 +2714,28 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 total_upah: 0,
                 total_harga: 0,
             }] : []);
-            
-            const filteredItems = effectiveItems.filter((item: any) => {
-                 if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY' && blockedOpnameItemKeys.has(getWorkItemKey(item))) return false;
 
-                 const key = `${task.name.toUpperCase()}|${(item.jenis_pekerjaan || task.name).toUpperCase()}`;
-                 const latestStatus = latestStatusMapState.get(key);
-                 const latestStatusLower = String(latestStatus || '').toLowerCase();
-                 const memoInput = memoInputs[key] as any;
-                 const isUnfinishedFromPreviousPengawasan = ['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus;
-                 
-                 // Tampilkan item jika jadwalnya aktif hari ini, atau jika status terakhirnya
-                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya.
-                 if (!isScheduledToday && !isUnfinishedFromPreviousPengawasan) return false;
-                 
-                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
-                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
-                 const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
-                 if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
-                 
-                 return true;
+            const filteredItems = effectiveItems.filter((item: any) => {
+                if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY' && blockedOpnameItemKeys.has(getWorkItemKey(item))) return false;
+
+                const key = `${task.name.toUpperCase()}|${(item.jenis_pekerjaan || task.name).toUpperCase()}`;
+                const latestStatus = latestStatusMapState.get(key);
+                const latestStatusLower = String(latestStatus || '').toLowerCase();
+                const memoInput = memoInputs[key] as any;
+                const isUnfinishedFromPreviousPengawasan = ['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus;
+
+                // Tampilkan item jika jadwalnya aktif hari ini, atau jika status terakhirnya
+                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya.
+                if (!isScheduledToday && !isUnfinishedFromPreviousPengawasan) return false;
+
+                // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
+                const jenisPekerjaan = item.jenis_pekerjaan || task.name;
+                const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
+                if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
+
+                return true;
             });
-            
+
             return {
                 category: { ...task, isLastDay, hideOnProgress, rawRangeMatch },
                 items: filteredItems
@@ -2758,7 +2749,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             ...prev,
             [key]: {
                 ...(prev[key] || {}),
-                status, 
+                status,
                 lateDays: prev[key]?.lateDays || 0,
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
@@ -2774,7 +2765,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             ...prev,
             [key]: {
                 ...(prev[key] || {}),
-                status: prev[key]?.status || 'Terlambat', 
+                status: prev[key]?.status || 'Terlambat',
                 lateDays: Math.max(0, lateDays),
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
@@ -2785,7 +2776,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     const handleSetField = async (catName: string, itemJenis: string, field: 'catatan' | 'file', value: any) => {
         let finalValue = value;
-        
+
         // Kompresi otomatis untuk foto sebelum dimasukkan ke state
         if (field === 'file' && value instanceof File) {
             const { compressImage } = await import('@/lib/utils');
@@ -2818,23 +2809,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     const isLastSupervisionDay = useMemo(() => {
         if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) return false;
-        
+
         const datesInNumeric = pengawasanHistory
             .map((p: any) => p.tanggal_pengawasan)
             .filter(Boolean)
             .map((dStr: string) => {
                 const parts = dStr.split('/');
-                if(parts.length === 3) {
+                if (parts.length === 3) {
                     return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
                 }
                 return 0;
             })
             .filter((val: number) => val > 0)
             .sort((a: number, b: number) => a - b);
-            
+
         if (datesInNumeric.length === 0) return false;
         const maxDate = datesInNumeric[datesInNumeric.length - 1];
-        
+
         const effectiveStart = getEffectiveWorkStart();
         const startD = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         const checkpointDate = parseDateAny(activeHeaderClick.dateString);
@@ -2843,14 +2834,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const diffTime = checkpointDate.getTime() - startD.getTime();
             offset = Math.round(diffTime / (1000 * 3600 * 24));
         }
-        
+
         const dDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
         dDate.setDate(dDate.getDate() + offset);
         const yyyy = dDate.getFullYear();
         const mm = String(dDate.getMonth() + 1).padStart(2, '0');
         const dd = String(dDate.getDate()).padStart(2, '0');
         const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
-        
+
         return maxDate === currentNumeric;
     }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
@@ -2880,11 +2871,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 editableItemCount += 1;
 
                 const input = memoInputs[key];
-                
+
                 if (!input || !input.status) {
                     return false;
                 }
-                
+
                 if (input.status === 'Terlambat') {
                     if (input.lateDays === undefined || input.lateDays === null || input.lateDays <= 0) {
                         return false;
@@ -2931,7 +2922,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         try {
             const itemsArrayInsert: any[] = [];
             const filesMapInsert: { index: number, file: File }[] = [];
-            
+
             const itemsArrayUpdate: any[] = [];
             const filesMapUpdate: { index: number, file: File }[] = [];
 
@@ -2968,7 +2959,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (!validStatuses.includes(statusLower)) return; // skip jika status tidak valid
                 const statusSafe = statusLower;
                 const lateDaysSafe = Number(val.lateDays) || 0;
-                
+
                 if (existingId) {
                     // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
                     // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
@@ -2995,7 +2986,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file });
                     }
                 }
-                
+
                 if (val.status === 'Terlambat' && Number(val.lateDays) > 0) {
                     catsLate.set(catName, Math.max(catsLate.get(catName) || 0, Number(val.lateDays)));
                 }
@@ -3096,10 +3087,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     kategori_pekerjaan: catName.toUpperCase(),
                     keterlambatan: String(totalLate)
                 }));
-                
+
                 try {
                     await updateGanttDelay(selectedGanttId, { updates });
-                } catch(e: any) {
+                } catch (e: any) {
                     console.warn("Update delay bulk error:", e);
                 }
             }
@@ -3111,12 +3102,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const parts = nextHandoverDate.split('-');
                     const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : nextHandoverDate;
                     await submitGanttPengawasan(Number(selectedGanttId), [formattedDate]);
-                } catch(e: any) {
+                } catch (e: any) {
                     console.warn("Update next handover date error:", e);
                 }
             }
 
-            showAlert({ 
+            showAlert({
                 message: shouldOpenOpname
                     ? 'Memo pengawasan berhasil disimpan! Lanjutkan ke form Opname.'
                     : 'Memo pengawasan berhasil disimpan.',
@@ -3144,315 +3135,314 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     return (
         <>
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
-                <div className="p-5 border-b flex justify-between items-center bg-white">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-                            <Calendar className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h2 className="font-bold text-xl text-slate-800 leading-tight">
-                                {isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan"}
-                            </h2>
-                            <p className="text-sm text-slate-500 font-medium">{activeHeaderClick.dateString}</p>
-                            {(scopeLabel || flowStep) && (
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    {scopeLabel && (
-                                        <Badge className="border-none bg-slate-800 text-white">
-                                            {String(scopeLabel).toUpperCase()}
-                                        </Badge>
-                                    )}
-                                    {flowStep && (
-                                        <Badge className="border border-blue-200 bg-blue-50 text-blue-700">
-                                            Langkah {flowStep.current} dari {flowStep.total}
-                                        </Badge>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {currentPengawasanGanttId && (
-                            <button
-                                onClick={() => window.open(
-                                    currentPengawasanPdfLink
-                                        || `${API_URL.replace(/\/$/, "")}/api/pengawasan/${currentPengawasanGanttId}/pdf`,
-                                    "_blank"
+            <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                    <div className="p-5 border-b flex justify-between items-center bg-white">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                                <Calendar className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-xl text-slate-800 leading-tight">
+                                    {isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan"}
+                                </h2>
+                                <p className="text-sm text-slate-500 font-medium">{activeHeaderClick.dateString}</p>
+                                {(scopeLabel || flowStep) && (
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        {scopeLabel && (
+                                            <Badge className="border-none bg-slate-800 text-white">
+                                                {String(scopeLabel).toUpperCase()}
+                                            </Badge>
+                                        )}
+                                        {flowStep && (
+                                            <Badge className="border border-blue-200 bg-blue-50 text-blue-700">
+                                                Langkah {flowStep.current} dari {flowStep.total}
+                                            </Badge>
+                                        )}
+                                    </div>
                                 )}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs font-bold border border-red-200 transition-colors shadow-sm"
-                                title="Download PDF Pengawasan"
-                            >
-                                <Download className="w-3.5 h-3.5" />
-                                Download PDF
-                            </button>
-                        )}
-                        {canCreateInstruksiLapangan && (
-                            <button
-                                onClick={() => setShowInstruksiModal(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-bold border border-indigo-200 transition-colors"
-                            >
-                                <FileText className="w-3.5 h-3.5" />
-                                Instruksi Lapangan
-                            </button>
-                        )}
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6"/></button>
-                    </div>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {isLoadingHistory ? (
-                        <div className="flex flex-col items-center justify-center text-slate-400 py-12">
-                            <Loader2 className="w-10 h-10 animate-spin mb-3 text-blue-500" />
-                            <p className="font-medium text-slate-500">Memuat data pengawasan terakhir...</p>
+                            </div>
                         </div>
-                    ) : memoConfig.length === 0 ? (
-                        hasCurrentDateSelesaiItems ? (
-                            <div className="flex flex-col items-center justify-center text-slate-500 py-12 text-center">
-                                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
-                                    <CheckCircle className="w-7 h-7" />
-                                </div>
-                                <h3 className="text-lg font-bold text-slate-700 mb-1">Semua Pekerjaan Selesai</h3>
-                                <p className="font-medium mb-6">Pekerjaan pada hari ini telah memiliki memo Selesai.</p>
-                                <Button onClick={onSuccess} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 h-auto text-sm shadow-md transition-transform hover:scale-105">
-                                    Lanjut ke Form Opname &rarr;
-                                </Button>
+                        <div className="flex items-center gap-2">
+                            {currentPengawasanGanttId && (
+                                <button
+                                    onClick={() => window.open(
+                                        currentPengawasanPdfLink
+                                        || `${API_URL.replace(/\/$/, "")}/api/pengawasan/${currentPengawasanGanttId}/pdf`,
+                                        "_blank"
+                                    )}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs font-bold border border-red-200 transition-colors shadow-sm"
+                                    title="Download PDF Pengawasan"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download PDF
+                                </button>
+                            )}
+                            {canCreateInstruksiLapangan && (
+                                <button
+                                    onClick={() => setShowInstruksiModal(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-bold border border-indigo-200 transition-colors"
+                                >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    Instruksi Lapangan
+                                </button>
+                            )}
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6" /></button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {isLoadingHistory ? (
+                            <div className="flex flex-col items-center justify-center text-slate-400 py-12">
+                                <Loader2 className="w-10 h-10 animate-spin mb-3 text-blue-500" />
+                                <p className="font-medium text-slate-500">Memuat data pengawasan terakhir...</p>
                             </div>
+                        ) : memoConfig.length === 0 ? (
+                            hasCurrentDateSelesaiItems ? (
+                                <div className="flex flex-col items-center justify-center text-slate-500 py-12 text-center">
+                                    <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                                        <CheckCircle className="w-7 h-7" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-slate-700 mb-1">Semua Pekerjaan Selesai</h3>
+                                    <p className="font-medium mb-6">Pekerjaan pada hari ini telah memiliki memo Selesai.</p>
+                                    <Button onClick={onSuccess} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 h-auto text-sm shadow-md transition-transform hover:scale-105">
+                                        Lanjut ke Form Opname &rarr;
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                                    <Info className="w-12 h-12 mb-3 text-slate-300" />
+                                    <p className="font-medium">Tidak ada kategori pekerjaan yang sedang aktif pada hari ini.</p>
+                                </div>
+                            )
                         ) : (
-                            <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
-                                <Info className="w-12 h-12 mb-3 text-slate-300" />
-                                <p className="font-medium">Tidak ada kategori pekerjaan yang sedang aktif pada hari ini.</p>
-                            </div>
-                        )
-                    ) : (
-                        memoConfig.map((d: any, i: number) => (
-                            <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                                <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
-                                    <h3 className="font-bold text-slate-800">{d.category.name}</h3>
-                                    {d.category.isLastDay && <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none">Hari Terakhir Target!</Badge>}
-                                </div>
-                                <div className="p-2 overflow-x-auto">
-                                    {d.items && d.items.length > 0 ? (
-                                        <table className="w-full text-sm text-left border-collapse min-w-[500px]">
-                                            <tbody>
-                                                {d.items.map((item: any, j: number) => {
-                                                    const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
-                                                    const currentStatus = memoInputs[key]?.status;
-                                                    const lateDays = memoInputs[key]?.lateDays || 0;
-                                                    const latestStatusKey = latestStatusMapState.get(`${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`);
-                                                    return (
-                                                        <tr key={j} className="border-b last:border-b-0 hover:bg-slate-50/50">
-                                                            <td className="p-4 align-middle w-1/3">
-                                                                <p className="font-semibold text-slate-700">{item.jenis_pekerjaan}</p>
-                                                                {item.source_type === 'PLACEHOLDER' && (
-                                                                    <span className="inline-block mt-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Data Migrasi</span>
-                                                                )}
-                                                                {item.source_type === 'HISTORY' && (
-                                                                    <span className="inline-block mt-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Dari Riwayat</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="p-4 align-middle w-2/3">
-                                                                {latestStatusKey === 'Selesai' ? (
-                                                                    <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
-                                                                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                                                                        <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
-                                                                    </div>
-                                                                ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
-                                                                    <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
-                                                                        <div className="flex items-center gap-2.5">
-                                                                            {currentStatus === 'Terlambat' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Clock className="w-5 h-5 text-blue-500" />}
-                                                                            <span className={`font-bold text-sm ${currentStatus === 'Terlambat' ? 'text-red-700' : 'text-blue-700'}`}>{currentStatus}</span>
-                                                                            {currentStatus === 'Terlambat' && lateDays > 0 && (
-                                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2.5 py-0.5 rounded-full shadow-sm">{lateDays} Hari</span>
+                            memoConfig.map((d: any, i: number) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                    <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
+                                        <h3 className="font-bold text-slate-800">{d.category.name}</h3>
+                                        {d.category.isLastDay && <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none">Hari Terakhir Target!</Badge>}
+                                    </div>
+                                    <div className="p-2 overflow-x-auto">
+                                        {d.items && d.items.length > 0 ? (
+                                            <table className="w-full text-sm text-left border-collapse min-w-[500px]">
+                                                <tbody>
+                                                    {d.items.map((item: any, j: number) => {
+                                                        const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
+                                                        const currentStatus = memoInputs[key]?.status;
+                                                        const lateDays = memoInputs[key]?.lateDays || 0;
+                                                        const latestStatusKey = latestStatusMapState.get(`${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`);
+                                                        return (
+                                                            <tr key={j} className="border-b last:border-b-0 hover:bg-slate-50/50">
+                                                                <td className="p-4 align-middle w-1/3">
+                                                                    <p className="font-semibold text-slate-700">{item.jenis_pekerjaan}</p>
+                                                                    {item.source_type === 'PLACEHOLDER' && (
+                                                                        <span className="inline-block mt-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Data Migrasi</span>
+                                                                    )}
+                                                                    {item.source_type === 'HISTORY' && (
+                                                                        <span className="inline-block mt-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Dari Riwayat</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-4 align-middle w-2/3">
+                                                                    {latestStatusKey === 'Selesai' ? (
+                                                                        <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
+                                                                            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                                                                            <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
+                                                                        </div>
+                                                                    ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
+                                                                        <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
+                                                                            <div className="flex items-center gap-2.5">
+                                                                                {currentStatus === 'Terlambat' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Clock className="w-5 h-5 text-blue-500" />}
+                                                                                <span className={`font-bold text-sm ${currentStatus === 'Terlambat' ? 'text-red-700' : 'text-blue-700'}`}>{currentStatus}</span>
+                                                                                {currentStatus === 'Terlambat' && lateDays > 0 && (
+                                                                                    <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2.5 py-0.5 rounded-full shadow-sm">{lateDays} Hari</span>
+                                                                                )}
+                                                                            </div>
+                                                                            {memoInputs[key]?.dokumentasiUrl && (
+                                                                                <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
+                                                                                    <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
+                                                                                </a>
                                                                             )}
                                                                         </div>
-                                                                        {memoInputs[key]?.dokumentasiUrl && (
-                                                                            <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
-                                                                                <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
-                                                                            </a>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex flex-col gap-2">
-                                                                        {latestStatusKey && ['Terlambat', 'Progress'].includes(latestStatusKey) && !latestIdMapState.has(key) && (
-                                                                            <div className={`rounded-lg border px-3 py-2 text-xs ${latestStatusKey === 'Terlambat' ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
-                                                                                <div className="flex items-center justify-between gap-2">
-                                                                                    <div className="flex items-center gap-2 font-bold">
-                                                                                        {latestStatusKey === 'Terlambat' ? <AlertCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                                                                                        <span>
-                                                                                            Sebelumnya: {latestStatusKey}
-                                                                                            {latestStatusKey === 'Terlambat' && (memoInputs[key] as any)?.previousLateDays > 0 ? ` ${(memoInputs[key] as any).previousLateDays} Hari` : ''}
-                                                                                        </span>
+                                                                    ) : (
+                                                                        <div className="flex flex-col gap-2">
+                                                                            {latestStatusKey && ['Terlambat', 'Progress'].includes(latestStatusKey) && !latestIdMapState.has(key) && (
+                                                                                <div className={`rounded-lg border px-3 py-2 text-xs ${latestStatusKey === 'Terlambat' ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
+                                                                                    <div className="flex items-center justify-between gap-2">
+                                                                                        <div className="flex items-center gap-2 font-bold">
+                                                                                            {latestStatusKey === 'Terlambat' ? <AlertCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                                                                                            <span>
+                                                                                                Sebelumnya: {latestStatusKey}
+                                                                                                {latestStatusKey === 'Terlambat' && (memoInputs[key] as any)?.previousLateDays > 0 ? ` ${(memoInputs[key] as any).previousLateDays} Hari` : ''}
+                                                                                            </span>
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="flex gap-2">
-                                                                            <button 
-                                                                                type="button" 
-                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
-                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                            >
-                                                                                Selesai
-                                                                            </button>
-                                                                            
-                                                                            <button 
-                                                                                type="button" 
-                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
-                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                            >
-                                                                                Terlambat
-                                                                            </button>
-
-                                                                            {!d.category.hideOnProgress && (
-                                                                                <button 
-                                                                                    type="button" 
-                                                                                    onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
-                                                                                    className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                            )}
+                                                                            <div className="flex gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
+                                                                                    className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                                                                                 >
-                                                                                    Progress
+                                                                                    Selesai
                                                                                 </button>
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                                    className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                >
+                                                                                    Terlambat
+                                                                                </button>
+
+                                                                                {!d.category.hideOnProgress && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
+                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                    >
+                                                                                        Progress
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {/* Input Hari Keterlambatan jika status Terlambat */}
+                                                                            {currentStatus === 'Terlambat' && (
+                                                                                <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
+                                                                                    <span className="text-xs font-semibold text-red-600">Terlambat:</span>
+                                                                                    <input
+                                                                                        type="number" min="0"
+                                                                                        className="w-20 p-1 text-sm border-2 border-red-300 rounded focus:border-red-500 focus:outline-none"
+                                                                                        value={lateDays === 0 ? '' : lateDays}
+                                                                                        onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
+                                                                                        placeholder="Hari"
+                                                                                    />
+                                                                                    <span className="text-xs text-slate-500">hari</span>
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
+                                                                            {currentStatus && (
+                                                                                <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
+                                                                                    <textarea
+                                                                                        className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
+                                                                                        placeholder="Tambahkan catatan/keterangan (opsional)..."
+                                                                                        value={memoInputs[key]?.catatan || ''}
+                                                                                        onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
+                                                                                        rows={2}
+                                                                                    />
+                                                                                    <div className="flex items-center text-xs">
+                                                                                        <span className="text-slate-600 font-medium w-16">Foto/Dok<span className="text-red-500">*</span>:</span>
+                                                                                        <input
+                                                                                            type="file"
+                                                                                            accept="image/*,.pdf,application/pdf"
+                                                                                            onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                            className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
                                                                             )}
                                                                         </div>
-                                                                        
-                                                                        {/* Input Hari Keterlambatan jika status Terlambat */}
-                                                                        {currentStatus === 'Terlambat' && (
-                                                                            <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
-                                                                                <span className="text-xs font-semibold text-red-600">Terlambat:</span>
-                                                                                <input 
-                                                                                    type="number" min="0" 
-                                                                                    className="w-20 p-1 text-sm border-2 border-red-300 rounded focus:border-red-500 focus:outline-none" 
-                                                                                    value={lateDays === 0 ? '' : lateDays}
-                                                                                    onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
-                                                                                    placeholder="Hari"
-                                                                                />
-                                                                                <span className="text-xs text-slate-500">hari</span>
-                                                                            </div>
-                                                                        )}
-                                                                        
-                                                                        {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
-                                                                        {currentStatus && (
-                                                                            <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
-                                                                                <textarea 
-                                                                                    className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
-                                                                                    placeholder="Tambahkan catatan/keterangan (opsional)..."
-                                                                                    value={memoInputs[key]?.catatan || ''}
-                                                                                    onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
-                                                                                    rows={2}
-                                                                                />
-                                                                                <div className="flex items-center text-xs">
-                                                                                    <span className="text-slate-600 font-medium w-16">Foto/Dok<span className="text-red-500">*</span>:</span>
-                                                                                    <input 
-                                                                                        type="file" 
-                                                                                        accept="image/*,.pdf,application/pdf"
-                                                                                        onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
-                                                                                        className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
-                                                                                    />
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <div className="p-4 text-center text-sm text-slate-500 italic">Data item jenis pekerjaan tidak tersedia.</div>
-                                    )}
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        ) : (
+                                            <div className="p-4 text-center text-sm text-slate-500 italic">Data item jenis pekerjaan tidak tersedia.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    {isLastSupervisionDay && hasLateItems && (
+                        <div className="px-6 pb-4">
+                            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                <h4 className="font-bold text-orange-800 text-sm mb-2 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    Tindak Lanjut Item Terlambat
+                                </h4>
+                                <p className="text-xs text-orange-700 mb-3">
+                                    Terdapat item pekerjaan yang masih <strong>Terlambat</strong> pada hari serah terima. Anda wajib menentukan jadwal serah terima berikutnya.
+                                </p>
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Tanggal Serah Terima Berikutnya *</label>
+                                    <input
+                                        type="date"
+                                        value={nextHandoverDate}
+                                        onChange={(e) => {
+                                            setNextHandoverDate(e.target.value);
+                                            setIsDirty(true);
+                                        }}
+                                        className="block w-full max-w-xs p-2 mt-1 border border-orange-300 rounded focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-800 outline-none"
+                                    />
                                 </div>
                             </div>
-                        ))
+                        </div>
                     )}
-                </div>
 
-                {isLastSupervisionDay && hasLateItems && (
-                    <div className="px-6 pb-4">
-                        <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                            <h4 className="font-bold text-orange-800 text-sm mb-2 flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4" />
-                                Tindak Lanjut Item Terlambat
-                            </h4>
-                            <p className="text-xs text-orange-700 mb-3">
-                                Terdapat item pekerjaan yang masih <strong>Terlambat</strong> pada hari serah terima. Anda wajib menentukan jadwal serah terima berikutnya.
-                            </p>
-                            <div>
-                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Tanggal Serah Terima Berikutnya *</label>
-                                <input
-                                    type="date"
-                                    value={nextHandoverDate}
-                                    onChange={(e) => {
-                                        setNextHandoverDate(e.target.value);
-                                        setIsDirty(true);
-                                    }}
-                                    className="block w-full max-w-xs p-2 mt-1 border border-orange-300 rounded focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-800 outline-none"
-                                />
-                            </div>
+                    <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
+                        <div>
+                            {hasCurrentDateSelesaiItems && (
+                                <Button variant="outline" onClick={onSuccess} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
+                                    Lanjut ke Opname &rarr;
+                                </Button>
+                            )}
+                        </div>
+                        <div className="flex gap-3">
+                            <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
+                            {flowStep && flowStep.total > 1 && (
+                                <Button
+                                    variant="outline"
+                                    className="font-semibold text-slate-600"
+                                    onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
+                                    disabled={isSubmitting}
+                                >
+                                    {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
+                                </Button>
+                            )}
+                            <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && isLastSupervisionDay && hasLateItems && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                Simpan
+                            </Button>
                         </div>
                     </div>
-                )}
-
-                <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
-                    <div>
-                        {hasCurrentDateSelesaiItems && (
-                            <Button variant="outline" onClick={onSuccess} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
-                                Lanjut ke Opname &rarr;
-                            </Button>
-                        )}
-                    </div>
-                    <div className="flex gap-3">
-                        <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
-                        {flowStep && flowStep.total > 1 && (
-                            <Button
-                                variant="outline"
-                                className="font-semibold text-slate-600"
-                                onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
-                                disabled={isSubmitting}
-                            >
-                                {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
-                            </Button>
-                        )}
-                        <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && isLastSupervisionDay && hasLateItems && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
-                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                            Simpan
-                        </Button>
-                    </div>
                 </div>
             </div>
-        </div>
 
-        {instruksiToast && (
-            <div
-                role="status"
-                aria-live="polite"
-                className={`fixed left-1/2 top-4 z-[10000] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 md:left-auto md:right-5 md:translate-x-0 ${
-                    instruksiToast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-                }`}
-            >
-                {instruksiToast.type === 'success' ? (
-                    <CheckCircle className="h-5 w-5 shrink-0" />
-                ) : (
-                    <AlertCircle className="h-5 w-5 shrink-0" />
-                )}
-                <span>{instruksiToast.message}</span>
-            </div>
-        )}
+            {instruksiToast && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className={`fixed left-1/2 top-4 z-[10000] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 md:left-auto md:right-5 md:translate-x-0 ${instruksiToast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+                        }`}
+                >
+                    {instruksiToast.type === 'success' ? (
+                        <CheckCircle className="h-5 w-5 shrink-0" />
+                    ) : (
+                        <AlertCircle className="h-5 w-5 shrink-0" />
+                    )}
+                    <span>{instruksiToast.message}</span>
+                </div>
+            )}
 
-        {showInstruksiModal && (
-            <InstruksiLapanganModal 
-                onClose={() => setShowInstruksiModal(false)} 
-                onSuccess={() => {
-                    setShowInstruksiModal(false);
-                    showInstruksiToast("Instruksi Lapangan berhasil disimpan dan dikirim untuk approval.", "success");
-                }}
-                onError={(message) => {
-                    showInstruksiToast(message || "Gagal menyimpan Instruksi Lapangan.", "error");
-                }}
-                initialTokoId={id_toko}
-            />
-        )}
+            {showInstruksiModal && (
+                <InstruksiLapanganModal
+                    onClose={() => setShowInstruksiModal(false)}
+                    onSuccess={() => {
+                        setShowInstruksiModal(false);
+                        showInstruksiToast("Instruksi Lapangan berhasil disimpan dan dikirim untuk approval.", "success");
+                    }}
+                    onError={(message) => {
+                        showInstruksiToast(message || "Gagal menyimpan Instruksi Lapangan.", "error");
+                    }}
+                    initialTokoId={id_toko}
+                />
+            )}
         </>
     );
 }
@@ -3478,7 +3468,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     // Case-insensitive filtering in frontend to bypass strict backend endpoints
                     const data = allData.filter((p: any) => p.status?.toLowerCase() === 'selesai');
                     setCompletedPengawasanCount(data.length);
-                    
+
                     let latestRabItems = rabItems;
                     let existingOpnameItems: any[] = [];
                     let existingFinalFound = false;
@@ -3599,7 +3589,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         return [buildOpnameSourceItem(p, null, null)];
                     }).filter((item: any) => {
                         if (!item.source_key) return false;
-                        
+
                         // Filter: item yg sudah diajukan opname (pending/disetujui) tidak muncul lagi
                         if (blockedItemKeys.has(item.source_key)) return false;
                         return true;
@@ -3615,7 +3605,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     const dedupedItems = Array.from(deduped.values());
 
                     setCompletedItems(dedupedItems);
-                    
+
                     const inputs: any = {};
                     dedupedItems.forEach((item: any) => {
                         const key = item.id;
@@ -3663,23 +3653,23 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     // Tambahan Validasi isSubmitValid
     const isSubmitValid = useMemo(() => {
         if (completedItems.length === 0) return false;
-        
+
         for (const item of completedItems) {
             const input = opnameInputs[item.id];
             if (!input) return false;
-            
+
             // 1. Validasi volume akhir tidak boleh kosong
             if (input.volume_akhir === undefined || input.volume_akhir === null || input.volume_akhir === '') return false;
-            
+
             // 2. Validasi verifikasi pekerjaan (semua dropdown wajib diisi)
             if (!input.desain || input.desain === '') return false;
             if (!input.kualitas || input.kualitas === '') return false;
             if (!input.spesifikasi || input.spesifikasi === '') return false;
-            
+
             // 3. Validasi foto bukti wajib diisi (boleh foto lama jika ada)
             if (!input.file && !input.existing_foto) return false;
         }
-        
+
         return true;
     }, [completedItems, opnameInputs]);
 
@@ -3706,7 +3696,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
             const itemsArray: any[] = [];
             const filesMap: { index: number, file: File }[] = [];
-            
+
             let currentIndex = 0;
             completedItems.forEach(item => {
                 const input = opnameInputs[item.id];
@@ -3715,7 +3705,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                 const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
                 const totalSelisih = Math.round(selisihVol * hargaSatuan);
                 const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
-                
+
                 const itemData: any = {
                     id_toko: Number(id_toko),
                     id_rab_item: item.source_type === 'IL' ? undefined : Number(item.id_rab_item),
@@ -3740,15 +3730,15 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                 if (!input.file && input.existing_foto) {
                     itemData.foto = input.existing_foto;
                 }
-                
+
                 itemsArray.push(itemData);
-                
+
                 if (input.file) {
                     filesMap.push({ index: currentIndex, file: input.file });
                 }
                 currentIndex++;
             });
-            
+
             if (itemsArray.length === 0) {
                 showAlert({ message: "Tidak ada item baru untuk di-opname.", type: "info" });
                 setIsSubmitting(false);
@@ -3766,7 +3756,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                 const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
                 return acc + Math.round(Number(item.volume_rab || 0) * hargaSatuan);
             }, 0);
-            
+
             const { submitOpnameBulk } = await import('@/lib/api');
             if (filesMap.length > 0) {
                 const formData = new FormData();
@@ -3780,7 +3770,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                 });
                 // Mapping file index - hanya kirim indeks untuk item yang memang punya file baru
                 formData.append('file_foto_opname_indexes', JSON.stringify(filesMap.map(f => f.index)));
-                
+
                 await submitOpnameBulk(formData);
             } else {
                 await submitOpnameBulk({
@@ -3793,18 +3783,18 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
             }
 
             // Trigger API Berkas Serah Terima — HANYA jika ini hari terakhir (serah terima)
-            
-            showAlert({ 
+
+            showAlert({
                 message: isLastDay
                     ? 'Data Opname berhasil disimpan. PDF Serah Terima akan dibuat otomatis.'
-                    : 'Data Opname berhasil disimpan!', 
+                    : 'Data Opname berhasil disimpan!',
                 type: 'success',
                 onConfirm: () => onSuccess()
             });
-        } catch(e: any) {
-             showAlert({ message: `Gagal menyimpan: ${e.message}`, type: "error" });
+        } catch (e: any) {
+            showAlert({ message: `Gagal menyimpan: ${e.message}`, type: "error" });
         } finally {
-             setIsSubmitting(false);
+            setIsSubmitting(false);
         }
     };
 
@@ -3835,9 +3825,9 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                             )}
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6"/></button>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"><X className="w-6 h-6" /></button>
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {isLoading ? (
                         <div className="py-20 flex flex-col items-center justify-center text-slate-500">
@@ -3873,137 +3863,137 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         groupedByCategory.map((category, i) => {
                             const isIlCategory = String(category.name || '').startsWith('[IL]');
                             return (
-                            <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden mb-6 ${isIlCategory ? 'border-indigo-200' : 'border-slate-200'}`}>
-                                <div className={`px-5 py-3 border-b flex justify-between items-center ${isIlCategory ? 'bg-indigo-50' : 'bg-slate-100'}`}>
-                                    <h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
-                                        {isIlCategory && <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full">IL</span>}
-                                        {category.name}
-                                    </h3>
-                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">{category.items.length} Item</Badge>
-                                </div>
-                                <div className="p-4 space-y-4">
-                                    {category.items.map((item, j) => {
-                                        const isIlItem = item.source_type === 'IL';
-                                        const input = opnameInputs[item.id] || {};
-                                        const volAkhir = parseDecimalInput(input.volume_akhir);
-                                        const selisih = volAkhir - item.volume_rab;
-                                        const hargaSatuan = item.harga_material + item.harga_upah;
-                                        const totalHargaRAB = item.volume_rab * hargaSatuan;
-                                        const totalHargaBaru = volAkhir * hargaSatuan;
-                                        const selisihHarga = totalHargaBaru - totalHargaRAB;
+                                <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden mb-6 ${isIlCategory ? 'border-indigo-200' : 'border-slate-200'}`}>
+                                    <div className={`px-5 py-3 border-b flex justify-between items-center ${isIlCategory ? 'bg-indigo-50' : 'bg-slate-100'}`}>
+                                        <h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
+                                            {isIlCategory && <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full">IL</span>}
+                                            {category.name}
+                                        </h3>
+                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none">{category.items.length} Item</Badge>
+                                    </div>
+                                    <div className="p-4 space-y-4">
+                                        {category.items.map((item, j) => {
+                                            const isIlItem = item.source_type === 'IL';
+                                            const input = opnameInputs[item.id] || {};
+                                            const volAkhir = parseDecimalInput(input.volume_akhir);
+                                            const selisih = volAkhir - item.volume_rab;
+                                            const hargaSatuan = item.harga_material + item.harga_upah;
+                                            const totalHargaRAB = item.volume_rab * hargaSatuan;
+                                            const totalHargaBaru = volAkhir * hargaSatuan;
+                                            const selisihHarga = totalHargaBaru - totalHargaRAB;
 
-                                        const formatRp = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
-                                        
-                                        return (
-                                            <div key={j} className={`border p-4 rounded-lg flex flex-col gap-4 ${isIlItem ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 bg-slate-50'}`}>
-                                                <div className="font-bold text-slate-800 border-b border-slate-200 pb-2 flex justify-between items-center">
-                                                    <span className="flex items-center gap-2">
-                                                        {isIlItem && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">Instruksi Lapangan</span>}
-                                                        {item.jenis_pekerjaan}
-                                                    </span>
-                                                    <div className="flex gap-2">
-                                                        <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Material: {formatRp(item.harga_material)}</span>
-                                                        <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Upah: {formatRp(item.harga_upah)}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
-                                                    
-                                                    {/* Kolom 1: Info RAB, Input Volume, dan Kalkulasi Harga */}
-                                                    <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1">
-                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Volume & Biaya</h4>
-                                                        <div className="flex justify-between items-center text-xs text-slate-600">
-                                                            <span>Vol Awal (RAB):</span> 
-                                                            <span className="font-bold">{item.volume_rab} <span className="text-[10px] text-slate-400 font-normal ml-0.5">{item.satuan}</span></span>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir Opname</label>
-                                                            <div className="relative mt-1">
-                                                                <input type="text" inputMode="decimal" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12" 
-                                                                    value={input.volume_akhir ?? ''} 
-                                                                    onChange={(e)=>handleSetOpname(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))} />
-                                                                {item.satuan && <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
-                                                            </div>
-                                                            <div className="text-[10px] text-right mt-1 text-slate-500">
-                                                                Selisih Vol: <span className={`font-bold ${selisih > 0 ? 'text-blue-600' : (selisih < 0 ? 'text-red-600' : '')}`}>{selisih > 0 ? '+'+selisih : selisih} <span className="font-normal text-slate-400 ml-0.5">{item.satuan}</span></span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[11px] space-y-1.5 mt-2">
-                                                            <div className="flex justify-between">
-                                                                <span className="text-slate-500">Total Harga RAB:</span>
-                                                                <span className="font-medium">{formatRp(totalHargaRAB)}</span>
-                                                            </div>
-                                                            <div className="flex justify-between">
-                                                                <span className="text-slate-700 font-semibold">Total Harga Opname:</span>
-                                                                <span className="font-bold text-slate-800">{formatRp(totalHargaBaru)}</span>
-                                                            </div>
-                                                            <div className="flex justify-between border-t pt-1 border-slate-200">
-                                                                <span className="text-slate-600">Selisih Biaya:</span>
-                                                                <span className={`font-bold ${selisihHarga > 0 ? 'text-blue-600' : (selisihHarga < 0 ? 'text-red-600' : 'text-slate-500')}`}>
-                                                                    {selisihHarga > 0 ? '+' : ''}{formatRp(selisihHarga)}
-                                                                </span>
-                                                            </div>
+                                            const formatRp = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+
+                                            return (
+                                                <div key={j} className={`border p-4 rounded-lg flex flex-col gap-4 ${isIlItem ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 bg-slate-50'}`}>
+                                                    <div className="font-bold text-slate-800 border-b border-slate-200 pb-2 flex justify-between items-center">
+                                                        <span className="flex items-center gap-2">
+                                                            {isIlItem && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">Instruksi Lapangan</span>}
+                                                            {item.jenis_pekerjaan}
+                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Material: {formatRp(item.harga_material)}</span>
+                                                            <span className="text-[11px] bg-slate-200 text-slate-700 px-2 py-1 rounded">Upah: {formatRp(item.harga_upah)}</span>
                                                         </div>
                                                     </div>
+                                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
 
-                                                    {/* Kolom 2: Verifikasi Mutu */}
-                                                    <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1">
-                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
-                                                        <div>
-                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain</label>
-                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.desain || ''} onChange={(e)=>handleSetOpname(item.id, 'desain', e.target.value)}>
-                                                                <option value="">-- Pilih --</option>
-                                                                <option value="Sesuai">Sesuai</option>
-                                                                <option value="Tidak Sesuai">Tidak Sesuai</option>
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas</label>
-                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.kualitas || ''} onChange={(e)=>handleSetOpname(item.id, 'kualitas', e.target.value)}>
-                                                                <option value="">-- Pilih --</option>
-                                                                <option value="Baik">Baik</option>
-                                                                <option value="Tidak Baik">Tidak Baik</option>
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi</label>
-                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.spesifikasi || ''} onChange={(e)=>handleSetOpname(item.id, 'spesifikasi', e.target.value)}>
-                                                                <option value="">-- Pilih --</option>
-                                                                <option value="Sesuai">Sesuai</option>
-                                                                <option value="Tidak Sesuai">Tidak Sesuai</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Kolom 3: Catatan & Foto Dokumentasi */}
-                                                    <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1 flex flex-col">
-                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Catatan & Dokumentasi</h4>
-                                                        <div className="flex-1 flex flex-col">
-                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Catatan Opname</label>
-                                                            <textarea className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none placeholder:text-slate-300 bg-slate-50 flex-1 resize-none min-h-15" placeholder="Masukkan keterangan selisih atau masalah kualitas..." value={input.catatan || ''} onChange={(e)=>handleSetOpname(item.id, 'catatan', e.target.value)}></textarea>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti (Drive)</label>
-                                                            <input type="file" className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
-                                                                accept="image/*" onChange={(e)=>handleSetOpname(item.id, 'file', e.target.files?.[0] || null)} />
-                                                            {!input.file && input.existing_foto && (
-                                                                <div className="mt-2 flex items-center gap-2 p-1.5 bg-blue-50 border border-blue-100 rounded">
-                                                                    <div className="w-8 h-8 rounded overflow-hidden border border-blue-200 bg-white shrink-0">
-                                                                        <img src={input.existing_foto} alt="Existing" className="w-full h-full object-cover" />
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <p className="text-[9px] font-bold text-blue-700 uppercase">Foto lama tersedia</p>
-                                                                        <a href={input.existing_foto} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline truncate block">Lihat full size</a>
-                                                                    </div>
+                                                        {/* Kolom 1: Info RAB, Input Volume, dan Kalkulasi Harga */}
+                                                        <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1">
+                                                            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Volume & Biaya</h4>
+                                                            <div className="flex justify-between items-center text-xs text-slate-600">
+                                                                <span>Vol Awal (RAB):</span>
+                                                                <span className="font-bold">{item.volume_rab} <span className="text-[10px] text-slate-400 font-normal ml-0.5">{item.satuan}</span></span>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir Opname</label>
+                                                                <div className="relative mt-1">
+                                                                    <input type="text" inputMode="decimal" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12"
+                                                                        value={input.volume_akhir ?? ''}
+                                                                        onChange={(e) => handleSetOpname(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))} />
+                                                                    {item.satuan && <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
                                                                 </div>
-                                                            )}
+                                                                <div className="text-[10px] text-right mt-1 text-slate-500">
+                                                                    Selisih Vol: <span className={`font-bold ${selisih > 0 ? 'text-blue-600' : (selisih < 0 ? 'text-red-600' : '')}`}>{selisih > 0 ? '+' + selisih : selisih} <span className="font-normal text-slate-400 ml-0.5">{item.satuan}</span></span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[11px] space-y-1.5 mt-2">
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-slate-500">Total Harga RAB:</span>
+                                                                    <span className="font-medium">{formatRp(totalHargaRAB)}</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-slate-700 font-semibold">Total Harga Opname:</span>
+                                                                    <span className="font-bold text-slate-800">{formatRp(totalHargaBaru)}</span>
+                                                                </div>
+                                                                <div className="flex justify-between border-t pt-1 border-slate-200">
+                                                                    <span className="text-slate-600">Selisih Biaya:</span>
+                                                                    <span className={`font-bold ${selisihHarga > 0 ? 'text-blue-600' : (selisihHarga < 0 ? 'text-red-600' : 'text-slate-500')}`}>
+                                                                        {selisihHarga > 0 ? '+' : ''}{formatRp(selisihHarga)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Kolom 2: Verifikasi Mutu */}
+                                                        <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1">
+                                                            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
+                                                            <div>
+                                                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain</label>
+                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.desain || ''} onChange={(e) => handleSetOpname(item.id, 'desain', e.target.value)}>
+                                                                    <option value="">-- Pilih --</option>
+                                                                    <option value="Sesuai">Sesuai</option>
+                                                                    <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas</label>
+                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.kualitas || ''} onChange={(e) => handleSetOpname(item.id, 'kualitas', e.target.value)}>
+                                                                    <option value="">-- Pilih --</option>
+                                                                    <option value="Baik">Baik</option>
+                                                                    <option value="Tidak Baik">Tidak Baik</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi</label>
+                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.spesifikasi || ''} onChange={(e) => handleSetOpname(item.id, 'spesifikasi', e.target.value)}>
+                                                                    <option value="">-- Pilih --</option>
+                                                                    <option value="Sesuai">Sesuai</option>
+                                                                    <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Kolom 3: Catatan & Foto Dokumentasi */}
+                                                        <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm col-span-1 flex flex-col">
+                                                            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Catatan & Dokumentasi</h4>
+                                                            <div className="flex-1 flex flex-col">
+                                                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Catatan Opname</label>
+                                                                <textarea className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none placeholder:text-slate-300 bg-slate-50 flex-1 resize-none min-h-15" placeholder="Masukkan keterangan selisih atau masalah kualitas..." value={input.catatan || ''} onChange={(e) => handleSetOpname(item.id, 'catatan', e.target.value)}></textarea>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti (Drive)</label>
+                                                                <input type="file" className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
+                                                                    accept="image/*" onChange={(e) => handleSetOpname(item.id, 'file', e.target.files?.[0] || null)} />
+                                                                {!input.file && input.existing_foto && (
+                                                                    <div className="mt-2 flex items-center gap-2 p-1.5 bg-blue-50 border border-blue-100 rounded">
+                                                                        <div className="w-8 h-8 rounded overflow-hidden border border-blue-200 bg-white shrink-0">
+                                                                            <img src={input.existing_foto} alt="Existing" className="w-full h-full object-cover" />
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-[9px] font-bold text-blue-700 uppercase">Foto lama tersedia</p>
+                                                                            <a href={input.existing_foto} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 hover:underline truncate block">Lihat full size</a>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
                             );
                         })
                     )}
@@ -4021,8 +4011,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                             {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
                         </Button>
                     )}
-                    <Button 
-                        onClick={handleSubmit} 
+                    <Button
+                        onClick={handleSubmit}
                         disabled={
                             isSubmitting
                             || (groupedByCategory.length > 0 && !isSubmitValid)
