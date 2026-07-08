@@ -58,7 +58,12 @@ const monthOptions = [
 const dataTypeOptions: DataTypeOption[] = [
     { id: "rab", label: "RAB & Luasan", desc: "Status RAB, total penawaran, area, GO, dan approval." },
     { id: "spk", label: "SPK", desc: "Tanggal, durasi, nominal, pertambahan, dan real SPK." },
-    { id: "opname", label: "Opname & Denda", desc: "Serah terima, keterlambatan, denda, tambah kurang." },
+    { id: "pengawasan", label: "Pengawasan", desc: "Tanggal, kategori pekerjaan, status, dan catatan pengawasan." },
+    { id: "opname_parsial", label: "Opname (Parsial)", desc: "Serah terima, keterlambatan, denda parsial, kerja tambah/kurang." },
+    { id: "instruksi_lapangan", label: "Instruksi Lapangan", desc: "Detail item pekerjaan, status, dan tanggal instruksi lapangan." },
+    { id: "serah_terima", label: "Serah Terima", desc: "Tanggal serah terima dan link dokumen BAST." },
+    { id: "ktk_opname_final", label: "KTK (Opname Final)", desc: "Opname final, denda, serah terima, dan grand total nilai toko." },
+    { id: "project_planning", label: "Project Planning", desc: "Informasi estimasi biaya, luasan, jenis pengajuan, dan status approval PP." }
 ];
 
 const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: string }> = [
