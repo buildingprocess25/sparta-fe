@@ -56,7 +56,6 @@ const monthOptions = [
 ].map((label, index) => ({ label, value: index + 1 }));
 
 const dataTypeOptions: DataTypeOption[] = [
-    { id: "identitas", label: "Identitas Toko", desc: "Cabang, ULOK, toko, lingkup, kontraktor, status." },
     { id: "rab", label: "RAB & Luasan", desc: "Status RAB, total penawaran, area, GO, dan approval." },
     { id: "spk", label: "SPK", desc: "Tanggal, durasi, nominal, pertambahan, dan real SPK." },
     { id: "opname", label: "Opname & Denda", desc: "Serah terima, keterlambatan, denda, tambah kurang." },
