@@ -23,7 +23,7 @@ import {
     updatePertambahanSPK,
     downloadPertambahanSPKLampiran,
 } from '@/lib/api';
-import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { canViewAllBranches, isViewOnlyUser, BRANCH_GROUPS } from '@/lib/constants';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -231,9 +231,23 @@ export default function TambahSPKPage() {
             const allSpks = res.data || [];
 
             const upperCabang = cabang.toUpperCase();
+            let userGroup: string[] | null = null;
+            for (const grp of Object.values(BRANCH_GROUPS)) {
+                if (grp.includes(upperCabang)) {
+                    userGroup = grp;
+                    break;
+                }
+            }
+
             const visibleSpks = canSeeAllBranches
                 ? allSpks
-                : allSpks.filter((spk: SPKListItem) => (spk.toko?.cabang || '').toUpperCase() === upperCabang);
+                : allSpks.filter((spk: SPKListItem) => {
+                    const spkCabang = (spk.toko?.cabang || '').toUpperCase();
+                    if (userGroup) {
+                        return userGroup.includes(spkCabang);
+                    }
+                    return spkCabang === upperCabang;
+                });
             setApprovedSpks(visibleSpks);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Gagal memuat data SPK.";
