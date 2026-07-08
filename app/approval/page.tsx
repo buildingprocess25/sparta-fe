@@ -1613,7 +1613,8 @@ function ApprovalPageContent() {
             return;
         }
         const item = rejectModal;
-        setRejectModal(null);
+        // Note: modal stays open until API succeeds (or user clicks Batal)
+        // This prevents the "kembali seperti ini" UX bug where modal closes on API error
         setProcessingId(item.id);
         try {
             if (item.tipe === 'RAB') {
@@ -1683,6 +1684,9 @@ function ApprovalPageContent() {
             } else if (item.tipe === 'SURAT_PERINGATAN') {
                 await rejectDendaAction(item.id, rejectNote);
             }
+            // API succeeded — now dismiss modal and clean up
+            setRejectModal(null);
+            setRejectNote('');
             // Hapus item dari list karena sudah ditolak
             setListData(prev => prev.filter(d => d.id !== item.id));
             if (selectedDetail?.id === item.id) {
@@ -1692,12 +1696,13 @@ function ApprovalPageContent() {
             refreshApprovalCounts();
             showToast('Pengajuan berhasil ditolak.', 'success');
         } catch (err: any) {
-            showToast(err.message || 'Gagal menolak pengajuan.', 'error');
+            // Modal stays open so user can see error and retry without losing their input
+            showToast(err.message || 'Gagal menolak pengajuan. Silakan coba lagi.', 'error');
         } finally {
             setProcessingId(null);
-            setRejectNote('');
         }
     };
+
 
     // ==========================================
     // PDF DOWNLOAD (RAB & SPK)
@@ -2147,9 +2152,12 @@ function ApprovalPageContent() {
                                 </div>
                             )}
                             <div className="flex gap-3 pt-1">
-                                <Button variant="outline" className="flex-1" onClick={() => setRejectModal(null)}>Batal</Button>
-                                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={handleReject}>
-                                    Konfirmasi Tolak
+                                <Button variant="outline" className="flex-1" onClick={() => setRejectModal(null)} disabled={processingId === rejectModal?.id}>Batal</Button>
+                                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={handleReject} disabled={processingId === rejectModal?.id}>
+                                    {processingId === rejectModal?.id
+                                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Memproses...</>
+                                        : 'Konfirmasi Tolak'
+                                    }
                                 </Button>
                             </div>
                         </div>
