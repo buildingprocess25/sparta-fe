@@ -112,7 +112,7 @@ const mergeProjectOptions = (base: any[] = [], extra: any[] = []) => {
     return Array.from(map.values());
 };
 import type { GanttListItem, GanttNoteItem } from '@/lib/api';
-import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser } from '@/lib/constants';
+import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser, normalizeBranchValue } from '@/lib/constants';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
@@ -569,9 +569,10 @@ function GanttBoard() {
                 .then(res => {
                     const data = res.data || [];
                     const filtered = upperCabang ? data.filter(item => {
+                        const normalizedCabang = normalizeBranchValue(item.cabang);
                         if (canSeeAllBranches) return true;
-                        if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
-                        return item.cabang?.toUpperCase() === upperCabang;
+                        if (userGroup) return userGroup.includes(normalizedCabang);
+                        return normalizedCabang === upperCabang;
                     }) : data;
                     setAvailableProjects(filtered);
                 })
@@ -605,9 +606,10 @@ function GanttBoard() {
                     const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
                     const merged = mergeProjectOptions(data, ilProjects);
                     const filtered = upperCabang ? merged.filter(item => {
+                        const normalizedCabang = normalizeBranchValue(item.cabang);
                         if (canSeeAllBranches) return true;
-                        if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
-                        return item.cabang?.toUpperCase() === upperCabang;
+                        if (userGroup) return userGroup.includes(normalizedCabang);
+                        return normalizedCabang === upperCabang;
                     }) : merged;
                     setAllTokoList(filtered);
                 })
@@ -631,9 +633,10 @@ function GanttBoard() {
                     const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
                     const merged = mergeProjectOptions(data, ilProjects);
                     const filtered = upperCabang ? merged.filter(item => {
+                        const normalizedCabang = normalizeBranchValue(item.cabang);
                         if (canSeeAllBranches) return true;
-                        if (userGroup) return userGroup.includes(item.cabang?.toUpperCase());
-                        return item.cabang?.toUpperCase() === upperCabang;
+                        if (userGroup) return userGroup.includes(normalizedCabang);
+                        return normalizedCabang === upperCabang;
                     }) : merged;
                     setAllTokoList(filtered);
                 })
