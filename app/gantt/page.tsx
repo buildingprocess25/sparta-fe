@@ -2763,10 +2763,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             day = Math.round(diffTime / (1000 * 3600 * 24));
         }
 
+        const pastPengawasanDays = (pengawasanHistory || [])
+            .map((p: any) => p.tanggal_pengawasan)
+            .map((dateString: string) => {
+                const parsed = parseDateAny(dateString);
+                if (!parsed || isNaN(parsed.getTime())) return null;
+                const diffTime = parsed.getTime() - startD.getTime();
+                return Math.round(diffTime / (1000 * 3600 * 24));
+            })
+            .filter((d: number | null) => d !== null && d < day);
+
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
         return chartData.processedTasks.map((task: any) => {
             const shift = task.computed.shift || 0;
             let isScheduledToday = false;
+            let isSkippedCompletely = false;
             let isLastDay = false;
             let hideOnProgress = true; // default hidden
             let rawRangeMatch: any = null;
@@ -2777,6 +2788,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
 
                 if (s <= day && day <= e) isScheduledToday = true;
+
+                if (e < day) {
+                    let hitInPast = false;
+                    pastPengawasanDays.forEach((pDay: number) => {
+                        if (s <= pDay && pDay <= e) {
+                            hitInPast = true;
+                        }
+                    });
+                    if (!hitInPast) {
+                        isSkippedCompletely = true;
+                    }
+                }
 
                 // Cek apakah hari terakhir kategori ini bertepatan dengan hari pengawasan
                 if (day === e) {
@@ -2851,16 +2874,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const memoInput = memoInputs[key] as any;
                 const isUnfinishedFromPreviousPengawasan = ['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus;
 
-                let hasStarted = false;
-                task.ranges?.forEach((r: any) => {
-                    if (!r.start) return;
-                    const s = parseInt(r.start) + shift - 1;
-                    if (s <= day) hasStarted = true;
-                });
-
-                // Tampilkan item jika jadwalnya sudah mulai (s <= day), atau jika status terakhirnya
+                // Tampilkan item jika jadwalnya aktif hari ini, atau
+                // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya.
-                if (!hasStarted && !isUnfinishedFromPreviousPengawasan) return false;
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
