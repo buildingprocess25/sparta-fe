@@ -1543,18 +1543,38 @@ function GanttBoard() {
                                                         const scopeLabel = appMode === 'pic'
                                                             ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
                                                             : toko.lingkup_pekerjaan;
-                                                        const hasSpk = spkTokoIds.has(Number(toko.id_toko || toko.id));
+                                                        const allTokoForUlok = appMode === 'pic' 
+                                                            ? filteredTokoList.filter(t => t.nomor_ulok === toko.nomor_ulok)
+                                                            : [toko]; // For non-pic, it's one item per option
+                                                        const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                        const spkCount = spkScopes.length;
+                                                        const totalScopes = allTokoForUlok.length;
+
+                                                        let spkLabel = '○ Belum SPK';
+                                                        let spkDotClass = 'bg-slate-300';
+                                                        let spkTextClass = 'text-slate-400';
+                                                        
+                                                        if (spkCount > 0 && spkCount === totalScopes) {
+                                                            spkLabel = totalScopes > 1 ? '✓ Semua SPK' : '✓ SPK';
+                                                            spkDotClass = 'bg-emerald-500';
+                                                            spkTextClass = 'text-emerald-600';
+                                                        } else if (spkCount > 0) {
+                                                            const spkLingkup = spkScopes.map(t => t.lingkup_pekerjaan).join(', ');
+                                                            spkLabel = `⚡ Partial SPK (${spkLingkup})`;
+                                                            spkDotClass = 'bg-amber-500';
+                                                            spkTextClass = 'text-amber-600';
+                                                        }
+
                                                         const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' · Terkunci' : ganttMatch?.status === 'active' ? ' · Aktif' : '';
-                                                        const spkLabel = hasSpk ? ' ✓SPK' : ' ○Belum SPK';
                                                         const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
                                                             .filter(Boolean).join(' · ');
 
                                                         return (
                                                             <SelectItem key={val} value={val}>
                                                                 <span className="flex items-center gap-1.5">
-                                                                    <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${hasSpk ? 'bg-red-500' : 'bg-slate-300'}`} />
+                                                                    <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${spkDotClass}`} />
                                                                     <span>{label || ulok}{ganttStatusLabel}</span>
-                                                                    <span className={`text-[10px] font-bold ${hasSpk ? 'text-red-600' : 'text-slate-400'}`}>{spkLabel}</span>
+                                                                    <span className={`text-[10px] font-bold ${spkTextClass}`}>{spkLabel}</span>
                                                                 </span>
                                                             </SelectItem>
                                                         );
@@ -1588,13 +1608,33 @@ function GanttBoard() {
                                 <div className="hidden h-10 w-px bg-slate-200 md:block" />
                                 <div>
                                     <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Status SPK</p>
-                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${spkTokoIds.has(Number(projectData.id_toko))
-                                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                                            : 'border border-amber-200 bg-amber-50 text-amber-700'
-                                        }`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${spkTokoIds.has(Number(projectData.id_toko)) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                        {spkTokoIds.has(Number(projectData.id_toko)) ? 'SUDAH SPK' : 'BELUM SPK'}
-                                    </span>
+                                    {(() => {
+                                        const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
+                                        const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                        const spkCount = spkScopes.length;
+                                        const totalScopes = allTokoForUlok.length;
+
+                                        let spkLabel = 'BELUM SPK';
+                                        let badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
+                                        let dotClass = 'bg-amber-500';
+
+                                        if (spkCount > 0 && spkCount === totalScopes) {
+                                            spkLabel = totalScopes > 1 ? 'SEMUA SPK' : 'SUDAH SPK';
+                                            badgeClass = 'border-emerald-200 bg-emerald-50 text-emerald-700';
+                                            dotClass = 'bg-emerald-500';
+                                        } else if (spkCount > 0) {
+                                            const spkLingkup = spkScopes.map(t => t.lingkup_pekerjaan).join(', ');
+                                            spkLabel = `PARTIAL SPK (${spkLingkup})`;
+                                            badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
+                                        }
+
+                                        return (
+                                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${badgeClass}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+                                                {spkLabel}
+                                            </span>
+                                        );
+                                    })()}
                                 </div>
                                 {spkInfo && (
                                     <>
@@ -1704,13 +1744,25 @@ function GanttBoard() {
                                                         {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
                                                     </Badge>
                                                     {(() => {
-                                                        const hasSpk = supervisionWorkspace.scopes.some(scope => spkTokoIds.has(Number(scope.id_toko)));
+                                                        const spkScopes = supervisionWorkspace.scopes.filter(scope => spkTokoIds.has(Number(scope.id_toko)));
+                                                        const spkCount = spkScopes.length;
+                                                        const totalScopes = supervisionWorkspace.scopes.length;
+
+                                                        let spkLabel = '○ BELUM SPK';
+                                                        let badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
+
+                                                        if (spkCount > 0 && spkCount === totalScopes) {
+                                                            spkLabel = totalScopes > 1 ? '✓ SEMUA SPK' : '✓ SUDAH SPK';
+                                                            badgeClass = 'border-emerald-200 bg-emerald-50 text-emerald-700';
+                                                        } else if (spkCount > 0) {
+                                                            const spkLingkup = spkScopes.map(s => s.lingkup_pekerjaan).join(', ');
+                                                            spkLabel = `⚡ PARTIAL SPK (${spkLingkup})`;
+                                                            badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
+                                                        }
+
                                                         return (
-                                                            <Badge className={`border font-bold shadow-xs ${hasSpk
-                                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                                                    : 'border-amber-200 bg-amber-50 text-amber-700'
-                                                                }`}>
-                                                                {hasSpk ? '✓ SUDAH SPK' : '○ BELUM SPK'}
+                                                            <Badge className={`border font-bold shadow-xs ${badgeClass}`}>
+                                                                {spkLabel}
                                                             </Badge>
                                                         );
                                                     })()}
