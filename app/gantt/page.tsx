@@ -2723,7 +2723,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     dokumentasiUrl: null,
                                     isSaved: false,
                                     previousStatus: normalizedStatus,
-                                    previousLateDays: getCategoryLateDays(p.kategori_pekerjaan)
+                                    previousLateDays: getCategoryLateDays(p.kategori_pekerjaan),
+                                    previousPengawasanDate: getPengawasanDateById(p.id_pengawasan_gantt)
                                 };
                             }
                         }
@@ -2878,7 +2879,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const latestStatus = latestStatusMapState.get(key);
                 const latestStatusLower = String(latestStatus || '').toLowerCase();
                 const memoInput = memoInputs[key] as any;
-                const isUnfinishedFromPreviousPengawasan = ['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus;
+                
+                let isUnfinishedFromPreviousPengawasan = false;
+                if (['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus) {
+                    if (memoInput.previousPengawasanDate) {
+                        const parsedPrev = parseDateAny(memoInput.previousPengawasanDate);
+                        if (parsedPrev && !isNaN(parsedPrev.getTime())) {
+                            const diffTime = parsedPrev.getTime() - startD.getTime();
+                            const recordDay = Math.round(diffTime / (1000 * 3600 * 24));
+                            const lastPengawasanDay = pastPengawasanDays.length > 0 ? Math.max(...pastPengawasanDays) : -1;
+                            if (recordDay >= lastPengawasanDay) {
+                                isUnfinishedFromPreviousPengawasan = true;
+                            }
+                        }
+                    } else {
+                        isUnfinishedFromPreviousPengawasan = true;
+                    }
+                }
 
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
