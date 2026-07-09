@@ -265,7 +265,7 @@ function GanttBoard() {
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
     const [spkTokoIds, setSpkTokoIds] = useState<Set<number>>(new Set());
-    const [spkFilter, setSpkFilter] = useState<'all' | 'spk' | 'no_spk'>('all');
+    const [spkFilter, setSpkFilter] = useState<'all' | 'spk' | 'partial' | 'no_spk'>('all');
     const [spkFilterOpen, setSpkFilterOpen] = useState(false);
     const [ganttNotes, setGanttNotes] = useState<GanttNoteItem[]>([]);
     const [ganttNoteInput, setGanttNoteInput] = useState('');
@@ -292,10 +292,17 @@ function GanttBoard() {
             });
         }
 
-        if (spkFilter === 'spk') {
-            return list.filter((toko: any) => spkTokoIds.has(Number(toko.id_toko || toko.id)));
-        } else if (spkFilter === 'no_spk') {
-            return list.filter((toko: any) => !spkTokoIds.has(Number(toko.id_toko || toko.id)));
+        if (spkFilter !== 'all') {
+            list = list.filter((toko: any) => {
+                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === toko.nomor_ulok);
+                const spkCount = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
+                const totalCount = ulokTokos.length;
+                
+                if (spkFilter === 'spk') return spkCount > 0 && spkCount === totalCount;
+                if (spkFilter === 'partial') return spkCount > 0 && spkCount < totalCount;
+                if (spkFilter === 'no_spk') return spkCount === 0;
+                return true;
+            });
         }
         return list;
     }, [allTokoList, searchUlokInput, spkFilter, spkTokoIds]);
@@ -1401,16 +1408,16 @@ function GanttBoard() {
                                                             <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
                                                             <span>Filter SPK</span>
                                                             {spkFilter !== 'all' && (
-                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${spkFilter === 'spk' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-700'
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${spkFilter === 'spk' ? 'bg-emerald-100 text-emerald-700' : spkFilter === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
                                                                     }`}>
-                                                                    {spkFilter === 'spk' ? 'Sudah SPK' : 'Belum SPK'}
+                                                                    {spkFilter === 'spk' ? 'Semua SPK' : spkFilter === 'partial' ? 'Partial SPK' : 'Belum SPK'}
                                                                 </span>
                                                             )}
                                                         </div>
                                                         {spkFilterOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
                                                     </button>
                                                     {spkFilterOpen && (
-                                                        <div className="border-t border-slate-100 p-1.5 grid grid-cols-3 gap-1">
+                                                        <div className="border-t border-slate-100 p-1.5 grid grid-cols-4 gap-1">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => { setSpkFilter('all'); setSpkFilterOpen(false); }}
@@ -1426,23 +1433,50 @@ function GanttBoard() {
                                                                 type="button"
                                                                 onClick={() => { setSpkFilter('spk'); setSpkFilterOpen(false); }}
                                                                 className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'spk'
-                                                                        ? 'bg-red-600 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:text-red-700 hover:bg-red-50'
+                                                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
                                                                     }`}
                                                             >
-                                                                Sudah SPK<br />
-                                                                <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
+                                                                Semua SPK<br />
+                                                                <span className="font-normal text-[10px] opacity-70">
+                                                                    {allTokoList.filter(t => {
+                                                                        const ulokTokos = allTokoList.filter(ut => ut.nomor_ulok === t.nomor_ulok);
+                                                                        return ulokTokos.every(ut => spkTokoIds.has(Number(ut.id_toko || ut.id)));
+                                                                    }).length} proyek
+                                                                </span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setSpkFilter('partial'); setSpkFilterOpen(false); }}
+                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'partial'
+                                                                        ? 'bg-amber-500 text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:text-amber-600 hover:bg-amber-50'
+                                                                    }`}
+                                                            >
+                                                                Partial SPK<br />
+                                                                <span className="font-normal text-[10px] opacity-70">
+                                                                    {allTokoList.filter(t => {
+                                                                        const ulokTokos = allTokoList.filter(ut => ut.nomor_ulok === t.nomor_ulok);
+                                                                        const spkC = ulokTokos.filter(ut => spkTokoIds.has(Number(ut.id_toko || ut.id))).length;
+                                                                        return spkC > 0 && spkC < ulokTokos.length;
+                                                                    }).length} proyek
+                                                                </span>
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => { setSpkFilter('no_spk'); setSpkFilterOpen(false); }}
                                                                 className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'no_spk'
-                                                                        ? 'bg-amber-600 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
+                                                                        ? 'bg-slate-500 text-white shadow-sm'
+                                                                        : 'text-slate-600 hover:text-slate-700 hover:bg-slate-100'
                                                                     }`}
                                                             >
                                                                 Belum SPK<br />
-                                                                <span className="font-normal text-[10px] opacity-70">{allTokoList.filter(t => !spkTokoIds.has(Number(t.id_toko || t.id))).length} proyek</span>
+                                                                <span className="font-normal text-[10px] opacity-70">
+                                                                    {allTokoList.filter(t => {
+                                                                        const ulokTokos = allTokoList.filter(ut => ut.nomor_ulok === t.nomor_ulok);
+                                                                        return ulokTokos.every(ut => !spkTokoIds.has(Number(ut.id_toko || ut.id)));
+                                                                    }).length} proyek
+                                                                </span>
                                                             </button>
                                                         </div>
                                                     )}
