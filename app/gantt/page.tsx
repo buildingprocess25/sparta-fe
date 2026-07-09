@@ -3735,7 +3735,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
                     const inputs: any = {};
                     dedupedItems.forEach((item: any) => {
-                        const key = item.id;
+                        const key = item.source_key || item.id;
                         const ex = item.existing_opname;
                         inputs[key] = {
                             volume_akhir: ex ? String(ex.volume_akhir) : String(item.volume_rab),
@@ -3757,7 +3757,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         });
     }, [selectedGanttId, rabItems, id_toko, nomorUlok]);
 
-    const handleSetOpname = (id: number, field: string, value: any) => {
+    const handleSetOpname = (id: string | number, field: string, value: any) => {
         setOpnameInputs(prev => ({
             ...prev,
             [id]: {
@@ -3782,7 +3782,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         if (completedItems.length === 0) return false;
 
         for (const item of completedItems) {
-            const input = opnameInputs[item.id];
+            const itemKey = item.source_key || item.id;
+            const input = opnameInputs[itemKey];
             if (!input) return false;
 
             // 1. Validasi volume akhir tidak boleh kosong
@@ -3826,7 +3827,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
             let currentIndex = 0;
             completedItems.forEach(item => {
-                const input = opnameInputs[item.id];
+                const itemKey = item.source_key || item.id;
+                const input = opnameInputs[itemKey];
                 const volAkhir = parseDecimalInput(input.volume_akhir);
                 const selisihVol = volAkhir - item.volume_rab;
                 const hargaSatuan = Number(item.harga_material || 0) + Number(item.harga_upah || 0);
@@ -4001,7 +4003,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                     <div className="p-4 space-y-4">
                                         {category.items.map((item, j) => {
                                             const isIlItem = item.source_type === 'IL';
-                                            const input = opnameInputs[item.id] || {};
+                                            const itemKey = item.source_key || item.id;
+                                            const input = opnameInputs[itemKey] || {};
                                             const volAkhir = parseDecimalInput(input.volume_akhir);
                                             const selisih = volAkhir - item.volume_rab;
                                             const hargaSatuan = item.harga_material + item.harga_upah;
@@ -4037,7 +4040,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                                                 <div className="relative mt-1">
                                                                     <input type="text" inputMode="decimal" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12"
                                                                         value={input.volume_akhir ?? ''}
-                                                                        onChange={(e) => handleSetOpname(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))} />
+                                                                        onChange={(e) => handleSetOpname(itemKey, 'volume_akhir', normalizeVolumeInput(e.target.value))} />
                                                                     {item.satuan && <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
                                                                 </div>
                                                                 <div className="text-[10px] text-right mt-1 text-slate-500">
@@ -4067,7 +4070,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                                             <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
                                                             <div>
                                                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain</label>
-                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.desain || ''} onChange={(e) => handleSetOpname(item.id, 'desain', e.target.value)}>
+                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.desain || ''} onChange={(e) => handleSetOpname(itemKey, 'desain', e.target.value)}>
                                                                     <option value="">-- Pilih --</option>
                                                                     <option value="Sesuai">Sesuai</option>
                                                                     <option value="Tidak Sesuai">Tidak Sesuai</option>
@@ -4075,7 +4078,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                                             </div>
                                                             <div>
                                                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas</label>
-                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.kualitas || ''} onChange={(e) => handleSetOpname(item.id, 'kualitas', e.target.value)}>
+                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.kualitas || ''} onChange={(e) => handleSetOpname(itemKey, 'kualitas', e.target.value)}>
                                                                     <option value="">-- Pilih --</option>
                                                                     <option value="Baik">Baik</option>
                                                                     <option value="Tidak Baik">Tidak Baik</option>
@@ -4083,7 +4086,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                                             </div>
                                                             <div>
                                                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi</label>
-                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.spesifikasi || ''} onChange={(e) => handleSetOpname(item.id, 'spesifikasi', e.target.value)}>
+                                                                <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={input.spesifikasi || ''} onChange={(e) => handleSetOpname(itemKey, 'spesifikasi', e.target.value)}>
                                                                     <option value="">-- Pilih --</option>
                                                                     <option value="Sesuai">Sesuai</option>
                                                                     <option value="Tidak Sesuai">Tidak Sesuai</option>
@@ -4096,12 +4099,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                                             <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Catatan & Dokumentasi</h4>
                                                             <div className="flex-1 flex flex-col">
                                                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Catatan Opname</label>
-                                                                <textarea className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none placeholder:text-slate-300 bg-slate-50 flex-1 resize-none min-h-15" placeholder="Masukkan keterangan selisih atau masalah kualitas..." value={input.catatan || ''} onChange={(e) => handleSetOpname(item.id, 'catatan', e.target.value)}></textarea>
+                                                                <textarea className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none placeholder:text-slate-300 bg-slate-50 flex-1 resize-none min-h-15" placeholder="Masukkan keterangan selisih atau masalah kualitas..." value={input.catatan || ''} onChange={(e) => handleSetOpname(itemKey, 'catatan', e.target.value)}></textarea>
                                                             </div>
                                                             <div>
                                                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti (Drive)</label>
                                                                 <input type="file" className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
-                                                                    accept="image/*" onChange={(e) => handleSetOpname(item.id, 'file', e.target.files?.[0] || null)} />
+                                                                    accept="image/*" onChange={(e) => handleSetOpname(itemKey, 'file', e.target.files?.[0] || null)} />
                                                                 {!input.file && input.existing_foto && (
                                                                     <div className="mt-2 flex items-center gap-2 p-1.5 bg-blue-50 border border-blue-100 rounded">
                                                                         <div className="w-8 h-8 rounded overflow-hidden border border-blue-200 bg-white shrink-0">
