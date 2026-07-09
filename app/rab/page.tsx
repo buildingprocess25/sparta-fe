@@ -1047,7 +1047,8 @@ function RABPageContent() {
   };
 
   const showAlert = (title: string, desc: string, type: "info" | "error" | "success" | "warning") => {
-    setAlertMessage({ title, desc, type }); setAlertOpen(true);
+    setAlertMessage({ title, desc, type }); 
+    setTimeout(() => setAlertOpen(true), 200);
   };
 
   const getAlertStyle = () => {
@@ -1278,12 +1279,8 @@ function RABPageContent() {
                               checkRevisionStatus(userEmail, val).then(result => {
                                   if (result.rejected_submissions) {
                                       setRejectedList(result.rejected_submissions);
-                                      if (result.rejected_submissions.length > 0) {
-                                          // Solusi: Gunakan setTimeout untuk mencegah race-condition fokus
-                                          // Radix Select sedang menutup, jadi kita beri jeda agar animasi selesai
-                                          // sebelum Modal Dialog membuka dan men-set aria-hidden=true
-                                          setTimeout(() => setRevisionListDialogOpen(true), 200);
-                                      }
+                                      // Jangan membuka modal secara otomatis di sini karena mengganggu UX 
+                                      // dan memicu error WAI-ARIA focus trap saat Select ditutup.
                                   }
                               }).catch(err => console.log("Gagal periksa revisi", err));
                           }
