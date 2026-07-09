@@ -1912,7 +1912,13 @@ function GanttBoard() {
                                     </div>
                                 )}
 
-                                <div className="overflow-hidden border border-slate-300 bg-white shadow-sm">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+                                    <h3 className="font-bold text-slate-800 hidden sm:block"></h3>
+                                    <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-100 bg-white">
+                                        {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
+                                    </Button>
+                                </div>
+                                <div className="overflow-x-auto border border-slate-300 bg-white shadow-sm">
                                     <UnifiedSupervisionGantt
                                         workspace={supervisionWorkspace}
                                         onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}

@@ -8,7 +8,6 @@ import type { SupervisionCheckpoint, SupervisionWorkspace, UnifiedSupervisionChe
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 46;
 const GROUP_HEIGHT = 34;
-const LABEL_WIDTH = 340;
 
 function parseDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -137,6 +136,18 @@ export default function UnifiedSupervisionGantt({
     const [error, setError] = useState("");
     const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
     const timeline = workspaceTimeline ?? ganttFallbackTimeline;
+    
+    // Responsive label width for mobile
+    const [labelWidth, setLabelWidth] = useState(340);
+    useEffect(() => {
+        const handleResize = () => {
+            setLabelWidth(window.innerWidth < 640 ? 180 : 340);
+        };
+        handleResize(); // Initialize
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
     const checkpointByDate = useMemo(() => {
         const map = new Map<string, UnifiedSupervisionCheckpoint>();
         (workspace.unified_checkpoints || []).forEach((checkpoint) => {
@@ -385,7 +396,7 @@ export default function UnifiedSupervisionGantt({
             </div>
 
             <div className="flex border-b border-slate-300">
-                <div className="flex h-10 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-50 px-4 font-bold text-slate-600" style={{ width: LABEL_WIDTH }}>
+                <div className="flex h-10 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-50 px-4 font-bold text-slate-600 overflow-hidden" style={{ width: labelWidth }}>
                     Tahapan Pekerjaan
                 </div>
                 <div className="min-w-0 flex-1 overflow-x-auto" id="unified-gantt-scroll-top" onScroll={(e) => {
@@ -435,18 +446,18 @@ export default function UnifiedSupervisionGantt({
             </div>
 
             <div className="flex max-h-[520px] overflow-hidden">
-                <div className="shrink-0 overflow-y-auto border-r-[3px] border-slate-400 bg-white shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)]" id="unified-gantt-labels" style={{ width: LABEL_WIDTH }} onScroll={(e) => {
+                <div className="shrink-0 overflow-y-auto overflow-x-hidden border-r-[3px] border-slate-400 bg-white shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)]" id="unified-gantt-labels" style={{ width: labelWidth }} onScroll={(e) => {
                     const body = document.getElementById("unified-gantt-scroll-body");
                     if (body && body.scrollTop !== e.currentTarget.scrollTop) body.scrollTop = e.currentTarget.scrollTop;
                 }}>
                     {details.map((scope) => (
                         <React.Fragment key={scope.id_toko}>
-                            <div className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-4 text-xs font-black text-slate-800" style={{ height: GROUP_HEIGHT }}>
-                                <span className="flex items-center gap-2"><Building2 className={`h-4 w-4 ${scope.scopeName === "SIPIL" ? "text-red-600" : "text-blue-600"}`} /> {scope.scopeName}</span>
-                                <span className="text-[10px] text-slate-500">Gantt #{scope.ganttId || "-"}</span>
+                            <div className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-2 sm:px-4 text-xs font-black text-slate-800 overflow-hidden" style={{ height: GROUP_HEIGHT }}>
+                                <span className="flex items-center gap-1.5 min-w-0 truncate"><Building2 className={`h-3.5 w-3.5 shrink-0 ${scope.scopeName === "SIPIL" ? "text-red-600" : "text-blue-600"}`} /> {scope.scopeName}</span>
+                                <span className="text-[10px] text-slate-500 shrink-0 hidden sm:inline ml-1">#{scope.ganttId || "-"}</span>
                             </div>
                             {scope.rows.map((row, index) => (
-                                <div key={row.id} className="flex items-center border-b border-slate-100 px-4 text-[11px] font-bold text-slate-700" style={{ height: ROW_HEIGHT }}>
+                                <div key={row.id} className="flex items-center border-b border-slate-100 px-2 sm:px-4 text-[11px] font-bold text-slate-700 overflow-hidden" style={{ height: ROW_HEIGHT }}>
                                     <span className="mr-2 text-slate-400">{index + 1}.</span>
                                     <span className="truncate" title={row.label}>{row.label}</span>
                                 </div>
