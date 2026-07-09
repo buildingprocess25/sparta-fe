@@ -1944,13 +1944,14 @@ export const submitGanttChart = async (payload: GanttSubmitPayload) => {
 
 /** Ambil daftar Gantt Chart dengan filter opsional. */
 export const fetchGanttList = async (
-    filters?: GanttListFilters
+    filters?: GanttListFilters & { nama_kontraktor?: string }
 ): Promise<{ status: string; data: GanttListItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.status)        params.append("status",        filters.status);
     if (filters?.nomor_ulok)    params.append("nomor_ulok",    filters.nomor_ulok);
     if (filters?.email_pembuat) params.append("email_pembuat", filters.email_pembuat);
+    if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
     const url = `${base}/api/gantt${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
@@ -2232,6 +2233,7 @@ export const fetchPengawasanList = async (filters?: {
     tanggal?: string;
     kategori_pekerjaan?: string;
     jenis_pekerjaan?: string;
+    nama_kontraktor?: string;
 }) => {
     const params = new URLSearchParams();
     if (filters?.id_gantt) params.append("id_gantt", filters.id_gantt.toString());
@@ -2239,6 +2241,7 @@ export const fetchPengawasanList = async (filters?: {
     if (filters?.tanggal) params.append("tanggal", filters.tanggal);
     if (filters?.kategori_pekerjaan) params.append("kategori_pekerjaan", filters.kategori_pekerjaan);
     if (filters?.jenis_pekerjaan) params.append("jenis_pekerjaan", filters.jenis_pekerjaan);
+    if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
     
     const url = `${API_URL.replace(/\/$/, "")}/api/pengawasan${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
@@ -3522,13 +3525,14 @@ export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
 
 /** Ambil daftar pertambahan SPK dengan filter opsional. */
 export const fetchPertambahanSPKList = async (
-    filters?: PertambahanSPKListFilters,
+    filters?: PertambahanSPKListFilters & { nama_kontraktor?: string },
     options?: ApiRequestOptions
 ): Promise<{ status: string; data: PertambahanSPKListItem[] }> => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
     if (filters?.id_spk)              params.append("id_spk", filters.id_spk.toString());
     if (filters?.status_persetujuan)  params.append("status_persetujuan", filters.status_persetujuan);
+    if (filters?.nama_kontraktor)     params.append("nama_kontraktor", filters.nama_kontraktor);
     const url = `${base}/api/pertambahan-spk${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };

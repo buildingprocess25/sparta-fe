@@ -1287,7 +1287,14 @@ export default function DaftarDokumenPage() {
                 const res = await fetchSPKList(Object.keys(filters).length > 0 ? filters : undefined);
                 docs = normalizeSPKDocs(res.data ?? []);
             } else if (kategori === 'PERTAMBAHAN_SPK') {
-                const res = await fetchPertambahanSPKList();
+                const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
+                const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
+                const isKontraktorOrDirektur = sessionRole.includes('KONTRAKTOR') || sessionRole.includes('DIREKTUR');
+                let filters: any = {};
+                if (isKontraktorOrDirektur && sessionNamaPt) {
+                    filters.nama_kontraktor = sessionNamaPt;
+                }
+                const res = await fetchPertambahanSPKList(Object.keys(filters).length > 0 ? filters : undefined);
                 docs = normalizePertambahanSPKDocs(res.data ?? []);
             } else if (kategori === 'SURAT_PERINGATAN') {
                 const normalizedList: NormalizedDoc[] = [];
@@ -1338,9 +1345,17 @@ export default function DaftarDokumenPage() {
                     docs = normalizeOpnameDocs(res.data ?? [], kategori);
                 }
             } else if (kategori === 'PENGAWASAN') {
+                const sessionRole = (sessionStorage.getItem('userRole') || '').toUpperCase();
+                const sessionNamaPt = sessionStorage.getItem('nama_pt') || '';
+                const isKontraktorOrDirektur = sessionRole.includes('KONTRAKTOR') || sessionRole.includes('DIREKTUR');
+                let filters: any = undefined;
+                if (isKontraktorOrDirektur && sessionNamaPt) {
+                    filters = { nama_kontraktor: sessionNamaPt };
+                }
+
                 const gMap = new Map();
                 const ganttPromise = withTimeout(
-                    fetchGanttList(),
+                    fetchGanttList(filters),
                     8000,
                     'Permintaan data Gantt melewati batas waktu.'
                 ).catch((ganttError) => {
@@ -1349,7 +1364,7 @@ export default function DaftarDokumenPage() {
                 });
                 const [res, pendingRes] = await Promise.all([
                     withTimeout(
-                        fetchPengawasanList(),
+                        fetchPengawasanList(filters),
                         15000,
                         'Permintaan data Pengawasan melewati batas waktu. Silakan coba Refresh.'
                     ),
@@ -2466,7 +2481,8 @@ export default function DaftarDokumenPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl px-4">
                             {(Object.keys(KATEGORI_CONFIG) as DokumenKategori[]).filter(kat => {
                                 // Hide PERTAMBAHAN_SPK, PENGAWASAN, BERKAS_SERAH_TERIMA and INSTRUKSI_LAPANGAN from KONTRAKTOR and DIREKTUR
-                                if ((kat === 'PERTAMBAHAN_SPK' || kat === 'PENGAWASAN' || kat === 'BERKAS_SERAH_TERIMA' || kat === 'INSTRUKSI_LAPANGAN') && (isContractor || isDirektur)) return false;
+                                // KTK dan PENGAWASAN sekarang sudah difilter per kontraktor di backend, jadi boleh ditampilkan
+                                if ((kat === 'BERKAS_SERAH_TERIMA' || kat === 'INSTRUKSI_LAPANGAN') && (isContractor || isDirektur)) return false;
                                 // PP-only roles: hanya tampilkan card PROJECT_PLANNING
                                 if (isPPOnly && kat !== 'PROJECT_PLANNING') return false;
                                 // Hide PROJECT_PLANNING dari KONTRAKTOR dan DIREKTUR
