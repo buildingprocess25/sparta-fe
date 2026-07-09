@@ -1373,10 +1373,10 @@ function GanttBoard() {
                 }
             />
 
-            <main className="p-4 md:p-8 max-w-350 mx-auto mt-2">
-                <div className="flex flex-col lg:flex-row gap-6 mb-6">
-                    <Card className="w-full lg:w-1/3 shadow-sm">
-                        <CardContent className="p-6">
+            <main className="p-4 md:p-8 max-w-[1600px] mx-auto mt-2">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6 items-stretch">
+                    <Card className={`col-span-1 lg:col-span-4 ${projectData && selectedGanttId && appMode === 'pic' ? 'xl:col-span-3' : 'xl:col-span-4'} shadow-sm border-slate-200 bg-white`}>
+                        <CardContent className="p-5 flex flex-col justify-center h-full">
                             <div className="space-y-3">
                                 <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
                                 {(urlIdToko || urlUlok) && !isDirectAccess ? (
@@ -1623,74 +1623,73 @@ function GanttBoard() {
                     </Card>
 
                     {projectData && (
-                        <Card className="w-full max-w-5xl border border-slate-200 bg-white text-slate-900 shadow-sm transition-all">
-                            <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 p-5">
-                                <div>
-                                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Nama Toko</p>
-                                    <p className="text-base font-extrabold leading-tight text-slate-950">{projectData.store}</p>
-                                </div>
-                                <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                                <div>
-                                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Lingkup</p>
-                                    <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-extrabold ${String(projectData.work).toUpperCase() === 'ME'
-                                            ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                            : 'border-red-200 bg-red-50 text-red-700'
-                                        }`}>
-                                        {projectData.work}
-                                    </span>
-                                </div>
-                                <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                                <div>
-                                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Status SPK</p>
-                                    {(() => {
-                                        const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
-                                        const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
-                                        const spkCount = spkScopes.length;
-                                        const totalScopes = allTokoForUlok.length;
+                        <Card className={`col-span-1 ${appMode === 'pic' && selectedGanttId ? 'lg:col-span-8 xl:col-span-5' : 'lg:col-span-8 xl:col-span-8'} border border-slate-200 bg-white text-slate-900 shadow-sm transition-all`}>
+                            <CardContent className="p-5 flex flex-col justify-center h-full">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4">
+                                    <div>
+                                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Toko</p>
+                                        <p className="text-sm md:text-base font-extrabold leading-tight text-slate-900">{projectData.store}</p>
+                                    </div>
+                                    <div>
+                                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Lingkup</p>
+                                        <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${String(projectData.work).toUpperCase() === 'ME'
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'bg-red-100 text-red-700'
+                                            }`}>
+                                            {projectData.work}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Status SPK</p>
+                                        {(() => {
+                                            const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
+                                            const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                            const spkCount = spkScopes.length;
+                                            const totalScopes = allTokoForUlok.length;
 
-                                        let spkLabel = 'BELUM SPK';
-                                        let badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
-                                        let dotClass = 'bg-amber-500';
+                                            let spkLabel = 'BELUM SPK';
+                                            let badgeClass = 'border-slate-200 bg-slate-50 text-slate-600';
+                                            let dotClass = 'bg-slate-400';
 
-                                        if (spkCount > 0 && spkCount === totalScopes) {
-                                            spkLabel = totalScopes > 1 ? 'SEMUA SPK' : 'SUDAH SPK';
-                                            badgeClass = 'border-emerald-200 bg-emerald-50 text-emerald-700';
-                                            dotClass = 'bg-emerald-500';
-                                        } else if (spkCount > 0) {
-                                            const spkLingkup = spkScopes.map(t => t.lingkup_pekerjaan).join(', ');
-                                            spkLabel = `PARTIAL SPK (${spkLingkup})`;
-                                            badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
-                                        }
+                                            if (spkCount > 0 && spkCount === totalScopes) {
+                                                spkLabel = totalScopes > 1 ? 'SEMUA SPK' : 'SUDAH SPK';
+                                                badgeClass = 'border-emerald-200 bg-emerald-50 text-emerald-700';
+                                                dotClass = 'bg-emerald-500';
+                                            } else if (spkCount > 0) {
+                                                const spkLingkup = spkScopes.map(t => t.lingkup_pekerjaan).join(', ');
+                                                spkLabel = `PARTIAL SPK (${spkLingkup})`;
+                                                badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
+                                                dotClass = 'bg-amber-500';
+                                            }
 
-                                        return (
-                                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${badgeClass}`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
-                                                {spkLabel}
-                                            </span>
-                                        );
-                                    })()}
+                                            return (
+                                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border ${badgeClass}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+                                                    {spkLabel}
+                                                </span>
+                                            );
+                                        })()}
+                                    </div>
+                                    {spkInfo && (
+                                        <>
+                                            <div>
+                                                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Durasi (SPK)</p>
+                                                <p className="text-sm md:text-base font-bold text-slate-800">{spkInfo.duration} Hari</p>
+                                            </div>
+                                            <div>
+                                                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Tgl Mulai SPK</p>
+                                                <p className="text-sm md:text-base font-bold text-emerald-600">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                {spkInfo && (
-                                    <>
-                                        <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                                        <div>
-                                            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Durasi (SPK)</p>
-                                            <p className="text-base font-extrabold text-slate-950">{spkInfo.duration} Hari</p>
-                                        </div>
-                                        <div className="hidden h-10 w-px bg-slate-200 md:block" />
-                                        <div>
-                                            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tgl Mulai SPK</p>
-                                            <p className="text-base font-extrabold text-emerald-700">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                                        </div>
-                                    </>
-                                )}
                             </CardContent>
                         </Card>
                     )}
 
                     {projectData && selectedGanttId && appMode === 'pic' && (
-                        <Card className="w-full lg:w-2/3 border-slate-200 bg-white shadow-sm">
-                            <CardContent className="p-5">
+                        <Card className="col-span-1 lg:col-span-12 xl:col-span-4 border-slate-200 bg-white shadow-sm h-full flex flex-col">
+                            <CardContent className="p-4 flex flex-col h-full">
                                 <div className="flex items-start gap-3">
                                     <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                                         <MessageSquare className="h-4 w-4" />
@@ -1704,27 +1703,27 @@ function GanttBoard() {
                                             <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
                                         </div>
 
-                                        <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                        <div className="flex-1 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2.5 min-h-[140px] max-h-64 xl:max-h-full">
                                             {isGanttNoteLoading ? (
-                                                <div className="flex items-center justify-center py-6 text-sm text-slate-500">
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat catatan...
+                                                <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat...
                                                 </div>
                                             ) : ganttNotes.length === 0 ? (
-                                                <p className="py-6 text-center text-sm text-slate-500">Belum ada catatan pengawasan.</p>
+                                                <div className="flex h-full items-center justify-center text-sm text-slate-400">Belum ada catatan.</div>
                                             ) : (
-                                                <div className="space-y-3">
+                                                <div className="space-y-2.5">
                                                     {ganttNotes.map(note => (
-                                                        <div key={note.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                                        <div key={note.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                                                             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                                                                 <div className="min-w-0">
                                                                     <p className="truncate text-xs font-bold text-slate-800">{note.author_name}</p>
-                                                                    <p className="truncate text-[11px] text-slate-500">{note.author_role}</p>
+                                                                    <p className="truncate text-[10px] text-slate-500">{note.author_role}</p>
                                                                 </div>
-                                                                <span className="text-[11px] text-slate-400">
+                                                                <span className="text-[10px] text-slate-400">
                                                                     {new Date(note.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
                                                                 </span>
                                                             </div>
-                                                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{note.note}</p>
+                                                            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{note.note}</p>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1732,21 +1731,21 @@ function GanttBoard() {
                                         </div>
 
                                         {canWriteGanttCommunication && (
-                                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                            <div className="mt-3 flex items-end gap-2 shrink-0">
                                                 <textarea
                                                     value={ganttNoteInput}
                                                     onChange={(e) => setGanttNoteInput(e.target.value)}
-                                                    rows={2}
-                                                    className="min-h-11 flex-1 resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                                                    placeholder="Tulis catatan pengawasan..."
+                                                    rows={1}
+                                                    className="min-h-10 max-h-24 flex-1 resize-y rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                                    placeholder="Tulis catatan..."
                                                 />
                                                 <Button
                                                     type="button"
-                                                    className="h-11 bg-blue-600 px-5 font-semibold text-white hover:bg-blue-700"
+                                                    className="h-10 bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700 shrink-0"
                                                     disabled={isGanttNoteSending || !ganttNoteInput.trim()}
                                                     onClick={handleSendGanttNote}
                                                 >
-                                                    {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="mr-2 h-4 w-4" /> Kirim</>}
+                                                    {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                                 </Button>
                                             </div>
                                         )}
