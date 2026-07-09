@@ -2790,13 +2790,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (s <= day && day <= e) isScheduledToday = true;
 
                 if (e < day) {
-                    let hitInPast = false;
+                    let hitDuringActive = false;
+                    let hitAfterActiveButBeforeToday = false;
+
                     pastPengawasanDays.forEach((pDay: number) => {
                         if (s <= pDay && pDay <= e) {
-                            hitInPast = true;
+                            hitDuringActive = true;
+                        }
+                        if (pDay > e && pDay < day) {
+                            hitAfterActiveButBeforeToday = true;
                         }
                     });
-                    if (!hitInPast) {
+
+                    if (!hitDuringActive && !hitAfterActiveButBeforeToday) {
                         isSkippedCompletely = true;
                     }
                 }
