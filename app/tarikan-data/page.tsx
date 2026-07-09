@@ -86,12 +86,16 @@ const collectProjectWorkItems = (project: any): string[] => {
 
     // Sumber utama: RAB
     (project?.rab || []).forEach((rab: any) => {
-        (rab?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+        (rab?.items || []).forEach((item: any) => {
+            if (item?.kategori_pekerjaan) push(item.kategori_pekerjaan);
+        });
     });
 
     // Sumber tambahan: Instruksi Lapangan (jika ada)
     (project?.instruksi_lapangan || []).forEach((instruksi: any) => {
-        (instruksi?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+        (instruksi?.items || []).forEach((item: any) => {
+            if (item?.kategori_pekerjaan) push(item.kategori_pekerjaan);
+        });
     });
 
     return Array.from(new Set(values));
