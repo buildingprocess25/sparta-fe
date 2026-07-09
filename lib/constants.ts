@@ -175,7 +175,7 @@ export const ALL_MENUS = [
     },
     {
         id: "menu-tarikan-data",
-        title: "Tarikan Data",
+        title: "Download Data",
         desc: "Pilih periode, cabang, status SPK, dan jenis data untuk export.",
         href: "/tarikan-data",
         icon: Download,
@@ -472,13 +472,13 @@ export const ME_CATEGORIES = [
  * Digunakan untuk filter dan tampilan dashboard.
  */
 export const BRANCH_GROUPS: Record<string, string[]> = {
-    LOMBOK:    ["LOMBOK", "SUMBAWA"],
+    LOMBOK: ["LOMBOK", "SUMBAWA"],
     CILEUNGSI: ["CILEUNGSI", "BOGOR", "BEKASI", "KARAWANG"],
-    CIKOKOL:   ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"], // BINTAN masuk Cikokol group
-    MEDAN:     ["MEDAN", "ACEH"],
-    LAMPUNG:   ["LAMPUNG", "KOTABUMI"],
+    CIKOKOL: ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"], // BINTAN masuk Cikokol group
+    MEDAN: ["MEDAN", "ACEH"],
+    LAMPUNG: ["LAMPUNG", "KOTABUMI"],
     PALEMBANG: ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
-    SIDOARJO:  ["SIDOARJO", "SIDOARJO BPN SMD", "MANOKWARI", "NTT", "SORONG"], // FIX: spasi bukan underscore
+    SIDOARJO: ["SIDOARJO", "SIDOARJO BPN SMD", "MANOKWARI", "NTT", "SORONG"], // FIX: spasi bukan underscore
 };
 
 export const normalizeBranchValue = (branch?: string | null): string =>
@@ -553,52 +553,52 @@ export const canAccessBranchForUser = (
  * Digunakan untuk keperluan API yang membutuhkan kode ULOK cabang.
  */
 export const BRANCH_TO_ULOK: Record<string, string> = {
-    "LUWU":            "2VZ1",
-    "KARAWANG":        "1JZ1",
-    "REMBANG":         "2AZ1",
-    "BANJARMASIN":     "1GZ1",
-    "PARUNG":          "1MZ1",
-    "TEGAL":           "2PZ1",
-    "GORONTALO":       "2SZ1",
-    "PONTIANAK":       "1PZ1",
-    "LOMBOK":          "1SZ1",
-    "SUMBAWA":         "1SZ1",
-    "KOTABUMI":        "LZ01",
-    "SERANG":          "2GZ1",
-    "CIANJUR":         "2JZ1",
-    "BALARAJA":        "TZ01",
-    "SIDOARJO":        "UZ01",
+    "LUWU": "2VZ1",
+    "KARAWANG": "1JZ1",
+    "REMBANG": "2AZ1",
+    "BANJARMASIN": "1GZ1",
+    "PARUNG": "1MZ1",
+    "TEGAL": "2PZ1",
+    "GORONTALO": "2SZ1",
+    "PONTIANAK": "1PZ1",
+    "LOMBOK": "1SZ1",
+    "SUMBAWA": "1SZ1",
+    "KOTABUMI": "LZ01",
+    "SERANG": "2GZ1",
+    "CIANJUR": "2JZ1",
+    "BALARAJA": "TZ01",
+    "SIDOARJO": "UZ01",
     "SIDOARJO BPN SMD": "UZ01",
-    "MANOKWARI":       "UZ01",
-    "NTT":             "UZ01",
-    "SORONG":          "UZ01",
-    "MEDAN":           "WZ01",
-    "ACEH":            "WZ01",
-    "BOGOR":           "XZ01",
-    "JEMBER":          "YZ01",
-    "BALI":            "QZ01",
-    "PALEMBANG":       "PZ01",
-    "BENGKULU":        "PZ01",
-    "BANGKA":          "PZ01",
-    "BELITUNG":        "PZ01",
-    "KLATEN":          "OZ01",
-    "MAKASSAR":        "RZ01",
-    "PLUMBON":         "VZ01",
-    "PEKANBARU":       "1AZ1",
-    "JAMBI":           "1DZ1",
-    "HEAD OFFICE":     "Z001",
-    "BANDUNG RAYA":    "BZ01",
-    "BEKASI":          "CZ01",
-    "CILACAP":         "IZ01",
-    "CILEUNGSI":       "JZ01",
-    "SEMARANG":        "HZ01",
-    "CIKOKOL":         "KZ01",
-    "LAMPUNG":         "LZ01",
-    "MALANG":          "MZ01",
-    "MANADO":          "1YZ1",
-    "BATAM":           "2DZ1",
-    "MADIUN":          "2MZ1",
-    "BINTAN":          "KZ01",
+    "MANOKWARI": "UZ01",
+    "NTT": "UZ01",
+    "SORONG": "UZ01",
+    "MEDAN": "WZ01",
+    "ACEH": "WZ01",
+    "BOGOR": "XZ01",
+    "JEMBER": "YZ01",
+    "BALI": "QZ01",
+    "PALEMBANG": "PZ01",
+    "BENGKULU": "PZ01",
+    "BANGKA": "PZ01",
+    "BELITUNG": "PZ01",
+    "KLATEN": "OZ01",
+    "MAKASSAR": "RZ01",
+    "PLUMBON": "VZ01",
+    "PEKANBARU": "1AZ1",
+    "JAMBI": "1DZ1",
+    "HEAD OFFICE": "Z001",
+    "BANDUNG RAYA": "BZ01",
+    "BEKASI": "CZ01",
+    "CILACAP": "IZ01",
+    "CILEUNGSI": "JZ01",
+    "SEMARANG": "HZ01",
+    "CIKOKOL": "KZ01",
+    "LAMPUNG": "LZ01",
+    "MALANG": "MZ01",
+    "MANADO": "1YZ1",
+    "BATAM": "2DZ1",
+    "MADIUN": "2MZ1",
+    "BINTAN": "KZ01",
 };
 
 // -----------------------------------------------------------------------------
@@ -608,7 +608,7 @@ export const BRANCH_TO_ULOK: Record<string, string> = {
 export const getPpRoles = (userRole: string | string[], email: string) => {
     const roles = Array.isArray(userRole) ? userRole : [userRole];
     const upperRoles = roles.map(r => r.toUpperCase());
-    
+
     const isCoor = upperRoles.some(r => r.includes("COORDINATOR") || r.includes("KOORDINATOR"));
     const isBM = upperRoles.some(r =>
         r.includes("BRANCH BUILDING & MAINTENANCE MANAGER") ||
@@ -619,7 +619,7 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
     );
     const isPPMgr = upperRoles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || r.includes("PROJECT PLANNING MANAGER") || r.includes("PP MANAGER")) || email === "wildan.pp.manager@gmail.com";
     const isPP = upperRoles.some(r => (r.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || r.includes("PP SPECIALIST") || (r.includes("PROJECT PLANNING") && !r.includes("MANAGER")))) || email === "wildan.pp@gmail.com";
-    
+
     return { isCoor, isBM, isPP, isPPMgr };
 };
 

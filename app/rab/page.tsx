@@ -1279,7 +1279,10 @@ function RABPageContent() {
                                   if (result.rejected_submissions) {
                                       setRejectedList(result.rejected_submissions);
                                       if (result.rejected_submissions.length > 0) {
-                                          setRevisionListDialogOpen(true);
+                                          // Solusi: Gunakan setTimeout untuk mencegah race-condition fokus
+                                          // Radix Select sedang menutup, jadi kita beri jeda agar animasi selesai
+                                          // sebelum Modal Dialog membuka dan men-set aria-hidden=true
+                                          setTimeout(() => setRevisionListDialogOpen(true), 200);
                                       }
                                   }
                               }).catch(err => console.log("Gagal periksa revisi", err));

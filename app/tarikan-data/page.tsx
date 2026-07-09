@@ -270,12 +270,12 @@ export default function TarikanDataPage() {
     if (isBlocked || !canAccess) {
         return (
             <div className="min-h-screen bg-slate-50">
-                <AppNavbar title="Tarikan Data" showBackButton backHref="/dashboard" variant="brand" />
+                <AppNavbar title="Download Data" showBackButton backHref="/dashboard" variant="brand" />
                 <main className="mx-auto max-w-3xl px-4 py-10">
                     <div className="rounded-lg border border-red-200 bg-white p-6 shadow-sm">
                         <ShieldAlert className="mb-3 h-8 w-8 text-red-600" />
                         <h1 className="text-xl font-black text-slate-950">Akses tidak tersedia</h1>
-                        <p className="mt-2 text-sm font-medium text-slate-600">Menu Tarikan Data tidak dibuka untuk role kontraktor dan direktur kontraktor.</p>
+                        <p className="mt-2 text-sm font-medium text-slate-600">Menu Download Data tidak dibuka untuk role kontraktor dan direktur kontraktor.</p>
                         <Button className="mt-5 bg-red-700 hover:bg-red-800" onClick={() => router.push("/dashboard")}>Kembali ke Dashboard</Button>
                     </div>
                 </main>
@@ -285,7 +285,7 @@ export default function TarikanDataPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <AppNavbar title="Tarikan Data" showBackButton backHref="/dashboard" variant="brand" />
+            <AppNavbar title="Download Data" showBackButton backHref="/dashboard" variant="brand" />
             <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
                 <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
                     <div className="border-b border-slate-100 px-5 py-5">
