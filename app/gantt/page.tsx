@@ -2851,9 +2851,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const memoInput = memoInputs[key] as any;
                 const isUnfinishedFromPreviousPengawasan = ['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus;
 
-                // Tampilkan item jika jadwalnya aktif hari ini, atau jika status terakhirnya
+                let hasStarted = false;
+                task.ranges?.forEach((r: any) => {
+                    if (!r.start) return;
+                    const s = parseInt(r.start) + shift - 1;
+                    if (s <= day) hasStarted = true;
+                });
+
+                // Tampilkan item jika jadwalnya sudah mulai (s <= day), atau jika status terakhirnya
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya.
-                if (!isScheduledToday && !isUnfinishedFromPreviousPengawasan) return false;
+                if (!hasStarted && !isUnfinishedFromPreviousPengawasan) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
