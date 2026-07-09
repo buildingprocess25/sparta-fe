@@ -474,11 +474,11 @@ export const ME_CATEGORIES = [
 export const BRANCH_GROUPS: Record<string, string[]> = {
     LOMBOK:    ["LOMBOK", "SUMBAWA"],
     CILEUNGSI: ["CILEUNGSI", "BOGOR", "BEKASI", "KARAWANG"],
-    CIKOKOL:   ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG"],
+    CIKOKOL:   ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"], // BINTAN masuk Cikokol group
     MEDAN:     ["MEDAN", "ACEH"],
     LAMPUNG:   ["LAMPUNG", "KOTABUMI"],
     PALEMBANG: ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
-    SIDOARJO:  ["SIDOARJO", "SIDOARJO BPN_SMD", "MANOKWARI", "NTT", "SORONG"],
+    SIDOARJO:  ["SIDOARJO", "SIDOARJO BPN SMD", "MANOKWARI", "NTT", "SORONG"], // FIX: spasi bukan underscore
 };
 
 export const normalizeBranchValue = (branch?: string | null): string =>
@@ -568,7 +568,7 @@ export const BRANCH_TO_ULOK: Record<string, string> = {
     "CIANJUR":         "2JZ1",
     "BALARAJA":        "TZ01",
     "SIDOARJO":        "UZ01",
-    "SIDOARJO BPN_SMD":"UZ01",
+    "SIDOARJO BPN SMD": "UZ01",
     "MANOKWARI":       "UZ01",
     "NTT":             "UZ01",
     "SORONG":          "UZ01",
