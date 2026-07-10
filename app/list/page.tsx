@@ -209,6 +209,8 @@ interface NormalizedDetail {
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
     denda_allocation_note?: string | null;
+    denda_allocation_tanggal_akhir_spk?: string | null;
+    denda_allocation_tanggal_serah_terima?: string | null;
     nilai_penawaran?: string | null;
     nilai_spk?: string | null;
     nilai_opname?: string | null;
@@ -1591,6 +1593,8 @@ export default function DaftarDokumenPage() {
                     tanggal_akhir_spk_denda: d.opname_final.tanggal_akhir_spk_denda,
                     tanggal_serah_terima_denda: d.opname_final.tanggal_serah_terima_denda,
                     denda_allocation_note: d.opname_final.denda_allocation_note ?? null,
+                    denda_allocation_tanggal_akhir_spk: d.opname_final.denda_allocation_tanggal_akhir_spk ?? null,
+                    denda_allocation_tanggal_serah_terima: d.opname_final.denda_allocation_tanggal_serah_terima ?? null,
                     approval_koordinator: { pemberi: d.opname_final.pemberi_persetujuan_koordinator, waktu: d.opname_final.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.opname_final.pemberi_persetujuan_manager,     waktu: d.opname_final.waktu_persetujuan_manager },
                     approval_direktur:    { pemberi: d.opname_final.pemberi_persetujuan_direktur,    waktu: d.opname_final.waktu_persetujuan_direktur },
