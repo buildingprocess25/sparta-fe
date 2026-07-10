@@ -208,6 +208,7 @@ interface NormalizedDetail {
     hari_denda?: number;
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
+    denda_allocation_note?: string | null;
     nilai_penawaran?: string | null;
     nilai_spk?: string | null;
     nilai_opname?: string | null;
@@ -1589,6 +1590,7 @@ export default function DaftarDokumenPage() {
                     nilai_denda:         d.opname_final.nilai_denda,
                     tanggal_akhir_spk_denda: d.opname_final.tanggal_akhir_spk_denda,
                     tanggal_serah_terima_denda: d.opname_final.tanggal_serah_terima_denda,
+                    denda_allocation_note: d.opname_final.denda_allocation_note ?? null,
                     approval_koordinator: { pemberi: d.opname_final.pemberi_persetujuan_koordinator, waktu: d.opname_final.waktu_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.opname_final.pemberi_persetujuan_manager,     waktu: d.opname_final.waktu_persetujuan_manager },
                     approval_direktur:    { pemberi: d.opname_final.pemberi_persetujuan_direktur,    waktu: d.opname_final.waktu_persetujuan_direktur },
@@ -3372,6 +3374,11 @@ export default function DaftarDokumenPage() {
                                                     <span className="text-slate-400">Hari Denda: </span>
                                                     <span className="font-semibold text-slate-700">{selectedDetail.hari_denda ?? 0} hari</span>
                                                 </div>
+                                                {selectedDetail.denda_allocation_note && (
+                                                    <div className="basis-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-800">
+                                                        {selectedDetail.denda_allocation_note}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
