@@ -432,7 +432,7 @@ export default function SPKPage() {
                                 <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">1. Data Referensi RAB &amp; Identitas Toko</h3>
                                 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-700">Cari &amp; Pilih Nomor Ulok *</label>
+                                    <label className="text-sm font-medium text-slate-700">Cari &amp; Pilih Nomor Ulok *</label>
                                     <div className="relative mb-2">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <input type="text" placeholder="Ketik No Ulok / Nama Toko..." className="w-full pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm" value={searchUlok} onChange={(e) => setSearchUlok(e.target.value)} />
@@ -486,16 +486,16 @@ export default function SPKPage() {
                                 {selectedRabObj && (
                                     <div className="pt-4 border-t mt-4 border-slate-100">
                                         <div className="mb-4 space-y-2 md:w-1/2">
-                                            <label className="text-sm font-bold text-slate-700">Kode Toko *</label>
+                                            <label className="text-sm font-medium text-slate-700">Kode Toko *</label>
                                         <input type="text" required readOnly={isReadOnly} className="w-full p-2.5 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={form.kode_toko} onChange={e => setForm({...form, kode_toko: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()})} placeholder="Masukkan Kode Toko (Misal: T123)..." />
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg">
-                                            <div><p className="text-[11px] font-bold text-slate-500 uppercase">Nama Toko</p><p className="font-semibold text-slate-800">{form.nama_toko || '-'}</p></div>
-                                            <div><p className="text-[11px] font-bold text-slate-500 uppercase">Proyek</p><p className="font-semibold text-slate-800">{selectedRabObj.Proyek}</p></div>
-                                            <div><p className="text-[11px] font-bold text-slate-500 uppercase">Lingkup</p><p className="font-semibold text-slate-800">{selectedRabObj.Lingkup_Pekerjaan}</p></div>
+                                            <div><p className="text-xs font-medium text-slate-500 uppercase">Nama Toko</p><p className="font-semibold text-slate-800">{form.nama_toko || '-'}</p></div>
+                                            <div><p className="text-xs font-medium text-slate-500 uppercase">Proyek</p><p className="font-semibold text-slate-800">{selectedRabObj.Proyek}</p></div>
+                                            <div><p className="text-xs font-medium text-slate-500 uppercase">Lingkup</p><p className="font-semibold text-slate-800">{selectedRabObj.Lingkup_Pekerjaan}</p></div>
                                             <div>
-                                                <p className="text-[11px] font-bold text-slate-500 uppercase">{isNoPpnArea(selectedRabObj) ? "Grand Total SPK (Non PPN)" : "Grand Total Final"}</p>
+                                                <p className="text-xs font-medium text-slate-500 uppercase">{isNoPpnArea(selectedRabObj) ? "Grand Total SPK (Non PPN)" : "Grand Total Final"}</p>
                                                 <p className="font-bold text-red-600">{formatRupiah(getSpkGrandTotal(selectedRabObj))}</p>
                                             </div>
                                         </div>
@@ -509,21 +509,21 @@ export default function SPKPage() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700">Nama Kontraktor *</label>
+                                        <label className="text-sm font-medium text-slate-700">Nama Kontraktor *</label>
                                         <select required disabled={isReadOnly} className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500" value={form.nama_kontraktor} onChange={e => setForm({...form, nama_kontraktor: e.target.value})}>
                                             <option value="">-- Pilih Kontraktor --</option>
                                             {kontraktorList.map(k => <option key={k} value={k}>{k}</option>)}
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700">Kode Cabang Penomoran</label>
+                                        <label className="text-sm font-medium text-slate-700">Kode Cabang Penomoran</label>
                                         <input type="text" required readOnly className="w-full p-2.5 border bg-slate-100 rounded-lg text-slate-600 font-bold uppercase" value={form.kode_cabang} />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700">Nomor SPK *</label>
+                                        <label className="text-sm font-medium text-slate-700">Nomor SPK *</label>
                                         <div className="flex items-center gap-2 bg-slate-50 p-2 border border-slate-300 rounded-lg overflow-x-auto text-sm">
                                             <span className="font-bold text-slate-500 whitespace-nowrap bg-slate-200 px-2 py-1.5 rounded">{revisiData.isRevisi ? revisiData.sequence : '(Otomatis)'}</span>
                                             <span className="font-bold text-slate-400">/</span>
@@ -536,7 +536,7 @@ export default function SPKPage() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700">Nomor PAR *</label>
+                                        <label className="text-sm font-medium text-slate-700">Nomor PAR *</label>
                                         <div className="flex items-center gap-2 bg-slate-50 p-2 border border-slate-300 rounded-lg overflow-x-auto text-sm">
                                             <input type="text" required readOnly={isReadOnly} placeholder="No" className="w-16 p-1.5 text-center border rounded font-bold outline-none uppercase" value={form.par_no} onChange={e => setForm({...form, par_no: e.target.value.toUpperCase()})} />
                                             <span className="font-bold text-slate-400">/</span>
@@ -555,7 +555,7 @@ export default function SPKPage() {
                                 <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">3. Jadwal Pelaksanaan</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700">Tgl Mulai Pelaksanaan *</label>
+                                        <label className="text-sm font-medium text-slate-700">Tgl Mulai Pelaksanaan *</label>
                                         <DatePicker
                                             value={form.waktu_mulai}
                                             onChange={val => setForm({...form, waktu_mulai: val})}
@@ -572,7 +572,7 @@ export default function SPKPage() {
                                         </p>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold text-slate-700">Durasi (Hari) *</label>
+                                        <label className="text-sm font-medium text-slate-700">Durasi (Hari) *</label>
                                         <input
                                             type="text"
                                             required

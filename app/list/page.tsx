@@ -2320,7 +2320,7 @@ export default function DaftarDokumenPage() {
                         <div className="p-6 space-y-4">
                             <div>
                                 <p className="text-sm font-medium text-slate-600 mb-1">Status Saat Ini</p>
-                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
+                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-medium text-xs border px-3 py-1`}>
                                     {selectedDetail.status}
                                 </Badge>
                             </div>
@@ -2403,7 +2403,7 @@ export default function DaftarDokumenPage() {
                         <div className="p-6 space-y-4">
                             <div>
                                 <p className="text-sm font-medium text-slate-600 mb-1">Status Saat Ini</p>
-                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
+                                <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-medium text-xs border px-3 py-1`}>
                                     {getStatusLabel(selectedDetail.status)}
                                 </Badge>
                             </div>
@@ -2472,7 +2472,7 @@ export default function DaftarDokumenPage() {
                                 {filteredList.length} Dokumen
                             </Badge>
                         )}
-                        <Badge variant="outline" className="bg-black/10 text-white border-white/30 px-3 py-1 md:py-1.5 shadow-sm backdrop-blur-sm text-[10px] md:text-xs font-semibold hidden md:flex">
+                        <Badge variant="outline" className="bg-black/10 text-white border-white/30 px-3 py-1 md:py-1.5 shadow-sm backdrop-blur-sm text-xs font-medium hidden md:flex">
                             {userInfo.cabang || 'LOADING...'}
                         </Badge>
                     </div>
@@ -2694,25 +2694,25 @@ export default function DaftarDokumenPage() {
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="font-bold text-slate-800 text-sm">{group.nomor_ulok}</span>
-                                                            <Badge className={`${getStatusBadgeClass(group.status)} text-[10px] font-semibold border px-2 py-0`}>
+                                                            <Badge className={`${getStatusBadgeClass(group.status)} text-xs font-medium border px-2 py-0`}>
                                                                 {getStatusLabel(group.status)}
                                                             </Badge>
-                                                            <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] font-semibold border px-2 py-0">
+                                                            <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs font-medium border px-2 py-0">
                                                                 {group.docs.length} memo
                                                             </Badge>
                                                         </div>
                                                         <p className="text-sm text-slate-600 truncate mt-0.5">{group.nama_toko}</p>
                                                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                                                            <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                            <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                 <CalendarDays className="w-3 h-3" /> Terakhir {formatDate(group.latest_created_at)}
                                                             </span>
                                                             {group.proyek && group.proyek !== '-' && (
-                                                                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                                <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                     <Building2 className="w-3 h-3" /> {group.proyek}
                                                                 </span>
                                                             )}
                                                             {group.cabang && group.cabang !== '-' && (
-                                                                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                                <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                     <Building2 className="w-3 h-3" /> {group.cabang}
                                                                 </span>
                                                             )}
@@ -2723,7 +2723,7 @@ export default function DaftarDokumenPage() {
                                                 <div className="flex items-center gap-3 shrink-0 md:pl-4">
                                                     <div className="text-right">
                                                         <p className="text-sm font-bold text-slate-800">{group.docs.length} Dokumen</p>
-                                                        <p className="text-[11px] text-slate-400 mt-0.5">Klik untuk melihat detail</p>
+                                                        <p className="text-xs text-slate-400 mt-0.5">Klik untuk melihat detail</p>
                                                     </div>
                                                     <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors" />
                                                 </div>
@@ -2760,7 +2760,7 @@ export default function DaftarDokumenPage() {
                                                 <h3 className="font-extrabold text-slate-900 text-lg">{group.label}</h3>
                                                 <div className="text-right shrink-0">
                                                     <p className={`text-2xl font-extrabold leading-none ${visual.text}`}>{group.docs.length}</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">Dokumen</p>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-1">Dokumen</p>
                                                 </div>
                                             </div>
                                             <p className="text-sm text-slate-600 mt-2 min-h-10 leading-5">{group.description}</p>
@@ -2769,7 +2769,7 @@ export default function DaftarDokumenPage() {
                                         <div className="mt-5 pt-4 border-t border-white/80 flex items-center justify-between gap-3">
                                             <div className="flex items-center gap-3 flex-wrap min-w-0">
                                                 {latestDoc?.created_at && (
-                                                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                    <span className="text-xs text-slate-500 flex items-center gap-1">
                                                         <CalendarDays className="w-3 h-3" />
                                                         {latestDoc.tipe === 'OPNAME_FINAL'
                                                             ? `Tanggal KTK: ${latestDoc.tanggal_kerja_tambah_kurang ? formatDate(latestDoc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
@@ -2777,12 +2777,12 @@ export default function DaftarDokumenPage() {
                                                     </span>
                                                 )}
                                                 {branchCount > 0 && (
-                                                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                    <span className="text-xs text-slate-500 flex items-center gap-1">
                                                         <Building2 className="w-3 h-3" /> {branchCount} cabang
                                                     </span>
                                                 )}
                                             </div>
-                                            <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Lihat Klasifikasi</span>
+                                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Lihat Klasifikasi</span>
                                         </div>
                                     </div>
                                 )}) : isGroupedDocumentCategory && selectedProjectGroup && !selectedDocumentGroup ? documentGroups.map(group => {
@@ -2812,7 +2812,7 @@ export default function DaftarDokumenPage() {
                                                 <h3 className="font-extrabold text-slate-900 text-lg">{group.label}</h3>
                                                 <div className="text-right shrink-0">
                                                     <p className={`text-2xl font-extrabold leading-none ${visual.text}`}>{group.docs.length}</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">Dokumen</p>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-1">Dokumen</p>
                                                 </div>
                                             </div>
                                             <p className="text-sm text-slate-600 mt-2 min-h-10 leading-5">{group.description}</p>
@@ -2821,7 +2821,7 @@ export default function DaftarDokumenPage() {
                                         <div className="mt-5 pt-4 border-t border-white/80 flex items-center justify-between gap-3">
                                             <div className="flex items-center gap-3 flex-wrap min-w-0">
                                                 {latestDoc?.created_at && (
-                                                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                    <span className="text-xs text-slate-500 flex items-center gap-1">
                                                         <CalendarDays className="w-3 h-3" />
                                                         {latestDoc.tipe === 'OPNAME_FINAL'
                                                             ? `Tanggal KTK: ${latestDoc.tanggal_kerja_tambah_kurang ? formatDate(latestDoc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
@@ -2829,12 +2829,12 @@ export default function DaftarDokumenPage() {
                                                     </span>
                                                 )}
                                                 {branchCount > 0 && (
-                                                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                                    <span className="text-xs text-slate-500 flex items-center gap-1">
                                                         <Building2 className="w-3 h-3" /> {branchCount} cabang
                                                     </span>
                                                 )}
                                             </div>
-                                            <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Lihat ULOK</span>
+                                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Lihat ULOK</span>
                                         </div>
                                     </div>
                                 )}) : visibleList.map(doc => {
@@ -2869,7 +2869,7 @@ export default function DaftarDokumenPage() {
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="font-bold text-slate-800 text-sm">{doc.nomor_ulok}</span>
                                                             {selectedKategori !== 'DOKUMENTASI_BANGUNAN' && (
-                                                                <Badge className={`${getStatusBadgeClass(doc.status)} text-[10px] font-semibold border px-2 py-0`}>
+                                                                <Badge className={`${getStatusBadgeClass(doc.status)} text-xs font-medium border px-2 py-0`}>
                                                                     {getStatusLabel(doc.status)}
                                                                 </Badge>
                                                             )}
@@ -2881,19 +2881,19 @@ export default function DaftarDokumenPage() {
                                                             }
                                                         </p>
                                                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                                                            <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                            <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                 <CalendarDays className="w-3 h-3" />
                                                                 {doc.tipe === 'OPNAME_FINAL'
                                                                     ? `Tanggal KTK: ${doc.tanggal_kerja_tambah_kurang ? formatDate(doc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
                                                                     : formatDate(doc.created_at)}
                                                             </span>
                                                             {doc.email_pembuat !== '-' && (
-                                                                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                                <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                     <User className="w-3 h-3" /> {doc.email_pembuat}
                                                                 </span>
                                                             )}
                                                             {doc.proyek && doc.proyek !== '-' && (
-                                                                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                                <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                     <Building2 className="w-3 h-3" /> {doc.proyek}
                                                                 </span>
                                                             )}
@@ -2903,14 +2903,14 @@ export default function DaftarDokumenPage() {
 
                                                 {contextBadges.length > 0 && (
                                                     <div className="md:flex-1 md:max-w-[420px] md:px-4 md:border-x md:border-slate-100">
-                                                        <p className="hidden md:block text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+                                                        <p className="hidden md:block text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">
                                                             Keterangan
                                                         </p>
                                                         <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                                                             {contextBadges.map((badge) => (
                                                                 <Badge
                                                                     key={`${doc.id}-${badge.label}`}
-                                                                    className={`${badge.className} text-[10px] font-semibold border px-2.5 py-0.5 rounded-full`}
+                                                                    className={`${badge.className} text-xs font-medium border px-2.5 py-0.5 rounded-full`}
                                                                 >
                                                                     {badge.label}
                                                                 </Badge>
@@ -2935,10 +2935,10 @@ export default function DaftarDokumenPage() {
                                                             )
                                                         )}
                                                         {selectedKategori === 'SPK' && doc.nomor_spk && (
-                                                            <p className="text-[11px] text-slate-400 mt-0.5">SPK: {doc.nomor_spk}</p>
+                                                            <p className="text-xs text-slate-400 mt-0.5">SPK: {doc.nomor_spk}</p>
                                                         )}
                                                         {selectedKategori === 'BERKAS_SERAH_TERIMA' && (
-                                                            <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-500">
+                                                            <div className="mt-1.5 space-y-0.5 text-xs text-slate-500">
                                                                 <p>Penawaran: <span className="font-bold text-slate-700">{formatRupiah(parseCurrency(doc.nilai_penawaran))}</span></p>
                                                                 <p>SPK: <span className="font-bold text-slate-700">{formatRupiah(parseCurrency(doc.nilai_spk))}</span></p>
                                                                 <p>Denda: <span className="font-bold text-red-600">{formatRupiah(parseCurrency(doc.nilai_denda))}</span>{doc.hari_denda ? ` (${doc.hari_denda} hari)` : ''}</p>
@@ -3038,7 +3038,7 @@ export default function DaftarDokumenPage() {
                                             </div>
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 {selectedDetail.tipe !== 'DOKUMENTASI_BANGUNAN' && (
-                                                    <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-semibold text-xs border px-3 py-1`}>
+                                                    <Badge className={`${getStatusBadgeClass(selectedDetail.status)} font-medium text-xs border px-3 py-1`}>
                                                         {getStatusLabel(selectedDetail.status)}
                                                     </Badge>
                                                 )}
@@ -3051,7 +3051,7 @@ export default function DaftarDokumenPage() {
                                                     is_ruko: selectedDetail.is_ruko_pp,
                                                     klasifikasi_bangunan: selectedDetail.klasifikasi_bangunan,
                                                 }).slice(0, 4).map((badge) => (
-                                                    <Badge key={`detail-${badge.label}`} className={`${badge.className} font-semibold text-xs border px-3 py-1`}>
+                                                    <Badge key={`detail-${badge.label}`} className={`${badge.className} font-medium text-xs border px-3 py-1`}>
                                                         {badge.label}
                                                     </Badge>
                                                 ))}
@@ -3181,7 +3181,7 @@ export default function DaftarDokumenPage() {
                                                             <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
                                                                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                                                                 <div>
-                                                                    <p className="text-[11px] text-red-400 font-medium uppercase tracking-wide">Alasan Penolakan</p>
+                                                                    <p className="text-xs text-red-400 font-medium uppercase tracking-wide">Alasan Penolakan</p>
                                                                     <p className="text-sm text-red-700 font-semibold">{selectedDetail.alasan_penolakan}</p>
                                                                 </div>
                                                             </div>
@@ -3291,7 +3291,7 @@ export default function DaftarDokumenPage() {
                                                             <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
                                                                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                                                                 <div>
-                                                                    <p className="text-[11px] text-red-400 font-medium uppercase tracking-wide">Alasan Revisi</p>
+                                                                    <p className="text-xs text-red-400 font-medium uppercase tracking-wide">Alasan Revisi</p>
                                                                     <p className="text-sm text-red-700 font-semibold">{selectedDetail.alasan_revisi}</p>
                                                                 </div>
                                                             </div>
@@ -3433,7 +3433,7 @@ export default function DaftarDokumenPage() {
                                                     <div>
                                                         <span className="text-slate-700 font-semibold">{log.approver_email}</span>
                                                         <span className="text-slate-400 mx-1">—</span>
-                                                        <Badge className={`${log.tindakan.toUpperCase() === 'APPROVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} text-[10px] font-semibold border-0`}>
+                                                        <Badge className={`${log.tindakan.toUpperCase() === 'APPROVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} text-xs font-medium border-0`}>
                                                             {log.tindakan}
                                                         </Badge>
                                                         <span className="text-slate-400 text-xs ml-2">{formatDateFull(log.waktu_tindakan)}</span>
@@ -3472,7 +3472,7 @@ export default function DaftarDokumenPage() {
                                                     <div>
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <span className="text-slate-700 font-semibold">{log.actor_email || '-'}</span>
-                                                            <Badge className="bg-amber-100 text-amber-700 text-[10px] font-semibold border-0">
+                                                            <Badge className="bg-amber-100 text-amber-700 text-xs font-medium border-0">
                                                                 {log.action.replaceAll('_', ' ')}
                                                             </Badge>
                                                             <span className="text-slate-400 text-xs">{formatDateFull(log.created_at)}</span>
@@ -3662,7 +3662,7 @@ export default function DaftarDokumenPage() {
                                                             <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{item.jenis_pekerjaan}</td>
                                                             <td className="px-4 py-2.5 text-slate-500 italic text-xs">{item.catatan || '-'}</td>
                                                             <td className="px-4 py-2.5 text-center whitespace-nowrap">
-                                                                <Badge className={`${getStatusBadgeClass(item.status)} text-[10px] font-semibold border px-2 py-0`}>
+                                                                <Badge className={`${getStatusBadgeClass(item.status)} text-xs font-medium border px-2 py-0`}>
                                                                     {getStatusLabel(item.status)}
                                                                 </Badge>
                                                             </td>
@@ -3890,7 +3890,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
         <div className="flex items-start gap-3">
             <div className="text-slate-400 mt-0.5 shrink-0">{icon}</div>
             <div className="min-w-0">
-                <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
+                <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">{label}</p>
                 <p className="text-sm text-slate-800 font-semibold truncate">{value}</p>
             </div>
         </div>

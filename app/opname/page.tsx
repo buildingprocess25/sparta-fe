@@ -174,7 +174,7 @@ function StatusBadge({ status }: { status: string }) {
     const config = statusConfig[s] || statusConfig.pending;
     
     return (
-        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-full ${config.bg} ${config.color} ${config.border} border`}>
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${config.bg} ${config.color} ${config.border} border`}>
             {(s === 'selesai' || s === 'disetujui') && <CheckCircle className="w-3 h-3" />}
             {(s === 'progress' || s === 'pending') && <Clock className="w-3 h-3" />}
             {(s === 'terlambat' || s === 'ditolak') && <AlertCircle className="w-3 h-3" />}
@@ -193,7 +193,7 @@ function InfoItem({ icon, label, value, highlight }: {
                 {icon}
             </div>
             <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</p>
                 <p className={`text-sm font-semibold truncate ${highlight ? 'text-amber-700' : 'text-slate-800'}`} title={value}>{value}</p>
             </div>
         </div>
@@ -909,7 +909,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 >
                                     <Clock className="w-4 h-4 inline mr-1.5" />Riwayat
                                     {hasExistingOpname && (
-                                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{existingOpname.length}</span>
+                                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{existingOpname.length}</span>
                                     )}
                                 </button>
                             </div>
@@ -1097,7 +1097,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                             >
                                                                 <h4 className="font-bold text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2">
                                                                     {isExpanded ? <ChevronDown className="w-4 h-4 text-emerald-600" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                                                                    {isIlGroup && <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full">IL</span>}
+                                                                    {isIlGroup && <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">IL</span>}
                                                                     {group.name}
                                                                 </h4>
                                                                 <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none text-xs">{group.items.length} Item</Badge>
@@ -1130,22 +1130,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                 <div className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 flex justify-between items-center">
                                                                                     <div className="flex items-center gap-2">
                                                                                         {isIlItem && (
-                                                                                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                                                                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
                                                                                                 Instruksi Lapangan
                                                                                             </span>
                                                                                         )}
                                                                                         <span className="text-sm">{item.jenis_pekerjaan}</span>
                                                                                         {rejectedRecord && (
-                                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-700 border border-red-200">
+                                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700 border border-red-200">
                                                                                                 <AlertCircle className="w-3 h-3" />
                                                                                                 Ditolak
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
                                                                                     <div className="flex flex-wrap gap-1.5">
-                                                                                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {item.satuan}</span>
-                                                                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hMaterial)}</span>
-                                                                                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hUpah)}</span>
+                                                                                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {item.satuan}</span>
+                                                                                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hMaterial)}</span>
+                                                                                        <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hUpah)}</span>
                                                                                     </div>
                                                                                 </div>
                                                                                 {rejectedRecord?.catatan && (
@@ -1160,10 +1160,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
                                                                                     {/* Col 1: Volume & Cost */}
                                                                                     <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm flex flex-col">
-                                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Volume & Biaya</h4>
+                                                                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Volume & Biaya</h4>
                                                                                         
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir *</label>
+                                                                                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir *</label>
                                                                                             <div className="relative mt-1">
                                                                                                 <input
                                                                                                     type="text"
@@ -1173,11 +1173,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                                     value={input.volume_akhir}
                                                                                                     onChange={(e) => handleSetInput(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))}
                                                                                                 />
-                                                                                                {item.satuan && <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
+                                                                                                {item.satuan && <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold uppercase">{item.satuan}</span>}
                                                                                             </div>
                                                                                         </div>
  
-                                                                                        <div className="grid grid-cols-2 gap-px bg-slate-200 text-[10px] rounded border border-slate-200 overflow-hidden mt-3">
+                                                                                        <div className="grid grid-cols-2 gap-px bg-slate-200 text-xs rounded border border-slate-200 overflow-hidden mt-3">
                                                                                             <div className="p-2 bg-white">
                                                                                                 <div className="text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol RAB</div>
                                                                                                 <div className="font-semibold text-slate-700">{item.volume} <span className="font-normal text-slate-400">{item.satuan}</span></div>
@@ -1207,9 +1207,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
  
                                                                                     {/* Col 2: Quality Verification */}
                                                                                     <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm">
-                                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
+                                                                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Desain *</label>
+                                                                                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Desain *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
                                                                                                 disabled={isReadOnly}
                                                                                                 value={input.desain || ''}
@@ -1220,7 +1220,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             </select>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Kualitas *</label>
+                                                                                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Kualitas *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
                                                                                                 disabled={isReadOnly}
                                                                                                 value={input.kualitas || ''}
@@ -1231,7 +1231,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             </select>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
+                                                                                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
                                                                                                 disabled={isReadOnly}
                                                                                                 value={input.spesifikasi || ''}
@@ -1245,9 +1245,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
  
                                                                                     {/* Col 3: Notes & Photo */}
                                                                                     <div className="space-y-3 bg-white p-3 rounded border border-slate-200 shadow-sm flex flex-col">
-                                                                                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Catatan & Dokumentasi</h4>
+                                                                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Catatan & Dokumentasi</h4>
                                                                                         <div className="flex-1 flex flex-col">
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Catatan</label>
+                                                                                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Catatan</label>
                                                                                             <textarea
                                                                                                 className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none placeholder:text-slate-400 bg-slate-50 flex-1 resize-none min-h-15"
                                                                                                 disabled={isReadOnly}
@@ -1257,12 +1257,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             ></textarea>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti *</label>
+                                                                                            <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Foto Bukti *</label>
                                                                                             <input
                                                                                                 type="file"
                                                                                                 accept="image/*"
                                                                                                 disabled={isReadOnly}
-                                                                                                className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
+                                                                                                className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
                                                                                                 onChange={(e) => handleSetInput(item.id, 'file', e.target.files?.[0] || null)}
                                                                                             />
                                                                                             {!input.file && input.existing_foto && (
@@ -1375,7 +1375,7 @@ function OpnameHistoryView({ opnameList, rabItems }: { opnameList: OpnameItem[];
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead>
-                        <tr className="border-b-2 border-slate-200 text-[11px] text-slate-500 uppercase tracking-wider">
+                        <tr className="border-b-2 border-slate-200 text-xs text-slate-500 uppercase tracking-wider">
                             <th className="pb-3 pr-4 whitespace-nowrap">Jenis Pekerjaan</th>
                             <th className="pb-3 pr-4 text-center whitespace-nowrap">Vol RAB</th>
                             <th className="pb-3 pr-4 text-center whitespace-nowrap">Vol Akhir</th>
@@ -1393,7 +1393,7 @@ function OpnameHistoryView({ opnameList, rabItems }: { opnameList: OpnameItem[];
                             return (
                                 <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                                     <td className="py-3 pr-4 font-semibold text-slate-700 whitespace-nowrap">
-                                        <div className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                                        <div className="text-xs text-slate-400 uppercase flex items-center gap-1">
                                             {isIl && <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">IL</span>}
                                             {rabItem?.kategori_pekerjaan || item.rab_item?.kategori_pekerjaan || '-'}
                                         </div>
@@ -1785,7 +1785,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">{formatUlokWithDash(group.nomor_ulok)}</span>
                                                         {pendingCount > 0 && (
-                                                            <span className="bg-amber-100 text-amber-700 text-[11px] font-bold px-2 py-1 rounded-full border border-amber-200 animate-pulse">
+                                                            <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full border border-amber-200 animate-pulse">
                                                                 {pendingCount} Menunggu Review
                                                             </span>
                                                         )}
@@ -1823,23 +1823,23 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
                                         <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Total Item</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Total Item</p>
                                     </div>
                                     <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'pending' ? '' : 'pending')}>
                                         <p className="text-2xl font-bold text-amber-700">{stats.pending}</p>
-                                        <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-1">Pending</p>
+                                        <p className="text-xs font-bold text-amber-500 uppercase tracking-wider mt-1">Pending</p>
                                     </div>
                                     <div className="bg-green-50 p-4 rounded-xl border border-green-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'disetujui' ? '' : 'disetujui')}>
                                         <p className="text-2xl font-bold text-green-700">{stats.disetujui}</p>
-                                        <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mt-1">Disetujui</p>
+                                        <p className="text-xs font-bold text-green-500 uppercase tracking-wider mt-1">Disetujui</p>
                                     </div>
                                     <div className="bg-red-50 p-4 rounded-xl border border-red-200 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterStatus(filterStatus === 'ditolak' ? '' : 'ditolak')}>
                                         <p className="text-2xl font-bold text-red-700">{stats.ditolak}</p>
-                                        <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mt-1">Ditolak</p>
+                                        <p className="text-xs font-bold text-red-500 uppercase tracking-wider mt-1">Ditolak</p>
                                     </div>
                                     <div className={`p-4 rounded-xl border shadow-sm text-center ${stats.totalSelisih >= 0 ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
                                         <p className={`text-lg font-bold ${stats.totalSelisih >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatRp(stats.totalSelisih)}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Total Selisih</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Total Selisih</p>
                                     </div>
                                 </div>
 
@@ -1897,46 +1897,46 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                                 <StatusBadge status={item.status} />
                                                                             </div>
                                                                             <div className="flex flex-wrap gap-1.5">
-                                                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {rabRef?.satuan || item.rab_item?.satuan}</span>
-                                                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(Number(rabRef?.harga_material || item.rab_item?.harga_material || 0))}</span>
-                                                                                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0))}</span>
+                                                                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {rabRef?.satuan || item.rab_item?.satuan}</span>
+                                                                                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(Number(rabRef?.harga_material || item.rab_item?.harga_material || 0))}</span>
+                                                                                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0))}</span>
                                                                             </div>
                                                                         </div>
 
                                                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-slate-200 text-xs rounded-lg border border-slate-200 overflow-hidden mt-3">
                                                                             <div className="p-2.5 bg-white">
-                                                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol RAB</div>
-                                                                                <div className="font-semibold text-slate-700">{volRab} <span className="text-[10px] font-normal text-slate-400">{rabRef?.satuan || item.rab_item?.satuan}</span></div>
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol RAB</div>
+                                                                                <div className="font-semibold text-slate-700">{volRab} <span className="text-xs font-normal text-slate-400">{rabRef?.satuan || item.rab_item?.satuan}</span></div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-white">
-                                                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol Akhir</div>
-                                                                                <div className="font-bold text-slate-800">{item.volume_akhir} <span className="text-[10px] font-normal text-slate-400">{rabRef?.satuan || item.rab_item?.satuan}</span></div>
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol Akhir</div>
+                                                                                <div className="font-bold text-slate-800">{item.volume_akhir} <span className="text-xs font-normal text-slate-400">{rabRef?.satuan || item.rab_item?.satuan}</span></div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-slate-50">
-                                                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Vol</div>
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Vol</div>
                                                                                 <div className={`font-bold ${item.selisih_volume > 0 ? 'text-blue-600' : (item.selisih_volume < 0 ? 'text-red-600' : 'text-slate-600')}`}>
                                                                                     {item.selisih_volume > 0 ? '+' : ''}{item.selisih_volume}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-white">
-                                                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total RAB</div>
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total RAB</div>
                                                                                 <div className="font-semibold text-slate-700">{formatRp(rabRef?.total_harga || (volRab * ((rabRef?.harga_material || 0) + (rabRef?.harga_upah || 0))))}</div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-white">
-                                                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Opname</div>
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Opname</div>
                                                                                 <div className="font-bold text-slate-800">
                                                                                     {formatRp(Number(item.total_harga_opname) || (Number(item.volume_akhir) * ((Number(rabRef?.harga_material || item.rab_item?.harga_material || 0)) + (Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0)))))}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-slate-50">
-                                                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Biaya</div>
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Biaya</div>
                                                                                 <div className={`font-bold ${item.total_selisih > 0 ? 'text-blue-600' : (item.total_selisih < 0 ? 'text-red-600' : 'text-slate-600')}`}>
                                                                                     {item.total_selisih > 0 ? '+' : ''}{formatRp(item.total_selisih)}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
 
-                                                                        <div className="flex gap-4 mt-2 text-[11px] text-slate-500">
+                                                                        <div className="flex gap-4 mt-2 text-xs text-slate-500">
                                                                             <span>Desain: <b className={item.desain === 'Sesuai' ? 'text-green-600' : 'text-red-600'}>{item.desain || '-'}</b></span>
                                                                             <span>Kualitas: <b className={item.kualitas === 'Baik' ? 'text-green-600' : 'text-red-600'}>{item.kualitas || '-'}</b></span>
                                                                             <span>Spesifikasi: <b className={item.spesifikasi === 'Sesuai' ? 'text-green-600' : 'text-red-600'}>{item.spesifikasi || '-'}</b></span>
@@ -1953,7 +1953,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                                 type="button"
                                                                                 onClick={() => handleDownloadFoto(item.id)}
                                                                                 disabled={downloadingFotoId === item.id}
-                                                                                className="inline-flex items-center gap-1 mt-2 text-[11px] text-blue-600 hover:text-blue-800 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                                className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:text-blue-800 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                                                                             >
                                                                                 {downloadingFotoId === item.id
                                                                                     ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -2045,7 +2045,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
                             {/* Reject Reason */}
                             <div>
-                                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                                <label className="text-sm font-medium text-slate-700 mb-2 block">
                                     Alasan Penolakan <span className="text-red-500">*</span>
                                 </label>
                                 <textarea

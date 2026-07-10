@@ -1236,7 +1236,7 @@ export default function DashboardPage() {
                     />
                     {/* Sidebar header */}
                     <div className="hidden px-4 pt-4 pb-2.5 border-b border-slate-100 shrink-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Navigasi</p>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Navigasi</p>
                         <h2 className="text-sm font-bold text-slate-700 mt-0.5">Fitur Akses</h2>
                     </div>
 
@@ -1262,11 +1262,11 @@ export default function DashboardPage() {
                                     </div>
                                     <div className="flex-1 min-w-0 flex items-center justify-between pr-2">
                                         <div className="flex-1 min-w-0 pr-1">
-                                            <p className="text-[12px] font-semibold text-slate-700 group-hover:text-red-700 leading-snug transition-colors wrap-break-word">{menu.title}</p>
-                                            <p className="text-[10px] text-slate-400 leading-snug wrap-break-word mt-0.5">{menu.desc}</p>
+                                            <p className="text-sm font-semibold text-slate-700 group-hover:text-red-700 leading-snug transition-colors wrap-break-word">{menu.title}</p>
+                                            <p className="text-xs text-slate-400 leading-snug wrap-break-word mt-0.5">{menu.desc}</p>
                                         </div>
                                         {menuCount > 0 && (
-                                            <span className={`ml-2 min-w-5 h-5 px-1.5 rounded-full ${menuCountClass} text-[10px] font-extrabold flex items-center justify-center shadow-sm`}>
+                                            <span className={`ml-2 min-w-5 h-5 px-1.5 rounded-full ${menuCountClass} text-xs font-extrabold flex items-center justify-center shadow-sm`}>
                                                 {menuCount > 99 ? '99+' : menuCount}
                                             </span>
                                         )}
@@ -1322,7 +1322,7 @@ export default function DashboardPage() {
                             <LogOut className="mr-2 h-3.5 w-3.5" />
                             Ganti Workspace
                         </Button>
-                        <p className="text-[10px] text-slate-400 text-center">SPARTA Building â€” Alfamart</p>
+                        <p className="text-xs text-slate-400 text-center">SPARTA Building â€” Alfamart</p>
                     </div>
                 </aside>
 
@@ -1399,7 +1399,7 @@ export default function DashboardPage() {
                                                                 Centang toko yang mau ditarik ke file {pendingExportFormat.toUpperCase()}. Tidak ada data yang dipilih otomatis.
                                                             </DialogDescription>
                                                         </div>
-                                                        <Badge className="shrink-0 border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-black text-white hover:bg-white/10">
+                                                        <Badge className="shrink-0 border-white/10 bg-white/10 px-2.5 py-1 text-xs font-black text-white hover:bg-white/10">
                                                             {selectedExportCount} dipilih
                                                         </Badge>
                                                     </div>
@@ -1437,7 +1437,7 @@ export default function DashboardPage() {
                                                     </div>
 
                                                     <div className="overflow-hidden rounded-2xl border border-slate-200">
-                                                        <div className="grid grid-cols-[42px_1fr_110px_82px] border-b border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                                        <div className="grid grid-cols-[42px_1fr_110px_82px] border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
                                                             <span />
                                                             <span>Toko</span>
                                                             <span>Cabang</span>
@@ -1464,11 +1464,11 @@ export default function DashboardPage() {
                                                                         />
                                                                         <span className="min-w-0">
                                                                             <span className="block truncate text-sm font-black text-slate-900">{toko.nama_toko || '-'}</span>
-                                                                            <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{toko.nomor_ulok || '-'} · {toko.kode_toko || '-'}</span>
+                                                                            <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{toko.nomor_ulok || '-'} · {toko.kode_toko || '-'}</span>
                                                                         </span>
                                                                         <span className="truncate text-xs font-bold text-slate-600">{toko.cabang || '-'}</span>
                                                                         <span className="text-right">
-                                                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600">
+                                                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">
                                                                                 {toko.lingkup_pekerjaan || '-'}
                                                                             </span>
                                                                         </span>
@@ -1523,7 +1523,7 @@ export default function DashboardPage() {
 
                                 <div className="text-right hidden sm:block border-l border-slate-200 pl-3">
                                     <p className="text-xs font-bold text-slate-700 leading-tight">Live Dashboard</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Project Monitoring</p>
+                                    <p className="text-xs text-slate-400 leading-tight">Project Monitoring</p>
                                 </div>
                             </div>
                         )}
@@ -1562,7 +1562,7 @@ export default function DashboardPage() {
                                 <div className="border-b border-slate-200 px-5 py-4">
                                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-red-600">Monitoring Operasional</p>
+                                            <p className="text-xs font-black uppercase tracking-[0.22em] text-red-600">Monitoring Operasional</p>
                                             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Dashboard Toko</h1>
                                             <p className="mt-1 max-w-3xl text-sm font-medium text-slate-500">
                                                 {canSeeAllMonitoringBranches ? 'Ringkasan lintas cabang untuk melihat status dokumen, nilai pekerjaan, denda, dan toko yang perlu ditindaklanjuti.' : `Ringkasan cabang ${userInfo.cabang || '-'} untuk melihat toko aktif, risiko, dan dokumen penting.`}
@@ -1590,7 +1590,7 @@ export default function DashboardPage() {
                                                 <div className="rounded-lg bg-white/80 p-2 shadow-sm">{item.icon}</div>
                                                 <ChevronRight className="h-4 w-4 opacity-50" />
                                             </div>
-                                            <p className="mt-4 text-[11px] font-black uppercase tracking-wide opacity-70">{item.label}</p>
+                                            <p className="mt-4 text-xs font-black uppercase tracking-wide opacity-70">{item.label}</p>
                                             <p className="mt-1 text-3xl font-black leading-none">{item.value}</p>
                                             <p className="mt-2 text-xs font-semibold opacity-70">{item.helper}</p>
                                         </button>
@@ -1602,7 +1602,7 @@ export default function DashboardPage() {
                                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="mb-4 flex items-center justify-between gap-3">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Tahap Pekerjaan</p>
+                                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Tahap Pekerjaan</p>
                                             <h2 className="text-lg font-black text-slate-950">Alur Dokumen</h2>
                                         </div>
                                         <Button variant="outline" className="h-9 rounded-lg text-xs font-bold" onClick={() => setDetailModal({ open: true, title: 'Detail Status Proyek', context: 'PROJECT', subContext: '' })}>
@@ -1621,7 +1621,7 @@ export default function DashboardPage() {
                                                 >
                                                     <div className="flex items-center justify-between">
                                                         <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-500">{idx + 1}</span>
-                                                        <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500">{pct}%</span>
+                                                        <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">{pct}%</span>
                                                     </div>
                                                     <p className="mt-3 min-h-8 text-sm font-black leading-tight text-slate-900">{label}</p>
                                                     <div className="mt-3 flex items-end justify-between gap-3">
@@ -1638,7 +1638,7 @@ export default function DashboardPage() {
 
                                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="mb-4">
-                                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Nominal Pekerjaan</p>
+                                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Nominal Pekerjaan</p>
                                         <h2 className="text-lg font-black text-slate-950">Ringkasan Nilai</h2>
                                     </div>
                                     <div className="space-y-3">
@@ -1648,7 +1648,7 @@ export default function DashboardPage() {
                                                     <div className="flex items-start gap-3">
                                                         <div className="rounded-lg bg-white/80 p-2 shadow-sm">{item.icon}</div>
                                                         <div>
-                                                            <p className="text-[11px] font-black uppercase tracking-wide opacity-70">{item.label}</p>
+                                                            <p className="text-xs font-black uppercase tracking-wide opacity-70">{item.label}</p>
                                                             <p className="mt-1 text-xl font-black">{item.value}</p>
                                                         </div>
                                                     </div>
@@ -1662,12 +1662,12 @@ export default function DashboardPage() {
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2 text-slate-500">
                                                             {item.icon}
-                                                            <p className="text-[10px] font-black uppercase tracking-wide">{item.label}</p>
+                                                            <p className="text-xs font-black uppercase tracking-wide">{item.label}</p>
                                                         </div>
                                                         <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                                                     </div>
                                                     <p className="mt-2 text-lg font-black text-slate-950">{item.value}</p>
-                                                    <p className="mt-0.5 text-[11px] font-semibold text-slate-400">{item.helper}</p>
+                                                    <p className="mt-0.5 text-xs font-semibold text-slate-400">{item.helper}</p>
                                                 </button>
                                             ))}
                                         </div>
@@ -1675,11 +1675,11 @@ export default function DashboardPage() {
                                             <button className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition-all hover:border-purple-200 hover:bg-white hover:shadow-sm" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/m2', context: 'COST_M2', subContext: '' })}>
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div>
-                                                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Cost/m2</p>
+                                                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">Cost/m2</p>
                                                         <p className="mt-1 text-lg font-black text-slate-950">Terbangun {formatRupiah(stats.avgCostTerbangun)}</p>
                                                         <div className="mt-2 grid grid-cols-2 gap-2">
-                                                            <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600">Bangunan {formatRupiah(stats.avgCostBangunan)}</span>
-                                                            <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600">Terbuka {formatRupiah(stats.avgCostTerbuka)}</span>
+                                                            <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">Bangunan {formatRupiah(stats.avgCostBangunan)}</span>
+                                                            <span className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">Terbuka {formatRupiah(stats.avgCostTerbuka)}</span>
                                                         </div>
                                                     </div>
                                                     <ChevronRight className="mt-1 h-4 w-4 text-slate-400" />
@@ -1694,7 +1694,7 @@ export default function DashboardPage() {
                                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="mb-4 flex items-center justify-between gap-3">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Daftar Kerja</p>
+                                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Daftar Kerja</p>
                                             <h2 className="text-lg font-black text-slate-950">Toko yang Harus Dicek</h2>
                                         </div>
                                         <Button variant="outline" className="h-9 rounded-lg text-xs font-bold" onClick={() => setDetailModal({ open: true, title: 'Detail SLA (Perlu Perhatian)', context: 'ATTENTION', subContext: '' })}>
@@ -1716,7 +1716,7 @@ export default function DashboardPage() {
                                                                 <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{stage}</Badge>
                                                             </div>
                                                             <p className="mt-1 text-xs font-semibold text-slate-500">{project.toko?.cabang || '-'} - {project.toko?.lingkup_pekerjaan || '-'}</p>
-                                                            {st?.created_at && <p className="mt-1 text-[11px] font-medium text-slate-400">ST terakhir {new Date(st.created_at).toLocaleDateString('id-ID')}</p>}
+                                                            {st?.created_at && <p className="mt-1 text-xs font-medium text-slate-400">ST terakhir {new Date(st.created_at).toLocaleDateString('id-ID')}</p>}
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                                                             {lateDays > 0 && <Badge className="border-red-100 bg-red-50 font-black text-red-700">{lateDays} hari telat</Badge>}
@@ -1738,7 +1738,7 @@ export default function DashboardPage() {
 
                                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="mb-4">
-                                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Kualitas Serah Terima</p>
+                                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Kualitas Serah Terima</p>
                                         <h2 className="text-lg font-black text-slate-950">Nilai Toko</h2>
                                     </div>
                                     <button className="w-full rounded-xl border border-amber-200 bg-amber-50 p-5 text-left transition-all hover:bg-white hover:shadow-sm" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Nilai Toko', context: 'NILAI_TOKO', subContext: '' })}>
@@ -1746,7 +1746,7 @@ export default function DashboardPage() {
                                             <Tag className="h-5 w-5 text-amber-700" />
                                             <ChevronRight className="h-4 w-4 text-amber-700" />
                                         </div>
-                                        <p className="mt-6 text-[11px] font-black uppercase tracking-wide text-amber-700">Rata-rata Nilai Toko</p>
+                                        <p className="mt-6 text-xs font-black uppercase tracking-wide text-amber-700">Rata-rata Nilai Toko</p>
                                         <p className="mt-1 text-4xl font-black text-amber-900">{stats.avgNilaiToko}</p>
                                         <p className="mt-2 text-sm font-semibold text-amber-800">Klik untuk lihat komponen nilai dan akses file ST per toko.</p>
                                     </button>
@@ -1759,7 +1759,7 @@ export default function DashboardPage() {
                                     <div className="relative p-5 md:p-6">
                                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                                             <div>
-                                                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-red-200">Command Center</p>
+                                                <p className="text-xs font-bold uppercase tracking-[0.28em] text-red-200">Command Center</p>
                                                 <h1 className="mt-2 text-2xl md:text-3xl font-black tracking-tight">Monitoring Toko</h1>
                                                 <p className="mt-2 text-sm text-slate-300 max-w-2xl">
                                                     {canSeeAllMonitoringBranches ? 'Pantau seluruh cabang, temukan bottleneck, dan buka dokumen penting tanpa bolak-balik halaman.' : `Fokus toko cabang ${userInfo.cabang || '-'}, prioritas tindakan, dan dokumen yang perlu dicek hari ini.`}
@@ -1777,7 +1777,7 @@ export default function DashboardPage() {
                                                         className={`rounded-2xl border border-white/10 ${item.tone} px-3 py-3 text-left hover:bg-white/15 transition-colors`}
                                                         onClick={() => setDetailModal({ open: true, title: item.label, context: item.context, subContext: item.subContext || '' })}
                                                     >
-                                                        <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">{item.label}</p>
+                                                        <p className="text-xs font-bold uppercase tracking-wide opacity-80">{item.label}</p>
                                                         <p className="mt-1 text-2xl font-black">{item.value}</p>
                                                     </button>
                                                 ))}
@@ -1789,7 +1789,7 @@ export default function DashboardPage() {
                                 <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
                                     <div className="flex items-center justify-between gap-3 mb-4">
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Kesehatan Project</p>
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Kesehatan Project</p>
                                             <h2 className="text-lg font-black text-slate-900">Tindakan Cepat</h2>
                                         </div>
                                         <Badge className="bg-red-50 text-red-700 border-red-100 font-bold">{stats.attention} prioritas</Badge>
@@ -1797,12 +1797,12 @@ export default function DashboardPage() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <button className="rounded-2xl border border-red-100 bg-red-50 p-4 text-left hover:border-red-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rincian Denda', context: 'DENDA', subContext: '' })}>
                                             <AlertCircle className="w-5 h-5 text-red-600 mb-3" />
-                                            <p className="text-[10px] font-bold uppercase text-red-500">Total Denda</p>
+                                            <p className="text-xs font-bold uppercase text-red-500">Total Denda</p>
                                             <p className="text-lg font-black text-red-700">{formatRupiah(stats.totalDenda)}</p>
                                         </button>
                                         <button className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-left hover:border-amber-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Nilai Toko', context: 'NILAI_TOKO', subContext: '' })}>
                                             <Tag className="w-5 h-5 text-amber-600 mb-3" />
-                                            <p className="text-[10px] font-bold uppercase text-amber-500">Nilai Toko</p>
+                                            <p className="text-xs font-bold uppercase text-amber-500">Nilai Toko</p>
                                             <p className="text-lg font-black text-amber-700">{stats.avgNilaiToko} Poin</p>
                                         </button>
                                     </div>
@@ -1812,7 +1812,7 @@ export default function DashboardPage() {
                             <section className="hidden">
                                 <div className="flex items-center justify-between gap-3 mb-4">
                                     <div>
-                                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Pipeline</p>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Pipeline</p>
                                         <h2 className="text-lg font-black text-slate-900">Tahapan Dokumen & Pekerjaan</h2>
                                     </div>
                                     <Button variant="outline" className="h-9 rounded-xl text-xs font-bold" onClick={() => setDetailModal({ open: true, title: 'Detail Status Proyek', context: 'PROJECT', subContext: '' })}>
@@ -1826,8 +1826,8 @@ export default function DashboardPage() {
                                         return (
                                             <button key={label} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left hover:border-red-200 hover:bg-white hover:shadow-sm transition-all" onClick={() => setDetailModal({ open: true, title: `Tahap ${label}`, context: 'PROJECT', subContext: label })}>
                                                 <div className="flex items-center justify-between">
-                                                    <span className="w-6 h-6 rounded-full bg-white border border-slate-200 text-[10px] font-black text-slate-500 flex items-center justify-center">{idx + 1}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400">{pct}%</span>
+                                                    <span className="w-6 h-6 rounded-full bg-white border border-slate-200 text-xs font-black text-slate-500 flex items-center justify-center">{idx + 1}</span>
+                                                    <span className="text-xs font-bold text-slate-400">{pct}%</span>
                                                 </div>
                                                 <p className="mt-3 min-h-8 text-xs font-black text-slate-800 leading-tight">{label}</p>
                                                 <p className="mt-2 text-2xl font-black text-red-600">{value}</p>
@@ -1844,7 +1844,7 @@ export default function DashboardPage() {
                                 <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Prioritas Hari Ini</p>
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Prioritas Hari Ini</p>
                                             <h2 className="text-lg font-black text-slate-900">Toko yang Perlu Dicek</h2>
                                         </div>
                                         <Button variant="outline" className="h-9 rounded-xl text-xs font-bold" onClick={() => setDetailModal({ open: true, title: 'Detail SLA (Perlu Perhatian)', context: 'ATTENTION', subContext: '' })}>
@@ -1879,7 +1879,7 @@ export default function DashboardPage() {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    {st?.created_at && <p className="mt-2 text-[11px] text-slate-400">ST terakhir: {new Date(st.created_at).toLocaleDateString('id-ID')}</p>}
+                                                    {st?.created_at && <p className="mt-2 text-xs text-slate-400">ST terakhir: {new Date(st.created_at).toLocaleDateString('id-ID')}</p>}
                                                 </div>
                                             );
                                         })}
@@ -1888,7 +1888,7 @@ export default function DashboardPage() {
 
                                 <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5">
                                     <div className="mb-4">
-                                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Nilai & Kualitas</p>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Nilai & Kualitas</p>
                                         <h2 className="text-lg font-black text-slate-900">Ringkasan Keuangan</h2>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1898,7 +1898,7 @@ export default function DashboardPage() {
                                                     {item.icon}
                                                     <ChevronRight className="w-4 h-4 opacity-50" />
                                                 </div>
-                                                <p className="mt-4 text-[10px] font-bold uppercase tracking-wide opacity-80">{item.label}</p>
+                                                <p className="mt-4 text-xs font-bold uppercase tracking-wide opacity-80">{item.label}</p>
                                                 <p className="mt-1 text-lg font-black">{item.value}</p>
                                             </button>
                                         ))}
@@ -1907,10 +1907,10 @@ export default function DashboardPage() {
                                         <button className="mt-3 w-full rounded-2xl border border-purple-100 bg-purple-50 p-4 text-left hover:border-purple-300 transition-colors" onClick={() => setDetailModal({ open: true, title: 'Rata-rata Cost/mÂ²', context: 'COST_M2', subContext: '' })}>
                                             <div className="flex items-center justify-between gap-4">
                                                 <div>
-                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-purple-500">Cost/mÂ²</p>
+                                                    <p className="text-xs font-bold uppercase tracking-wide text-purple-500">Cost/mÂ²</p>
                                                     <p className="mt-1 text-sm font-black text-purple-900">Terbangun {formatRupiah(stats.avgCostTerbangun)}</p>
                                                 </div>
-                                                <div className="text-right text-[11px] font-bold text-purple-700">
+                                                <div className="text-right text-xs font-bold text-purple-700">
                                                     <p>Bangunan {formatRupiah(stats.avgCostBangunan)}</p>
                                                     <p>Terbuka {formatRupiah(stats.avgCostTerbuka)}</p>
                                                 </div>
@@ -1937,7 +1937,7 @@ export default function DashboardPage() {
                                             {Object.entries(stats.miniStats).map(([label, val]) => (
                                                 <div key={label} className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 flex flex-col items-center justify-center min-w-17.5 hover:bg-blue-50 transition-colors">
                                                     <span className="text-[8px] font-bold text-slate-400 uppercase leading-none text-center">{label}</span>
-                                                    <span className="text-[12px] font-black text-blue-600 mt-1 leading-none">{val}</span>
+                                                    <span className="text-sm font-black text-blue-600 mt-1 leading-none">{val}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1959,7 +1959,7 @@ export default function DashboardPage() {
                                             {Object.entries(stats.miniPerhatian).map(([label, val]) => (
                                                 <div key={label} className={`rounded-lg px-2 py-1 flex flex-col items-center justify-center min-w-17.5 border hover:opacity-80 transition-opacity ${val > 0 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
                                                     <span className={`text-[8px] font-bold uppercase leading-none text-center ${val > 0 ? 'text-red-400' : 'text-slate-400'}`}>{label}</span>
-                                                    <span className={`text-[12px] font-black mt-1 leading-none ${val > 0 ? 'text-red-600' : 'text-slate-400'}`}>{val}</span>
+                                                    <span className={`text-sm font-black mt-1 leading-none ${val > 0 ? 'text-red-600' : 'text-slate-400'}`}>{val}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1980,15 +1980,15 @@ export default function DashboardPage() {
                                             <div className="grid grid-cols-3 gap-10 w-full mt-2 md:mt-0 md:w-auto">
                                                 <div className="bg-purple-50/60 border border-purple-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-purple-100/40 transition-colors">
                                                     <span className="text-[8px] font-bold text-purple-500 uppercase tracking-wider leading-none text-center">Terbangun</span>
-                                                    <span className="text-[10px] sm:text-[11px] font-black text-purple-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostTerbangun)}</span>
+                                                    <span className="text-xs sm:text-xs font-black text-purple-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostTerbangun)}</span>
                                                 </div>
                                                 <div className="bg-blue-50/60 border border-blue-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-blue-100/40 transition-colors">
                                                     <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider leading-none text-center">Bangunan</span>
-                                                    <span className="text-[10px] sm:text-[11px] font-black text-blue-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostBangunan)}</span>
+                                                    <span className="text-xs sm:text-xs font-black text-blue-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostBangunan)}</span>
                                                 </div>
                                                 <div className="bg-emerald-50/60 border border-emerald-100/80 rounded-lg px-2.5 py-1.5 flex flex-col items-center justify-center min-w-20 hover:bg-emerald-100/40 transition-colors">
                                                     <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider leading-none text-center">Terbuka</span>
-                                                    <span className="text-[10px] sm:text-[11px] font-black text-emerald-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostTerbuka)}</span>
+                                                    <span className="text-xs sm:text-xs font-black text-emerald-700 mt-1.5 leading-none">{formatRupiah(stats.avgCostTerbuka)}</span>
                                                 </div>
                                             </div>
                                         }
@@ -2136,7 +2136,7 @@ export default function DashboardPage() {
                             </div>
                             <div>
                                 <AlertDialogTitle className="text-base font-black leading-none text-slate-950">{detailModal.title}</AlertDialogTitle>
-                                <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-black">Monitoring Rincian Data</p>
+                                <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-black">Monitoring Rincian Data</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2167,7 +2167,7 @@ export default function DashboardPage() {
                                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Ringkasan Status</p>
+                                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Ringkasan Status</p>
                                             <h3 className="text-xl font-black text-slate-950">Pilih tahap untuk melihat toko</h3>
                                         </div>
                                         <Badge className="w-fit border-slate-200 bg-slate-100 px-3 py-1 font-black text-slate-700">{stats.total} total toko</Badge>
@@ -2184,7 +2184,7 @@ export default function DashboardPage() {
                                             >
                                                 <div className="flex items-start justify-between gap-4">
                                                     <div>
-                                                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+                                                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">{label}</p>
                                                         <p className="mt-2 text-3xl font-black text-slate-950">{val}</p>
                                                     </div>
                                                     <ChevronRight className="mt-1 h-4 w-4 text-slate-300 group-hover:text-red-600" />
@@ -2192,7 +2192,7 @@ export default function DashboardPage() {
                                                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
                                                     <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.max(3, pct)}%` }} />
                                                 </div>
-                                                <p className="mt-2 text-[11px] font-bold text-slate-400">{pct}% dari total toko</p>
+                                                <p className="mt-2 text-xs font-bold text-slate-400">{pct}% dari total toko</p>
                                             </button>
                                         );
                                     })}
@@ -2205,7 +2205,7 @@ export default function DashboardPage() {
                                 <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
                                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-wide text-red-500">Perlu Tindakan</p>
+                                            <p className="text-xs font-black uppercase tracking-wide text-red-500">Perlu Tindakan</p>
                                             <h3 className="text-xl font-black text-red-950">Tahap yang lewat SLA</h3>
                                             <p className="mt-1 text-sm font-semibold text-red-700">Klik salah satu tahap untuk membuka daftar toko yang perlu dicek.</p>
                                         </div>
@@ -2222,12 +2222,12 @@ export default function DashboardPage() {
                                         >
                                             <div className="flex items-start justify-between gap-4">
                                                 <div>
-                                                    <p className={`text-[11px] font-black uppercase tracking-wide ${val > 0 ? 'text-red-500' : 'text-slate-400'}`}>{label}</p>
+                                                    <p className={`text-xs font-black uppercase tracking-wide ${val > 0 ? 'text-red-500' : 'text-slate-400'}`}>{label}</p>
                                                     <p className={`mt-2 text-3xl font-black ${val > 0 ? 'text-red-700' : 'text-slate-300'}`}>{val}</p>
                                                 </div>
                                                 {val > 0 && <ChevronRight className="mt-1 h-4 w-4 text-red-400" />}
                                             </div>
-                                            <p className="mt-3 text-[11px] font-bold text-slate-400">{val > 0 ? 'Ada toko yang perlu dicek' : 'Tidak ada masalah'}</p>
+                                            <p className="mt-3 text-xs font-bold text-slate-400">{val > 0 ? 'Ada toko yang perlu dicek' : 'Tidak ada masalah'}</p>
                                         </button>
                                     ))}
                                 </div>
@@ -2287,16 +2287,16 @@ export default function DashboardPage() {
                             const paginatedData = modalData.slice((modalPage - 1) * itemsPerPage, modalPage * itemsPerPage);
                             const renderModalPagination = () => (
                                 <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                    <p className="text-[11px] font-semibold text-slate-400">
+                                    <p className="text-xs font-semibold text-slate-400">
                                         Menampilkan <span className="font-black text-slate-700">{modalData.length ? Math.min(modalData.length, (modalPage - 1) * itemsPerPage + 1) : 0} - {Math.min(modalData.length, modalPage * itemsPerPage)}</span> dari <span className="font-black text-slate-700">{modalData.length}</span> data
                                     </p>
                                     {totalPages > 1 && (
                                         <div className="flex items-center gap-2">
-                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-[10px] font-bold" onClick={() => setModalPage(p => Math.max(1, p - 1))} disabled={modalPage === 1}>
+                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-xs font-bold" onClick={() => setModalPage(p => Math.max(1, p - 1))} disabled={modalPage === 1}>
                                                 Sebelumnya
                                             </Button>
-                                            <span className="rounded-lg bg-slate-100 px-3 py-2 text-[10px] font-black text-slate-600">{modalPage} / {totalPages}</span>
-                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-[10px] font-bold" onClick={() => setModalPage(p => Math.min(totalPages, p + 1))} disabled={modalPage === totalPages}>
+                                            <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">{modalPage} / {totalPages}</span>
+                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-xs font-bold" onClick={() => setModalPage(p => Math.min(totalPages, p + 1))} disabled={modalPage === totalPages}>
                                                 Selanjutnya
                                             </Button>
                                         </div>
@@ -2329,7 +2329,7 @@ export default function DashboardPage() {
                                             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                                                 {summaryCards.map(item => (
                                                     <div key={item.label} className={`rounded-xl border px-4 py-3 ${item.tone}`}>
-                                                        <p className="text-[10px] font-black uppercase tracking-wide opacity-70">{item.label}</p>
+                                                        <p className="text-xs font-black uppercase tracking-wide opacity-70">{item.label}</p>
                                                         <p className="mt-1 text-base font-black leading-tight">{item.value}</p>
                                                     </div>
                                                 ))}
@@ -2353,7 +2353,7 @@ export default function DashboardPage() {
                                                                     <p className="mt-1 text-xs font-semibold text-slate-500">{p.tokoCount || 0} toko / ULOK dinilai</p>
                                                                 </div>
                                                                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right">
-                                                                    <p className="text-[10px] font-black uppercase text-emerald-700">Rata-rata</p>
+                                                                    <p className="text-xs font-black uppercase text-emerald-700">Rata-rata</p>
                                                                     <p className="text-2xl font-black text-emerald-900">{Number(p.nilai || 0).toFixed(1)}</p>
                                                                 </div>
                                                             </div>
@@ -2363,7 +2363,7 @@ export default function DashboardPage() {
                                                                         <div className="flex items-start justify-between gap-3">
                                                                             <div>
                                                                                 <p className="text-sm font-black text-slate-900">{st.nama_toko || '-'}</p>
-                                                                                <p className="text-[11px] font-semibold text-slate-500">{st.nomor_ulok || '-'} - {st.cabang || '-'}</p>
+                                                                                <p className="text-xs font-semibold text-slate-500">{st.nomor_ulok || '-'} - {st.cabang || '-'}</p>
                                                                             </div>
                                                                             <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{Number(st.nilai || 0).toFixed(1)}</Badge>
                                                                         </div>
@@ -2449,7 +2449,7 @@ export default function DashboardPage() {
                                                                     )}
                                                                     {badges}
                                                                 </div>
-                                                                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500">
+                                                                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-slate-500">
                                                                         <span>{toko.cabang || '-'}</span>
                                                                         <span>{toko.lingkup_pekerjaan || '-'}</span>
                                                                         <span>Proyek: {toko.proyek || '-'}</span>
@@ -2465,7 +2465,7 @@ export default function DashboardPage() {
                                                                         </span>
                                                                         <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
                                                                             <p className="text-[9px] font-black uppercase text-slate-400">Denda / Telat</p>
-                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(penaltyInfo.amount)} <span className="text-[10px] text-slate-400">({lateDays}h)</span></p>
+                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(penaltyInfo.amount)} <span className="text-xs text-slate-400">({lateDays}h)</span></p>
                                                                         </span>
                                                                         <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
                                                                             <p className="text-[9px] font-black uppercase text-slate-400">ST</p>
@@ -2474,13 +2474,13 @@ export default function DashboardPage() {
                                                                     </div>
                                                                     {pendingPengawasanPdfs.length > 0 && (
                                                                         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                                                            <p className="text-[10px] font-black uppercase text-amber-700">PDF Pengawasan Migrasi</p>
+                                                                            <p className="text-xs font-black uppercase text-amber-700">PDF Pengawasan Migrasi</p>
                                                                             <div className="mt-2 flex flex-wrap gap-2">
                                                                                 {pendingPengawasanPdfs.map((pdf: any) => (
                                                                                     <Button
                                                                                         key={pdf.id}
                                                                                         variant="outline"
-                                                                                        className="h-8 rounded-lg border-amber-200 bg-white px-3 text-[11px] font-black text-amber-800"
+                                                                                        className="h-8 rounded-lg border-amber-200 bg-white px-3 text-xs font-black text-amber-800"
                                                                                         onClick={() => window.open(pdf.link_pdf_pengawasan, '_blank', 'noopener,noreferrer')}
                                                                                     >
                                                                                         <ExternalLink className="mr-1 h-3.5 w-3.5" />
@@ -2494,11 +2494,11 @@ export default function DashboardPage() {
 
                                                                 <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-white bg-white/90 px-4 py-3 shadow-xs xl:min-w-56 xl:flex-col xl:items-end xl:text-right">
                                                                     <div>
-                                                                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{headline}</p>
+                                                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">{headline}</p>
                                                                 <p className="mt-1 text-xl font-black text-slate-950">{headlineValue}</p>
                                                                     </div>
                                                                     {hasST && (
-                                                                        <Button variant="outline" className="h-8 rounded-lg px-3 text-[11px] font-black" onClick={() => handleOpenSerahTerima(p)}>
+                                                                        <Button variant="outline" className="h-8 rounded-lg px-3 text-xs font-black" onClick={() => handleOpenSerahTerima(p)}>
                                                                             <ExternalLink className="mr-1 h-3.5 w-3.5" /> Buka ST
                                                                         </Button>
                                                                     )}
@@ -2514,8 +2514,8 @@ export default function DashboardPage() {
                                                                     ['Spesifikasi', quality.spesifikasi, 35],
                                                                 ].map(([label, value, max]) => (
                                                                     <div key={String(label)} className="rounded-xl border border-amber-100 bg-white p-3">
-                                                                        <p className="text-[10px] font-black uppercase text-amber-700">{label}</p>
-                                                                        <p className="mt-1 text-sm font-black text-slate-950">{Number(value).toFixed(1)} <span className="text-[10px] text-slate-400">/ {max}</span></p>
+                                                                        <p className="text-xs font-black uppercase text-amber-700">{label}</p>
+                                                                        <p className="mt-1 text-sm font-black text-slate-950">{Number(value).toFixed(1)} <span className="text-xs text-slate-400">/ {max}</span></p>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -2547,13 +2547,13 @@ export default function DashboardPage() {
                                         <table className="w-full text-left border-collapse table-fixed">
                                             <thead className="bg-slate-50 border-b border-slate-300">
                                                 <tr>
-                                                    <th className={`px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>
+                                                    <th className={`px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>
                                                         {detailModal.context === 'NILAI_KONTRAKTOR' ? 'Nama Kontraktor' : 'Toko / Ulok'}
                                                     </th>
                                                     {detailModal.context !== 'NILAI_KONTRAKTOR' && (
-                                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 w-1/3">Cabang</th>
+                                                        <th className="px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 w-1/3">Cabang</th>
                                                     )}
-                                                    <th className={`px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>Informasi</th>
+                                                    <th className={`px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>Informasi</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-300">
@@ -2636,16 +2636,16 @@ export default function DashboardPage() {
                                                                 >
                                                                     <td className="px-4 py-3 border-r border-slate-300">
                                                                         <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                                        <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                                         <div className="mt-1">
                                                                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${useOpnameFinal ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                                                                 SUMBER: {dataSource}
                                                                             </span>
                                                                         </div>
                                                                     </td>
-                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                                     <td className="px-4 py-3 text-right">
-                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
                                                                             {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/mÂ²</span>
                                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
                                                                         </div>
@@ -2658,7 +2658,7 @@ export default function DashboardPage() {
                                                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                                                 <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm flex flex-col justify-between">
                                                                                     <div>
-                                                                                        <p className="text-[10px] text-purple-600 font-bold uppercase tracking-wider mb-2">Terbangun</p>
+                                                                                        <p className="text-xs text-purple-600 font-bold uppercase tracking-wider mb-2">Terbangun</p>
                                                                                         <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
                                                                                             <span>Total Biaya</span>
                                                                                             <span className="font-semibold text-slate-700">{formatRupiah(costTerbangun)}</span>
@@ -2676,7 +2676,7 @@ export default function DashboardPage() {
                                                                                 
                                                                                 <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm flex flex-col justify-between">
                                                                                     <div>
-                                                                                        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-2">Bangunan</p>
+                                                                                        <p className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-2">Bangunan</p>
                                                                                         <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
                                                                                             <span>Total Biaya</span>
                                                                                             <span className="font-semibold text-slate-700">{formatRupiah(costBangunan)}</span>
@@ -2694,7 +2694,7 @@ export default function DashboardPage() {
 
                                                                                 <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm flex flex-col justify-between">
                                                                                     <div>
-                                                                                        <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-2">Terbuka</p>
+                                                                                        <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-2">Terbuka</p>
                                                                                         <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
                                                                                             <span>Total Biaya</span>
                                                                                             <span className="font-semibold text-slate-700">{formatRupiah(costTerbuka)}</span>
@@ -2736,11 +2736,11 @@ export default function DashboardPage() {
                                                                 >
                                                                     <td className="px-4 py-3 border-r border-slate-300">
                                                                         <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                                        <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                                     </td>
-                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                                     <td className="px-4 py-3 text-right">
-                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
                                                                             {jhkTotal} <span className="text-[9px] text-slate-400 font-normal">Hari</span>
                                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
                                                                         </div>
@@ -2752,17 +2752,17 @@ export default function DashboardPage() {
                                                                         <td colSpan={3} className="px-4 py-4">
                                                                             <div className="grid grid-cols-3 gap-3">
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Durasi SPK</p>
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Durasi SPK</p>
                                                                                     <p className="text-sm font-black text-slate-800">{durasi}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
                                                                                 </div>
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Tambah SPK</p>
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tambah SPK</p>
                                                                                     <p className="text-sm font-black text-slate-800">{totalPertambahan}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
                                                                                 </div>
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Terlambat</p>
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Terlambat</p>
                                                                                     <p className="text-sm font-black text-slate-800">{keterlambatan}</p>
                                                                                     <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
                                                                                 </div>
@@ -2797,11 +2797,11 @@ export default function DashboardPage() {
                                                                 >
                                                                     <td className="px-4 py-3 border-r border-slate-300">
                                                                         <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                                        <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                                     </td>
-                                                                    <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                                     <td className="px-4 py-3 text-right">
-                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
                                                                             {p_total.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
                                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
                                                                         </div>
@@ -2810,7 +2810,7 @@ export default function DashboardPage() {
                                                                             {serahTerima ? (
                                                                                 <Button
                                                                                     variant="outline"
-                                                                                    className="h-7 rounded-md px-2 text-[10px] font-bold bg-white"
+                                                                                    className="h-7 rounded-md px-2 text-xs font-bold bg-white"
                                                                                     onClick={(event) => {
                                                                                         event.stopPropagation();
                                                                                         handleOpenSerahTerima(p);
@@ -2819,7 +2819,7 @@ export default function DashboardPage() {
                                                                                     <ExternalLink className="w-3 h-3 mr-1" /> Lihat ST
                                                                                 </Button>
                                                                             ) : (
-                                                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-400">Belum ST</span>
+                                                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-400">Belum ST</span>
                                                                             )}
                                                                         </div>
                                                                     </td>
@@ -2829,19 +2829,19 @@ export default function DashboardPage() {
                                                                         <td colSpan={3} className="px-4 py-4">
                                                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Desain</p>
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Desain</p>
                                                                                     <p className="text-sm font-black text-slate-800">{p_nilaiDesain.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 30</span></p>
                                                                                 </div>
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Kualitas</p>
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Kualitas</p>
                                                                                     <p className="text-sm font-black text-slate-800">{p_nilaiKualitas.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
                                                                                 </div>
                                                                                 <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Spesifikasi</p>
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Spesifikasi</p>
                                                                                     <p className="text-sm font-black text-slate-800">{p_nilaiSpesifikasi.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
                                                                                 </div>
                                                                                 <div className="bg-white rounded-xl p-3 border border-amber-200 text-center shadow-sm">
-                                                                                    <p className="text-[10px] text-amber-600 uppercase tracking-wider mb-1">Serah Terima</p>
+                                                                                    <p className="text-xs text-amber-600 uppercase tracking-wider mb-1">Serah Terima</p>
                                                                                     <p className="text-sm font-black text-slate-800">{serahTerima ? 'Tersedia' : 'Belum Ada'}</p>
                                                                                     {serahTerima?.created_at && <p className="text-[9px] text-slate-400 mt-0.5">{new Date(serahTerima.created_at).toLocaleDateString('id-ID')}</p>}
                                                                                 </div>
@@ -2863,10 +2863,10 @@ export default function DashboardPage() {
                                                                 >
                                                                     <td className="px-4 py-3 border-r border-slate-300">
                                                                         <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pK.nama_kontraktor}</div>
-                                                                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{pK.tokoCount} Toko / Ulok</div>
+                                                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{pK.tokoCount} Toko / Ulok</div>
                                                                     </td>
                                                                     <td className="px-4 py-3 text-right">
-                                                                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
                                                                             {pK.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
                                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
                                                                         </div>
@@ -2910,11 +2910,11 @@ export default function DashboardPage() {
                                                             <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
                                                                 <td className="px-4 py-3 border-r border-slate-300">
                                                                     <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pB.nama_toko}</div>
-                                                                    <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{pB.nomor_ulok}</div>
+                                                                    <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{pB.nomor_ulok}</div>
                                                                 </td>
-                                                                <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{pB.cabang}</td>
+                                                                <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{pB.cabang}</td>
                                                                 <td className="px-4 py-3 text-right">
-                                                                    <div className="text-[11px] font-black text-slate-700">{formatRupiah(pB.nominal)}</div>
+                                                                    <div className="text-xs font-black text-slate-700">{formatRupiah(pB.nominal)}</div>
                                                                 </td>
                                                             </tr>
                                                         );
@@ -2933,11 +2933,11 @@ export default function DashboardPage() {
                                                     >
                                                         <td className="px-4 py-3 border-r border-slate-300">
                                                             <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                            <div className="text-[10px] font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                            <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                        <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
                                                         <td className="px-4 py-3 text-right">
-                                                            <div className="text-[11px] font-black text-slate-700">
+                                                            <div className="text-xs font-black text-slate-700">
                                                                 {detailModal.context === 'PENAWARAN' 
                                                                     ? formatRupiah(parseCurrency(p.rab?.[0]?.grand_total_final))
                                                                     : detailModal.context === 'SPK' 
@@ -2983,7 +2983,7 @@ export default function DashboardPage() {
 
                                     {/* Pagination Controls */}
                                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                                        <p className="text-[11px] text-slate-400 font-medium">
+                                        <p className="text-xs text-slate-400 font-medium">
                                             Menampilkan <span className="text-slate-700 font-bold">{Math.min(modalData.length, (modalPage - 1) * itemsPerPage + 1)} - {Math.min(modalData.length, modalPage * itemsPerPage)}</span> dari <span className="text-slate-700 font-bold">{modalData.length}</span> data
                                         </p>
                                         {totalPages > 1 && (
@@ -2991,21 +2991,21 @@ export default function DashboardPage() {
                                                 <Button 
                                                     variant="outline" 
                                                     size="sm" 
-                                                    className="h-8 px-3 text-[10px] font-bold border-slate-200"
+                                                    className="h-8 px-3 text-xs font-bold border-slate-200"
                                                     onClick={() => setModalPage(p => Math.max(1, p - 1))}
                                                     disabled={modalPage === 1}
                                                 >
                                                     Sebelumnya
                                                 </Button>
                                                 <div className="flex items-center gap-1">
-                                                    <span className="text-[10px] font-bold text-slate-400">Halaman</span>
-                                                    <span className="text-[10px] font-black text-blue-600 px-2 py-1 bg-blue-50 rounded-md border border-blue-100">{modalPage}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400">dari {totalPages}</span>
+                                                    <span className="text-xs font-bold text-slate-400">Halaman</span>
+                                                    <span className="text-xs font-black text-blue-600 px-2 py-1 bg-blue-50 rounded-md border border-blue-100">{modalPage}</span>
+                                                    <span className="text-xs font-bold text-slate-400">dari {totalPages}</span>
                                                 </div>
                                                 <Button 
                                                     variant="outline" 
                                                     size="sm" 
-                                                    className="h-8 px-3 text-[10px] font-bold border-slate-200"
+                                                    className="h-8 px-3 text-xs font-bold border-slate-200"
                                                     onClick={() => setModalPage(p => Math.min(totalPages, p + 1))}
                                                     disabled={modalPage === totalPages}
                                                 >
@@ -3020,7 +3020,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="px-6 py-4 bg-white border-t border-slate-100 shrink-0">
-                        <p className="text-[11px] text-slate-400 font-medium italic">* Data diperbarui secara real-time berdasarkan filter yang aktif</p>
+                        <p className="text-xs text-slate-400 font-medium italic">* Data diperbarui secara real-time berdasarkan filter yang aktif</p>
                     </div>
                 </AlertDialogContent>
             </AlertDialog>
@@ -3095,7 +3095,7 @@ function StatCard({
                         {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement<any>, { className: "w-5.5 h-5.5" }) : icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
                         {value !== undefined && value !== null && value !== '' && (
                             <h3 className="text-lg font-black text-slate-800 truncate" style={{ color: valueColor }}>
                                 <AnimatedNumber value={value} isLoading={isLoading} />

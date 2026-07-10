@@ -625,7 +625,7 @@ const normalizeProjekPlanningList = (items: ProjekPlanningItem[]): NormalizedLis
 const ApprovalBadge = ({ status }: { status: string }) => {
     const upper = (status ?? '').toUpperCase();
     return (
-        <Badge className={`${STATUS_BADGE_CLASS[upper] ?? 'bg-slate-100 text-slate-600 border-slate-200'} font-semibold text-xs px-2 py-0.5 border`}>
+        <Badge className={`${STATUS_BADGE_CLASS[upper] ?? 'bg-slate-100 text-slate-600 border-slate-200'} font-medium text-xs px-2 py-0.5 border`}>
             {STATUS_LABEL[upper] ?? status}
         </Badge>
     );
@@ -2181,7 +2181,7 @@ function ApprovalPageContent() {
                                 {filteredList.length} Item
                             </Badge>
                         )}
-                        <Badge variant="outline" className="bg-black/10 text-white border-white/30 px-3 py-1 md:py-1.5 shadow-sm backdrop-blur-sm text-[10px] md:text-xs font-semibold hidden md:flex">
+                        <Badge variant="outline" className="bg-black/10 text-white border-white/30 px-3 py-1 md:py-1.5 shadow-sm backdrop-blur-sm text-xs font-medium hidden md:flex">
                             {userInfo.role || 'LOADING...'}
                         </Badge>
                     </div>
@@ -2221,7 +2221,7 @@ function ApprovalPageContent() {
                                                 <p className="text-sm text-slate-500 mt-1">{cfg.description}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Badge className={`${cfg.badgeColor} text-xs font-semibold border`}>{type}</Badge>
+                                                <Badge className={`${cfg.badgeColor} text-xs font-medium border`}>{type}</Badge>
                                                 {isCountsLoading && (
                                                     <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-300" />
                                                 )}
@@ -2552,7 +2552,7 @@ function ApprovalPageContent() {
                                                 ) : (
                                                     null
                                                 )}
-                                                <Badge className={`mt-2 ${APPROVAL_CONFIG[selectedDetail.tipe].badgeColor} font-semibold border`}>
+                                                <Badge className={`mt-2 ${APPROVAL_CONFIG[selectedDetail.tipe].badgeColor} font-medium border`}>
                                                     {APPROVAL_CONFIG[selectedDetail.tipe].label}
                                                 </Badge>
                                             </div>

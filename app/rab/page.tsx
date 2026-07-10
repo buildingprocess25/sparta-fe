@@ -1164,7 +1164,7 @@ function RABPageContent() {
                     ) : (
                       <div className="flex flex-col items-center text-slate-300">
                         <ImageIcon className="w-10 h-10" />
-                        <span className="text-[10px] font-bold mt-1 uppercase tracking-tight">Logo</span>
+                        <span className="text-xs font-bold mt-1 uppercase tracking-tight">Logo</span>
                       </div>
                     )}
                   </div>
@@ -1333,7 +1333,7 @@ function RABPageContent() {
                     <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-green-700 truncate">{asuransiFileName}</p>
-                        <p className="text-[10px] text-green-500">File berhasil diunggah</p>
+                        <p className="text-xs text-green-500">File berhasil diunggah</p>
                       </div>
                       {currentRabId && !asuransiFile && (
                         <a 
@@ -1369,7 +1369,7 @@ function RABPageContent() {
                       <div className="p-2 bg-slate-100 text-slate-500 text-sm border rounded-lg">Belum diunggah</div>
                     )
                   )}
-                  <p className="text-[10px] text-slate-400">Format: PDF (Maks. 10MB)</p>
+                  <p className="text-xs text-slate-400">Format: PDF (Maks. 10MB)</p>
                 </div>
               </div>
             </CardContent>
@@ -1461,7 +1461,7 @@ function RABPageContent() {
                                     })}
                                   </select>
                                   {itemRevisionNote && (
-                                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] leading-relaxed text-red-700 whitespace-normal">
+                                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs leading-relaxed text-red-700 whitespace-normal">
                                       <span className="font-bold">Catatan revisi item:</span> {itemRevisionNote}
                                     </div>
                                   )}
