@@ -76,24 +76,31 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
 
+    // Use ONLY SPK dates for timeline (not checkpoints)
+    // This creates a cleaner timeline based on actual work schedule
     workspace.scopes.forEach((scope) => {
         const spkStart = parseDate(scope.spk_start_date);
         const duration = Number(scope.spk_duration || 0);
-        if (spkStart) {
+        if (spkStart && duration > 0) {
             starts.push(spkStart);
             const end = new Date(spkStart);
-            end.setDate(end.getDate() + Math.max(duration, 1) - 1);
+            end.setDate(end.getDate() + duration - 1);
             ends.push(end);
         }
-
-        (scope.checkpoints || []).forEach((checkpoint) => {
-            const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
-            if (checkpointDate) {
-                starts.push(checkpointDate);
-                ends.push(checkpointDate);
-            }
-        });
     });
+
+    // Fallback: include checkpoints if no SPK dates available
+    if (starts.length === 0) {
+        workspace.scopes.forEach((scope) => {
+            (scope.checkpoints || []).forEach((checkpoint) => {
+                const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
+                if (checkpointDate) {
+                    starts.push(checkpointDate);
+                    ends.push(checkpointDate);
+                }
+            });
+        });
+    }
 
     if (starts.length === 0 || ends.length === 0) return null;
     const start = new Date(Math.min(...starts.map((date) => date.getTime())));
@@ -322,6 +329,32 @@ export default function UnifiedSupervisionGantt({
 
         return map;
     }, [details, timeline]);
+    
+    // Calculate scope activity ranges for better visual indication
+    const scopeActivityRanges = useMemo(() => {
+        const ranges = new Map<number, { start: number; end: number }>();
+        if (!timeline) return ranges;
+        
+        details.forEach((scope) => {
+            let minDay = Infinity;
+            let maxDay = -Infinity;
+            
+            scope.rows.forEach((row) => {
+                row.bars.forEach((bar) => {
+                    const start = Math.max(1, bar.start);
+                    const end = bar.end + Math.max(0, bar.delay);
+                    minDay = Math.min(minDay, start);
+                    maxDay = Math.max(maxDay, end);
+                });
+            });
+            
+            if (minDay !== Infinity && maxDay !== -Infinity) {
+                ranges.set(scope.id_toko, { start: minDay, end: maxDay });
+            }
+        });
+        
+        return ranges;
+    }, [details, timeline]);
 
     if (isLoading) {
         return (
@@ -332,6 +365,24 @@ export default function UnifiedSupervisionGantt({
     }
 
     if (!timeline) {
+        // Check if we have scopes but no valid timeline data
+        const hasScopesWithoutTimeline = workspace.scopes.length > 0 && !workspaceTimeline && !ganttFallbackTimeline;
+        
+        if (hasScopesWithoutTimeline) {
+            return (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-10 text-center">
+                    <AlertCircle className="mx-auto h-12 w-12 text-amber-600 mb-3" />
+                    <p className="text-sm font-bold text-amber-900 mb-2">
+                        Data Gantt Tidak Lengkap
+                    </p>
+                    <p className="text-xs text-amber-700">
+                        ULOK ini memiliki {workspace.scopes.length} scope ({workspace.scopes.map(s => s.lingkup_pekerjaan).join(', ')}), 
+                        tetapi tidak ada tanggal kerja atau tanggal pengawasan yang valid untuk membuat timeline.
+                    </p>
+                </div>
+            );
+        }
+        
         return (
             <div className="rounded-lg border border-dashed border-slate-300 bg-white px-5 py-10 text-center text-sm font-semibold text-slate-500">
                 Belum ada tanggal kerja atau tanggal pengawasan untuk ULOK ini.
@@ -391,8 +442,23 @@ export default function UnifiedSupervisionGantt({
     return (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-xs shadow-sm">
             <div className="border-b bg-slate-100 p-4 text-sm">
-                <h3 className="font-bold text-slate-800">Gantt Chart Terpadu</h3>
-                <p className="text-xs text-slate-500">SIPIL + ME dalam satu tanggal pengawasan.</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="font-bold text-slate-800">Gantt Chart Terpadu</h3>
+                        <p className="text-xs text-slate-500">
+                            {details.length === 1 
+                                ? `Hanya scope ${details[0].scopeName} yang tersedia untuk ULOK ini.`
+                                : `${details.map(d => d.scopeName).join(' + ')} dalam satu tanggal pengawasan.`
+                            }
+                        </p>
+                    </div>
+                    {details.length === 1 && (
+                        <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
+                            <AlertCircle className="h-4 w-4" />
+                            <span className="font-medium">Scope Tunggal</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="flex border-b border-slate-300">
@@ -494,14 +560,64 @@ export default function UnifiedSupervisionGantt({
                             </svg>
                         )}
                         {details.reduce<{ nodes: React.ReactNode[]; y: number }>((acc, scope) => {
+                            const scopeRange = scopeActivityRanges.get(scope.id_toko);
+                            const scopeTop = acc.y;
+                            const scopeHeight = GROUP_HEIGHT + (scope.rows.length * ROW_HEIGHT);
+                            
+                            // Add group header
                             acc.nodes.push(
                                 <div key={`${scope.id_toko}-group`} className="absolute left-0 right-0 border-b border-slate-300 bg-slate-100/90" style={{ top: acc.y, height: GROUP_HEIGHT }}>
-                                    <div className={`flex h-full items-center px-4 text-xs font-black ${scope.scopeName === "SIPIL" ? "text-red-700" : "text-blue-700"}`}>
-                                        {scope.scopeName}
+                                    <div className={`flex h-full items-center justify-between px-4 text-xs font-black ${scope.scopeName === "SIPIL" ? "text-red-700" : "text-blue-700"}`}>
+                                        <span>{scope.scopeName}</span>
+                                        {scopeRange && (
+                                            <span className="text-[10px] font-normal text-slate-500">
+                                                Hari {scopeRange.start}-{scopeRange.end}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             );
                             acc.y += GROUP_HEIGHT;
+                            
+                            // Add inactive day overlays BEFORE scope starts
+                            if (scopeRange && scopeRange.start > 1) {
+                                acc.nodes.push(
+                                    <div
+                                        key={`${scope.id_toko}-inactive-before`}
+                                        className="absolute z-10 pointer-events-none bg-slate-200/40"
+                                        style={{
+                                            top: scopeTop,
+                                            left: 0,
+                                            width: (scopeRange.start - 1) * DAY_WIDTH,
+                                            height: scopeHeight,
+                                        }}
+                                        title={`${scope.scopeName} belum dimulai`}
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-slate-300/60 to-slate-200/30" />
+                                    </div>
+                                );
+                            }
+                            
+                            // Add inactive day overlays AFTER scope ends
+                            if (scopeRange && scopeRange.end < timeline.days) {
+                                acc.nodes.push(
+                                    <div
+                                        key={`${scope.id_toko}-inactive-after`}
+                                        className="absolute z-10 pointer-events-none bg-slate-200/40"
+                                        style={{
+                                            top: scopeTop,
+                                            left: scopeRange.end * DAY_WIDTH,
+                                            width: (timeline.days - scopeRange.end) * DAY_WIDTH,
+                                            height: scopeHeight,
+                                        }}
+                                        title={`${scope.scopeName} sudah selesai`}
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-l from-slate-300/60 to-slate-200/30" />
+                                    </div>
+                                );
+                            }
+                            
+                            // Add rows and bars
                             scope.rows.forEach((row) => {
                                 const rowTop = acc.y;
                                 acc.nodes.push(

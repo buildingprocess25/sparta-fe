@@ -265,7 +265,7 @@ function GanttBoard() {
     const [selectedUlok, setSelectedUlok] = useState(formatUlokWithDash(urlUlok || ''));
     const [selectedGanttId, setSelectedGanttId] = useState<number | null>(null);
     const [spkTokoIds, setSpkTokoIds] = useState<Set<number>>(new Set());
-    const [spkFilter, setSpkFilter] = useState<'all' | 'spk' | 'partial' | 'no_spk'>('all');
+    const [spkFilter, setSpkFilter] = useState<'all' | 'spk' | 'partial' | 'no_spk' | 'single'>('all');
     const [spkFilterOpen, setSpkFilterOpen] = useState(false);
     const [ganttNotes, setGanttNotes] = useState<GanttNoteItem[]>([]);
     const [ganttNoteInput, setGanttNoteInput] = useState('');
@@ -298,8 +298,13 @@ function GanttBoard() {
                 const spkCount = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
                 const totalCount = ulokTokos.length;
                 
-                if (spkFilter === 'spk') return spkCount > 0 && spkCount === totalCount;
-                if (spkFilter === 'partial') return spkCount > 0 && spkCount < totalCount;
+                // SPK Lengkap: ULOK punya 2+ scope DAN semua sudah SPK
+                if (spkFilter === 'spk') return totalCount >= 2 && spkCount === totalCount;
+                // SPK Tunggal: ULOK cuma punya 1 scope DAN sudah SPK
+                if (spkFilter === 'single') return totalCount === 1 && spkCount === 1;
+                // SPK Partial: ULOK punya 2+ scope DAN hanya sebagian yang SPK
+                if (spkFilter === 'partial') return totalCount >= 2 && spkCount > 0 && spkCount < totalCount;
+                // Belum SPK
                 if (spkFilter === 'no_spk') return spkCount === 0;
                 return true;
             });
@@ -1404,46 +1409,66 @@ function GanttBoard() {
                                                     />
                                                 </div>
                                                 {/* Filter SPK - Always visible */}
-                                                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
-                                                    <div className="px-3 py-2 flex items-center gap-1.5 border-b border-slate-100">
-                                                        <SlidersHorizontal className="h-3 w-3 text-slate-400" />
-                                                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Filter SPK</span>
+                                                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
+                                                    <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                                                        <SlidersHorizontal className="h-4 w-4 text-slate-500" />
+                                                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Filter Status SPK</span>
                                                     </div>
-                                                    <div className="p-1.5 grid grid-cols-2 gap-1">
+                                                    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                         {(() => {
                                                             // Deduplicate per ULOK untuk hitungan yang benar
                                                             const uniqueUloks = [...new Map(allTokoList.map(t => [t.nomor_ulok, t])).keys()];
                                                             const countAll = uniqueUloks.length;
+                                                            
+                                                            // SPK Lengkap: ULOK punya 2+ scope DAN semua scope sudah SPK
                                                             const countSpk = uniqueUloks.filter(ulok => {
                                                                 const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
-                                                                return ulokTokos.length > 0 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                                return ulokTokos.length >= 2 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
                                                             }).length;
+                                                            
+                                                            // SPK Tunggal: ULOK cuma punya 1 scope DAN sudah SPK
+                                                            const countSingle = uniqueUloks.filter(ulok => {
+                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                return ulokTokos.length === 1 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                            }).length;
+                                                            
+                                                            // SPK Partial: ULOK punya 2+ scope DAN ada yang belum SPK
                                                             const countPartial = uniqueUloks.filter(ulok => {
                                                                 const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
                                                                 const spkC = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
-                                                                return spkC > 0 && spkC < ulokTokos.length;
+                                                                return ulokTokos.length >= 2 && spkC > 0 && spkC < ulokTokos.length;
                                                             }).length;
+                                                            
                                                             const countNoSpk = uniqueUloks.filter(ulok => {
                                                                 const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
                                                                 return ulokTokos.every(t => !spkTokoIds.has(Number(t.id_toko || t.id)));
                                                             }).length;
-                                                            const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk'; label: string; count: number; activeClass: string; hoverClass: string }[] = [
-                                                                { key: 'all', label: 'Semua', count: countAll, activeClass: 'bg-slate-900 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' },
-                                                                { key: 'spk', label: 'Sudah SPK Sipil dan ME', count: countSpk, activeClass: 'bg-emerald-600 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50' },
-                                                                { key: 'partial', label: 'Sudah SPK Partial (Sipil atau ME)', count: countPartial, activeClass: 'bg-amber-500 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-amber-600 hover:bg-amber-50' },
-                                                                { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'bg-slate-500 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-slate-700 hover:bg-slate-100' },
+                                                            
+                                                            const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number; activeClass: string; hoverClass: string; icon: string }[] = [
+                                                                { key: 'all', label: 'Semua', count: countAll, activeClass: 'bg-slate-900 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '📋' },
+                                                                { key: 'spk', label: 'SPK Lengkap', count: countSpk, activeClass: 'bg-emerald-600 text-white shadow-md', hoverClass: 'text-emerald-700 hover:bg-emerald-50 border-emerald-300 border', icon: '✓✓' },
+                                                                { key: 'single' as any, label: 'SPK Tunggal', count: countSingle, activeClass: 'bg-blue-600 text-white shadow-md', hoverClass: 'text-blue-700 hover:bg-blue-50 border-blue-300 border', icon: '✓' },
+                                                                { key: 'partial', label: 'SPK Partial', count: countPartial, activeClass: 'bg-amber-500 text-white shadow-md', hoverClass: 'text-amber-700 hover:bg-amber-50 border-amber-300 border', icon: '½' },
+                                                                { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'bg-slate-500 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '○' },
                                                             ];
                                                             return filters.map(f => (
                                                                 <button
                                                                     key={f.key}
                                                                     type="button"
-                                                                    onClick={() => setSpkFilter(f.key)}
-                                                                    className={`py-2 px-1.5 text-[10px] font-bold rounded-md transition-all text-left leading-snug ${
+                                                                    onClick={() => setSpkFilter(f.key as any)}
+                                                                    className={`py-3 px-3 text-xs font-bold rounded-lg transition-all text-left flex items-center justify-between gap-2 ${
                                                                         spkFilter === f.key ? f.activeClass : f.hoverClass
                                                                     }`}
                                                                 >
-                                                                    {f.label}<br />
-                                                                    <span className="font-normal opacity-70">{f.count} proyek</span>
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center gap-2 mb-1">
+                                                                            <span className="text-lg">{f.icon}</span>
+                                                                            <span>{f.label}</span>
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-normal ${spkFilter === f.key ? 'opacity-90' : 'opacity-60'}`}>
+                                                                            {f.count} proyek
+                                                                        </span>
+                                                                    </div>
                                                                 </button>
                                                             ));
                                                         })()}
@@ -2217,6 +2242,7 @@ function GanttBoard() {
                                                     }
                                                 }
                                                 const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly && isScopeSpkApproved;
+                                                
                                                 return (
                                                     <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                                         onClick={() => {
