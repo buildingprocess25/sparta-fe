@@ -338,7 +338,14 @@ function GanttBoard() {
     const [unifiedMemoDrafts, setUnifiedMemoDrafts] = useState<Record<string, any>>({});
 
     const { user } = useSession();
-    const isReadOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
+    
+    const isScopeSpkApproved = useMemo(() => {
+        if (!projectData?.id_toko) return false;
+        return spkTokoIds.has(Number(projectData.id_toko));
+    }, [projectData?.id_toko, spkTokoIds]);
+
+    const isViewOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
+    const isReadOnly = isViewOnly;
     const unifiedTimeline = useMemo(() => {
         if (!supervisionWorkspace) return null;
         const starts: Date[] = [];
@@ -382,15 +389,11 @@ function GanttBoard() {
             const response = await fetchSupervisionWorkspace(nomorUlok);
             setSupervisionWorkspace(response.data);
             setSelectedUlok(formatUlokWithDash(nomorUlok));
-            const scopedSpkIds = new Set<number>();
-            (response.data?.scopes || []).forEach((scope: any) => {
-                if (scope?.spk_start_date || scope?.spk_duration) {
-                    scopedSpkIds.add(Number(scope.id_toko));
-                }
-            });
-            if (scopedSpkIds.size > 0) {
-                setSpkTokoIds(scopedSpkIds);
-            }
+            // NOTE: spkTokoIds TIDAK dioverride di sini.
+            // spkTokoIds sudah diisi dengan benar dari fetchSPKList({ status: 'SPK_APPROVED' })
+            // saat halaman pertama kali dimuat. Mengoverride di sini dengan kondisi
+            // (spk_start_date || spk_duration) akan membuat filter SPK error karena
+            // scope yang WAITING_FOR_BM_APPROVAL pun bisa punya spk_start_date.
         } catch (error: any) {
             setSupervisionWorkspace(null);
             showAlert({ message: error?.message || "Gagal memuat workspace pengawasan.", type: "error" });
@@ -1400,89 +1403,51 @@ function GanttBoard() {
                                                         onChange={(e) => setSearchUlokInput(e.target.value)}
                                                     />
                                                 </div>
-                                                {/* Filter SPK - Collapsible dropdown */}
+                                                {/* Filter SPK - Always visible */}
                                                 <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSpkFilterOpen(prev => !prev)}
-                                                        className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-                                                            <span>Filter SPK</span>
-                                                            {spkFilter !== 'all' && (
-                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${spkFilter === 'spk' ? 'bg-emerald-100 text-emerald-700' : spkFilter === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
-                                                                    }`}>
-                                                                    {spkFilter === 'spk' ? 'Semua SPK' : spkFilter === 'partial' ? 'Partial SPK' : 'Belum SPK'}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {spkFilterOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
-                                                    </button>
-                                                    {spkFilterOpen && (
-                                                        <div className="border-t border-slate-100 p-1.5 grid grid-cols-4 gap-1">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setSpkFilter('all'); setSpkFilterOpen(false); }}
-                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'all'
-                                                                        ? 'bg-slate-900 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                                    <div className="px-3 py-2 flex items-center gap-1.5 border-b border-slate-100">
+                                                        <SlidersHorizontal className="h-3 w-3 text-slate-400" />
+                                                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Filter SPK</span>
+                                                    </div>
+                                                    <div className="p-1.5 grid grid-cols-2 gap-1">
+                                                        {(() => {
+                                                            // Deduplicate per ULOK untuk hitungan yang benar
+                                                            const uniqueUloks = [...new Map(allTokoList.map(t => [t.nomor_ulok, t])).keys()];
+                                                            const countAll = uniqueUloks.length;
+                                                            const countSpk = uniqueUloks.filter(ulok => {
+                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                return ulokTokos.length > 0 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                            }).length;
+                                                            const countPartial = uniqueUloks.filter(ulok => {
+                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                const spkC = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
+                                                                return spkC > 0 && spkC < ulokTokos.length;
+                                                            }).length;
+                                                            const countNoSpk = uniqueUloks.filter(ulok => {
+                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                return ulokTokos.every(t => !spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                            }).length;
+                                                            const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk'; label: string; count: number; activeClass: string; hoverClass: string }[] = [
+                                                                { key: 'all', label: 'Semua', count: countAll, activeClass: 'bg-slate-900 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' },
+                                                                { key: 'spk', label: 'Sudah SPK Sipil dan ME', count: countSpk, activeClass: 'bg-emerald-600 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50' },
+                                                                { key: 'partial', label: 'Sudah SPK Partial (Sipil atau ME)', count: countPartial, activeClass: 'bg-amber-500 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-amber-600 hover:bg-amber-50' },
+                                                                { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'bg-slate-500 text-white shadow-sm', hoverClass: 'text-slate-600 hover:text-slate-700 hover:bg-slate-100' },
+                                                            ];
+                                                            return filters.map(f => (
+                                                                <button
+                                                                    key={f.key}
+                                                                    type="button"
+                                                                    onClick={() => setSpkFilter(f.key)}
+                                                                    className={`py-2 px-1.5 text-[10px] font-bold rounded-md transition-all text-left leading-snug ${
+                                                                        spkFilter === f.key ? f.activeClass : f.hoverClass
                                                                     }`}
-                                                            >
-                                                                Semua<br />
-                                                                <span className="font-normal text-[10px] opacity-70">{allTokoList.length} proyek</span>
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setSpkFilter('spk'); setSpkFilterOpen(false); }}
-                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'spk'
-                                                                        ? 'bg-emerald-600 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
-                                                                    }`}
-                                                            >
-                                                                Semua SPK<br />
-                                                                <span className="font-normal text-[10px] opacity-70">
-                                                                    {allTokoList.filter(t => {
-                                                                        const ulokTokos = allTokoList.filter(ut => ut.nomor_ulok === t.nomor_ulok);
-                                                                        return ulokTokos.every(ut => spkTokoIds.has(Number(ut.id_toko || ut.id)));
-                                                                    }).length} proyek
-                                                                </span>
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setSpkFilter('partial'); setSpkFilterOpen(false); }}
-                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'partial'
-                                                                        ? 'bg-amber-500 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:text-amber-600 hover:bg-amber-50'
-                                                                    }`}
-                                                            >
-                                                                Partial SPK<br />
-                                                                <span className="font-normal text-[10px] opacity-70">
-                                                                    {allTokoList.filter(t => {
-                                                                        const ulokTokos = allTokoList.filter(ut => ut.nomor_ulok === t.nomor_ulok);
-                                                                        const spkC = ulokTokos.filter(ut => spkTokoIds.has(Number(ut.id_toko || ut.id))).length;
-                                                                        return spkC > 0 && spkC < ulokTokos.length;
-                                                                    }).length} proyek
-                                                                </span>
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setSpkFilter('no_spk'); setSpkFilterOpen(false); }}
-                                                                className={`py-2 text-[11px] font-bold rounded-md transition-all ${spkFilter === 'no_spk'
-                                                                        ? 'bg-slate-500 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:text-slate-700 hover:bg-slate-100'
-                                                                    }`}
-                                                            >
-                                                                Belum SPK<br />
-                                                                <span className="font-normal text-[10px] opacity-70">
-                                                                    {allTokoList.filter(t => {
-                                                                        const ulokTokos = allTokoList.filter(ut => ut.nomor_ulok === t.nomor_ulok);
-                                                                        return ulokTokos.every(ut => !spkTokoIds.has(Number(ut.id_toko || ut.id)));
-                                                                    }).length} proyek
-                                                                </span>
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                                >
+                                                                    {f.label}<br />
+                                                                    <span className="font-normal opacity-70">{f.count} proyek</span>
+                                                                </button>
+                                                            ));
+                                                        })()}
+                                                    </div>
                                                 </div>
                                             </>
                                         )}
@@ -2089,6 +2054,17 @@ function GanttBoard() {
 
                 {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
+                        {!isScopeSpkApproved && projectData && (
+                            <div className="bg-amber-50 border-b border-amber-200 p-4">
+                                <div className="flex items-start gap-3 text-amber-800">
+                                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                                    <div>
+                                        <p className="font-bold">SPK Belum Disetujui</p>
+                                        <p className="text-sm mt-1">Anda dapat membuat dan menyimpan jadwal, namun belum dapat mengisi form pengawasan fisik atau memproses Serah Terima karena SPK belum disetujui (Approved).</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
                             <div>
                                 <h2 className="font-bold text-slate-800 text-lg">Input Jadwal & Keterikatan (Dependencies)</h2>
@@ -2240,7 +2216,7 @@ function GanttBoard() {
                                                         isPengawasan = true;
                                                     }
                                                 }
-                                                const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly;
+                                                const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly && isScopeSpkApproved;
                                                 return (
                                                     <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                                         onClick={() => {
