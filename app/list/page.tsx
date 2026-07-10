@@ -3124,7 +3124,8 @@ export default function DaftarDokumenPage() {
                                                     {selectedDetail.durasi_pekerjaan && (
                                                         <InfoRow icon={<Clock className="w-4 h-4" />} label="Durasi Pekerjaan" value={`${selectedDetail.durasi_pekerjaan} Hari`} />
                                                     )}
-                                                    {(selectedDetail.beanspot_type || selectedDetail.is_hth != null || selectedDetail.is_fasade != null) && (
+                                                    {/* Info beanspot, HTH, fasade - tidak ditampilkan untuk kontraktor dan direktur kontraktor */}
+                                                    {!isContractor && !isDirektur && (selectedDetail.beanspot_type || selectedDetail.is_hth != null || selectedDetail.is_fasade != null) && (
                                                         <div className="sm:col-span-2 rounded-xl border border-blue-100 bg-blue-50/50 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                             <InfoRow icon={<ClipboardList className="w-4 h-4" />} label="Beanspot" value={formatBeanspotType(selectedDetail.beanspot_type)} />
                                                             <InfoRow icon={<ClipboardList className="w-4 h-4" />} label="HTH" value={formatHthInfo(selectedDetail.is_hth, selectedDetail.hth_meter)} />

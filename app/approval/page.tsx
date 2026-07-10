@@ -146,6 +146,11 @@ interface NormalizedDetail {
     approval_koordinator?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
     approval_manager?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
     approval_direktur?: { pemberi: string | null; waktu: string | null; catatan?: string | null };
+    // RAB coordinator info (beanspot, HTH, fasade) - hanya untuk manager
+    beanspot_type?: string | null;
+    is_hth?: boolean | null;
+    hth_meter?: string | number | null;
+    is_fasade?: boolean | null;
     // SPK specific
     nama_kontraktor?: string;
     durasi?: number;
@@ -1159,6 +1164,11 @@ function ApprovalPageContent() {
                     approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator, catatan: d.rab.catatan_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager, catatan: d.rab.catatan_persetujuan_manager },
                     approval_direktur:    { pemberi: d.rab.pemberi_persetujuan_direktur,    waktu: d.rab.waktu_persetujuan_direktur, catatan: d.rab.catatan_persetujuan_direktur },
+                    // Coordinator info (beanspot, HTH, fasade) - hanya untuk manager
+                    beanspot_type: d.rab.beanspot_type,
+                    is_hth: d.rab.is_hth,
+                    hth_meter: d.rab.hth_meter,
+                    is_fasade: d.rab.is_fasade,
                     items: (d.items ?? []).map((it: RABDetailItem) => {
                         console.log("RAB ITEM:", it);
                         return {
@@ -2559,6 +2569,46 @@ function ApprovalPageContent() {
                                         </div>
                                     </CardContent>
                                 </Card>
+
+                                {/* Informasi Tambahan - untuk RAB Manager Approval */}
+                                {selectedDetail.tipe === 'RAB' && jabatan === 'MANAGER' && (selectedDetail.beanspot_type || selectedDetail.is_hth !== null || selectedDetail.is_fasade !== null) && (
+                                    <Card className="mb-6 shadow-sm border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+                                        <CardContent className="p-6">
+                                            <h3 className="font-bold text-blue-800 text-sm mb-4 flex items-center gap-2">
+                                                <ClipboardList className="w-4 h-4 text-blue-600" />
+                                                INFORMASI TAMBAHAN
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm">
+                                                    <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-2">Beanspot</p>
+                                                    <p className="text-base font-semibold text-slate-800">
+                                                        {selectedDetail.beanspot_type ? (
+                                                            selectedDetail.beanspot_type === 'TIDAK' ? 'Tidak' : 
+                                                            selectedDetail.beanspot_type === 'ADVANCE' ? 'Advance' :
+                                                            selectedDetail.beanspot_type === 'MEDIUM' ? 'Medium' :
+                                                            selectedDetail.beanspot_type === 'RTD_ONLY' ? 'RTD Only' :
+                                                            selectedDetail.beanspot_type
+                                                        ) : '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm">
+                                                    <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-2">HTH (Head to Head)</p>
+                                                    <p className="text-base font-semibold text-slate-800">
+                                                        {selectedDetail.is_hth === true ? (
+                                                            selectedDetail.hth_meter ? `Ya, ${selectedDetail.hth_meter} meter` : 'Ya'
+                                                        ) : selectedDetail.is_hth === false ? 'Tidak' : '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm">
+                                                    <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider mb-2">Fasade</p>
+                                                    <p className="text-base font-semibold text-slate-800">
+                                                        {selectedDetail.is_fasade === true ? 'Ya' : selectedDetail.is_fasade === false ? 'Tidak' : '-'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
 
                                 {/* Visualisasi Gantt Chart - untuk RAB & SPK */}
                                 {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && selectedDetail.id_toko && (
