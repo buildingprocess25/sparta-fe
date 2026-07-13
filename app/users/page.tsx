@@ -80,10 +80,10 @@ export default function UsersPage() {
     useEffect(() => {
         if (!user) return;
 
-        const { role, email, cabang, namaLengkap, isHO, isSuperHuman, isRegionalManager } = user;
+        const { role, email, cabang, namaLengkap, isHO, isSuperHuman, isRegionalManager, isStoreControlling } = user;
 
-        if (!isHO && !isSuperHuman && !isRegionalManager) {
-            alert("Hanya pengguna Head Office, Super Human, atau Regional Manager yang dapat mengakses halaman ini.");
+        if (!isHO && !isSuperHuman && !isRegionalManager && !isStoreControlling) {
+            alert("Hanya pengguna Head Office, Super Human, Regional Manager, atau Store & Branch Controlling yang dapat mengakses halaman ini.");
             router.push('/dashboard');
             return;
         }
@@ -121,9 +121,11 @@ export default function UsersPage() {
     // =========================================================================
     // FORM HANDLERS
     // =========================================================================
+    const canEditUsers = user?.isSuperHuman || user?.isStoreControlling;
+
     const openAddForm = () => {
-        if (user?.isRegionalManager) {
-            showToast('Regional Manager hanya memiliki akses view.', 'error');
+        if (!canEditUsers) {
+            showToast('Anda tidak memiliki akses untuk menambah user.', 'error');
             return;
         }
         setIsEditing(false);
@@ -132,7 +134,7 @@ export default function UsersPage() {
     };
 
     const openEditForm = (user: any) => {
-        if (!userInfo.role.includes('SUPER HUMAN')) {
+        if (!canEditUsers) {
             showToast('Anda tidak memiliki akses untuk mengubah user.', 'error');
             return;
         }
@@ -149,7 +151,7 @@ export default function UsersPage() {
     };
 
     const handleSave = async () => {
-        if (!user?.isSuperHuman) {
+        if (!canEditUsers) {
             showToast('Anda tidak memiliki akses untuk menyimpan user.', 'error');
             return;
         }
@@ -188,7 +190,7 @@ export default function UsersPage() {
     // DELETE HANDLER
     // =========================================================================
     const confirmDelete = async () => {
-        if (!user?.isSuperHuman) {
+        if (!canEditUsers) {
             showToast('Anda tidak memiliki akses untuk menghapus user.', 'error');
             return;
         }
@@ -248,14 +250,14 @@ export default function UsersPage() {
                             <p className="text-sm text-slate-500">Kelola data PIC dan akses aplikasi setiap cabang</p>
                         </div>
                     </div>
-                    {/* Tambah User hanya untuk Super Human */}
-                    {user?.isSuperHuman && (
+                    {/* Tambah User untuk Super Human atau Store & Branch Controlling */}
+                    {canEditUsers && (
                         <Button onClick={openAddForm} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm h-10 px-5 font-semibold shrink-0">
                             <Plus className="w-4 h-4 mr-2" />
                             Tambah User
                         </Button>
                     )}
-                    {user?.isHO && !user?.isSuperHuman && (
+                    {!canEditUsers && user?.isHO && (
                         <span className="text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full">
                             👁 View Only
                         </span>
@@ -359,7 +361,7 @@ export default function UsersPage() {
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">
-                                                {user?.isSuperHuman && (
+                                                {canEditUsers && (
                                                     <>
                                                         <Button variant="outline" size="sm" onClick={() => openEditForm(u)} className="h-8 w-8 p-0 rounded-lg text-amber-600 border-amber-200 hover:bg-amber-50">
                                                             <Edit2 className="w-4 h-4" />
@@ -369,7 +371,7 @@ export default function UsersPage() {
                                                         </Button>
                                                     </>
                                                 )}
-                                                {!user?.isSuperHuman && (
+                                                {!canEditUsers && (
                                                     <span className="text-xs text-slate-400 italic">—</span>
                                                 )}
                                             </div>

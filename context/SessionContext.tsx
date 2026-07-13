@@ -22,6 +22,8 @@ export interface UserSession {
   isSuperHuman: boolean;
   /** true jika jabatan === "BUILDING & MAINTENANCE REGIONAL MANAGER" */
   isRegionalManager: boolean;
+  /** true jika jabatan === "STORE & BRANCH CONTROLLING SPECIALIST" */
+  isStoreControlling: boolean;
 }
 
 interface SessionContextValue {
@@ -185,6 +187,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const isSuperHuman = hasSuperHumanRole(roles);
     const isRegionalManager = hasRegionalManagerRole(roles);
+    const isStoreControlling = roles.some(r => r.includes('STORE & BRANCH CONTROLLING'));
 
     const sessionUser: UserSession = {
       email,
@@ -197,6 +200,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       isHO,
       isSuperHuman,
       isRegionalManager,
+      isStoreControlling,
     };
 
     const hydrateSession = async () => {
