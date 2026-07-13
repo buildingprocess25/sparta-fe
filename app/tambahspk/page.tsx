@@ -516,7 +516,7 @@ export default function TambahSPKPage() {
                                             <InfoItem
                                                 icon={<Hash className="w-3.5 h-3.5" />}
                                                 label="Kode Toko"
-                                                value={selectedSpk.toko?.kode_toko || selectedSpk.kode_toko || '-'}
+                                                value={selectedSpk.toko?.kode_toko || selectedSpk.kode_toko || 'Belum diisi'}
                                             />
                                             <InfoItem
                                                 icon={<Info className="w-3.5 h-3.5" />}

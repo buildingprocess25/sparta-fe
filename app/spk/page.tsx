@@ -175,7 +175,7 @@ export default function SPKPage() {
                 "Lingkup_Pekerjaan": r.lingkup_pekerjaan || "-",
                 "Cabang": r.cabang,
                 "Nama_Toko": r.toko?.nama_toko || r.nama_toko,
-                "Kode_Toko": r.toko?.kode_toko || "-", 
+                "Kode_Toko": r.toko?.kode_toko || "", 
                 "Proyek": r.proyek || "-",
                 "Alamat": r.toko?.alamat || "-",
                 "Grand Total": r.grand_total || 0,
@@ -344,6 +344,16 @@ export default function SPKPage() {
         }
         if (!selectedRabObj) return;
 
+        // Validasi kode toko sebelum submit
+        if (!form.kode_toko || form.kode_toko.trim().length < 2) {
+            showAlert({ message: "Kode Toko wajib diisi minimal 2 karakter alfanumerik.", type: "error" });
+            return;
+        }
+        if (!/^[A-Z0-9]{2,}$/.test(form.kode_toko.trim())) {
+            showAlert({ message: "Kode Toko hanya boleh berisi huruf dan angka (minimal 2 karakter).", type: "error" });
+            return;
+        }
+
         const fullPAR = `${form.par_no}/PROPNDEV-${form.kode_cabang}-${form.par_bulan}-${form.par_tahun}`;
 
         const payload = {
@@ -487,7 +497,23 @@ export default function SPKPage() {
                                     <div className="pt-4 border-t mt-4 border-slate-100">
                                         <div className="mb-4 space-y-2 md:w-1/2">
                                             <label className="text-sm font-medium text-slate-700">Kode Toko *</label>
-                                        <input type="text" required readOnly={isReadOnly} className="w-full p-2.5 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 uppercase" value={form.kode_toko} onChange={e => setForm({...form, kode_toko: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()})} placeholder="Masukkan Kode Toko (Misal: T123)..." />
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                readOnly={isReadOnly} 
+                                                minLength={2}
+                                                pattern="[A-Za-z0-9]{2,}"
+                                                className="w-full p-2.5 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 uppercase" 
+                                                value={form.kode_toko} 
+                                                onChange={e => {
+                                                    const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                                                    setForm({...form, kode_toko: cleaned});
+                                                }} 
+                                                placeholder="Masukkan Kode Toko (minimal 2 karakter alfanumerik)" 
+                                            />
+                                            {form.kode_toko && form.kode_toko.length < 2 && (
+                                                <p className="text-xs text-red-600 mt-1">Kode toko minimal 2 karakter alfanumerik</p>
+                                            )}
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg">

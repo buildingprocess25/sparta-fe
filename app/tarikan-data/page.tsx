@@ -529,7 +529,7 @@ export default function TarikanDataPage() {
                                                         </div>
                                                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                                                             <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{project?.toko?.cabang || "-"}</span>
-                                                            <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" />{project?.toko?.kode_toko || "-"}</span>
+                                                            <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" />{project?.toko?.kode_toko || "Belum diisi"}</span>
                                                             <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{collectProjectDates(project)[0]?.toLocaleDateString("id-ID") || "Tanggal belum ada"}</span>
                                                         </div>
                                                     </div>

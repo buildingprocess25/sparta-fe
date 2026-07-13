@@ -200,7 +200,7 @@ function buildExportRows(rows: PenyimpananDokumenTokoWithStatus[]) {
     return [
       index + 1,
       toko.nomor_ulok || "-",
-      toko.kode_toko || "-",
+      toko.kode_toko || "Belum diisi",
       toko.nama_toko || "-",
       getBranchLocationName(toko.cabang),
       toko.proyek || "-",
@@ -953,7 +953,7 @@ export default function PenyimpananDokumenPage() {
                   <tr key={toko.id} className="hover:bg-slate-50/80 transition-colors group">
                     <td className="px-6 py-4 text-slate-500">{(currentPage - 1) * ITEMS_PER_PAGE + i + 1}</td>
                     <td className="px-6 py-4 font-bold text-slate-900 tracking-tight">{toko.nomor_ulok || '-'}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-700">{toko.kode_toko || '-'}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-700">{toko.kode_toko || 'Belum diisi'}</td>
                     <td className="px-6 py-4 font-medium text-slate-700">{toko.nama_toko}</td>
                     <td className="px-6 py-4 text-slate-600">{getBranchLocationName(toko.cabang)}</td>
                     <td className="px-6 py-4">

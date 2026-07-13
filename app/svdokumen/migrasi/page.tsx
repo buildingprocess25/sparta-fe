@@ -208,7 +208,7 @@ export default function MigrasiPenyimpananDokumenPage() {
                       <tbody className="divide-y divide-slate-100">
                         {result.sample.map((item, index) => (
                           <tr key={`${item.kode_toko}-${item.nama_dokumen}-${index}`} className="bg-white">
-                            <td className="px-3 py-3 font-semibold text-slate-900">{item.kode_toko || "-"}</td>
+                            <td className="px-3 py-3 font-semibold text-slate-900">{item.kode_toko || "Belum diisi"}</td>
                             <td className="px-3 py-3 text-slate-600">{item.cabang || "-"}</td>
                             <td className="px-3 py-3 text-slate-600">{item.kategori_dokumen}</td>
                             <td className="px-3 py-3 text-slate-700">{item.nama_dokumen}</td>

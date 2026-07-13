@@ -1949,7 +1949,7 @@ export default function InputPICPage() {
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-linear-to-br from-slate-50 to-indigo-50/30 p-4 rounded-xl border border-slate-200">
                                             <InfoItem icon={<Hash className="w-3.5 h-3.5" />} label="Nomor ULOK" value={selectedScopes[0].nomor_ulok} />
                                             <InfoItem icon={<Building2 className="w-3.5 h-3.5" />} label="Nama Toko" value={selectedScopes[0].toko?.nama_toko || '-'} />
-                                            <InfoItem icon={<Hash className="w-3.5 h-3.5" />} label="Kode Toko" value={selectedScopes[0].kode_toko || '-'} />
+                                            <InfoItem icon={<Hash className="w-3.5 h-3.5" />} label="Kode Toko" value={selectedScopes[0].kode_toko || 'Belum diisi'} />
                                             <InfoItem icon={<MapPin className="w-3.5 h-3.5" />} label="Cabang" value={selectedScopes[0].toko?.cabang || '-'} />
                                             <InfoItem icon={<Briefcase className="w-3.5 h-3.5" />} label="Proyek" value={selectedScopes[0].proyek || '-'} />
                                             <InfoItem icon={<Eye className="w-3.5 h-3.5" />} label="Lingkup Tersedia" value={formatScopeList(selectedScopes.map(scope => scope.lingkup_pekerjaan))} />
