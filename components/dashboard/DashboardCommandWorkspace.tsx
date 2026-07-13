@@ -979,9 +979,9 @@ export default function DashboardCommandWorkspace({
       return stats.beanspotStores.map((item) => ({ ...item, __kind: "beanspot" }));
     }
     if (detail.context === "DENDA") {
-      const penaltyProjects = projects.filter((project) => getPenalty(project).amount > 0);
+      // Process ALL projects (including 0 penalty) to apply peer minimum logic correctly
       const byStore = new Map<string, { project: any; penalty: any; createdAt: number }>();
-      penaltyProjects.forEach((project) => {
+      projects.forEach((project) => {
         const key = getProjectStorePenaltyKey(project);
         const latestOpnameFinal = firstOpname(project);
         const penalty = getPenalty(project);
@@ -997,7 +997,10 @@ export default function DashboardCommandWorkspace({
           byStore.set(key, { project, penalty, createdAt });
         }
       });
-      return Array.from(byStore.values()).map((entry) => entry.project);
+      // Filter out stores with 0 penalty AFTER de-duplication (peer minimum applied)
+      return Array.from(byStore.values())
+        .filter((entry) => entry.penalty.amount > 0)
+        .map((entry) => entry.project);
     }
     return projects.filter((project) => {
       const stage = getStage(project);
