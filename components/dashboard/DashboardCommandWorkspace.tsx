@@ -682,7 +682,18 @@ function SpecializedDetailContent({
   }
 
   if (context === "DENDA") {
-    const totalPenalty = rows.reduce((sum, row) => sum + getPenalty(row).amount, 0);
+    // De-duplicate by store key (ULOK) and take minimum penalty among peers (SIPIL+ME)
+    const penaltyByStore = new Map<string, number>();
+    rows.forEach(row => {
+      const penalty = getPenalty(row);
+      const storeKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
+      const existing = penaltyByStore.get(storeKey);
+      // Take minimum penalty for stores with same ULOK (peer minimum logic)
+      if (existing === undefined || penalty.amount < existing) {
+        penaltyByStore.set(storeKey, penalty.amount);
+      }
+    });
+    const totalPenalty = Array.from(penaltyByStore.values()).reduce((sum, amount) => sum + amount, 0);
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff5f5] p-4 md:p-6">
         <div className="rounded-2xl bg-linear-to-r from-red-800 to-red-600 p-6 text-white">
