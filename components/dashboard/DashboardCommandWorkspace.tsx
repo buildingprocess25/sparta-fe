@@ -1178,6 +1178,16 @@ function SpecializedDetailContent({
     
     const dedupedRows = Array.from(costByUlok.values());
     
+    // DEBUG: Log untuk cek statusLingkup
+    if (dedupedRows.length > 0) {
+      console.log('🔍 COST_M2 Debug - First 3 entries:', dedupedRows.slice(0, 3).map(e => ({
+        ulok: e.project?.toko?.nomor_ulok,
+        statusLingkup: e.costData?.statusLingkup,
+        rabs: e.costData?.rabs?.length,
+        lingkupList: e.costData?.lingkupList
+      })));
+    }
+    
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff8f8] p-4 [_.border-emerald-200]:border-red-100 [_.bg-emerald-50]:bg-red-50 [_.text-emerald-700]:text-red-600 [_.text-emerald-900]:text-red-800 md:p-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1191,18 +1201,16 @@ function SpecializedDetailContent({
                   <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
                     <Ruler className="h-4 w-4"/>
                   </span>
-                  {/* Status Lingkup Badge - Always visible */}
-                  {costData.statusLingkup && (
-                    <span className={`text-[9px] font-bold px-2 py-1 rounded ${
-                      costData.statusLingkup === 'SIPIL + ME' 
-                        ? 'bg-green-100 text-green-700 border border-green-300' 
-                        : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
-                        ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                        : 'bg-slate-200 text-slate-700 border border-slate-300'
-                    }`}>
-                      {costData.statusLingkup}
-                    </span>
-                  )}
+                  {/* Status Lingkup Badge - Force render untuk debug */}
+                  <span className={`text-[9px] font-bold px-2 py-1 rounded ${
+                    costData.statusLingkup === 'SIPIL + ME' 
+                      ? 'bg-green-100 text-green-700 border border-green-300' 
+                      : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
+                      ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                      : 'bg-red-100 text-red-700 border border-red-300'
+                  }`}>
+                    {costData.statusLingkup || '❌ NO DATA'}
+                  </span>
                 </div>
                 <p className="mt-4 text-[12px] font-semibold line-clamp-1">{row?.toko?.nama_toko}</p>
                 <p className="mt-1 text-[9px] text-slate-400">
