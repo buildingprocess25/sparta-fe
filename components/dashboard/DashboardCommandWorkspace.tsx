@@ -48,6 +48,9 @@ type Stats = {
   avgJHK: number;
   avgDelay: number;
   totalDenda: number;
+  dendaTerlambat: number;
+  dendaKritis: number;
+  dendaAman: number;
   avgCostTerbuka: number;
   avgCostBangunan: number;
   avgCostTerbangun: number;
@@ -1491,14 +1494,14 @@ export default function DashboardCommandWorkspace({
         ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
         ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final", "PENAWARAN", "neutral"],
         ["Nilai SPK", formatRupiah(stats.spk), "SPK perusahaan", "SPK", "neutral"],
-        ["Denda", formatRupiah(stats.totalDenda), "Dari opname final", "DENDA", "danger"],
+        ["Denda", formatRupiah(stats.totalDenda), "", "DENDA", "danger"],
       ]
     : [
         ["Total proyek", stats.total, isGlobalView ? "Seluruh cabang pada filter" : `Cabang ${cabang}`, "PROJECT", "neutral"],
         ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
         ["Nilai SPK", formatRupiah(stats.spk), "Seluruh SPK non-ditolak", "SPK", "neutral"],
         ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final penawaran aktif", "PENAWARAN", "neutral"],
-        ["Denda", formatRupiah(stats.totalDenda), "Dari opname final", "DENDA", "danger"],
+        ["Denda", formatRupiah(stats.totalDenda), "", "DENDA", "danger"],
       ];
 
   const insightItems = [
@@ -1511,7 +1514,7 @@ export default function DashboardCommandWorkspace({
     { label: "Ongoing", value: stats.miniStats.Ongoing, helper: "Sudah SPK dan masih berjalan", context: "PROJECT", subContext: "Ongoing", icon: HardHat },
     { label: "Done / ST", value: stats.miniStats.Done, helper: "Pekerjaan selesai", context: "PROJECT", subContext: "Done", icon: CheckCircle2 },
     { label: "SPK", value: formatRupiah(stats.spk), helper: "Nilai komitmen kerja", context: "SPK", icon: DollarSign },
-    { label: "Denda Resmi", value: formatRupiah(stats.totalDenda), helper: "Dari opname final saja", context: "DENDA", icon: AlertTriangle },
+    { label: "Denda", value: formatRupiah(stats.totalDenda), helper: "", context: "DENDA", icon: AlertTriangle },
     { label: "Cost/m² bangunan", value: formatRupiah(stats.avgCostBangunan), helper: "Rata-rata luas bangunan", context: "COST_M2", icon: Ruler },
     { label: "Cost/m² terbuka", value: formatRupiah(stats.avgCostTerbuka), helper: "Rata-rata area terbuka", context: "COST_M2", icon: Layers3 },
   ];
@@ -1554,6 +1557,12 @@ export default function DashboardCommandWorkspace({
                 { label: "Total SPK", value: stats.total },
                 { label: "Aktif", value: stats.miniStats["Ongoing"] || 0 },
                 { label: "Review SPK", value: stats.miniStats["Approval SPK"] || 0 },
+              ];
+            } else if (context === "DENDA") {
+              subMetrics = [
+                { label: "Terlambat", value: stats.dendaTerlambat || 0 },
+                { label: "Kritis", value: stats.dendaKritis || 0 },
+                { label: "Aman", value: stats.dendaAman || 0 },
               ];
             } else if (context === "DENDA") {
               const kritis = priorityProjects.filter((item: any) => item.lateDays > 3).length;
