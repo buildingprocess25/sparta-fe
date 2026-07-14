@@ -1064,26 +1064,46 @@ function SpecializedDetailContent({
   }
 
   if (context === "COST_M2") {
+    // ✅ FIX: Deduplicate per ULOK (aggregate SIPIL+ME across multiple projects)
+    const costByUlok = new Map<string, { costData: any; project: any }>();
+    
+    rows.forEach(row => {
+      // Skip beanspot stores
+      if (row.__kind === "beanspot") return;
+      
+      const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
+      const opname = firstOpname(row);
+      const costData = getAggregatedCostData(row, opname);
+      
+      const existing = costByUlok.get(ulokKey);
+      
+      if (!existing) {
+        // First entry for this ULOK
+        costByUlok.set(ulokKey, { costData, project: row });
+      } else {
+        // Merge with existing ULOK data (aggregate SIPIL+ME)
+        const merged = {
+          totalBiaya: existing.costData.totalBiaya + costData.totalBiaya,
+          luasTerbangun: Math.max(existing.costData.luasTerbangun, costData.luasTerbangun),
+          costPerM2: 0, // Will calculate after
+          jumlahLingkup: existing.costData.jumlahLingkup + costData.jumlahLingkup,
+          lingkupList: existing.costData.lingkupList + '+' + costData.lingkupList,
+          sumber: costData.sumber || existing.costData.sumber,
+          rabs: [...existing.costData.rabs, ...costData.rabs],
+        };
+        merged.costPerM2 = merged.luasTerbangun > 0 ? merged.totalBiaya / merged.luasTerbangun : 0;
+        
+        costByUlok.set(ulokKey, { costData: merged, project: row });
+      }
+    });
+    
+    const dedupedRows = Array.from(costByUlok.values());
+    
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff8f8] p-4 [_.border-emerald-200]:border-red-100 [_.bg-emerald-50]:bg-red-50 [_.text-emerald-700]:text-red-600 [_.text-emerald-900]:text-red-800 md:p-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map((row, index) => {
-            // Beanspot store rendering (unchanged)
-            if (row.__kind === "beanspot") {
-              return (
-                <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={() => onSelect(index)} 
-                  className="rounded-2xl border border-emerald-200 bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md">
-                  <Coffee className="h-5 w-5 text-emerald-700"/>
-                  <p className="mt-4 text-[12px] font-semibold">{row.nama_toko}</p>
-                  <p className="mt-1 text-[9px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p>
-                  <p className="mt-5 text-xl font-semibold text-emerald-900">{formatRupiah(row.nominal)}</p>
-                </button>
-              );
-            }
-            
-            // Regular project rendering with aggregated cost
-            const opname = firstOpname(row);
-            const costData = getAggregatedCostData(row, opname);
+          {dedupedRows.map((entry, index) => {
+            const { costData, project: row } = entry;
             
             return (
               <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)} 
