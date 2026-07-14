@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -43,7 +43,7 @@ type KontraktorStats = {
     pending_acknowledge: number;
 };
 
-export default function KontraktorSuratPeringatanPage() {
+function KontraktorSuratPeringatanContent() {
     const searchParams = useSearchParams();
     const idParam = searchParams?.get("id");
     const kontraktorParam = searchParams?.get("kontraktor");
@@ -429,5 +429,20 @@ export default function KontraktorSuratPeringatanPage() {
                 </Card>
             </div>
         </div>
+    );
+}
+
+export default function KontraktorSuratPeringatanPage() {
+    return (
+        <Suspense fallback={
+            <div className="container mx-auto p-6 max-w-7xl">
+                <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+                    <p className="mt-4 text-slate-600">Loading...</p>
+                </div>
+            </div>
+        }>
+            <KontraktorSuratPeringatanContent />
+        </Suspense>
     );
 }
