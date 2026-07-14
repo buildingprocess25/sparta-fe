@@ -950,23 +950,63 @@ function ApprovalPageContent() {
                         ? 'Menunggu Persetujuan Manajer'
                         : jabatan === 'DIREKTUR_KONTRAKTOR'
                             ? 'Menunggu Persetujuan Direktur Kontraktor'
+                            : jabatan === 'DIREKTUR'
+                            ? 'Menunggu Persetujuan Direktur'
                             : null;
                 
-                console.log('[OPNAME List] Fetching with status filter:', pendingStatuses);
+                console.log('[OPNAME List] Fetching with:', {
+                    jabatan,
+                    targetStatus: pendingStatuses,
+                    userEmail: userInfo.email,
+                    userCompany: userInfo.nama_pt,
+                    branchCoverage: hydratedBranchCoverage.length
+                });
                 
                 const res = await fetchOpnameFinalList({
                     aksi: 'terkunci',
                     tipe_opname: 'OPNAME_FINAL',
-                    ...(pendingStatuses ? { status: pendingStatuses } : {})
+                    ...(pendingStatuses ? { status: pendingStatuses } : {}),
+                    ...(hydratedBranchCoverage.length > 0 ? { cabang_array: hydratedBranchCoverage } : {})
                 });
+                
                 const opnameListRaw = Array.isArray(res.data)
                     ? res.data
                     : Array.isArray((res.data as any)?.opname_final)
                         ? (res.data as any).opname_final
                         : [];
+                
                 console.log('[OPNAME List] Raw items from API:', opnameListRaw.length);
+                
                 normalized = normalizeOpnameList(opnameListRaw);
+                
                 console.log('[OPNAME List] After normalization:', normalized.length);
+                
+                // Client-side company filter untuk direktur kontraktor (security berlapis)
+                const isContraktorRole = userInfo.role.split(',').some((r: string) => 
+                    r.trim().toUpperCase().includes('KONTRAKTOR') || 
+                    r.trim().toUpperCase().includes('DIREKTUR')
+                );
+                
+                if (isContraktorRole && userInfo.nama_pt) {
+                    const beforeFilter = normalized.length;
+                    normalized = normalized.filter(item => {
+                        const match = matchesUserCompany(item._raw, userInfo.nama_pt);
+                        if (!match) {
+                            console.log('[OPNAME Filter] Excluded:', {
+                                ulok: item.nomor_ulok,
+                                tokoCompany: (item._raw as any)?.nama_kontraktor,
+                                userCompany: userInfo.nama_pt
+                            });
+                        }
+                        return match;
+                    });
+                    console.log('[OPNAME List] After company filter:', {
+                        beforeFilter,
+                        afterFilter: normalized.length,
+                        userCompany: userInfo.nama_pt,
+                        filtered: beforeFilter - normalized.length
+                    });
+                }
             } else if (type === 'INSTRUKSI_LAPANGAN') {
                 const res = await fetchInstruksiLapanganList();
                 normalized = normalizeInstruksiLapanganList(res.data ?? []);
