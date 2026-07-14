@@ -1128,28 +1128,41 @@ export default function DashboardPage() {
         });
         const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
         
-        // ✅ FIX: Only sum penalties with source "Resmi" AND amount > 0 for dashboard
-        // Filter: source = "Resmi" AND amount > 0 (yang beneran ada denda)
-        const resmiPenalties = Array.from(penaltyByStoreKey.values())
-            .filter(penalty => penalty.source === 'Resmi' && penalty.amount > 0);
+        // ✅ FIX: Deduplicate per ULOK with MINIMUM penalty (earliest completion wins)
+        // penaltyByStoreKey may contain multiple entries per ULOK (SIPIL + ME)
+        // We need to group by ULOK and take MINIMUM penalty
+        const penaltyByUlok = new Map<string, ProjectPenaltyInfo>();
         
+        filteredProjects.forEach(project => {
+            const ulokKey = normalizeStorePenaltyKeyPart(project?.toko?.nomor_ulok) || `TOKO_${project?.toko?.id}`;
+            const penalty = getProjectPenaltyInfo(project, calculateProjectLateDays(project));
+            
+            // Only include Resmi penalties with amount > 0
+            if (penalty.source !== 'Resmi' || penalty.amount <= 0) return;
+            
+            const existing = penaltyByUlok.get(ulokKey);
+            
+            // ✅ Take MINIMUM penalty (peer yang selesai duluan menentukan denda)
+            if (!existing || penalty.amount < existing.amount) {
+                penaltyByUlok.set(ulokKey, penalty);
+            }
+        });
+        
+        const resmiPenalties = Array.from(penaltyByUlok.values());
         const totalDenda = resmiPenalties.reduce((sum, penalty) => sum + penalty.amount, 0);
         
-        // ✅ Breakdown by severity (per ULOK, deduplicated, only with actual penalty)
+        // ✅ Breakdown by severity (exclude "Aman" - meaningless)
         const dendaTerlambat = resmiPenalties.filter(p => p.days > 0 && p.days < 10).length;
         const dendaKritis = resmiPenalties.filter(p => p.days >= 10).length;
-        const dendaAman = resmiPenalties.filter(p => p.days === 0 && p.amount > 0).length;
         
-        // Optional: Track estimated penalties separately for debugging
+        // Optional: Track estimated penalties
         const totalDendaEstimasi = Array.from(penaltyByStoreKey.values())
             .filter(penalty => penalty.source === 'Estimasi')
             .reduce((sum, value) => sum + value.amount, 0);
         
         // Debug log
-        if (totalDenda > 0 || totalDendaEstimasi > 0) {
-            console.log(`[Dashboard] Denda Resmi: Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
-            console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Kritis=${dendaKritis}, Aman=${dendaAman}, Total ULOK dengan denda=${resmiPenalties.length}`);
-        }
+        console.log(`[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
+        console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Kritis=${dendaKritis}, Total ULOK=${resmiPenalties.length}`);
 
         const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
             type: 'KONTRAKTOR',
@@ -1171,7 +1184,6 @@ export default function DashboardPage() {
             totalDenda: totalDenda,
             dendaTerlambat: dendaTerlambat,
             dendaKritis: dendaKritis,
-            dendaAman: dendaAman,
             avgCostTerbuka: countTerbuka > 0 ? Math.round(sumRatioTerbuka / countTerbuka) : 0,
             avgCostBangunan: countBangunan > 0 ? Math.round(sumRatioBangunan / countBangunan) : 0,
             avgCostTerbangun: countTerbangun > 0 ? Math.round(sumRatioTerbangun / countTerbangun) : 0,

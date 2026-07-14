@@ -50,7 +50,6 @@ type Stats = {
   totalDenda: number;
   dendaTerlambat: number;
   dendaKritis: number;
-  dendaAman: number;
   avgCostTerbuka: number;
   avgCostBangunan: number;
   avgCostTerbangun: number;
@@ -794,29 +793,53 @@ function SpecializedDetailContent({
   }
 
   if (context === "DENDA") {
-    // De-duplicate by store key (ULOK) and take minimum penalty among peers (SIPIL+ME)
-    const penaltyByStore = new Map<string, number>();
+    // ✅ FIX: Deduplicate per ULOK, filter only "Resmi" with amount > 0
+    const penaltyByUlok = new Map<string, { penalty: ReturnType<Props["getPenalty"]>; project: any }>();
+    
     rows.forEach(row => {
       const penalty = getPenalty(row);
-      const storeKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
-      const existing = penaltyByStore.get(storeKey);
-      // Take minimum penalty for stores with same ULOK (peer minimum logic)
-      if (existing === undefined || penalty.amount < existing) {
-        penaltyByStore.set(storeKey, penalty.amount);
+      const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
+      
+      // Only include penalties with source "Resmi" AND amount > 0
+      if (penalty.source !== 'Resmi' || penalty.amount <= 0) return;
+      
+      const existing = penaltyByUlok.get(ulokKey);
+      
+      // ✅ Take MINIMUM penalty (peer yang selesai duluan) among SIPIL+ME
+      if (!existing || penalty.amount < existing.penalty.amount) {
+        penaltyByUlok.set(ulokKey, { penalty, project: row });
       }
     });
-    const totalPenalty = Array.from(penaltyByStore.values()).reduce((sum, amount) => sum + amount, 0);
+    
+    const dedupedRows = Array.from(penaltyByUlok.values()).map(entry => entry.project);
+    const totalPenalty = Array.from(penaltyByUlok.values())
+      .reduce((sum, entry) => sum + entry.penalty.amount, 0);
+    
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff5f5] p-4 md:p-6">
         <div className="rounded-2xl bg-linear-to-r from-red-800 to-red-600 p-6 text-white">
           <p className="text-[9px] uppercase tracking-[.14em] text-red-100">Eksposur denda portfolio</p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><p className="text-3xl font-semibold">{formatRupiah(totalPenalty)}</p><p className="text-[10px] text-red-100">{rows.length} toko memiliki denda</p></div>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><p className="text-3xl font-semibold">{formatRupiah(totalPenalty)}</p><p className="text-[10px] text-red-100">{dedupedRows.length} ULOK memiliki denda resmi</p></div>
         </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-white">
-          <div className="grid grid-cols-[1.2fr_.8fr_.8fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Hari terlambat</span><span className="text-right">Nilai denda</span></div>
-          {rows.map((row,index)=>{const penalty=getPenalty(row);return (
+          <div className="grid grid-cols-[1.2fr_.7fr_.9fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Status</span><span className="text-right">Nilai denda</span></div>
+          {dedupedRows.map((row,index)=>{
+            const penalty=getPenalty(row);
+            const status = penalty.days >= 10 ? 'Kritis' : (penalty.days > 0 ? 'Terlambat' : 'On-time');
+            const statusColor = penalty.days >= 10 ? 'text-rose-700' : 'text-orange-700';
+            return (
             <Fragment key={row?.toko?.id||index}>
-              <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.8fr_.8fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}><span><span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span></span><span className="text-[11px] font-semibold text-red-800">{penalty.days} hari</span><span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span></button>
+              <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.7fr_.9fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}>
+                <span>
+                  <span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span>
+                  <span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span>
+                </span>
+                <span>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${statusColor} bg-red-50`}>{status}</span>
+                  <span className="ml-1 text-[9px] text-slate-400">{penalty.days}h</span>
+                </span>
+                <span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span>
+              </button>
             </Fragment>
           )})}
         </div>
@@ -1562,7 +1585,6 @@ export default function DashboardCommandWorkspace({
               subMetrics = [
                 { label: "Terlambat", value: stats.dendaTerlambat || 0 },
                 { label: "Kritis", value: stats.dendaKritis || 0 },
-                { label: "Aman", value: stats.dendaAman || 0 },
               ];
             } else if (context === "DENDA") {
               const kritis = priorityProjects.filter((item: any) => item.lateDays > 3).length;
