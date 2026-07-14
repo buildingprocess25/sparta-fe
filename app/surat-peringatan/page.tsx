@@ -604,7 +604,7 @@ export default function SuratPeringatanPage() {
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-2">
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Dokumen Lampiran Pendukung</Label>
                                         <a
-                                            href={selectedDetailGroup.latest.lampiran_1_url}
+                                            href={`${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetailGroup.latest.lampiran_1_url)}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors"

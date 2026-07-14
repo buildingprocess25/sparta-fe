@@ -352,7 +352,7 @@ function KontraktorSuratPeringatanContent() {
                             <div className="mb-6 flex gap-3">
                                 {selectedSp.link_pdf && (
                                     <a
-                                        href={selectedSp.link_pdf}
+                                        href={`${API_URL}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedSp.link_pdf)}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
@@ -363,7 +363,7 @@ function KontraktorSuratPeringatanContent() {
                                 )}
                                 {selectedSp.lampiran_1_url && (
                                     <a
-                                        href={selectedSp.lampiran_1_url}
+                                        href={`${API_URL}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedSp.lampiran_1_url)}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
