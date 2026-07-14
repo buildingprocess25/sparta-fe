@@ -113,27 +113,10 @@ export default function SuratPeringatanPage() {
     }, [candidates, search, reason, selectedContractor, user]);
 
     const availableContractors = useMemo(() => {
-        // Logic berbeda berdasarkan alasan SP
-        if (reason === "KETERLAMBATAN") {
-            // KETERLAMBATAN: Hanya kontraktor yang punya ULOK terlambat
-            let lateCandidates = candidates.filter((c) => Number(c.hari_denda) > 0 || normalize(c.cabang) === "HEAD OFFICE");
-            
-            // Apply branch filter
-            if (user && !user.roles.includes("SUPER HUMAN")) {
-                if (user.isHO) {
-                    lateCandidates = lateCandidates.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
-                } else {
-                    lateCandidates = lateCandidates.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
-                }
-            }
-            
-            const lateContractors = new Set(lateCandidates.map((c) => normalize(c.nama_kontraktor)));
-            return contractors.filter((c) => lateContractors.has(normalize(c)));
-        }
-        
-        // MENOLAK SPK & MANIPULASI: Semua kontraktor (backend already filtered by branch)
+        // ALWAYS show ALL contractors (backend already filtered by branch)
+        // No filtering by ULOK availability
         return contractors;
-    }, [contractors, candidates, reason, user]);
+    }, [contractors]);
 
     useEffect(() => {
         if (reason === "MANIPULASI") {
@@ -454,7 +437,19 @@ export default function SuratPeringatanPage() {
                                                             <div className="p-4 text-center text-sm font-medium text-slate-500">Memuat data...</div>
                                                         ) : filteredCandidates.length === 0 ? (
                                                             <div className="p-4 text-center text-sm font-medium text-slate-500">
-                                                                {reason === "KETERLAMBATAN" ? "Tidak ada kandidat yang terlambat saat ini untuk kontraktor ini." : "Tidak ada kandidat ditemukan untuk kontraktor ini."}
+                                                                {!selectedContractor ? (
+                                                                    "Pilih kontraktor terlebih dahulu"
+                                                                ) : reason === "KETERLAMBATAN" ? (
+                                                                    <>
+                                                                        <div className="mb-2">❌ Tidak ada ULOK yang terlambat</div>
+                                                                        <div className="text-xs text-slate-400">Kontraktor ini tidak memiliki ULOK dengan keterlambatan saat ini</div>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="mb-2">❌ Tidak ada ULOK</div>
+                                                                        <div className="text-xs text-slate-400">Kontraktor ini belum memiliki ULOK terdaftar</div>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         ) : (
                                                             filteredCandidates.map((candidate) => (
