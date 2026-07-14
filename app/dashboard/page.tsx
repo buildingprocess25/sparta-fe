@@ -148,8 +148,27 @@ const getApprovedDashboardSpks = (project: any) => {
     return approved.length > 0 ? approved : (spkArr[0] ? [spkArr[0]] : []);
 };
 
-const getSpkEffectiveEndDate = (spk: any) => {
-    const pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+const getSpkEffectiveEndDate = (spk: any, project?: any) => {
+    // CROSS-LINGKUP FIX: Check pertambahan_spk for entire ULOK, not just this SPK
+    // If project is provided, check all SPKs within same ULOK
+    let pertambahanArr: any[] = [];
+    
+    if (project) {
+        // Get all SPKs for this project (same ULOK)
+        const allSpks = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+        
+        // Collect all pertambahan_spk from all SPKs in the ULOK
+        allSpks.forEach((projectSpk: any) => {
+            const spkPertambahan = Array.isArray(projectSpk?.pertambahan_spk) 
+                ? projectSpk.pertambahan_spk 
+                : [];
+            pertambahanArr.push(...spkPertambahan);
+        });
+    } else {
+        // Fallback to per-SPK if no project context
+        pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    }
+    
     const approvedPertambahanDates = pertambahanArr
         .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
         .map((pt: any) => parseDashboardDate(pt?.tanggal_spk_akhir_setelah_perpanjangan))
@@ -158,9 +177,24 @@ const getSpkEffectiveEndDate = (spk: any) => {
     return latestPertambahanDate || parseDashboardDate(spk?.waktu_selesai);
 };
 
-const getSpkAllowedDays = (spk: any) => {
+const getSpkAllowedDays = (spk: any, project?: any) => {
     const durasi = Number(spk?.durasi || 0);
-    const pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    
+    // CROSS-LINGKUP FIX: Check pertambahan for entire ULOK
+    let pertambahanArr: any[] = [];
+    
+    if (project) {
+        const allSpks = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+        allSpks.forEach((projectSpk: any) => {
+            const spkPertambahan = Array.isArray(projectSpk?.pertambahan_spk) 
+                ? projectSpk.pertambahan_spk 
+                : [];
+            pertambahanArr.push(...spkPertambahan);
+        });
+    } else {
+        pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    }
+    
     const totalPertambahan = pertambahanArr
         .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
         .reduce((sum: number, pt: any) => sum + Number(pt?.pertambahan_hari || 0), 0);
@@ -168,12 +202,12 @@ const getSpkAllowedDays = (spk: any) => {
 };
 
 const getProjectAllowedDays = (project: any) => {
-    return Math.max(0, ...getApprovedDashboardSpks(project).map(getSpkAllowedDays));
+    return Math.max(0, ...getApprovedDashboardSpks(project).map((spk: any) => getSpkAllowedDays(spk, project)));
 };
 
 const getLatestProjectSpkEndDate = (project: any) => {
     const candidateDates: Array<Date | null> = getApprovedDashboardSpks(project)
-        .map(getSpkEffectiveEndDate);
+        .map((spk: any) => getSpkEffectiveEndDate(spk, project));
     return candidateDates
         .filter((date: Date | null): date is Date => Boolean(date))
         .sort((a: Date, b: Date) => b.getTime() - a.getTime())[0];
