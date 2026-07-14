@@ -90,6 +90,46 @@ type Props = {
   getQuality: (items: any[]) => { desain: number; kualitas: number; spesifikasi: number; total: number };
 };
 
+// ============================================================================
+// HELPER: Aggregate Cost/m² dari semua RAB dalam 1 ULOK (SIPIL + ME)
+// ============================================================================
+const getAggregatedCostData = (project: any, opname: any) => {
+  const rabArr = Array.isArray(project?.rab) ? project.rab : (project?.rab ? [project.rab] : []);
+  
+  // Filter hanya RAB yang approved (DISETUJUI)
+  const approvedRabs = rabArr.filter((r: any) => 
+    String(r?.status || '').toUpperCase() === 'DISETUJUI'
+  );
+  
+  // Jika tidak ada approved RAB, fallback ke semua RAB
+  const activeRabs = approvedRabs.length > 0 ? approvedRabs : rabArr;
+  
+  // Aggregate total biaya dari semua lingkup (SIPIL + ME)
+  const totalBiayaRAB = activeRabs.reduce((sum: number, rab: any) => {
+    return sum + Number(rab?.grand_total_final || 0);
+  }, 0);
+  
+  // Ambil luas_terbangun dari RAB pertama (asumsi: luas sama untuk SIPIL dan ME)
+  const luasTerbangun = Number(activeRabs[0]?.luas_terbangun || 0);
+  
+  // Gunakan opname jika ada, kalau tidak pakai aggregate RAB
+  const totalBiaya = Number(opname?.grand_total_opname || 0) > 0 
+    ? Number(opname.grand_total_opname) 
+    : totalBiayaRAB;
+  
+  const costPerM2 = luasTerbangun > 0 ? totalBiaya / luasTerbangun : 0;
+  
+  return {
+    totalBiaya,
+    luasTerbangun,
+    costPerM2,
+    jumlahLingkup: activeRabs.length,
+    lingkupList: activeRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase()).join('+'),
+    sumber: opname ? 'Opname' : 'RAB',
+    rabs: activeRabs,  // For breakdown display
+  };
+};
+
 const PIPELINE = ["Approval RAB", "Proses Gantt", "Proses PJU", "Approval SPK", "Ongoing", "Kerja Tambah Kurang", "Done"];
 
 const contextLabels: Record<string, string> = {
@@ -182,11 +222,23 @@ function getContextCells(
     { value: `${quality.kualitas.toFixed(1)} / 35`, helper: `Spesifikasi ${quality.spesifikasi.toFixed(1)} / 35` },
     { value: `${quality.total.toFixed(1)} poin`, helper: opname?.status_opname_final || "Opname", danger: quality.total < 75 },
   ];
-  if (context === "COST_M2") return [
-    { value: opname ? "Opname" : "RAB", helper: formatRupiah(totalCost) },
-    { value: `${area} m²`, helper: `Bangunan ${Number(rab?.luas_bangunan || 0)} m²` },
-    { value: formatRupiah(area > 0 ? totalCost / area : 0), helper: "Area terbangun" },
-  ];
+  if (context === "COST_M2") {
+    const costData = getAggregatedCostData(project, opname);
+    return [
+      { 
+        value: costData.sumber, 
+        helper: `${formatRupiah(costData.totalBiaya)} total` 
+      },
+      { 
+        value: `${costData.luasTerbangun} m²`, 
+        helper: `${costData.jumlahLingkup} lingkup (${costData.lingkupList})` 
+      },
+      { 
+        value: formatRupiah(costData.costPerM2), 
+        helper: "Gabungan semua lingkup" 
+      },
+    ];
+  }
   const sla = getSlaInfo(project, stage, lateDays);
   return [
     { value: stage, helper: project?.toko?.lingkup_pekerjaan || "-" },
@@ -379,9 +431,12 @@ function getProjectValue(project: any, context: string, getLateDays: Props["getL
   if (context === "DELAY") return { label: "Keterlambatan", value: `${getLateDays(project)} hari`, helper: spk?.waktu_selesai || "Target belum tersedia" };
   if (context === "NILAI_TOKO") return { label: "Nilai toko", value: `${quality.total.toFixed(1)} poin`, helper: `D ${quality.desain.toFixed(1)} · K ${quality.kualitas.toFixed(1)} · S ${quality.spesifikasi.toFixed(1)}` };
   if (context === "COST_M2") {
-    const area = Number(rab?.luas_terbangun || 0);
-    const total = Number(opname?.grand_total_opname || rab?.grand_total_final || 0);
-    return { label: "Cost terbangun", value: formatRupiah(area > 0 ? total / area : 0), helper: `${area || 0} m² · ${opname ? "Opname" : "RAB"}` };
+    const costData = getAggregatedCostData(project, opname);
+    return { 
+      label: "Cost/m² terbangun", 
+      value: formatRupiah(costData.costPerM2), 
+      helper: `${costData.luasTerbangun} m² · ${costData.sumber} · ${costData.jumlahLingkup} lingkup` 
+    };
   }
   return { label: "Tahap", value: contextLabels[context] || "Proyek", helper: project?.toko?.lingkup_pekerjaan || "-" };
 }
@@ -499,18 +554,72 @@ function ContextInspector({
     </div>
   );
   if (context === "COST_M2") {
-    const total = Number(opname?.grand_total_opname || rab?.grand_total_final || 0);
-    const areaTerbangun = Number(rab?.luas_terbangun || 0);
-    const areaBangunan = Number(rab?.luas_bangunan || 0);
-    const areaTerbuka = Number(rab?.luas_area_terbuka || 0);
+    const costData = getAggregatedCostData(project, opname);
+    
     return (
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">{infoBox("Sumber", opname ? "Opname" : "RAB")}{infoBox("Total biaya", formatRupiah(total))}</div>
-        <div className="space-y-2">
-          {[["Area terbangun", areaTerbangun], ["Bangunan", areaBangunan], ["Area terbuka", areaTerbuka]].map(([label, area]) => (
-            <div key={String(label)} className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><div><p className="text-[9px] text-slate-400">{label}</p><p className="mt-1 text-[10px] font-medium">{Number(area)} m²</p></div><p className="text-[12px] font-semibold text-red-700">{formatRupiah(Number(area) > 0 ? total / Number(area) : 0)}</p></div>
-          ))}
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 gap-2">
+          {infoBox("Sumber", costData.sumber)}
+          {infoBox("Total biaya", formatRupiah(costData.totalBiaya))}
+          {infoBox("Luas terbangun", `${costData.luasTerbangun} m²`)}
+          {infoBox("Cost/m²", formatRupiah(costData.costPerM2), undefined, true)}
         </div>
+        
+        {/* Breakdown per Lingkup */}
+        {costData.rabs.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[9px] font-semibold text-slate-700 uppercase border-b border-slate-200 pb-1">Breakdown per Lingkup</p>
+            {costData.rabs.map((rab: any, idx: number) => {
+              const lingkup = String(rab?.lingkup_pekerjaan || '').toUpperCase();
+              const biaya = Number(rab?.grand_total_final || 0);
+              const luas = Number(rab?.luas_terbangun || 0);
+              const perM2 = luas > 0 ? biaya / luas : 0;
+              const status = String(rab?.status || '').toUpperCase();
+              
+              return (
+                <div key={idx} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 bg-white">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] font-bold text-slate-800">{lingkup}</p>
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded ${
+                        status === 'DISETUJUI' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-600">{formatRupiah(biaya)}</p>
+                    <p className="mt-0.5 text-[9px] text-slate-400">{luas} m²</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[13px] font-bold text-red-700">{formatRupiah(perM2)}</p>
+                    <p className="text-[8px] text-slate-400">per m²</p>
+                  </div>
+                </div>
+              );
+            })}
+            
+            {/* Total Gabungan Card */}
+            <div className="flex items-center justify-between rounded-xl border-2 border-red-200 bg-red-50 p-3 mt-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-bold text-red-800 uppercase">Total Gabungan</p>
+                  {costData.jumlahLingkup > 1 && (
+                    <span className="text-[8px] bg-red-200 text-red-900 px-1.5 py-0.5 rounded font-bold">
+                      {costData.lingkupList}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-[13px] font-bold text-red-900">{formatRupiah(costData.totalBiaya)}</p>
+                <p className="mt-0.5 text-[9px] text-red-700">{costData.luasTerbangun} m² terbangun</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[16px] font-extrabold text-red-900">{formatRupiah(costData.costPerM2)}</p>
+                <p className="text-[9px] text-red-700 font-semibold">per m²</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -932,10 +1041,53 @@ function SpecializedDetailContent({
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff8f8] p-4 [_.border-emerald-200]:border-red-100 [_.bg-emerald-50]:bg-red-50 [_.text-emerald-700]:text-red-600 [_.text-emerald-900]:text-red-800 md:p-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map((row,index) => {
-            if (row.__kind === "beanspot") return <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={()=>onSelect(index)} className="rounded-2xl border border-emerald-200 bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md"><Coffee className="h-5 w-5 text-emerald-700"/><p className="mt-4 text-[12px] font-semibold">{row.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p><p className="mt-5 text-xl font-semibold text-emerald-900">{formatRupiah(row.nominal)}</p></button>;
-            const rab=firstRab(row); const opname=firstOpname(row); const total=Number(opname?.grand_total_opname||rab?.grand_total_final||0); const area=Number(rab?.luas_terbangun||0);
-            return <button key={row?.toko?.id||index} type="button" onClick={()=>onSelect(index)} className="rounded-2xl border border-emerald-200 bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md"><div className="flex items-center justify-between"><span className="rounded-lg bg-emerald-50 p-2 text-emerald-700"><Ruler className="h-4 w-4"/></span><span className="text-[8px] text-slate-400">{opname?"OPNAME":"RAB"}</span></div><p className="mt-4 text-[12px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{area} m² · {formatRupiah(total)}</p><p className="mt-5 text-xl font-semibold text-emerald-900">{formatRupiah(area>0?total/area:0)}<span className="ml-1 text-[9px] font-normal text-slate-400">/m²</span></p></button>;
+          {rows.map((row, index) => {
+            // Beanspot store rendering (unchanged)
+            if (row.__kind === "beanspot") {
+              return (
+                <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={() => onSelect(index)} 
+                  className="rounded-2xl border border-emerald-200 bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md">
+                  <Coffee className="h-5 w-5 text-emerald-700"/>
+                  <p className="mt-4 text-[12px] font-semibold">{row.nama_toko}</p>
+                  <p className="mt-1 text-[9px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p>
+                  <p className="mt-5 text-xl font-semibold text-emerald-900">{formatRupiah(row.nominal)}</p>
+                </button>
+              );
+            }
+            
+            // Regular project rendering with aggregated cost
+            const opname = firstOpname(row);
+            const costData = getAggregatedCostData(row, opname);
+            
+            return (
+              <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)} 
+                className="rounded-2xl border border-emerald-200 bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
+                    <Ruler className="h-4 w-4"/>
+                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[8px] text-slate-400">{costData.sumber}</span>
+                    {costData.jumlahLingkup > 1 && (
+                      <span className="text-[7px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-semibold">
+                        {costData.lingkupList}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-4 text-[12px] font-semibold line-clamp-1">{row?.toko?.nama_toko}</p>
+                <p className="mt-1 text-[9px] text-slate-400">
+                  {costData.luasTerbangun} m² · {formatRupiah(costData.totalBiaya)}
+                  {costData.jumlahLingkup > 1 && ` · ${costData.jumlahLingkup} lingkup`}
+                </p>
+                <div className="mt-5 flex items-baseline gap-1">
+                  <p className="text-xl font-semibold text-emerald-900">
+                    {formatRupiah(costData.costPerM2)}
+                  </p>
+                  <span className="text-[9px] font-normal text-slate-400">/m²</span>
+                </div>
+              </button>
+            );
           })}
         </div>
       </div>
@@ -1359,7 +1511,7 @@ export default function DashboardCommandWorkspace({
     { label: "Ongoing", value: stats.miniStats.Ongoing, helper: "Sudah SPK dan masih berjalan", context: "PROJECT", subContext: "Ongoing", icon: HardHat },
     { label: "Done / ST", value: stats.miniStats.Done, helper: "Pekerjaan selesai", context: "PROJECT", subContext: "Done", icon: CheckCircle2 },
     { label: "SPK", value: formatRupiah(stats.spk), helper: "Nilai komitmen kerja", context: "SPK", icon: DollarSign },
-    { label: "Denda", value: formatRupiah(stats.totalDenda), helper: "Resmi dan estimasi", context: "DENDA", icon: AlertTriangle },
+    { label: "Denda Resmi", value: formatRupiah(stats.totalDenda), helper: "Dari opname final saja", context: "DENDA", icon: AlertTriangle },
     { label: "Cost/m² bangunan", value: formatRupiah(stats.avgCostBangunan), helper: "Rata-rata luas bangunan", context: "COST_M2", icon: Ruler },
     { label: "Cost/m² terbuka", value: formatRupiah(stats.avgCostTerbuka), helper: "Rata-rata area terbuka", context: "COST_M2", icon: Layers3 },
   ];

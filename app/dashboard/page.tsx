@@ -971,6 +971,9 @@ export default function DashboardPage() {
                 if (keterlambatan > 0) delayProjectCount++;
                 const penaltyKey = getProjectStorePenaltyKey(p);
                 const penaltyInfo = getProjectPenaltyInfo(p, keterlambatan);
+                
+                // ✅ FIX: Only accumulate penalty if it's official ("Resmi")
+                // Store all penalties in the map, but filter will happen during totalDenda calculation
                 penaltyByStoreKey.set(penaltyKey, compareProjectPenaltyInfo(penaltyByStoreKey.get(penaltyKey), penaltyInfo));
                 
                 projectJHK = totalAllowedDays + keterlambatan;
@@ -1124,7 +1127,21 @@ export default function DashboardPage() {
             }
         });
         const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
-        const totalDenda = Array.from(penaltyByStoreKey.values()).reduce((sum, value) => sum + value.amount, 0);
+        
+        // ✅ FIX: Only sum penalties with source "Resmi" for dashboard total
+        const totalDenda = Array.from(penaltyByStoreKey.values())
+            .filter(penalty => penalty.source === 'Resmi')
+            .reduce((sum, value) => sum + value.amount, 0);
+        
+        // Optional: Track estimated penalties separately for debugging
+        const totalDendaEstimasi = Array.from(penaltyByStoreKey.values())
+            .filter(penalty => penalty.source === 'Estimasi')
+            .reduce((sum, value) => sum + value.amount, 0);
+        
+        // Debug log
+        if (totalDenda > 0 || totalDendaEstimasi > 0) {
+            console.log(`[Dashboard] Denda Resmi: Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
+        }
 
         const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
             type: 'KONTRAKTOR',
