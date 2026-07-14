@@ -914,6 +914,16 @@ export default function DashboardPage() {
         let sumRatioBangunan = 0; let countBangunan = 0;
         let sumRatioTerbangun = 0; let countTerbangun = 0;
 
+        // ✅ FIX: Deduplicate Cost/m² per ULOK (aggregate SIPIL+ME)
+        const costPerUlokMap = new Map<string, {
+            costTerbuka: number;
+            costBangunan: number;
+            costTerbangun: number;
+            luasTerbuka: number;
+            luasBangunan: number;
+            luasTerbangun: number;
+        }>();
+
         let totalNilaiToko = 0;
         let countNilaiToko = 0;
         let totalNilaiKontraktor = 0;
@@ -1094,16 +1104,25 @@ export default function DashboardPage() {
             }
 
             if (luasTerbukaToko > 0 && costTerbukaToko > 0) {
-                sumRatioTerbuka += (costTerbukaToko / luasTerbukaToko);
-                countTerbuka++;
-            }
-            if (luasBangunanToko > 0 && costBangunanToko > 0) {
-                sumRatioBangunan += (costBangunanToko / luasBangunanToko);
-                countBangunan++;
-            }
-            if (luasTerbangunToko > 0 && costTerbangunToko > 0) {
-                sumRatioTerbangun += (costTerbangunToko / luasTerbangunToko);
-                countTerbangun++;
+                // ✅ Aggregate per ULOK (deduplicate SIPIL+ME)
+                const ulokKey = normalizeStorePenaltyKeyPart(p?.toko?.nomor_ulok) || `TOKO_${p?.toko?.id}`;
+                const existing = costPerUlokMap.get(ulokKey) || {
+                    costTerbuka: 0,
+                    costBangunan: 0,
+                    costTerbangun: 0,
+                    luasTerbuka: 0,
+                    luasBangunan: 0,
+                    luasTerbangun: 0
+                };
+                
+                costPerUlokMap.set(ulokKey, {
+                    costTerbuka: existing.costTerbuka + costTerbukaToko,
+                    costBangunan: existing.costBangunan + costBangunanToko,
+                    costTerbangun: existing.costTerbangun + costTerbangunToko,
+                    luasTerbuka: Math.max(existing.luasTerbuka, luasTerbukaToko),
+                    luasBangunan: Math.max(existing.luasBangunan, luasBangunanToko),
+                    luasTerbangun: Math.max(existing.luasTerbangun, luasTerbangunToko)
+                });
             }
 
             if (beanspotTokoNominal > 0) {
@@ -1163,6 +1182,24 @@ export default function DashboardPage() {
         // Debug log
         console.log(`[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
         console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Kritis=${dendaKritis}, Total ULOK=${resmiPenalties.length}`);
+
+        // ✅ Calculate Cost/m² from deduplicated ULOK map (aggregate SIPIL+ME)
+        costPerUlokMap.forEach((data) => {
+            if (data.luasTerbuka > 0 && data.costTerbuka > 0) {
+                sumRatioTerbuka += (data.costTerbuka / data.luasTerbuka);
+                countTerbuka++;
+            }
+            if (data.luasBangunan > 0 && data.costBangunan > 0) {
+                sumRatioBangunan += (data.costBangunan / data.luasBangunan);
+                countBangunan++;
+            }
+            if (data.luasTerbangun > 0 && data.costTerbangun > 0) {
+                sumRatioTerbangun += (data.costTerbangun / data.luasTerbangun);
+                countTerbangun++;
+            }
+        });
+
+        console.log(`[Dashboard] Cost/m² (GABUNGAN per ULOK): Terbuka=${countTerbuka} ULOK, Bangunan=${countBangunan} ULOK, Terbangun=${countTerbangun} ULOK`);
 
         const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
             type: 'KONTRAKTOR',
