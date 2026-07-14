@@ -1148,13 +1148,14 @@ export default function DashboardPage() {
         const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
         
         // ✅ FIX: Deduplicate per ULOK with MINIMUM penalty (earliest completion wins)
-        // penaltyByStoreKey may contain multiple entries per ULOK (SIPIL + ME)
-        // We need to group by ULOK and take MINIMUM penalty
+        // Use penaltyByStoreKey that was already populated in the loop above
         const penaltyByUlok = new Map<string, ProjectPenaltyInfo>();
         
-        filteredProjects.forEach(project => {
-            const ulokKey = normalizeStorePenaltyKeyPart(project?.toko?.nomor_ulok) || `TOKO_${project?.toko?.id}`;
-            const penalty = getProjectPenaltyInfo(project, calculateProjectLateDays(project));
+        // Group penalties by ULOK (deduplicate SIPIL+ME)
+        Array.from(penaltyByStoreKey.entries()).forEach(([storeKey, penalty]) => {
+            // Extract ULOK from storeKey (format: "ULOK|xxx" or "KODE|xxx" or "NAMA|xxx")
+            const ulokMatch = storeKey.match(/^ULOK\|(.+)$/);
+            const ulokKey = ulokMatch ? ulokMatch[1] : storeKey;
             
             // Only include Resmi penalties with amount > 0
             if (penalty.source !== 'Resmi' || penalty.amount <= 0) return;
