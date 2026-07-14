@@ -137,7 +137,7 @@ const contextLabels: Record<string, string> = {
   ATTENTION: "Perlu tindakan",
   PENAWARAN: "Nilai penawaran",
   SPK: "Nilai SPK",
-  DENDA: "Risiko dan denda",
+  DENDA: "Denda",
   JHK: "JHK pekerjaan",
   DELAY: "Keterlambatan",
   NILAI_TOKO: "Nilai toko",
@@ -188,7 +188,7 @@ function getContextCells(
     : Number(spk?.grand_total || rab?.grand_total_final || 0);
 
   if (context === "ATTENTION") return [
-    { value: stage, helper: penalty.amount > 0 ? `Denda ${penalty.source}` : "Melewati SLA", danger: true },
+    { value: stage, helper: penalty.amount > 0 ? "Denda aktif" : "Melewati SLA", danger: true },
     { value: lateDays > 3 ? "Kritis" : "Perlu dicek", helper: `${lateDays} hari`, danger: true },
     { value: penalty.amount > 0 ? formatRupiah(penalty.amount) : "Dokumen tertunda", helper: "Potensi dampak", danger: penalty.amount > 0 },
   ];
@@ -203,7 +203,7 @@ function getContextCells(
     { value: formatRupiah(spk?.grand_total || 0), helper: spk?.nama_kontraktor || project?.toko?.nama_kontraktor || "-" },
   ];
   if (context === "DENDA") return [
-    { value: penalty.source, helper: penalty.source === "Resmi" ? "Opname final" : "Kalkulasi SPK", danger: true },
+    { value: "Opname Final", helper: "Dari dokumen resmi", danger: true },
     { value: `${penalty.days} hari`, helper: `Target ${date(spk?.waktu_selesai)}`, danger: penalty.days > 0 },
     { value: formatRupiah(penalty.amount), helper: st ? `ST ${date(st.created_at)}` : "ST belum tersedia", danger: penalty.amount > 0 },
   ];
@@ -425,7 +425,7 @@ function getProjectValue(project: any, context: string, getLateDays: Props["getL
   if (context === "SPK") return { label: "Nilai SPK", value: formatRupiah(spk?.grand_total || 0), helper: spk?.status || "Belum ada status" };
   if (context === "DENDA") {
     const penalty = getPenalty(project);
-    return { label: `Denda ${penalty.source}`, value: formatRupiah(penalty.amount), helper: `${penalty.days} hari` };
+    return { label: "Denda", value: formatRupiah(penalty.amount), helper: `${penalty.days} hari keterlambatan` };
   }
   if (context === "JHK") return { label: "JHK efektif", value: `${Number(spk?.durasi || 0)} hari`, helper: "Durasi SPK dan tambah hari" };
   if (context === "DELAY") return { label: "Keterlambatan", value: `${getLateDays(project)} hari`, helper: spk?.waktu_selesai || "Target belum tersedia" };
@@ -526,11 +526,11 @@ function ContextInspector({
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         {infoBox("Keterlambatan", `${lateDays} hari`, "Dari target efektif", lateDays > 0)}
-        {infoBox("Nilai denda", formatRupiah(penalty.amount), penalty.source, penalty.amount > 0)}
+        {infoBox("Nilai denda", formatRupiah(penalty.amount), "Opname final", penalty.amount > 0)}
         {infoBox("Target SPK", date(spk?.waktu_selesai))}
         {infoBox("Serah terima", st ? date(st.created_at) : "Belum tersedia", undefined, !st)}
       </div>
-      <div className="rounded-xl border border-red-200 bg-red-50 p-3"><p className="text-[9px] font-semibold text-red-800">Dasar perhitungan</p><p className="mt-2 text-[9px] leading-relaxed text-red-700">{penalty.source === "Resmi" ? "Nilai berasal dari denda pada opname final." : "Estimasi dihitung dari target SPK efektif sampai serah terima atau tanggal hari ini."}</p></div>
+      <div className="rounded-xl border border-red-200 bg-red-50 p-3"><p className="text-[9px] font-semibold text-red-800">Dasar perhitungan</p><p className="mt-2 text-[9px] leading-relaxed text-red-700">Nilai denda berasal dari opname final yang telah disetujui.</p></div>
     </div>
   );
   if (context === "JHK") return (
@@ -728,7 +728,7 @@ function SpecializedDetailContent({
             </div>
             {pPenalty.amount > 0 && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 mb-3">Denda {pPenalty.source}</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-red-600 mb-3">Denda</p>
                 <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pPenalty.amount)}</p>
                 <p className="mt-1 text-[12px] font-medium text-red-600">{pPenalty.days} hari keterlambatan</p>
               </div>
@@ -807,13 +807,13 @@ function SpecializedDetailContent({
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff5f5] p-4 md:p-6">
         <div className="rounded-2xl bg-linear-to-r from-red-800 to-red-600 p-6 text-white">
           <p className="text-[9px] uppercase tracking-[.14em] text-red-100">Eksposur denda portfolio</p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><p className="text-3xl font-semibold">{formatRupiah(totalPenalty)}</p><p className="text-[10px] text-red-100">{rows.length} toko memiliki denda resmi atau estimasi</p></div>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><p className="text-3xl font-semibold">{formatRupiah(totalPenalty)}</p><p className="text-[10px] text-red-100">{rows.length} toko memiliki denda</p></div>
         </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-white">
-          <div className="grid grid-cols-[1.2fr_.7fr_.7fr_.8fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Sumber</span><span>Hari terlambat</span><span className="text-right">Nilai denda</span></div>
+          <div className="grid grid-cols-[1.2fr_.8fr_.8fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Hari terlambat</span><span className="text-right">Nilai denda</span></div>
           {rows.map((row,index)=>{const penalty=getPenalty(row);return (
             <Fragment key={row?.toko?.id||index}>
-              <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.7fr_.7fr_.8fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}><span><span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span></span><span className="text-[10px] font-medium text-red-700">{penalty.source}</span><span className="text-[11px] font-semibold text-red-800">{penalty.days} hari</span><span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span></button>
+              <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.8fr_.8fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}><span><span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span><span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span></span><span className="text-[11px] font-semibold text-red-800">{penalty.days} hari</span><span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span></button>
             </Fragment>
           )})}
         </div>
@@ -972,7 +972,7 @@ function SpecializedDetailContent({
                         {penalty.amount > 0 ? (
                           <div>
                             <p className="text-[11px] font-bold text-red-600">{formatRupiah(penalty.amount)}</p>
-                            <p className="mt-0.5 text-[9px] text-red-500">{penalty.source}</p>
+                            <p className="mt-0.5 text-[9px] text-red-500">{penalty.days} hari</p>
                           </div>
                         ) : (
                           <span className="text-[10px] text-slate-400">—</span>
@@ -1371,7 +1371,7 @@ export default function DashboardCommandWorkspace({
                         </div>
                         {pdPenalty.amount > 0 && (
                           <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
-                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-red-600">Denda {pdPenalty.source}</p>
+                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-red-600">Denda</p>
                             <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pdPenalty.amount)}</p>
                             <p className="mt-1 text-[12px] font-medium text-red-600">{pdPenalty.days} hari keterlambatan</p>
                           </div>
@@ -1491,14 +1491,14 @@ export default function DashboardCommandWorkspace({
         ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
         ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final", "PENAWARAN", "neutral"],
         ["Nilai SPK", formatRupiah(stats.spk), "SPK perusahaan", "SPK", "neutral"],
-        ["Total denda", formatRupiah(stats.totalDenda), "Resmi dan estimasi", "DENDA", "danger"],
+        ["Denda", formatRupiah(stats.totalDenda), "Dari opname final", "DENDA", "danger"],
       ]
     : [
         ["Total proyek", stats.total, isGlobalView ? "Seluruh cabang pada filter" : `Cabang ${cabang}`, "PROJECT", "neutral"],
         ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
         ["Nilai SPK", formatRupiah(stats.spk), "Seluruh SPK non-ditolak", "SPK", "neutral"],
         ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final penawaran aktif", "PENAWARAN", "neutral"],
-        ["Total denda", formatRupiah(stats.totalDenda), "Resmi dan estimasi", "DENDA", "danger"],
+        ["Denda", formatRupiah(stats.totalDenda), "Dari opname final", "DENDA", "danger"],
       ];
 
   const insightItems = [
