@@ -1171,9 +1171,9 @@ export default function DashboardPage() {
         const resmiPenalties = Array.from(penaltyByUlok.values());
         const totalDenda = resmiPenalties.reduce((sum, penalty) => sum + penalty.amount, 0);
         
-        // ✅ Breakdown by severity (exclude "Aman" - meaningless)
-        const dendaTerlambat = resmiPenalties.filter(p => p.days > 0 && p.days < 10).length;
-        const dendaKritis = resmiPenalties.filter(p => p.days >= 10).length;
+        // ✅ All penalties are classified as "Terlambat" (no "Kritis" distinction)
+        const dendaTerlambat = resmiPenalties.filter(p => p.days > 0).length;
+        const dendaKritis = 0; // Removed - no longer used
         
         // Optional: Track estimated penalties
         const totalDendaEstimasi = Array.from(penaltyByStoreKey.values())
@@ -1182,7 +1182,7 @@ export default function DashboardPage() {
         
         // Debug log
         console.log(`[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
-        console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Kritis=${dendaKritis}, Total ULOK=${resmiPenalties.length}`);
+        console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Total ULOK=${resmiPenalties.length}`);
 
         // ✅ Calculate Cost/m² from deduplicated ULOK map (aggregate SIPIL+ME)
         costPerUlokMap.forEach((data) => {
@@ -1221,7 +1221,6 @@ export default function DashboardPage() {
             avgDelay: Math.round(totalDelay / (delayProjectCount || 1)),
             totalDenda: totalDenda,
             dendaTerlambat: dendaTerlambat,
-            dendaKritis: dendaKritis,
             avgCostTerbuka: countTerbuka > 0 ? Math.round(sumRatioTerbuka / countTerbuka) : 0,
             avgCostBangunan: countBangunan > 0 ? Math.round(sumRatioBangunan / countBangunan) : 0,
             avgCostTerbangun: countTerbangun > 0 ? Math.round(sumRatioTerbangun / countTerbangun) : 0,

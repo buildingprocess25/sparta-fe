@@ -49,7 +49,6 @@ type Stats = {
   avgDelay: number;
   totalDenda: number;
   dendaTerlambat: number;
-  dendaKritis: number;
   avgCostTerbuka: number;
   avgCostBangunan: number;
   avgCostTerbangun: number;
@@ -121,12 +120,33 @@ const getAggregatedCostData = (project: any, opname: any) => {
   
   const costPerM2 = luasTerbangun > 0 ? totalBiaya / luasTerbangun : 0;
   
+  // ✅ Determine status lingkup untuk indikasi data lengkap/tidak
+  const lingkupSet = new Set(
+    activeRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase().trim())
+      .filter(Boolean)
+  );
+  
+  let statusLingkup = '';
+  if (lingkupSet.has('SIPIL') && lingkupSet.has('ME')) {
+    statusLingkup = 'SIPIL+ME'; // Lengkap
+  } else if (lingkupSet.has('SIPIL')) {
+    statusLingkup = 'SIPIL saja'; // Incomplete - hanya SIPIL
+  } else if (lingkupSet.has('ME')) {
+    statusLingkup = 'ME saja'; // Incomplete - hanya ME
+  } else if (activeRabs.length > 0) {
+    // Ada RAB tapi lingkup tidak standar
+    statusLingkup = Array.from(lingkupSet).join('+');
+  } else {
+    statusLingkup = 'Belum ada RAB';
+  }
+  
   return {
     totalBiaya,
     luasTerbangun,
     costPerM2,
     jumlahLingkup: activeRabs.length,
     lingkupList: activeRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase()).join('+'),
+    statusLingkup, // ✅ NEW: Status untuk indikasi kelengkapan
     sumber: opname ? 'Opname' : 'RAB',
     rabs: activeRabs,  // For breakdown display
   };
@@ -228,16 +248,18 @@ function getContextCells(
     const costData = getAggregatedCostData(project, opname);
     return [
       { 
-        value: costData.sumber, 
-        helper: `${formatRupiah(costData.totalBiaya)} total` 
+        value: costData.statusLingkup, 
+        helper: costData.sumber === 'Opname' ? 'Dari opname final' : 'Dari RAB approved',
+        danger: costData.statusLingkup.includes('saja') // Warning jika tidak lengkap
       },
       { 
         value: `${costData.luasTerbangun} m²`, 
-        helper: `${costData.jumlahLingkup} lingkup (${costData.lingkupList})` 
+        helper: `${formatRupiah(costData.totalBiaya)} total`
       },
       { 
         value: formatRupiah(costData.costPerM2), 
-        helper: "Gabungan semua lingkup" 
+        helper: "Cost per meter persegi",
+        danger: costData.statusLingkup.includes('saja') // Warning jika tidak lengkap
       },
     ];
   }
@@ -437,7 +459,7 @@ function getProjectValue(project: any, context: string, getLateDays: Props["getL
     return { 
       label: "Cost/m² terbangun", 
       value: formatRupiah(costData.costPerM2), 
-      helper: `${costData.luasTerbangun} m² · ${costData.sumber} · ${costData.jumlahLingkup} lingkup` 
+      helper: `${costData.statusLingkup} · ${costData.luasTerbangun} m²${costData.sumber === 'Opname' ? ' · Opname' : ''}`
     };
   }
   return { label: "Tahap", value: contextLabels[context] || "Proyek", helper: project?.toko?.lingkup_pekerjaan || "-" };
@@ -557,15 +579,29 @@ function ContextInspector({
   );
   if (context === "COST_M2") {
     const costData = getAggregatedCostData(project, opname);
+    const isIncomplete = costData.statusLingkup.includes('saja');
     
     return (
       <div className="space-y-3">
+        {/* Warning jika data tidak lengkap */}
+        {isIncomplete && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-[9px] font-semibold text-amber-800">⚠️ Data Tidak Lengkap</p>
+            <p className="mt-1 text-[9px] text-amber-700">
+              ULOK ini hanya memiliki RAB {costData.statusLingkup}. Untuk perhitungan akurat, 
+              pastikan SIPIL dan ME sudah lengkap.
+            </p>
+          </div>
+        )}
+        
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-2">
-          {infoBox("Sumber", costData.sumber)}
+          {infoBox("Status Lingkup", costData.statusLingkup, 
+            costData.sumber === 'Opname' ? 'Dari opname final' : 'Dari RAB approved',
+            isIncomplete)}
           {infoBox("Total biaya", formatRupiah(costData.totalBiaya))}
           {infoBox("Luas terbangun", `${costData.luasTerbangun} m²`)}
-          {infoBox("Cost/m²", formatRupiah(costData.costPerM2), undefined, true)}
+          {infoBox("Cost/m²", formatRupiah(costData.costPerM2), undefined, isIncomplete)}
         </div>
         
         {/* Breakdown per Lingkup */}
@@ -602,22 +638,44 @@ function ContextInspector({
             })}
             
             {/* Total Gabungan Card */}
-            <div className="flex items-center justify-between rounded-xl border-2 border-red-200 bg-red-50 p-3 mt-3">
+            <div className={`flex items-center justify-between rounded-xl border-2 p-3 mt-3 ${
+              isIncomplete ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'
+            }`}>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-bold text-red-800 uppercase">Total Gabungan</p>
-                  {costData.jumlahLingkup > 1 && (
-                    <span className="text-[8px] bg-red-200 text-red-900 px-1.5 py-0.5 rounded font-bold">
-                      {costData.lingkupList}
+                  <p className={`text-[10px] font-bold uppercase ${
+                    isIncomplete ? 'text-amber-800' : 'text-red-800'
+                  }`}>
+                    Total {costData.statusLingkup}
+                  </p>
+                  {costData.statusLingkup === 'SIPIL+ME' && (
+                    <span className="text-[8px] bg-green-200 text-green-900 px-1.5 py-0.5 rounded font-bold">
+                      ✓ Lengkap
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-[13px] font-bold text-red-900">{formatRupiah(costData.totalBiaya)}</p>
-                <p className="mt-0.5 text-[9px] text-red-700">{costData.luasTerbangun} m² terbangun</p>
+                <p className={`mt-1 text-[13px] font-bold ${
+                  isIncomplete ? 'text-amber-900' : 'text-red-900'
+                }`}>
+                  {formatRupiah(costData.totalBiaya)}
+                </p>
+                <p className={`mt-0.5 text-[9px] ${
+                  isIncomplete ? 'text-amber-700' : 'text-red-700'
+                }`}>
+                  {costData.luasTerbangun} m² terbangun
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-[16px] font-extrabold text-red-900">{formatRupiah(costData.costPerM2)}</p>
-                <p className="text-[9px] text-red-700 font-semibold">per m²</p>
+                <p className={`text-[16px] font-extrabold ${
+                  isIncomplete ? 'text-amber-900' : 'text-red-900'
+                }`}>
+                  {formatRupiah(costData.costPerM2)}
+                </p>
+                <p className={`text-[9px] font-semibold ${
+                  isIncomplete ? 'text-amber-700' : 'text-red-700'
+                }`}>
+                  per m²
+                </p>
               </div>
             </div>
           </div>
@@ -825,8 +883,8 @@ function SpecializedDetailContent({
           <div className="grid grid-cols-[1.2fr_.7fr_.9fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Status</span><span className="text-right">Nilai denda</span></div>
           {dedupedRows.map((row,index)=>{
             const penalty=getPenalty(row);
-            const status = penalty.days >= 10 ? 'Kritis' : (penalty.days > 0 ? 'Terlambat' : 'On-time');
-            const statusColor = penalty.days >= 10 ? 'text-rose-700' : 'text-orange-700';
+            const status = 'Terlambat'; // Always "Terlambat", no "Kritis"
+            const statusColor = 'text-orange-700';
             return (
             <Fragment key={row?.toko?.id||index}>
               <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.7fr_.9fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}>
@@ -836,7 +894,7 @@ function SpecializedDetailContent({
                 </span>
                 <span>
                   <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${statusColor} bg-red-50`}>{status}</span>
-                  <span className="ml-1 text-[9px] text-slate-400">{penalty.days}h</span>
+                  <span className="ml-1 text-[9px] text-slate-400">{penalty.days} hari</span>
                 </span>
                 <span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span>
               </button>
@@ -1113,10 +1171,18 @@ function SpecializedDetailContent({
                     <Ruler className="h-4 w-4"/>
                   </span>
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-[8px] text-slate-400">{costData.sumber}</span>
-                    {costData.jumlahLingkup > 1 && (
-                      <span className="text-[7px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-semibold">
-                        {costData.lingkupList}
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
+                      costData.statusLingkup === 'SIPIL+ME' 
+                        ? 'bg-green-100 text-green-700' 
+                        : costData.statusLingkup.includes('saja')
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {costData.statusLingkup}
+                    </span>
+                    {costData.sumber === 'Opname' && (
+                      <span className="text-[7px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">
+                        Opname
                       </span>
                     )}
                   </div>
@@ -1124,7 +1190,6 @@ function SpecializedDetailContent({
                 <p className="mt-4 text-[12px] font-semibold line-clamp-1">{row?.toko?.nama_toko}</p>
                 <p className="mt-1 text-[9px] text-slate-400">
                   {costData.luasTerbangun} m² · {formatRupiah(costData.totalBiaya)}
-                  {costData.jumlahLingkup > 1 && ` · ${costData.jumlahLingkup} lingkup`}
                 </p>
                 <div className="mt-5 flex items-baseline gap-1">
                   <p className="text-xl font-semibold text-emerald-900">
@@ -1604,14 +1669,6 @@ export default function DashboardCommandWorkspace({
             } else if (context === "DENDA") {
               subMetrics = [
                 { label: "Terlambat", value: stats.dendaTerlambat || 0 },
-                { label: "Kritis", value: stats.dendaKritis || 0 },
-              ];
-            } else if (context === "DENDA") {
-              const kritis = priorityProjects.filter((item: any) => item.lateDays > 3).length;
-              subMetrics = [
-                { label: "Terlambat", value: slaPriorityProjects.length },
-                { label: "Kritis", value: kritis },
-                { label: "Aman", value: Math.max(0, stats.total - slaPriorityProjects.length) },
               ];
             }
 
