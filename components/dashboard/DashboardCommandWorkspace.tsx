@@ -1191,15 +1191,18 @@ function SpecializedDetailContent({
                   <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
                     <Ruler className="h-4 w-4"/>
                   </span>
-                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
-                    costData.statusLingkup === 'SIPIL + ME' 
-                      ? 'bg-green-100 text-green-700' 
-                      : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {costData.statusLingkup}
-                  </span>
+                  {/* Status Lingkup Badge - Always visible */}
+                  {costData.statusLingkup && (
+                    <span className={`text-[9px] font-bold px-2 py-1 rounded ${
+                      costData.statusLingkup === 'SIPIL + ME' 
+                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                        : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
+                        ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                        : 'bg-slate-200 text-slate-700 border border-slate-300'
+                    }`}>
+                      {costData.statusLingkup}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-4 text-[12px] font-semibold line-clamp-1">{row?.toko?.nama_toko}</p>
                 <p className="mt-1 text-[9px] text-slate-400">
