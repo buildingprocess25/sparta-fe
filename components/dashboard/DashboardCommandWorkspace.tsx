@@ -127,17 +127,18 @@ const getAggregatedCostData = (project: any, opname: any) => {
   );
   
   let statusLingkup = '';
-  if (lingkupSet.has('SIPIL') && lingkupSet.has('ME')) {
+  if (lingkupSet.size === 0) {
+    // NO RABs or all RABs have empty lingkup_pekerjaan
+    statusLingkup = 'Belum ada RAB';
+  } else if (lingkupSet.has('SIPIL') && lingkupSet.has('ME')) {
     statusLingkup = 'SIPIL + ME'; // Lengkap
   } else if (lingkupSet.has('SIPIL')) {
     statusLingkup = 'SIPIL'; // Incomplete - hanya SIPIL
   } else if (lingkupSet.has('ME')) {
     statusLingkup = 'ME'; // Incomplete - hanya ME
-  } else if (activeRabs.length > 0) {
-    // Ada RAB tapi lingkup tidak standar
-    statusLingkup = Array.from(lingkupSet).join(' + ');
   } else {
-    statusLingkup = 'Belum ada RAB';
+    // Ada RAB tapi lingkup tidak standar
+    statusLingkup = Array.from(lingkupSet).join(' + ') || 'Lingkup tidak diketahui';
   }
   
   return {
@@ -146,7 +147,7 @@ const getAggregatedCostData = (project: any, opname: any) => {
     costPerM2,
     jumlahLingkup: activeRabs.length,
     lingkupList: activeRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase()).join('+'),
-    statusLingkup, // ✅ NEW: Status untuk indikasi kelengkapan
+    statusLingkup: statusLingkup, // ✅ Explicitly return statusLingkup
     sumber: opname ? 'Opname' : 'RAB',
     rabs: activeRabs,  // For breakdown display
   };
@@ -1132,6 +1133,17 @@ function SpecializedDetailContent({
       const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
       const opname = firstOpname(row);
       const costData = getAggregatedCostData(row, opname);
+      
+      // DEBUG: Log individual costData
+      if (ulokKey === rows[0]?.toko?.nomor_ulok) {
+        console.log('🔍 First ULOK costData:', {
+          ulok: ulokKey,
+          costData,
+          hasStatusLingkup: 'statusLingkup' in costData,
+          statusValue: costData.statusLingkup,
+          rabs: costData.rabs
+        });
+      }
       
       const existing = costByUlok.get(ulokKey);
       
