@@ -471,28 +471,148 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
   const spk = firstSpk(project);
   const opname = firstOpname(project);
   const st = Array.isArray(project?.berkas_serah_terima) ? project.berkas_serah_terima[0] : project?.berkas_serah_terima;
+  
+  // Helper function to determine milestone status
+  const getMilestoneStatus = (milestone: string): "active" | "completed" | "pending" => {
+    const stageIndex = PIPELINE.indexOf(stage);
+    
+    if (milestone === "RAB") {
+      if (stageIndex === 0) return "active"; // Approval RAB
+      if (rab?.status) return "completed";
+      return "pending";
+    }
+    
+    if (milestone === "SPK") {
+      if (stageIndex <= 2) return "pending"; // Before Approval SPK
+      if (stageIndex === 3) return "active"; // Approval SPK
+      if (spk?.status) return "completed";
+      return "pending";
+    }
+    
+    if (milestone === "Pelaksanaan") {
+      if (stageIndex < 4) return "pending"; // Before Ongoing
+      if (stage === "Ongoing") return "active";
+      return "completed";
+    }
+    
+    if (milestone === "Serah terima") {
+      if (stageIndex < 4) return "pending"; // Before Ongoing
+      if (stage === "Ongoing" && !st) return "active"; // Waiting for ST during Ongoing
+      if (st) return "completed";
+      return "pending";
+    }
+    
+    if (milestone === "KTK") {
+      if (stageIndex < 5) return "pending"; // Before Kerja Tambah Kurang
+      if (stage === "Kerja Tambah Kurang") return "active";
+      if (stageIndex > 5) return "completed"; // After KTK
+      return "pending";
+    }
+    
+    if (milestone === "Done") {
+      if (stage === "Done") return "completed";
+      return "pending";
+    }
+    
+    return "pending";
+  };
+  
+  const getStatusStyles = (status: "active" | "completed" | "pending") => {
+    if (status === "active") {
+      return {
+        dot: "border-amber-500 bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.3)] ring-2 ring-amber-200",
+        label: "text-amber-900 font-bold",
+        value: "text-amber-700 font-semibold",
+        date: "text-amber-600",
+      };
+    }
+    if (status === "completed") {
+      return {
+        dot: "border-emerald-600 bg-emerald-50",
+        label: "text-slate-800 font-semibold",
+        value: "text-emerald-700 font-medium",
+        date: "text-slate-400",
+      };
+    }
+    return {
+      dot: "border-slate-300 bg-white",
+      label: "text-slate-500",
+      value: "text-slate-400",
+      date: "text-slate-400",
+    };
+  };
+  
   const items = [
-    { label: "RAB", value: rab?.status || "Belum tersedia", date: rab?.created_at },
-    { label: "SPK", value: spk?.status || "Belum tersedia", date: spk?.created_at },
-    { label: "Pelaksanaan", value: stage, date: spk?.waktu_mulai },
-    { label: "Opname", value: opname?.status_opname_final || "Belum tersedia", date: opname?.created_at },
-    { label: "Serah terima", value: st ? "Tersedia" : "Belum tersedia", date: st?.created_at },
+    { 
+      label: "RAB", 
+      value: rab?.status || "Belum tersedia", 
+      date: rab?.created_at,
+      milestone: "RAB",
+    },
+    { 
+      label: "SPK", 
+      value: spk?.status || "Belum tersedia", 
+      date: spk?.created_at,
+      milestone: "SPK",
+    },
+    { 
+      label: "Pelaksanaan", 
+      value: stage === "Ongoing" ? "Sedang berjalan" : (stage === "Done" || stage === "Kerja Tambah Kurang" ? "Selesai" : stage),
+      date: spk?.waktu_mulai,
+      milestone: "Pelaksanaan",
+    },
+    { 
+      label: "Serah terima", 
+      value: st ? "Sudah ST" : "Belum ST", 
+      date: st?.created_at,
+      milestone: "Serah terima",
+    },
+    { 
+      label: "KTK", 
+      value: stage === "Kerja Tambah Kurang" ? "Proses approval" : (stage === "Done" ? "Selesai" : "Belum dimulai"),
+      date: stage === "Kerja Tambah Kurang" || stage === "Done" ? opname?.created_at : undefined,
+      milestone: "KTK",
+    },
+    { 
+      label: "Done", 
+      value: stage === "Done" ? "Proyek selesai" : "Belum selesai",
+      date: stage === "Done" ? opname?.updated_at : undefined,
+      milestone: "Done",
+    },
   ];
+  
   return (
     <div className="space-y-0">
-      {items.map((item, index) => (
-        <div key={item.label} className="grid grid-cols-[16px_1fr] gap-2.5">
-          <div className="flex flex-col items-center">
-            <span className={`mt-1 h-2.5 w-2.5 rounded-full border-2 ${item.value.includes("Belum") ? "border-slate-300 bg-white" : "border-emerald-600 bg-emerald-50"}`} />
-            {index < items.length - 1 ? <span className="h-11 w-px bg-slate-200" /> : null}
+      {items.map((item, index) => {
+        const status = getMilestoneStatus(item.milestone);
+        const styles = getStatusStyles(status);
+        
+        return (
+          <div key={item.label} className="grid grid-cols-[20px_1fr] gap-2.5">
+            <div className="flex flex-col items-center relative">
+              <div className="relative mt-1">
+                <span className={`block h-2.5 w-2.5 rounded-full border-2 transition-all duration-300 ${styles.dot}`} />
+                {status === "active" && (
+                  <span className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-amber-400 animate-ping opacity-75"></span>
+                )}
+              </div>
+              {index < items.length - 1 ? <span className="h-11 w-px bg-slate-200 mt-1" /> : null}
+            </div>
+            <div className="pb-3">
+              <div className="flex items-center gap-2">
+                <p className={`text-[11px] ${styles.label}`}>{item.label}</p>
+                {status === "active" && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    PROSES
+                  </span>
+                )}
+              </div>
+              <p className={`mt-0.5 text-[10px] ${styles.value}`}>{item.value}</p>
+              {item.date ? <p className={`mt-0.5 text-[9px] ${styles.date}`}>{formatDashboardDate(item.date)}</p> : null}
+            </div>
           </div>
-          <div className="pb-3">
-            <p className="text-[11px] font-semibold text-slate-800">{item.label}</p>
-            <p className="mt-0.5 text-[10px] text-slate-500">{item.value}</p>
-            {item.date ? <p className="mt-0.5 text-[9px] text-slate-400">{formatDashboardDate(item.date)}</p> : null}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
