@@ -78,6 +78,7 @@ export default function SuratPeringatanPage() {
     const filteredCandidates = useMemo(() => {
         let base = candidates;
         
+        // Apply branch filter
         if (user && !user.roles.includes("SUPER HUMAN")) {
             if (user.isHO) {
                 base = base.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
@@ -86,14 +87,20 @@ export default function SuratPeringatanPage() {
             }
         }
         
+        // Filter by selected contractor
         if (selectedContractor) {
             base = base.filter(c => normalize(c.nama_kontraktor) === normalize(selectedContractor));
         }
 
+        // Apply reason-specific filters
         if (reason === "KETERLAMBATAN") {
+            // KETERLAMBATAN: Hanya ULOK yang terlambat
             base = base.filter((c) => Number(c.hari_denda) > 0 || normalize(c.cabang) === "HEAD OFFICE");
         }
+        // MENOLAK SPK: Semua ULOK dari kontraktor (no additional filter)
+        // MANIPULASI: Tidak perlu filter (tapi tidak akan tampil karena tidak pilih ULOK)
 
+        // Search filter
         const q = normalize(search);
         if (!q) return base;
         return base.filter((candidate) => [
@@ -106,10 +113,27 @@ export default function SuratPeringatanPage() {
     }, [candidates, search, reason, selectedContractor, user]);
 
     const availableContractors = useMemo(() => {
-        // Backend already filters contractors by user's branch
-        // Just return all contractors - no need to cross-reference with candidates
+        // Logic berbeda berdasarkan alasan SP
+        if (reason === "KETERLAMBATAN") {
+            // KETERLAMBATAN: Hanya kontraktor yang punya ULOK terlambat
+            let lateCandidates = candidates.filter((c) => Number(c.hari_denda) > 0 || normalize(c.cabang) === "HEAD OFFICE");
+            
+            // Apply branch filter
+            if (user && !user.roles.includes("SUPER HUMAN")) {
+                if (user.isHO) {
+                    lateCandidates = lateCandidates.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
+                } else {
+                    lateCandidates = lateCandidates.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
+                }
+            }
+            
+            const lateContractors = new Set(lateCandidates.map((c) => normalize(c.nama_kontraktor)));
+            return contractors.filter((c) => lateContractors.has(normalize(c)));
+        }
+        
+        // MENOLAK SPK & MANIPULASI: Semua kontraktor (backend already filtered by branch)
         return contractors;
-    }, [contractors]);
+    }, [contractors, candidates, reason, user]);
 
     useEffect(() => {
         if (reason === "MANIPULASI") {
