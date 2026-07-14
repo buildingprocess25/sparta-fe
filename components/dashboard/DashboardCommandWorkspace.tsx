@@ -1140,20 +1140,10 @@ function SpecializedDetailContent({
         costByUlok.set(ulokKey, { costData, project: row });
       } else {
         // Merge with existing ULOK data (aggregate SIPIL+ME)
-        const merged = {
-          totalBiaya: existing.costData.totalBiaya + costData.totalBiaya,
-          luasTerbangun: Math.max(existing.costData.luasTerbangun, costData.luasTerbangun),
-          costPerM2: 0, // Will calculate after
-          jumlahLingkup: existing.costData.jumlahLingkup + costData.jumlahLingkup,
-          lingkupList: existing.costData.lingkupList + '+' + costData.lingkupList,
-          sumber: costData.sumber || existing.costData.sumber,
-          rabs: [...existing.costData.rabs, ...costData.rabs],
-        };
-        merged.costPerM2 = merged.luasTerbangun > 0 ? merged.totalBiaya / merged.luasTerbangun : 0;
-        
         // ✅ Recalculate statusLingkup after merge
+        const mergedRabs = [...existing.costData.rabs, ...costData.rabs];
         const mergedLingkupSet = new Set(
-          merged.rabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase().trim())
+          mergedRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase().trim())
             .filter(Boolean)
         );
         
@@ -1164,13 +1154,23 @@ function SpecializedDetailContent({
           statusLingkup = 'SIPIL saja'; // Incomplete
         } else if (mergedLingkupSet.has('ME')) {
           statusLingkup = 'ME saja'; // Incomplete
-        } else if (merged.rabs.length > 0) {
+        } else if (mergedRabs.length > 0) {
           statusLingkup = Array.from(mergedLingkupSet).join('+');
         } else {
           statusLingkup = 'Belum ada RAB';
         }
         
-        merged.statusLingkup = statusLingkup;
+        const merged = {
+          totalBiaya: existing.costData.totalBiaya + costData.totalBiaya,
+          luasTerbangun: Math.max(existing.costData.luasTerbangun, costData.luasTerbangun),
+          costPerM2: 0, // Will calculate after
+          jumlahLingkup: existing.costData.jumlahLingkup + costData.jumlahLingkup,
+          lingkupList: existing.costData.lingkupList + '+' + costData.lingkupList,
+          statusLingkup, // ✅ Include in initial object
+          sumber: costData.sumber || existing.costData.sumber,
+          rabs: mergedRabs,
+        };
+        merged.costPerM2 = merged.luasTerbangun > 0 ? merged.totalBiaya / merged.luasTerbangun : 0;
         
         costByUlok.set(ulokKey, { costData: merged, project: row });
       }
