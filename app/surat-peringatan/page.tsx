@@ -106,21 +106,10 @@ export default function SuratPeringatanPage() {
     }, [candidates, search, reason, selectedContractor, user]);
 
     const availableContractors = useMemo(() => {
-        if (!user || user.roles.includes("SUPER HUMAN")) {
-            return contractors;
-        }
-        
-        let branchCandidates = candidates;
-        if (user.isHO) {
-            branchCandidates = candidates.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
-        } else {
-            branchCandidates = candidates.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
-        }
-        
-        const validContractors = new Set(branchCandidates.map((c) => normalize(c.nama_kontraktor)));
-        
-        return contractors.filter((c) => validContractors.has(normalize(c)));
-    }, [contractors, candidates, user]);
+        // Backend already filters contractors by user's branch
+        // Just return all contractors - no need to cross-reference with candidates
+        return contractors;
+    }, [contractors]);
 
     useEffect(() => {
         if (reason === "MANIPULASI") {
