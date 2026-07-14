@@ -128,14 +128,14 @@ const getAggregatedCostData = (project: any, opname: any) => {
   
   let statusLingkup = '';
   if (lingkupSet.has('SIPIL') && lingkupSet.has('ME')) {
-    statusLingkup = 'SIPIL+ME'; // Lengkap
+    statusLingkup = 'SIPIL + ME'; // Lengkap
   } else if (lingkupSet.has('SIPIL')) {
-    statusLingkup = 'SIPIL saja'; // Incomplete - hanya SIPIL
+    statusLingkup = 'SIPIL'; // Incomplete - hanya SIPIL
   } else if (lingkupSet.has('ME')) {
-    statusLingkup = 'ME saja'; // Incomplete - hanya ME
+    statusLingkup = 'ME'; // Incomplete - hanya ME
   } else if (activeRabs.length > 0) {
     // Ada RAB tapi lingkup tidak standar
-    statusLingkup = Array.from(lingkupSet).join('+');
+    statusLingkup = Array.from(lingkupSet).join(' + ');
   } else {
     statusLingkup = 'Belum ada RAB';
   }
@@ -250,7 +250,7 @@ function getContextCells(
       { 
         value: costData.statusLingkup, 
         helper: costData.sumber === 'Opname' ? 'Dari opname final' : 'Dari RAB approved',
-        danger: costData.statusLingkup.includes('saja') // Warning jika tidak lengkap
+        danger: (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME') // Warning jika tidak lengkap
       },
       { 
         value: `${costData.luasTerbangun} m²`, 
@@ -579,7 +579,7 @@ function ContextInspector({
   );
   if (context === "COST_M2") {
     const costData = getAggregatedCostData(project, opname);
-    const isIncomplete = costData.statusLingkup.includes('saja');
+    const isIncomplete = (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME');
     
     return (
       <div className="space-y-3">
@@ -1149,13 +1149,13 @@ function SpecializedDetailContent({
         
         let statusLingkup = '';
         if (mergedLingkupSet.has('SIPIL') && mergedLingkupSet.has('ME')) {
-          statusLingkup = 'SIPIL+ME'; // Lengkap
+          statusLingkup = 'SIPIL + ME'; // Lengkap
         } else if (mergedLingkupSet.has('SIPIL')) {
-          statusLingkup = 'SIPIL saja'; // Incomplete
+          statusLingkup = 'SIPIL'; // Incomplete
         } else if (mergedLingkupSet.has('ME')) {
-          statusLingkup = 'ME saja'; // Incomplete
+          statusLingkup = 'ME'; // Incomplete
         } else if (mergedRabs.length > 0) {
-          statusLingkup = Array.from(mergedLingkupSet).join('+');
+          statusLingkup = Array.from(mergedLingkupSet).join(' + ');
         } else {
           statusLingkup = 'Belum ada RAB';
         }
@@ -1191,22 +1191,15 @@ function SpecializedDetailContent({
                   <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
                     <Ruler className="h-4 w-4"/>
                   </span>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
-                      costData.statusLingkup === 'SIPIL+ME' 
-                        ? 'bg-green-100 text-green-700' 
-                        : costData.statusLingkup.includes('saja')
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {costData.statusLingkup}
-                    </span>
-                    {costData.sumber === 'Opname' && (
-                      <span className="text-[7px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">
-                        Opname
-                      </span>
-                    )}
-                  </div>
+                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
+                    costData.statusLingkup === 'SIPIL + ME' 
+                      ? 'bg-green-100 text-green-700' 
+                      : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {costData.statusLingkup}
+                  </span>
                 </div>
                 <p className="mt-4 text-[12px] font-semibold line-clamp-1">{row?.toko?.nama_toko}</p>
                 <p className="mt-1 text-[9px] text-slate-400">
