@@ -129,17 +129,42 @@ export default function TambahSPKPage() {
         return addDays(tanggalSpkAkhir, parseInt(pertambahanHari));
     }, [tanggalSpkAkhir, pertambahanHari]);
 
-    /** Filter SPK berdasarkan search */
-    const filteredSpks = useMemo(() => {
+    /** Group SPKs by ULOK - satu ULOK bisa punya multiple lingkup (SIPIL, ME) */
+    const ulokGroups = useMemo(() => {
+        const groups = new Map<string, SPKListItem[]>();
+        
+        for (const spk of approvedSpks) {
+            const ulok = spk.nomor_ulok;
+            if (!groups.has(ulok)) {
+                groups.set(ulok, []);
+            }
+            groups.get(ulok)!.push(spk);
+        }
+        
+        return groups;
+    }, [approvedSpks]);
+
+    /** Filter ULOK berdasarkan search */
+    const filteredUloks = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        return approvedSpks.filter(s =>
-            (s.nomor_ulok || '').toLowerCase().includes(q) ||
-            (s.nomor_spk || '').toLowerCase().includes(q) ||
-            (s.lingkup_pekerjaan || '').toLowerCase().includes(q) ||
-            (s.toko?.kode_toko || s.kode_toko || '').toLowerCase().includes(q) ||
-            (s.toko?.nama_toko || '').toLowerCase().includes(q)
-        );
-    }, [approvedSpks, searchQuery]);
+        const result: { ulok: string; spks: SPKListItem[] }[] = [];
+        
+        ulokGroups.forEach((spks, ulok) => {
+            const matchesSearch = spks.some(s =>
+                (s.nomor_ulok || '').toLowerCase().includes(q) ||
+                (s.nomor_spk || '').toLowerCase().includes(q) ||
+                (s.lingkup_pekerjaan || '').toLowerCase().includes(q) ||
+                (s.toko?.kode_toko || s.kode_toko || '').toLowerCase().includes(q) ||
+                (s.toko?.nama_toko || '').toLowerCase().includes(q)
+            );
+            
+            if (matchesSearch) {
+                result.push({ ulok, spks });
+            }
+        });
+        
+        return result;
+    }, [ulokGroups, searchQuery]);
     
 
     // ════════════════════════════════════════════════════════════════════
@@ -185,7 +210,9 @@ export default function TambahSPKPage() {
         if (!target) return;
 
         setAutoSelectedSpkId(targetSpkId);
-        setSearchQuery(target.toko?.nama_toko || target.nomor_ulok || target.nomor_spk || '');
+        // Set search query dengan nomor ULOK agar mudah ditemukan
+        setSearchQuery(target.nomor_ulok || target.toko?.nama_toko || target.nomor_spk || '');
+        // Select using SPK ID for backward compatibility (legacy query param)
         handleSpkSelect(targetSpkId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [approvedSpks, autoSelectedSpkId]);
@@ -261,7 +288,7 @@ export default function TambahSPKPage() {
     //   HANDLERS
     // ════════════════════════════════════════════════════════════════════
 
-    const handleSpkSelect = async (spkId: string) => {
+    const handleSpkSelect = async (ulokOrSpkId: string) => {
         setStatusMsg({ text: '', type: '' });
         setPertambahanHari('');
         setAlasanPerpanjangan('');
@@ -269,17 +296,29 @@ export default function TambahSPKPage() {
         setExistingPerpanjangan([]);
         setOriginalRejectedForm(null);
 
-        if (!spkId) {
+        if (!ulokOrSpkId) {
             setSelectedSpk(null);
             return;
         }
 
-        const selected = approvedSpks.find(s => s.id === parseInt(spkId));
+        // Check if this is a ULOK (contains dash) or SPK ID (pure number)
+        const isUlok = ulokOrSpkId.includes('-') || isNaN(Number(ulokOrSpkId));
+        
+        let selected: SPKListItem | undefined;
+        if (isUlok) {
+            // Select the first SPK from this ULOK group (we'll use it as representative)
+            const spksInUlok = ulokGroups.get(ulokOrSpkId);
+            selected = spksInUlok?.[0];
+        } else {
+            // Legacy: direct SPK ID selection (dari query param)
+            selected = approvedSpks.find(s => s.id === parseInt(ulokOrSpkId));
+        }
+        
         if (!selected) return;
 
         setSelectedSpk(selected);
 
-        // Check existing pertambahan for this SPK
+        // Check existing pertambahan for this SPK (akan otomatis apply ke semua lingkup via backend query)
         try {
             const perpRes = await fetchPertambahanSPKList({ id_spk: selected.id });
             const existings = perpRes.data || [];
@@ -295,7 +334,7 @@ export default function TambahSPKPage() {
             if (latest) {
                 if (latest.status_persetujuan === 'Menunggu Persetujuan') {
                     setStatusMsg({
-                        text: "SPK ini sudah memiliki pengajuan perpanjangan yang masih menunggu persetujuan.",
+                        text: "ULOK ini sudah memiliki pengajuan perpanjangan yang masih menunggu persetujuan. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME).",
                         type: 'warning'
                     });
                 } else if (latest.status_persetujuan === 'Ditolak BM') {
@@ -311,24 +350,24 @@ export default function TambahSPKPage() {
                         alasanPenolakan: latest.alasan_penolakan || 'Tidak ada alasan yang diberikan.',
                     });
                     setStatusMsg({
-                        text: "Data pengajuan yang ditolak telah dimuat. Ubah minimal 1 field lalu kirim ulang.",
+                        text: "Data pengajuan yang ditolak telah dimuat. Ubah minimal 1 field lalu kirim ulang. Perpanjangan akan berlaku untuk semua lingkup (SIPIL & ME).",
                         type: 'warning'
                     });
                 } else {
                     setStatusMsg({
-                        text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.",
+                        text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME) dalam ULOK ini.",
                         type: 'info'
                     });
                 }
             } else {
                 setStatusMsg({
-                    text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.",
+                    text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME) dalam ULOK ini.",
                     type: 'info'
                 });
             }
         } catch {
             // No existing data, continue
-            setStatusMsg({ text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.", type: 'info' });
+            setStatusMsg({ text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME) dalam ULOK ini.", type: 'info' });
         }
     };
 
@@ -430,17 +469,24 @@ export default function TambahSPKPage() {
                             <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="font-bold text-slate-700 border-b pb-2 mb-4 flex items-center gap-2">
                                     <FileText className="w-4 h-4 text-emerald-600" />
-                                    1. Pilih SPK yang Akan Diperpanjang
+                                    1. Pilih ULOK yang Akan Diperpanjang
                                 </h3>
+                                <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm text-blue-700 flex items-start gap-2">
+                                    <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                                    <p className="font-medium">
+                                        <strong>Perpanjangan SPK berlaku untuk semua lingkup (SIPIL & ME)</strong> dalam ULOK yang sama. 
+                                        Anda cukup pilih ULOK, tidak perlu mengajukan terpisah per lingkup.
+                                    </p>
+                                </div>
 
                                 {/* Search */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-700">Cari & Pilih SPK *</label>
+                                    <label className="text-sm font-bold text-slate-700">Cari & Pilih ULOK *</label>
                                     <div className="relative mb-2">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Ketik No Ulok / Nomor SPK..."
+                                            placeholder="Ketik No Ulok / Kode Toko / Nama Toko..."
                                             className="w-full pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -457,15 +503,19 @@ export default function TambahSPKPage() {
                                             <select
                                                 required
                                                 className="w-full p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-emerald-500 appearance-none pr-10"
-                                                value={selectedSpk?.id?.toString() || ''}
+                                                value={selectedSpk?.nomor_ulok || ''}
                                                 onChange={(e) => handleSpkSelect(e.target.value)}
                                             >
-                                                <option value="">-- Klik untuk Pilih SPK --</option>
-                                                {filteredSpks.map(s => (
-                                                    <option key={s.id} value={s.id.toString()}>
-                                                        {s.nomor_spk} — {s.toko?.kode_toko || s.kode_toko || ''} — {s.toko?.nama_toko || ''} — {s.nomor_ulok} ({s.lingkup_pekerjaan}) — {s.proyek}
-                                                    </option>
-                                                ))}
+                                                <option value="">-- Klik untuk Pilih ULOK --</option>
+                                                {filteredUloks.map(({ ulok, spks }) => {
+                                                    const firstSpk = spks[0];
+                                                    const lingkupList = spks.map(s => s.lingkup_pekerjaan).join(' & ');
+                                                    return (
+                                                        <option key={ulok} value={ulok}>
+                                                            {ulok} — {firstSpk.toko?.kode_toko || firstSpk.kode_toko || ''} — {firstSpk.toko?.nama_toko || ''} — [{lingkupList}] — {firstSpk.proyek}
+                                                        </option>
+                                                    );
+                                                })}
                                             </select>
                                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                                         </div>
@@ -504,11 +554,6 @@ export default function TambahSPKPage() {
                                     <div className="pt-4 border-t mt-4 border-slate-100">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-linear-to-br from-slate-50 to-slate-100 p-4 rounded-xl border border-slate-200">
                                             <InfoItem
-                                                icon={<Hash className="w-3.5 h-3.5" />}
-                                                label="Nomor SPK"
-                                                value={selectedSpk.nomor_spk || '-'}
-                                            />
-                                            <InfoItem
                                                 icon={<FileText className="w-3.5 h-3.5" />}
                                                 label="Nomor ULOK"
                                                 value={selectedSpk.nomor_ulok}
@@ -531,7 +576,13 @@ export default function TambahSPKPage() {
                                             <InfoItem
                                                 icon={<Info className="w-3.5 h-3.5" />}
                                                 label="Lingkup Pekerjaan"
-                                                value={selectedSpk.lingkup_pekerjaan}
+                                                value={(() => {
+                                                    const allSpksInUlok = ulokGroups.get(selectedSpk.nomor_ulok);
+                                                    if (!allSpksInUlok || allSpksInUlok.length === 1) {
+                                                        return selectedSpk.lingkup_pekerjaan;
+                                                    }
+                                                    return allSpksInUlok.map(s => s.lingkup_pekerjaan).join(' & ');
+                                                })()}
                                             />
                                             <InfoItem
                                                 icon={<Info className="w-3.5 h-3.5" />}
@@ -560,6 +611,32 @@ export default function TambahSPKPage() {
                                                 highlight
                                             />
                                         </div>
+                                        
+                                        {/* Show all SPKs in this ULOK if multiple lingkup */}
+                                        {(() => {
+                                            const allSpksInUlok = ulokGroups.get(selectedSpk.nomor_ulok);
+                                            if (!allSpksInUlok || allSpksInUlok.length <= 1) return null;
+                                            
+                                            return (
+                                                <div className="mt-4 bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+                                                    <p className="text-xs font-bold text-emerald-700 uppercase mb-2 flex items-center gap-1">
+                                                        <Info className="w-3.5 h-3.5" />
+                                                        SPK dalam ULOK ini
+                                                    </p>
+                                                    <div className="space-y-1 text-sm">
+                                                        {allSpksInUlok.map((spk) => (
+                                                            <div key={spk.id} className="flex items-center gap-2 text-emerald-700">
+                                                                <span className="font-semibold">{spk.lingkup_pekerjaan}:</span>
+                                                                <span className="font-mono text-xs">{spk.nomor_spk}</span>
+                                                                <span className="text-xs text-emerald-600">
+                                                                    ({formatTanggal(spk.waktu_mulai)} - {formatTanggal(spk.waktu_selesai)})
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Existing perpanjangan history */}
                                         {existingPerpanjangan.length > 0 && (
