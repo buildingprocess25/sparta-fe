@@ -1151,6 +1151,27 @@ function SpecializedDetailContent({
         };
         merged.costPerM2 = merged.luasTerbangun > 0 ? merged.totalBiaya / merged.luasTerbangun : 0;
         
+        // ✅ Recalculate statusLingkup after merge
+        const mergedLingkupSet = new Set(
+          merged.rabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase().trim())
+            .filter(Boolean)
+        );
+        
+        let statusLingkup = '';
+        if (mergedLingkupSet.has('SIPIL') && mergedLingkupSet.has('ME')) {
+          statusLingkup = 'SIPIL+ME'; // Lengkap
+        } else if (mergedLingkupSet.has('SIPIL')) {
+          statusLingkup = 'SIPIL saja'; // Incomplete
+        } else if (mergedLingkupSet.has('ME')) {
+          statusLingkup = 'ME saja'; // Incomplete
+        } else if (merged.rabs.length > 0) {
+          statusLingkup = Array.from(mergedLingkupSet).join('+');
+        } else {
+          statusLingkup = 'Belum ada RAB';
+        }
+        
+        merged.statusLingkup = statusLingkup;
+        
         costByUlok.set(ulokKey, { costData: merged, project: row });
       }
     });
