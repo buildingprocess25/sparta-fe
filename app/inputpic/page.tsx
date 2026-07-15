@@ -18,7 +18,7 @@ import {
     submitPICPengawasan, fetchPICPengawasanList, fetchUserCabangList,
     type SPKListItem
 } from '@/lib/api';
-import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
 
 // =============================================================================
 // CONSTANTS
@@ -1622,9 +1622,9 @@ export default function InputPICPage() {
             const res = await fetchSPKList({ status: 'SPK_APPROVED' });
             const allSpks = res.data || [];
             const upperCabang = cabang.toUpperCase();
-            const isHO = upperCabang === 'HEAD OFFICE';
+            const isHOUser = canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || upperCabang === 'HEAD OFFICE';
+            const canSeeAllBranches = isHOUser;
             let userGroup: string[] | null = null;
-            const canSeeAllBranches = canViewAllBranches(user?.roles, user?.isSuperHuman ?? false);
             if (!canSeeAllBranches) {
                 for (const grp of Object.values(BRANCH_GROUPS)) {
                     if (grp.includes(upperCabang)) {
@@ -1671,12 +1671,17 @@ export default function InputPICPage() {
         }
     };
 
+    const isHOUser = useMemo(() => {
+        const upper = userInfo.cabang?.toUpperCase();
+        return canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || upper === 'HEAD OFFICE';
+    }, [user, userInfo.cabang]);
+
     const cabangOptions = useMemo(() => {
         const upper = userInfo.cabang?.toUpperCase();
         if (!upper) return [];
-        if (upper === 'HEAD OFFICE') {
+        if (isHOUser) {
             const allBranches = Array.from(new Set(Object.values(BRANCH_GROUPS).flat())).sort();
-            return allBranches;
+            return Array.from(new Set(allBranches.map(b => getParentBranch(b)))).sort();
         }
         let userGroup: string[] | null = null;
         for (const grp of Object.values(BRANCH_GROUPS)) {
@@ -1686,7 +1691,7 @@ export default function InputPICPage() {
             }
         }
         return userGroup ? [...userGroup].sort() : [];
-    }, [userInfo.cabang]);
+    }, [userInfo.cabang, isHOUser]);
 
     const filteredScopes = useMemo(() => {
         const q = searchQuery.toLowerCase();
@@ -1697,12 +1702,15 @@ export default function InputPICPage() {
                 (g.kode_toko || '').toLowerCase().includes(q) ||
                 (g.toko?.nama_toko || '').toLowerCase().includes(q) ||
                 (g.proyek || '').toLowerCase().includes(q);
-            const matchCabang = cabangFilter
-                ? (g.toko?.cabang || '').toUpperCase() === cabangFilter.toUpperCase()
-                : true;
+            let matchCabang = true;
+            if (cabangFilter) {
+                const spkCabang = (g.toko?.cabang || '').toUpperCase();
+                const effectiveBranch = isHOUser ? getParentBranch(spkCabang) : spkCabang;
+                matchCabang = effectiveBranch === cabangFilter.toUpperCase();
+            }
             return matchSearch && matchCabang;
         });
-    }, [approvedGroups, searchQuery, cabangFilter]);
+    }, [approvedGroups, searchQuery, cabangFilter, isHOUser]);
 
     const ulokOptions = useMemo(() => {
         const map = new Map<string, UlokOption>();

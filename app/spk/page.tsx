@@ -9,7 +9,7 @@ import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, Ale
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification } from '@/lib/api';
-import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
 import { parseCurrency } from '@/lib/utils';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -395,17 +395,28 @@ export default function SPKPage() {
         }
     };
 
+    const isHOUserFilter = canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
+
     const filteredRabs = approvedRabs.filter(r => {
         const matchSearch = (r["Nomor Ulok"] || "").toLowerCase().includes(searchUlok.toLowerCase()) || 
                             (r["Nama_Toko"] || "").toLowerCase().includes(searchUlok.toLowerCase());
-        const matchCabang = cabangFilter ? r.Cabang?.toUpperCase() === cabangFilter.toUpperCase() : true;
+        let matchCabang = true;
+        if (cabangFilter) {
+            const rabCabang = r.Cabang?.toUpperCase() || '';
+            const effectiveBranch = isHOUserFilter ? getParentBranch(rabCabang) : rabCabang;
+            matchCabang = effectiveBranch === cabangFilter.toUpperCase();
+        }
         return matchSearch && matchCabang;
     });
 
-    // Options untuk cabang filter jika user termasuk dalam BRANCH_GROUP
+    // Options untuk cabang filter jika user termasuk dalam BRANCH_GROUP atau HO
     const cabangOptions = React.useMemo(() => {
         const upper = userInfo.cabang?.toUpperCase();
         if (!upper) return [];
+        if (isHOUserFilter) {
+            const allBranches = Array.from(new Set(Object.values(BRANCH_GROUPS).flat())).sort();
+            return Array.from(new Set(allBranches.map(b => getParentBranch(b)))).sort();
+        }
         let userGroup: string[] | null = null;
         for (const grp of Object.values(BRANCH_GROUPS)) {
             if (grp.includes(upper)) {
@@ -414,7 +425,7 @@ export default function SPKPage() {
             }
         }
         return userGroup ? [...userGroup].sort() : [];
-    }, [userInfo.cabang]);
+    }, [userInfo.cabang, isHOUserFilter]);
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12 relative">

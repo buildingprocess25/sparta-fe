@@ -517,9 +517,23 @@ export const getParentBranch = (branch?: string | null): string => {
     return group ? group.name : normalizeBranchValue(branch);
 };
 
+/**
+ * Expand a parent branch name to all sub-branches.
+ * E.g. "CIKOKOL" → ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"]
+ * If the name is not a group key, returns just the input branch.
+ */
+export const getSubBranchesForParent = (parentBranch?: string | null): string[] => {
+    const upper = normalizeBranchValue(parentBranch);
+    if (!upper) return [];
+    const group = BRANCH_GROUPS[upper as keyof typeof BRANCH_GROUPS];
+    if (group) return group.map(normalizeBranchValue);
+    return [upper];
+};
+
+
 export const getAccessibleBranchesForUser = (
     role: string | string[] | undefined | null,
-    cabang?: string | null,
+    cabang?: string | null
     coverage: string[] = []
 ): string[] => {
     const upperCabang = normalizeBranchValue(cabang);

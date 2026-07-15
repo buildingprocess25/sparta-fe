@@ -39,6 +39,9 @@ import {
   DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
   SUPER_HUMAN_ROLE,
   normalizeRoles,
+  canViewAllBranches,
+  getParentBranch,
+  getSubBranchesForParent,
 } from "@/lib/constants";
 
 const DOCUMENT_CATEGORIES = [
@@ -126,26 +129,55 @@ export default function DcDocumentsPage() {
 
   const actor = useMemo(() => actorFromUser(user), [user]);
   const canAddData = useMemo(() => canCreateArchive(user?.roles), [user?.roles]);
+  
+  const isHOUser = useMemo(() => {
+    return canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || user?.cabang?.toUpperCase() === 'HEAD OFFICE';
+  }, [user]);
 
   const loadArchives = useCallback(async () => {
     if (!actor.actor_email || !actor.actor_role) return;
     setLoadingArchives(true);
     setMessage("");
     try {
-      const res = await fetchDcArchiveProjects({
-        actor_email: actor.actor_email,
-        actor_role: actor.actor_role,
-        search: query.trim() || undefined,
-        branch_name: branchFilter,
-        status: statusFilter,
-      }, { suppressGlobalError: true });
-      setArchives(res.data ?? []);
+      // For HO users selecting a parent branch (e.g. "CIKOKOL"),
+      // we need to expand it to all sub-branches and fetch all of them.
+      const effectiveBranchFilter = branchFilter;
+      const subBranches = isHOUser && branchFilter !== "all"
+          ? getSubBranchesForParent(branchFilter)
+          : null;
+
+      let data: DcArchiveProject[];
+      if (subBranches && subBranches.length > 1) {
+          // Fetch for each sub-branch and merge results
+          const results = await Promise.all(
+              subBranches.map(sub =>
+                  fetchDcArchiveProjects({
+                      actor_email: actor.actor_email,
+                      actor_role: actor.actor_role,
+                      search: query.trim() || undefined,
+                      branch_name: sub,
+                      status: statusFilter,
+                  }, { suppressGlobalError: true }).then(r => r.data ?? [])
+              )
+          );
+          data = results.flat();
+      } else {
+          const res = await fetchDcArchiveProjects({
+              actor_email: actor.actor_email,
+              actor_role: actor.actor_role,
+              search: query.trim() || undefined,
+              branch_name: effectiveBranchFilter,
+              status: statusFilter,
+          }, { suppressGlobalError: true });
+          data = res.data ?? [];
+      }
+      setArchives(data);
     } catch (error) {
       setMessage(getErrorMessage(error, "Gagal memuat arsip dokumen DC"));
     } finally {
       setLoadingArchives(false);
     }
-  }, [actor.actor_email, actor.actor_role, branchFilter, query, statusFilter]);
+  }, [actor.actor_email, actor.actor_role, branchFilter, query, statusFilter, isHOUser]);
 
   const loadDocuments = useCallback(async (archive: DcArchiveProject) => {
     if (!actor.actor_email || !actor.actor_role) return;
@@ -172,10 +204,15 @@ export default function DcDocumentsPage() {
   }, [isLoading, loadArchives, selectedArchive, user]);
 
   const branchOptions = useMemo(() => {
-    const branches = new Set(archives.map((archive) => archive.branch_name).filter(Boolean));
-    if (branchFilter !== "all") branches.add(branchFilter);
+    const branches = new Set<string>();
+    archives.forEach((archive) => {
+        if (archive.branch_name) {
+            branches.add(isHOUser ? getParentBranch(archive.branch_name) : archive.branch_name);
+        }
+    });
+    if (branchFilter !== "all") branches.add(isHOUser ? getParentBranch(branchFilter) : branchFilter);
     return Array.from(branches).sort((a, b) => a.localeCompare(b));
-  }, [archives, branchFilter]);
+  }, [archives, branchFilter, isHOUser]);
 
   const docsByType = useMemo(() => {
     return documents.reduce<Record<string, DcDocument[]>>((acc, doc) => {

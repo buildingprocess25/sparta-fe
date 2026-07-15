@@ -38,7 +38,7 @@ import {
   PenyimpananDokumenItem,
   RABDetailToko,
 } from '@/lib/api';
-import { BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
 
 // ==========================================
 // CONSTANTS
@@ -685,12 +685,20 @@ export default function PenyimpananDokumenPage() {
   // FILTERED DATA
   // ==========================================
 
+  // Target Cards menggunakan cabang AKUN LOGIN, bukan filter dropdown.
+  // Jika user adalah HO / SuperHuman / Regional Manager → tampilkan global.
+  const isGlobalUser = canViewAllBranches(user?.roles, user?.isSuperHuman ?? false)
+    || (userInfo.cabang || '').toUpperCase() === 'HEAD OFFICE';
+
   const cabangOptions = useMemo(() => {
     return Array.from(new Set([...archiveTokoList, ...tokoList]
-      .map(t => getBranchLocationName(t.cabang))
+      .map(t => {
+        const branch = getBranchLocationName(t.cabang);
+        return isGlobalUser ? getParentBranch(branch) : branch;
+      })
       .filter(cabang => !HIDDEN_BRANCHES.has(cabang))
     )).sort();
-  }, [archiveTokoList, tokoList]);
+  }, [archiveTokoList, tokoList, isGlobalUser]);
 
   const filteredToko = useMemo(() => {
     const combined = [...archiveTokoList, ...tokoList];
@@ -699,21 +707,20 @@ export default function PenyimpananDokumenPage() {
       const matchSearch = !q || (t.nama_toko || '').toLowerCase().includes(q)
         || (t.nomor_ulok || '').toLowerCase().includes(q)
         || (t.kode_toko || '').toLowerCase().includes(q);
-      const matchCabang = filterCabang === 'all' || getBranchLocationName(t.cabang) === filterCabang;
+        
+      const branchName = getBranchLocationName(t.cabang);
+      const effectiveBranch = isGlobalUser ? getParentBranch(branchName) : branchName;
+      const matchCabang = filterCabang === 'all' || effectiveBranch === filterCabang;
+      
       const matchStatus = filterStatus === 'all'
         || (filterStatus === 'lengkap' && isDokumenLengkap(t))
         || (filterStatus === 'belum' && !isDokumenLengkap(t));
       return !isHiddenBranch(t.cabang) && matchSearch && matchCabang && matchStatus;
     });
-  }, [archiveTokoList, tokoList, searchToko, filterCabang, filterStatus]);
+  }, [archiveTokoList, tokoList, searchToko, filterCabang, filterStatus, isGlobalUser]);
 
   const totalArchiveToko = archiveTokoList.length;
   const totalCombinedToko = archiveLoadFailed && totalArchiveToko === 0 ? 0 : tokoList.length + totalArchiveToko;
-
-  // Target Cards menggunakan cabang AKUN LOGIN, bukan filter dropdown.
-  // Jika user adalah HO / SuperHuman / Regional Manager → tampilkan global.
-  const isGlobalUser = canViewAllBranches(user?.roles, user?.isSuperHuman ?? false)
-    || (userInfo.cabang || '').toUpperCase() === 'HEAD OFFICE';
 
   const userCabangDisplay = getBranchLocationName(userInfo.cabang);
   const hasBranchTarget = Boolean(TARGET_PER_CABANG[userCabangDisplay]);

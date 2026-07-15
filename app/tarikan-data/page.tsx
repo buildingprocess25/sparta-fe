@@ -175,11 +175,9 @@ export default function TarikanDataPage() {
                 .filter((project) => {
                     const branch = projectBranch(project);
                     if (!branch) return false;
-                    if (selectedBranches.size === 0) {
-                        // Belum ada filter cabang dipilih → tampilkan semua item dari cabang yang diizinkan
-                        // Fallback ke semua jika allowedBranches belum terisi (loading)
-                        return allowedBranches.length === 0 || allowedBranches.includes(branch);
-                    }
+                    // Saat tidak ada filter cabang: tampilkan semua item pekerjaan
+                    // Security cabang sudah ditangani di filteredProjects
+                    if (selectedBranches.size === 0) return true;
                     // HO: match by parent; non-HO: exact match
                     return isHOUser
                         ? selectedBranches.has(getParentBranch(branch))
@@ -188,7 +186,7 @@ export default function TarikanDataPage() {
                 .flatMap(collectProjectWorkItems)
                 .filter(Boolean)
         )).sort();
-    }, [projects, selectedBranches, allowedBranches, isHOUser]);
+    }, [projects, selectedBranches, isHOUser]);
 
     useEffect(() => {
         if (!user) return;

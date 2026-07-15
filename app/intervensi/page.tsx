@@ -59,6 +59,7 @@ import {
     type PertambahanSPKInterventionPayload,
 } from "@/lib/api";
 import { formatRupiah } from "@/lib/utils";
+import { getParentBranch, normalizeBranchValue } from "@/lib/constants";
 import {
     AlertTriangle,
     ArrowRight,
@@ -741,7 +742,11 @@ export default function IntervensiPage() {
     const branches = useMemo(() => {
         const values = new Set<string>();
         documents.forEach((doc) => {
-            if (doc.cabang) values.add(doc.cabang);
+            if (doc.cabang) {
+                const branchName = normalizeBranchValue(doc.cabang);
+                // In Intervensi, all users are HO/SuperHuman equivalent because of canAccessIntervensi
+                values.add(getParentBranch(branchName));
+            }
         });
         return Array.from(values).sort((a, b) => a.localeCompare(b));
     }, [documents]);
@@ -751,7 +756,10 @@ export default function IntervensiPage() {
         return documents.filter((doc) => {
             if (typeFilter !== "ALL" && doc.type !== typeFilter) return false;
             if (statusFilter !== "ALL" && getStatusCategory(doc.status) !== statusFilter) return false;
-            if (branchFilter !== "ALL" && (doc.cabang || "-").toUpperCase() !== branchFilter.toUpperCase()) return false;
+            if (branchFilter !== "ALL") {
+                const docBranch = getParentBranch(normalizeBranchValue(doc.cabang || "-"));
+                if (docBranch.toUpperCase() !== branchFilter.toUpperCase()) return false;
+            }
             if (!query) return true;
             return [
                 doc.nomor_ulok,
