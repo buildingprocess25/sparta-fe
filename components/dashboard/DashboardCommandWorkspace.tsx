@@ -96,36 +96,36 @@ type Props = {
 // ============================================================================
 const getAggregatedCostData = (project: any, opname: any) => {
   const rabArr = Array.isArray(project?.rab) ? project.rab : (project?.rab ? [project.rab] : []);
-  
+
   // Filter hanya RAB yang approved (DISETUJUI)
-  const approvedRabs = rabArr.filter((r: any) => 
+  const approvedRabs = rabArr.filter((r: any) =>
     String(r?.status || '').toUpperCase() === 'DISETUJUI'
   );
-  
+
   // Jika tidak ada approved RAB, fallback ke semua RAB
   const activeRabs = approvedRabs.length > 0 ? approvedRabs : rabArr;
-  
+
   // Aggregate total biaya dari semua lingkup (SIPIL + ME)
   const totalBiayaRAB = activeRabs.reduce((sum: number, rab: any) => {
     return sum + Number(rab?.grand_total_final || 0);
   }, 0);
-  
+
   // Ambil luas_terbangun dari RAB pertama (asumsi: luas sama untuk SIPIL dan ME)
   const luasTerbangun = Number(activeRabs[0]?.luas_terbangun || 0);
-  
+
   // Gunakan opname jika ada, kalau tidak pakai aggregate RAB
-  const totalBiaya = Number(opname?.grand_total_opname || 0) > 0 
-    ? Number(opname.grand_total_opname) 
+  const totalBiaya = Number(opname?.grand_total_opname || 0) > 0
+    ? Number(opname.grand_total_opname)
     : totalBiayaRAB;
-  
+
   const costPerM2 = luasTerbangun > 0 ? totalBiaya / luasTerbangun : 0;
-  
+
   // ✅ Determine status lingkup untuk indikasi data lengkap/tidak
   const lingkupSet = new Set(
     activeRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase().trim())
       .filter(Boolean)
   );
-  
+
   let statusLingkup = '';
   if (lingkupSet.size === 0) {
     // NO RABs or all RABs have empty lingkup_pekerjaan
@@ -140,7 +140,7 @@ const getAggregatedCostData = (project: any, opname: any) => {
     // Ada RAB tapi lingkup tidak standar
     statusLingkup = Array.from(lingkupSet).join(' + ') || 'Lingkup tidak diketahui';
   }
-  
+
   return {
     totalBiaya,
     luasTerbangun,
@@ -248,17 +248,17 @@ function getContextCells(
   if (context === "COST_M2") {
     const costData = getAggregatedCostData(project, opname);
     return [
-      { 
-        value: costData.statusLingkup, 
+      {
+        value: costData.statusLingkup,
         helper: costData.sumber === 'Opname' ? 'Dari opname final' : 'Dari RAB approved',
         danger: (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME') // Warning jika tidak lengkap
       },
-      { 
-        value: `${costData.luasTerbangun} m²`, 
+      {
+        value: `${costData.luasTerbangun} m²`,
         helper: `${formatRupiah(costData.totalBiaya)} total`
       },
-      { 
-        value: formatRupiah(costData.costPerM2), 
+      {
+        value: formatRupiah(costData.costPerM2),
         helper: "Cost per meter persegi",
         danger: costData.statusLingkup.includes('saja') // Warning jika tidak lengkap
       },
@@ -404,9 +404,8 @@ function DashboardMetric({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative flex min-h-[160px] flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 p-5 text-left shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_-4px_rgba(220,38,38,0.1)] ${
-        tone === "danger" ? "bg-gradient-to-br from-white to-red-50/60 hover:border-red-300" : "bg-gradient-to-br from-white to-slate-50 hover:border-slate-300"
-      }`}
+      className={`group relative flex min-h-[160px] flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 p-5 text-left shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_-4px_rgba(220,38,38,0.1)] ${tone === "danger" ? "bg-gradient-to-br from-white to-red-50/60 hover:border-red-300" : "bg-gradient-to-br from-white to-slate-50 hover:border-slate-300"
+        }`}
     >
       <div className="relative z-10 w-full">
         <div className="flex items-center gap-2">
@@ -435,7 +434,7 @@ function DashboardMetric({
           ))}
         </div>
       )}
-      
+
       {/* Decorative gradient blur */}
       <div className={`absolute -right-6 -top-6 z-0 h-24 w-24 rounded-full opacity-[0.06] blur-xl transition-opacity duration-300 group-hover:opacity-[0.12] ${tone === "danger" ? "bg-red-500" : "bg-blue-500"}`} />
     </button>
@@ -457,9 +456,9 @@ function getProjectValue(project: any, context: string, getLateDays: Props["getL
   if (context === "NILAI_TOKO") return { label: "Nilai toko", value: `${quality.total.toFixed(1)} poin`, helper: `D ${quality.desain.toFixed(1)} · K ${quality.kualitas.toFixed(1)} · S ${quality.spesifikasi.toFixed(1)}` };
   if (context === "COST_M2") {
     const costData = getAggregatedCostData(project, opname);
-    return { 
-      label: "Cost/m² terbangun", 
-      value: formatRupiah(costData.costPerM2), 
+    return {
+      label: "Cost/m² terbangun",
+      value: formatRupiah(costData.costPerM2),
       helper: `${costData.statusLingkup} · ${costData.luasTerbangun} m²${costData.sumber === 'Opname' ? ' · Opname' : ''}`
     };
   }
@@ -471,52 +470,52 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
   const spk = firstSpk(project);
   const opname = firstOpname(project);
   const st = Array.isArray(project?.berkas_serah_terima) ? project.berkas_serah_terima[0] : project?.berkas_serah_terima;
-  
+
   // Helper function to determine milestone status
   const getMilestoneStatus = (milestone: string): "active" | "completed" | "pending" => {
     const stageIndex = PIPELINE.indexOf(stage);
-    
+
     if (milestone === "RAB") {
       if (stageIndex === 0) return "active"; // Approval RAB
       if (rab?.status) return "completed";
       return "pending";
     }
-    
+
     if (milestone === "SPK") {
       if (stageIndex <= 2) return "pending"; // Before Approval SPK
       if (stageIndex === 3) return "active"; // Approval SPK
       if (spk?.status) return "completed";
       return "pending";
     }
-    
+
     if (milestone === "Pelaksanaan") {
       if (stageIndex < 4) return "pending"; // Before Ongoing
       if (stage === "Ongoing") return "active";
       return "completed";
     }
-    
+
     if (milestone === "Serah terima") {
       if (stageIndex < 4) return "pending"; // Before Ongoing
       if (stage === "Ongoing" && !st) return "active"; // Waiting for ST during Ongoing
       if (st) return "completed";
       return "pending";
     }
-    
+
     if (milestone === "KTK") {
       if (stageIndex < 5) return "pending"; // Before Kerja Tambah Kurang
       if (stage === "Kerja Tambah Kurang") return "active";
       if (stageIndex > 5) return "completed"; // After KTK
       return "pending";
     }
-    
+
     if (milestone === "Done") {
       if (stage === "Done") return "completed";
       return "pending";
     }
-    
+
     return "pending";
   };
-  
+
   const getStatusStyles = (status: "active" | "completed" | "pending") => {
     if (status === "active") {
       return {
@@ -541,52 +540,52 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
       date: "text-slate-400",
     };
   };
-  
+
   const items = [
-    { 
-      label: "RAB", 
-      value: rab?.status || "Belum tersedia", 
+    {
+      label: "RAB",
+      value: rab?.status || "Belum tersedia",
       date: rab?.created_at,
       milestone: "RAB",
     },
-    { 
-      label: "SPK", 
-      value: spk?.status || "Belum tersedia", 
+    {
+      label: "SPK",
+      value: spk?.status || "Belum tersedia",
       date: spk?.created_at,
       milestone: "SPK",
     },
-    { 
-      label: "Pelaksanaan", 
+    {
+      label: "Pelaksanaan",
       value: stage === "Ongoing" ? "Sedang berjalan" : (stage === "Done" || stage === "Kerja Tambah Kurang" ? "Selesai" : stage),
       date: spk?.waktu_mulai,
       milestone: "Pelaksanaan",
     },
-    { 
-      label: "Serah terima", 
-      value: st ? "Sudah ST" : "Belum ST", 
+    {
+      label: "Serah terima",
+      value: st ? "Sudah ST" : "Belum ST",
       date: st?.created_at,
       milestone: "Serah terima",
     },
-    { 
-      label: "KTK", 
+    {
+      label: "KTK",
       value: stage === "Kerja Tambah Kurang" ? "Proses approval" : (stage === "Done" ? "Selesai" : "Belum dimulai"),
       date: stage === "Kerja Tambah Kurang" || stage === "Done" ? opname?.created_at : undefined,
       milestone: "KTK",
     },
-    { 
-      label: "Done", 
+    {
+      label: "Done",
       value: stage === "Done" ? "Proyek selesai" : "Belum selesai",
       date: stage === "Done" ? opname?.updated_at : undefined,
       milestone: "Done",
     },
   ];
-  
+
   return (
     <div className="space-y-0">
       {items.map((item, index) => {
         const status = getMilestoneStatus(item.milestone);
         const styles = getStatusStyles(status);
-        
+
         return (
           <div key={item.label} className="grid grid-cols-[20px_1fr] gap-2.5">
             <div className="flex flex-col items-center relative">
@@ -701,7 +700,7 @@ function ContextInspector({
   if (context === "COST_M2") {
     const costData = getAggregatedCostData(project, opname);
     const isIncomplete = (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME');
-    
+
     return (
       <div className="space-y-3">
         {/* Warning jika data tidak lengkap */}
@@ -709,22 +708,22 @@ function ContextInspector({
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
             <p className="text-[9px] font-semibold text-amber-800">⚠️ Data Tidak Lengkap</p>
             <p className="mt-1 text-[9px] text-amber-700">
-              ULOK ini hanya memiliki RAB {costData.statusLingkup}. Untuk perhitungan akurat, 
+              ULOK ini hanya memiliki RAB {costData.statusLingkup}. Untuk perhitungan akurat,
               pastikan SIPIL dan ME sudah lengkap.
             </p>
           </div>
         )}
-        
+
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-2">
-          {infoBox("Status Lingkup", costData.statusLingkup, 
+          {infoBox("Status Lingkup", costData.statusLingkup,
             costData.sumber === 'Opname' ? 'Dari opname final' : 'Dari RAB approved',
             isIncomplete)}
           {infoBox("Total biaya", formatRupiah(costData.totalBiaya))}
           {infoBox("Luas terbangun", `${costData.luasTerbangun} m²`)}
           {infoBox("Cost/m²", formatRupiah(costData.costPerM2), undefined, isIncomplete)}
         </div>
-        
+
         {/* Breakdown per Lingkup */}
         {costData.rabs.length > 0 && (
           <div className="space-y-2">
@@ -735,15 +734,14 @@ function ContextInspector({
               const luas = Number(rab?.luas_terbangun || 0);
               const perM2 = luas > 0 ? biaya / luas : 0;
               const status = String(rab?.status || '').toUpperCase();
-              
+
               return (
                 <div key={idx} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 bg-white">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-[10px] font-bold text-slate-800">{lingkup}</p>
-                      <span className={`text-[8px] px-1.5 py-0.5 rounded ${
-                        status === 'DISETUJUI' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      }`}>
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded ${status === 'DISETUJUI' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
                         {status}
                       </span>
                     </div>
@@ -757,16 +755,14 @@ function ContextInspector({
                 </div>
               );
             })}
-            
+
             {/* Total Gabungan Card */}
-            <div className={`flex items-center justify-between rounded-xl border-2 p-3 mt-3 ${
-              isIncomplete ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'
-            }`}>
+            <div className={`flex items-center justify-between rounded-xl border-2 p-3 mt-3 ${isIncomplete ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'
+              }`}>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <p className={`text-[10px] font-bold uppercase ${
-                    isIncomplete ? 'text-amber-800' : 'text-red-800'
-                  }`}>
+                  <p className={`text-[10px] font-bold uppercase ${isIncomplete ? 'text-amber-800' : 'text-red-800'
+                    }`}>
                     Total {costData.statusLingkup}
                   </p>
                   {costData.statusLingkup === 'SIPIL+ME' && (
@@ -775,26 +771,22 @@ function ContextInspector({
                     </span>
                   )}
                 </div>
-                <p className={`mt-1 text-[13px] font-bold ${
-                  isIncomplete ? 'text-amber-900' : 'text-red-900'
-                }`}>
+                <p className={`mt-1 text-[13px] font-bold ${isIncomplete ? 'text-amber-900' : 'text-red-900'
+                  }`}>
                   {formatRupiah(costData.totalBiaya)}
                 </p>
-                <p className={`mt-0.5 text-[9px] ${
-                  isIncomplete ? 'text-amber-700' : 'text-red-700'
-                }`}>
+                <p className={`mt-0.5 text-[9px] ${isIncomplete ? 'text-amber-700' : 'text-red-700'
+                  }`}>
                   {costData.luasTerbangun} m² terbangun
                 </p>
               </div>
               <div className="text-right">
-                <p className={`text-[16px] font-extrabold ${
-                  isIncomplete ? 'text-amber-900' : 'text-red-900'
-                }`}>
+                <p className={`text-[16px] font-extrabold ${isIncomplete ? 'text-amber-900' : 'text-red-900'
+                  }`}>
                   {formatRupiah(costData.costPerM2)}
                 </p>
-                <p className={`text-[9px] font-semibold ${
-                  isIncomplete ? 'text-amber-700' : 'text-red-700'
-                }`}>
+                <p className={`text-[9px] font-semibold ${isIncomplete ? 'text-amber-700' : 'text-red-700'
+                  }`}>
                   per m²
                 </p>
               </div>
@@ -850,11 +842,11 @@ function SpecializedDetailContent({
     "Kerja Tambah Kurang": Layers3,
   };
   const stageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
-    "Approval RAB":        { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
-    "Proses Gantt":        { text: "text-sky-600",    bar: "bg-sky-500",    borderTop: "border-t-sky-500",    bg: "bg-sky-50" },
-    "Proses PJU":          { text: "text-amber-600",  bar: "bg-amber-500",  borderTop: "border-t-amber-500",  bg: "bg-amber-50" },
-    "Approval SPK":        { text: "text-emerald-600",bar: "bg-emerald-500",borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
-    "Ongoing":             { text: "text-red-600",    bar: "bg-red-500",    borderTop: "border-t-red-500",    bg: "bg-red-50" },
+    "Approval RAB": { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
+    "Proses Gantt": { text: "text-sky-600", bar: "bg-sky-500", borderTop: "border-t-sky-500", bg: "bg-sky-50" },
+    "Proses PJU": { text: "text-amber-600", bar: "bg-amber-500", borderTop: "border-t-amber-500", bg: "bg-amber-50" },
+    "Approval SPK": { text: "text-emerald-600", bar: "bg-emerald-500", borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
+    "Ongoing": { text: "text-red-600", bar: "bg-red-500", borderTop: "border-t-red-500", bg: "bg-red-50" },
     "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
   };
 
@@ -926,13 +918,15 @@ function SpecializedDetailContent({
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff8f8] p-4 md:p-6">
         <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-          <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><FileText className="h-5 w-5"/></span><p className="mt-6 text-[9px] uppercase tracking-[.14em] text-red-500">Register kontrak aktif</p><p className="mt-2 text-3xl font-semibold text-slate-950">{rows.length}</p><div className="mt-6 border-t border-red-100 pt-5"><p className="text-[9px] text-slate-400">Total komitmen</p><p className="mt-1 text-xl font-semibold text-red-700">{formatRupiah(total)}</p></div></div>
+          <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><FileText className="h-5 w-5" /></span><p className="mt-6 text-[9px] uppercase tracking-[.14em] text-red-500">Register kontrak aktif</p><p className="mt-2 text-3xl font-semibold text-slate-950">{rows.length}</p><div className="mt-6 border-t border-red-100 pt-5"><p className="text-[9px] text-slate-400">Total komitmen</p><p className="mt-1 text-xl font-semibold text-red-700">{formatRupiah(total)}</p></div></div>
           <div className="grid gap-3 md:grid-cols-2">
-            {rows.map((row,index)=>{const spk=firstSpk(row);const extra=getApprovedExtensions(row).reduce((sum:number,item:any)=>sum+Number(item?.pertambahan_hari||0),0);return (
-              <Fragment key={row?.toko?.id||index}>
-                <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md ${selectedIndex===index?"border-red-500 shadow-md":"border-slate-200"}`}><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-slate-100 px-2 py-1 text-[8px] font-semibold text-slate-600">{spk?.nomor_spk||"SPK"}</span><span className="text-[9px] font-medium text-emerald-700">{spk?.status}</span></div><p className="mt-4 text-[12px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{spk?.nama_kontraktor||row?.toko?.nama_kontraktor}</p><div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3"><div><p className="text-[8px] text-slate-400">PERIODE</p><p className="mt-1 text-[9px] font-medium">{formatDashboardDate(spk?.waktu_mulai)} – {formatDashboardDate(spk?.waktu_selesai)}</p></div><div className="text-right"><p className="text-[8px] text-slate-400">DURASI</p><p className="mt-1 text-[9px] font-medium">{Number(spk?.durasi||0)+extra} hari</p></div></div><p className="mt-4 text-lg font-semibold text-red-800">{formatRupiah(spk?.grand_total||0)}</p></button>
-              </Fragment>
-            )})}
+            {rows.map((row, index) => {
+              const spk = firstSpk(row); const extra = getApprovedExtensions(row).reduce((sum: number, item: any) => sum + Number(item?.pertambahan_hari || 0), 0); return (
+                <Fragment key={row?.toko?.id || index}>
+                  <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md ${selectedIndex === index ? "border-red-500 shadow-md" : "border-slate-200"}`}><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-slate-100 px-2 py-1 text-[8px] font-semibold text-slate-600">{spk?.nomor_spk || "SPK"}</span><span className="text-[9px] font-medium text-emerald-700">{spk?.status}</span></div><p className="mt-4 text-[12px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{spk?.nama_kontraktor || row?.toko?.nama_kontraktor}</p><div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3"><div><p className="text-[8px] text-slate-400">PERIODE</p><p className="mt-1 text-[9px] font-medium">{formatDashboardDate(spk?.waktu_mulai)} – {formatDashboardDate(spk?.waktu_selesai)}</p></div><div className="text-right"><p className="text-[8px] text-slate-400">DURASI</p><p className="mt-1 text-[9px] font-medium">{Number(spk?.durasi || 0) + extra} hari</p></div></div><p className="mt-4 text-lg font-semibold text-red-800">{formatRupiah(spk?.grand_total || 0)}</p></button>
+                </Fragment>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -974,26 +968,26 @@ function SpecializedDetailContent({
   if (context === "DENDA") {
     // ✅ FIX: Deduplicate per ULOK, filter only "Resmi" with amount > 0
     const penaltyByUlok = new Map<string, { penalty: ReturnType<Props["getPenalty"]>; project: any }>();
-    
+
     rows.forEach(row => {
       const penalty = getPenalty(row);
       const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
-      
+
       // Only include penalties with source "Resmi" AND amount > 0
       if (penalty.source !== 'Resmi' || penalty.amount <= 0) return;
-      
+
       const existing = penaltyByUlok.get(ulokKey);
-      
+
       // ✅ Take MINIMUM penalty (peer yang selesai duluan) among SIPIL+ME
       if (!existing || penalty.amount < existing.penalty.amount) {
         penaltyByUlok.set(ulokKey, { penalty, project: row });
       }
     });
-    
+
     const dedupedRows = Array.from(penaltyByUlok.values()).map(entry => entry.project);
     const totalPenalty = Array.from(penaltyByUlok.values())
       .reduce((sum, entry) => sum + entry.penalty.amount, 0);
-    
+
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff5f5] p-4 md:p-6">
         <div className="rounded-2xl bg-linear-to-r from-red-800 to-red-600 p-6 text-white">
@@ -1002,25 +996,26 @@ function SpecializedDetailContent({
         </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-white">
           <div className="grid grid-cols-[1.2fr_.7fr_.9fr] bg-red-50 px-5 py-3 text-[8px] font-semibold uppercase tracking-[.08em] text-red-800"><span>Toko</span><span>Status</span><span className="text-right">Nilai denda</span></div>
-          {dedupedRows.map((row,index)=>{
-            const penalty=getPenalty(row);
+          {dedupedRows.map((row, index) => {
+            const penalty = getPenalty(row);
             const status = 'Terlambat'; // Always "Terlambat", no "Kritis"
             const statusColor = 'text-orange-700';
             return (
-            <Fragment key={row?.toko?.id||index}>
-              <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.7fr_.9fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex===index?"bg-red-50 shadow-[inset_4px_0_0_#dc2626]":""}`}>
-                <span>
-                  <span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span>
-                  <span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span>
-                </span>
-                <span>
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${statusColor} bg-red-50`}>{status}</span>
-                  <span className="ml-1 text-[9px] text-slate-400">{penalty.days} hari</span>
-                </span>
-                <span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span>
-              </button>
-            </Fragment>
-          )})}
+              <Fragment key={row?.toko?.id || index}>
+                <button type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`grid w-full grid-cols-[1.2fr_.7fr_.9fr] items-center border-t border-red-100 px-5 py-4 text-left transition-all hover:bg-red-50 ${selectedIndex === index ? "bg-red-50 shadow-[inset_4px_0_0_#dc2626]" : ""}`}>
+                  <span>
+                    <span className="block text-[11px] font-semibold">{row?.toko?.nama_toko}</span>
+                    <span className="mt-1 block text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</span>
+                  </span>
+                  <span>
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${statusColor} bg-red-50`}>{status}</span>
+                    <span className="ml-1 text-[9px] text-slate-400">{penalty.days} hari</span>
+                  </span>
+                  <span className="text-right text-[13px] font-semibold text-red-900">{formatRupiah(penalty.amount)}</span>
+                </button>
+              </Fragment>
+            )
+          })}
         </div>
       </div>
     );
@@ -1031,7 +1026,7 @@ function SpecializedDetailContent({
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
         <div className="mb-4"><h2 className="text-lg font-semibold text-slate-950">Peta keterlambatan</h2><p className="mt-1 text-[10px] text-slate-400">Bandingkan target SPK dengan kondisi serah terima.</p></div>
         <div className="space-y-3">
-          {rows.map((row,index)=>{const spk=firstSpk(row);const st=Array.isArray(row?.berkas_serah_terima)?row.berkas_serah_terima[0]:row?.berkas_serah_terima;const late=getLateDays(row);return <button key={row?.toko?.id||index} type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 ${selectedIndex===index?"border-red-500 shadow-[inset_4px_0_0_#dc2626]":"border-slate-200"}`}><div className="grid gap-4 lg:grid-cols-[220px_1fr_90px] lg:items-center"><div><p className="text-[11px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {getStage(row)}</p></div><div className="relative pt-4"><div className="h-1.5 rounded-full bg-slate-200"><div className="h-full rounded-full bg-red-600" style={{width:`${Math.min(100,Math.max(8,late*7))}%`}}/></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>Target {formatDashboardDate(spk?.waktu_selesai)}</span><span>{st?`ST ${formatDashboardDate(st.created_at)}`:"Belum ST"}</span></div></div><p className="text-right text-2xl font-semibold text-red-700">{late}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p></div></button>})}
+          {rows.map((row, index) => { const spk = firstSpk(row); const st = Array.isArray(row?.berkas_serah_terima) ? row.berkas_serah_terima[0] : row?.berkas_serah_terima; const late = getLateDays(row); return <button key={row?.toko?.id || index} type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 ${selectedIndex === index ? "border-red-500 shadow-[inset_4px_0_0_#dc2626]" : "border-slate-200"}`}><div className="grid gap-4 lg:grid-cols-[220px_1fr_90px] lg:items-center"><div><p className="text-[11px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {getStage(row)}</p></div><div className="relative pt-4"><div className="h-1.5 rounded-full bg-slate-200"><div className="h-full rounded-full bg-red-600" style={{ width: `${Math.min(100, Math.max(8, late * 7))}%` }} /></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>Target {formatDashboardDate(spk?.waktu_selesai)}</span><span>{st ? `ST ${formatDashboardDate(st.created_at)}` : "Belum ST"}</span></div></div><p className="text-right text-2xl font-semibold text-red-700">{late}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p></div></button> })}
         </div>
       </div>
     );
@@ -1049,152 +1044,152 @@ function SpecializedDetailContent({
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50">
         <div className="p-4 md:p-6">
-        {/* Hero summary bar */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex flex-col justify-center rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+          {/* Hero summary bar */}
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex flex-col justify-center rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                </div>
+                <p className="text-[12px] font-bold uppercase tracking-wider text-red-700">Total Proyek Perlu Perhatian</p>
               </div>
-              <p className="text-[12px] font-bold uppercase tracking-wider text-red-700">Total Proyek Perlu Perhatian</p>
-            </div>
-            <div className="flex items-baseline gap-2 mt-2">
-              <p className="text-4xl font-bold tracking-tight text-red-700">{rows.length}</p>
-              <p className="text-[12px] font-medium text-red-600">Tersebar di {stageBreakdown.length} Alur Business Process</p>
-            </div>
-          </div>
-          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <Clock3 className="h-4 w-4 text-slate-400" />
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Hari Terlambat</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight text-slate-900">{totalLate.toLocaleString("id-ID")}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Hari estimasi</p>
-            </div>
-          </div>
-          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[9px] font-bold text-slate-500">Rp</div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Eksposur Denda</p>
-            </div>
-            <div>
-              <p className="text-xl font-bold tracking-tight text-red-600">{formatRupiah(totalExposure)}</p>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">Estimasi dan Resmi</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Stage breakdown cards */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {stageBreakdown.map(({ stage, count, lateDays: stageLate }) => {
-            const Icon = stageIconMap[stage] || FileText;
-            const colors = stageColorMap[stage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
-            const pct = Math.round((count / maxCount) * 100);
-            return (
-              <div key={stage} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${colors.bar}`} />
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{stage}</p>
-                  </div>
-                  <Icon className="h-4 w-4 text-slate-400" />
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl font-bold tracking-tight text-slate-900">{count}</span>
-                  <span className="text-[13px] font-medium text-slate-500">Toko</span>
-                </div>
-                {/* Progress bar */}
-                <div className="mt-4 flex items-center gap-3">
-                  <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div className={`h-full rounded-full ${colors.bar} transition-all`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-500">{pct}%</span>
-                </div>
-                {stageLate > 0 && (
-                  <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    {stageLate.toLocaleString("id-ID")} hari keterlambatan
-                  </div>
-                )}
+              <div className="flex items-baseline gap-2 mt-2">
+                <p className="text-4xl font-bold tracking-tight text-red-700">{rows.length}</p>
+                <p className="text-[12px] font-medium text-red-600">Tersebar di {stageBreakdown.length} Alur Business Process</p>
               </div>
-            );
-          })}
-        </div>
+            </div>
+            <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock3 className="h-4 w-4 text-slate-400" />
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Hari Terlambat</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold tracking-tight text-slate-900">{totalLate.toLocaleString("id-ID")}</p>
+                <p className="text-[11px] font-medium text-slate-500 mt-1">Hari estimasi</p>
+              </div>
+            </div>
+            <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[9px] font-bold text-slate-500">Rp</div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Eksposur Denda</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold tracking-tight text-red-600">{formatRupiah(totalExposure)}</p>
+                <p className="text-[11px] font-medium text-slate-500 mt-1">Estimasi dan Resmi</p>
+              </div>
+            </div>
+          </div>
 
-        {/* Divider + section header */}
-        <div className="mt-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Daftar {rows.length} Proyek · Klik untuk detail</span>
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
+          {/* Stage breakdown cards */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {stageBreakdown.map(({ stage, count, lateDays: stageLate }) => {
+              const Icon = stageIconMap[stage] || FileText;
+              const colors = stageColorMap[stage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
+              const pct = Math.round((count / maxCount) * 100);
+              return (
+                <div key={stage} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${colors.bar}`} />
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{stage}</p>
+                    </div>
+                    <Icon className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-bold tracking-tight text-slate-900">{count}</span>
+                    <span className="text-[13px] font-medium text-slate-500">Toko</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-4 flex items-center gap-3">
+                    <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${colors.bar} transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500">{pct}%</span>
+                  </div>
+                  {stageLate > 0 && (
+                    <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600">
+                      <Clock3 className="h-3.5 w-3.5" />
+                      {stageLate.toLocaleString("id-ID")} hari keterlambatan
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-        {/* Project List Table */}
-        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
-                <tr>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Nama Toko & ULOK</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Cabang</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Tahap Pipeline</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Keterlambatan</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider">Eksposur Denda</th>
-                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row, index) => {
-                  const penalty = getPenalty(row); 
-                  const late = getLateDays(row); 
-                  const stage = getStage(row);
-                  const colors = stageColorMap[stage] || { text: "text-slate-600", bg: "bg-slate-50" };
-                  
-                  return (
-                    <tr key={row?.toko?.id || index} className="group cursor-pointer transition-colors hover:bg-red-50/60" onClick={() => onOpenProjectDetail(row)}>
-                      <td className="px-4 py-3">
-                        <p className="text-[12px] font-bold text-slate-900 transition-colors group-hover:text-red-700">{row?.toko?.nama_toko || "-"}</p>
-                        <p className="mt-0.5 text-[10px] text-slate-500">{row?.toko?.nomor_ulok || "-"}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-[11px] font-medium text-slate-700">{row?.toko?.cabang || "-"}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
-                          {stage}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {late > 0 ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">
-                            <Clock3 className="h-3 w-3" /> {late} hari terlambat
+          {/* Divider + section header */}
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Daftar {rows.length} Proyek · Klik untuk detail</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          {/* Project List Table */}
+          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#e2e8f0]">
+                  <tr>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Nama Toko & ULOK</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Cabang</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Tahap Pipeline</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider">Keterlambatan</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider">Eksposur Denda</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map((row, index) => {
+                    const penalty = getPenalty(row);
+                    const late = getLateDays(row);
+                    const stage = getStage(row);
+                    const colors = stageColorMap[stage] || { text: "text-slate-600", bg: "bg-slate-50" };
+
+                    return (
+                      <tr key={row?.toko?.id || index} className="group cursor-pointer transition-colors hover:bg-red-50/60" onClick={() => onOpenProjectDetail(row)}>
+                        <td className="px-4 py-3">
+                          <p className="text-[12px] font-bold text-slate-900 transition-colors group-hover:text-red-700">{row?.toko?.nama_toko || "-"}</p>
+                          <p className="mt-0.5 text-[10px] text-slate-500">{row?.toko?.nomor_ulok || "-"}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-[11px] font-medium text-slate-700">{row?.toko?.cabang || "-"}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
+                            {stage}
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-slate-400">Tepat waktu</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {penalty.amount > 0 ? (
-                          <div>
-                            <p className="text-[11px] font-bold text-red-600">{formatRupiah(penalty.amount)}</p>
-                            <p className="mt-0.5 text-[9px] text-red-500">{penalty.days} hari</p>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold text-red-600 transition-colors group-hover:bg-red-100">
-                          Detail <ChevronRight className="h-3.5 w-3.5" />
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className="px-4 py-3">
+                          {late > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                              <Clock3 className="h-3 w-3" /> {late} hari terlambat
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-slate-400">Tepat waktu</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {penalty.amount > 0 ? (
+                            <div>
+                              <p className="text-[11px] font-bold text-red-600">{formatRupiah(penalty.amount)}</p>
+                              <p className="mt-0.5 text-[9px] text-red-500">{penalty.days} hari</p>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold text-red-600 transition-colors group-hover:bg-red-100">
+                            Detail <ChevronRight className="h-3.5 w-3.5" />
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
         </div>
       </div>
 
@@ -1211,7 +1206,7 @@ function SpecializedDetailContent({
               <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-300 hover:bg-red-50 ${selectedIndex === index ? "border-red-500 shadow-[inset_4px_0_0_#dc2626]" : "border-slate-200"}`}>
                 <div className="grid items-center gap-4 md:grid-cols-[1fr_2fr_80px]">
                   <div><p className="text-[12px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.nomor_ulok} · {row?.toko?.cabang}</p></div>
-                  <div><div className="flex h-8 overflow-hidden rounded-lg text-[8px] font-semibold text-white"><span className="flex items-center justify-center bg-slate-600" style={{width:`${total ? Number(spk?.durasi || 0)/total*100 : 0}%`}}>SPK {Number(spk?.durasi || 0)}</span><span className="flex items-center justify-center bg-amber-500" style={{width:`${total ? extra/total*100 : 0}%`}}>+{extra}</span><span className="flex items-center justify-center bg-red-600" style={{width:`${total ? late/total*100 : 0}%`}}>TELAT {late}</span></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>{formatDashboardDate(spk?.waktu_mulai)}</span><span>{formatDashboardDate(spk?.waktu_selesai)}</span></div></div>
+                  <div><div className="flex h-8 overflow-hidden rounded-lg text-[8px] font-semibold text-white"><span className="flex items-center justify-center bg-slate-600" style={{ width: `${total ? Number(spk?.durasi || 0) / total * 100 : 0}%` }}>SPK {Number(spk?.durasi || 0)}</span><span className="flex items-center justify-center bg-amber-500" style={{ width: `${total ? extra / total * 100 : 0}%` }}>+{extra}</span><span className="flex items-center justify-center bg-red-600" style={{ width: `${total ? late / total * 100 : 0}%` }}>TELAT {late}</span></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>{formatDashboardDate(spk?.waktu_mulai)}</span><span>{formatDashboardDate(spk?.waktu_selesai)}</span></div></div>
                   <p className="text-right text-2xl font-semibold text-slate-950">{total}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p>
                 </div>
               </button>
@@ -1229,9 +1224,9 @@ function SpecializedDetailContent({
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white">
             <div className="bg-amber-50 px-5 py-4"><h2 className="text-sm font-semibold text-amber-950">Peringkat kualitas</h2><p className="mt-1 text-[9px] text-amber-700">Skor tertinggi ditampilkan lebih dahulu</p></div>
-            {[...qualityRows].sort((a: any,b: any)=>Number(b.nilai)-Number(a.nilai)).map((row: any,index:number) => {
+            {[...qualityRows].sort((a: any, b: any) => Number(b.nilai) - Number(a.nilai)).map((row: any, index: number) => {
               const name = context === "NILAI_KONTRAKTOR" ? row.nama_kontraktor : row.nama; const value = Number(row.nilai || 0);
-              return <button key={`${name}-${index}`} type="button" onClick={() => onSelect(rows.indexOf(context === "NILAI_KONTRAKTOR" ? row : row.project))} className="grid w-full grid-cols-[34px_1fr_80px] items-center gap-3 border-t border-amber-100 px-5 py-4 text-left transition-all hover:bg-red-50"><span className="text-lg font-semibold text-amber-500">#{index+1}</span><span><span className="block text-[11px] font-semibold">{name}</span><span className="mt-2 block h-2 overflow-hidden rounded-full bg-amber-100"><span className="block h-full rounded-full bg-linear-to-r from-amber-400 to-red-500" style={{width:`${Math.min(100,value)}%`}} /></span></span><span className="text-right text-xl font-semibold text-amber-950">{value.toFixed(1)}</span></button>;
+              return <button key={`${name}-${index}`} type="button" onClick={() => onSelect(rows.indexOf(context === "NILAI_KONTRAKTOR" ? row : row.project))} className="grid w-full grid-cols-[34px_1fr_80px] items-center gap-3 border-t border-amber-100 px-5 py-4 text-left transition-all hover:bg-red-50"><span className="text-lg font-semibold text-amber-500">#{index + 1}</span><span><span className="block text-[11px] font-semibold">{name}</span><span className="mt-2 block h-2 overflow-hidden rounded-full bg-amber-100"><span className="block h-full rounded-full bg-linear-to-r from-amber-400 to-red-500" style={{ width: `${Math.min(100, value)}%` }} /></span></span><span className="text-right text-xl font-semibold text-amber-950">{value.toFixed(1)}</span></button>;
             })}
           </div>
           <div className="rounded-2xl border border-amber-200 bg-white p-5">
@@ -1245,15 +1240,15 @@ function SpecializedDetailContent({
   if (context === "COST_M2") {
     // ✅ FIX: Deduplicate per ULOK (aggregate SIPIL+ME across multiple projects)
     const costByUlok = new Map<string, { costData: any; project: any }>();
-    
+
     rows.forEach(row => {
       // Skip beanspot stores
       if (row.__kind === "beanspot") return;
-      
+
       const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
       const opname = firstOpname(row);
       const costData = getAggregatedCostData(row, opname);
-      
+
       // DEBUG: Log individual costData
       if (ulokKey === rows[0]?.toko?.nomor_ulok) {
         console.log('🔍 First ULOK costData:', {
@@ -1264,9 +1259,9 @@ function SpecializedDetailContent({
           rabs: costData.rabs
         });
       }
-      
+
       const existing = costByUlok.get(ulokKey);
-      
+
       if (!existing) {
         // First entry for this ULOK
         costByUlok.set(ulokKey, { costData, project: row });
@@ -1278,7 +1273,7 @@ function SpecializedDetailContent({
           mergedRabs.map((r: any) => String(r?.lingkup_pekerjaan || '').toUpperCase().trim())
             .filter(Boolean)
         );
-        
+
         let statusLingkup = '';
         if (mergedLingkupSet.has('SIPIL') && mergedLingkupSet.has('ME')) {
           statusLingkup = 'SIPIL + ME'; // Lengkap
@@ -1291,7 +1286,7 @@ function SpecializedDetailContent({
         } else {
           statusLingkup = 'Belum ada RAB';
         }
-        
+
         const merged = {
           totalBiaya: existing.costData.totalBiaya + costData.totalBiaya,
           luasTerbangun: Math.max(existing.costData.luasTerbangun, costData.luasTerbangun),
@@ -1303,13 +1298,13 @@ function SpecializedDetailContent({
           rabs: mergedRabs,
         };
         merged.costPerM2 = merged.luasTerbangun > 0 ? merged.totalBiaya / merged.luasTerbangun : 0;
-        
+
         costByUlok.set(ulokKey, { costData: merged, project: row });
       }
     });
-    
+
     const dedupedRows = Array.from(costByUlok.values());
-    
+
     // DEBUG: Log untuk cek statusLingkup
     if (dedupedRows.length > 0) {
       console.log('🔍 COST_M2 Debug - First 3 entries:', dedupedRows.slice(0, 3).map(e => ({
@@ -1319,28 +1314,27 @@ function SpecializedDetailContent({
         lingkupList: e.costData?.lingkupList
       })));
     }
-    
+
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fff8f8] p-4 [_.border-emerald-200]:border-red-100 [_.bg-emerald-50]:bg-red-50 [_.text-emerald-700]:text-red-600 [_.text-emerald-900]:text-red-800 md:p-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {dedupedRows.map((entry, index) => {
             const { costData, project: row } = entry;
-            
+
             return (
-              <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)} 
+              <button key={row?.toko?.id || index} type="button" onClick={() => onSelect(index)}
                 className="rounded-2xl border border-emerald-200 bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 hover:shadow-md">
                 <div className="flex items-center justify-between">
                   <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
-                    <Ruler className="h-4 w-4"/>
+                    <Ruler className="h-4 w-4" />
                   </span>
                   {/* Status Lingkup Badge - Force render untuk debug */}
-                  <span className={`text-[9px] font-bold px-2 py-1 rounded ${
-                    costData.statusLingkup === 'SIPIL + ME' 
-                      ? 'bg-green-100 text-green-700 border border-green-300' 
-                      : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
+                  <span className={`text-[9px] font-bold px-2 py-1 rounded ${costData.statusLingkup === 'SIPIL + ME'
+                    ? 'bg-green-100 text-green-700 border border-green-300'
+                    : (costData.statusLingkup === 'SIPIL' || costData.statusLingkup === 'ME')
                       ? 'bg-amber-100 text-amber-700 border border-amber-300'
                       : 'bg-red-100 text-red-700 border border-red-300'
-                  }`}>
+                    }`}>
                     {costData.statusLingkup || '❌ NO DATA'}
                   </span>
                 </div>
@@ -1488,30 +1482,30 @@ export default function DashboardCommandWorkspace({
 
         {detail.context !== "PROJECT" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {detail.context === "ATTENTION" && projectDetailView ? null : (
-            <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <Input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setSelectedIndex(0); }} placeholder="Cari toko, ULOK, cabang, atau kontraktor..." className="h-9 rounded-lg border-slate-200 pl-9 text-[11px]" />
+            {detail.context === "ATTENTION" && projectDetailView ? null : (
+              <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <Input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setSelectedIndex(0); }} placeholder="Cari toko, ULOK, cabang, atau kontraktor..." className="h-9 rounded-lg border-slate-200 pl-9 text-[11px]" />
+                </div>
+                {detail.context === "ATTENTION" && (
+                  <Select value={detailCategory} onValueChange={(val) => { setDetailCategory(val); setSelectedIndex(0); }}>
+                    <SelectTrigger className="h-9 w-[180px] shrink-0 rounded-lg border-slate-200 text-[11px] font-medium focus:ring-0 focus:ring-offset-0">
+                      <SelectValue placeholder="Filter Tahap" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Semua" className="text-[11px]">Semua Tahap</SelectItem>
+                      {PIPELINE.filter(s => s !== "Done").map(cat => (
+                        <SelectItem key={cat} value={cat} className="text-[11px]">{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Badge className="w-fit border-red-100 bg-red-50 text-[9px] font-medium text-red-700 hidden sm:flex">
+                  {searchedRows.length} hasil
+                </Badge>
               </div>
-              {detail.context === "ATTENTION" && (
-                <Select value={detailCategory} onValueChange={(val) => { setDetailCategory(val); setSelectedIndex(0); }}>
-                  <SelectTrigger className="h-9 w-[180px] shrink-0 rounded-lg border-slate-200 text-[11px] font-medium focus:ring-0 focus:ring-offset-0">
-                    <SelectValue placeholder="Filter Tahap" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Semua" className="text-[11px]">Semua Tahap</SelectItem>
-                    {PIPELINE.filter(s => s !== "Done").map(cat => (
-                      <SelectItem key={cat} value={cat} className="text-[11px]">{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <Badge className="w-fit border-red-100 bg-red-50 text-[9px] font-medium text-red-700 hidden sm:flex">
-                {searchedRows.length} hasil
-              </Badge>
-            </div>
-          )}
+            )}
             <SpecializedDetailContent
               context={detail.context}
               rows={searchedRows}
@@ -1560,193 +1554,193 @@ export default function DashboardCommandWorkspace({
               </div>
 
               <div className="p-4 md:p-6">
-              {projectDetailView.__kind === "contractor" ? (
-                <div className="space-y-6">
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian kontraktor</p>
-                    <h2 className="mt-2 text-2xl font-bold text-slate-950">{projectDetailView.nama_kontraktor}</h2>
-                    <p className="mt-1 text-sm text-slate-500">{projectDetailView.tokoCount} toko · rata-rata {Number(projectDetailView.nilai).toFixed(1)} poin</p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {(projectDetailView.stores || []).map((store: any) => (
-                      <div key={store.nomor_ulok} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-2"><p className="text-[12px] font-bold text-slate-900 leading-tight">{store.nama_toko}</p><p className="shrink-0 text-base font-bold text-emerald-600">{Number(store.nilai).toFixed(1)}</p></div>
-                        <p className="mt-1 text-[10px] text-slate-500">{store.nomor_ulok} · {store.cabang}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : projectDetailView.__kind === "beanspot" ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian Beanspot</p>
-                    <h2 className="mt-2 text-2xl font-bold text-slate-950">{projectDetailView.nama_toko}</h2>
-                    <p className="mt-1 text-sm text-slate-500">{projectDetailView.nomor_ulok} · {projectDetailView.cabang}</p>
-                    <div className="mt-6 inline-block rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-                      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Nilai pekerjaan Beanspot</p>
-                      <p className="mt-2 text-3xl font-bold text-emerald-700">{formatRupiah(projectDetailView.nominal)}</p>
+                {projectDetailView.__kind === "contractor" ? (
+                  <div className="space-y-6">
+                    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian kontraktor</p>
+                      <h2 className="mt-2 text-2xl font-bold text-slate-950">{projectDetailView.nama_kontraktor}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{projectDetailView.tokoCount} toko · rata-rata {Number(projectDetailView.nilai).toFixed(1)} poin</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {(projectDetailView.stores || []).map((store: any) => (
+                        <div key={store.nomor_ulok} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-2"><p className="text-[12px] font-bold text-slate-900 leading-tight">{store.nama_toko}</p><p className="shrink-0 text-base font-bold text-emerald-600">{Number(store.nilai).toFixed(1)}</p></div>
+                          <p className="mt-1 text-[10px] text-slate-500">{store.nomor_ulok} · {store.cabang}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-              ) : (() => {
-                const pdStage = getStage(projectDetailView);
-                const pdLate = getLateDays(projectDetailView);
-                const pdPenalty = getPenalty(projectDetailView);
-                const pdQuality = getQuality(opnameItemsMap[projectDetailView?.toko?.id] || []);
-                const pdStageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
-                  "Approval RAB":        { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
-                  "Proses Gantt":        { text: "text-sky-600",    bar: "bg-sky-500",    borderTop: "border-t-sky-500",    bg: "bg-sky-50" },
-                  "Proses PJU":          { text: "text-amber-600",  bar: "bg-amber-500",  borderTop: "border-t-amber-500",  bg: "bg-amber-50" },
-                  "Approval SPK":        { text: "text-emerald-600",bar: "bg-emerald-500",borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
-                  "Ongoing":             { text: "text-red-600",    bar: "bg-red-500",    borderTop: "border-t-red-500",    bg: "bg-red-50" },
-                  "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
-                };
-                const pdStageIconMap: Record<string, typeof HardHat> = {
-                  "Approval RAB": FileText, "Proses Gantt": CalendarDays, "Proses PJU": Clock3,
-                  "Approval SPK": UserCheck, "Ongoing": HardHat, "Kerja Tambah Kurang": Layers3,
-                };
-                const pdColors = pdStageColorMap[pdStage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
-                const PdIcon = pdStageIconMap[pdStage] || FileText;
-                return (
+                ) : projectDetailView.__kind === "beanspot" ? (
                   <div className="space-y-4">
-                    {/* Hero card */}
-                    <div className={`relative overflow-hidden rounded-xl border border-slate-200 border-t-4 ${pdColors.borderTop} bg-white p-5 shadow-sm`}>
-                      <div className="flex items-start gap-4">
-                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${pdColors.bg}`}>
-                          <PdIcon className={`h-5 w-5 ${pdColors.text}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${pdColors.bg} ${pdColors.text}`}>{pdStage}</span>
-                            {pdLate > 0 && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">Terlambat {pdLate} hari</span>}
-                          </div>
-                          <h2 className="mt-1.5 text-xl font-bold text-slate-900 leading-tight">{projectDetailView?.toko?.nama_toko}</h2>
-                          <p className="mt-1 text-[11px] text-slate-500">{projectDetailView?.toko?.nomor_ulok} · {projectDetailView?.toko?.cabang} · {projectDetailView?.toko?.lingkup_pekerjaan || "—"}</p>
-                        </div>
-                        {canOpenSource(projectDetailView, detail.context) && (
-                          <button type="button" onClick={() => onOpenSource(projectDetailView, detail.context)} className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700">
-                            Buka ULOK →
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {/* Content grid — full width, 2 cols on large screens */}
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="space-y-4">
-                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                          <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-700">Analisis Risiko &amp; Keterlambatan</p>
-                          <ContextInspector project={projectDetailView} context={detail.context} quality={pdQuality} lateDays={pdLate} penalty={pdPenalty} />
-                        </div>
-                        {pdPenalty.amount > 0 && (
-                          <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
-                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-red-600">Denda</p>
-                            <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pdPenalty.amount)}</p>
-                            <p className="mt-1 text-[12px] font-medium text-red-600">{pdPenalty.days} hari keterlambatan</p>
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                          <p className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate-700">Perjalanan Dokumen</p>
-                          <Timeline project={projectDetailView} stage={pdStage} />
-                        </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-red-600">Rincian Beanspot</p>
+                      <h2 className="mt-2 text-2xl font-bold text-slate-950">{projectDetailView.nama_toko}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{projectDetailView.nomor_ulok} · {projectDetailView.cabang}</p>
+                      <div className="mt-6 inline-block rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                        <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Nilai pekerjaan Beanspot</p>
+                        <p className="mt-2 text-3xl font-bold text-emerald-700">{formatRupiah(projectDetailView.nominal)}</p>
                       </div>
                     </div>
                   </div>
-                );
-              })()}
+                ) : (() => {
+                  const pdStage = getStage(projectDetailView);
+                  const pdLate = getLateDays(projectDetailView);
+                  const pdPenalty = getPenalty(projectDetailView);
+                  const pdQuality = getQuality(opnameItemsMap[projectDetailView?.toko?.id] || []);
+                  const pdStageColorMap: Record<string, { text: string; bar: string; borderTop: string; bg: string }> = {
+                    "Approval RAB": { text: "text-violet-600", bar: "bg-violet-500", borderTop: "border-t-violet-500", bg: "bg-violet-50" },
+                    "Proses Gantt": { text: "text-sky-600", bar: "bg-sky-500", borderTop: "border-t-sky-500", bg: "bg-sky-50" },
+                    "Proses PJU": { text: "text-amber-600", bar: "bg-amber-500", borderTop: "border-t-amber-500", bg: "bg-amber-50" },
+                    "Approval SPK": { text: "text-emerald-600", bar: "bg-emerald-500", borderTop: "border-t-emerald-500", bg: "bg-emerald-50" },
+                    "Ongoing": { text: "text-red-600", bar: "bg-red-500", borderTop: "border-t-red-500", bg: "bg-red-50" },
+                    "Kerja Tambah Kurang": { text: "text-orange-600", bar: "bg-orange-500", borderTop: "border-t-orange-500", bg: "bg-orange-50" },
+                  };
+                  const pdStageIconMap: Record<string, typeof HardHat> = {
+                    "Approval RAB": FileText, "Proses Gantt": CalendarDays, "Proses PJU": Clock3,
+                    "Approval SPK": UserCheck, "Ongoing": HardHat, "Kerja Tambah Kurang": Layers3,
+                  };
+                  const pdColors = pdStageColorMap[pdStage] || { text: "text-slate-600", bar: "bg-slate-500", borderTop: "border-t-slate-500", bg: "bg-slate-50" };
+                  const PdIcon = pdStageIconMap[pdStage] || FileText;
+                  return (
+                    <div className="space-y-4">
+                      {/* Hero card */}
+                      <div className={`relative overflow-hidden rounded-xl border border-slate-200 border-t-4 ${pdColors.borderTop} bg-white p-5 shadow-sm`}>
+                        <div className="flex items-start gap-4">
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${pdColors.bg}`}>
+                            <PdIcon className={`h-5 w-5 ${pdColors.text}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${pdColors.bg} ${pdColors.text}`}>{pdStage}</span>
+                              {pdLate > 0 && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">Terlambat {pdLate} hari</span>}
+                            </div>
+                            <h2 className="mt-1.5 text-xl font-bold text-slate-900 leading-tight">{projectDetailView?.toko?.nama_toko}</h2>
+                            <p className="mt-1 text-[11px] text-slate-500">{projectDetailView?.toko?.nomor_ulok} · {projectDetailView?.toko?.cabang} · {projectDetailView?.toko?.lingkup_pekerjaan || "—"}</p>
+                          </div>
+                          {canOpenSource(projectDetailView, detail.context) && (
+                            <button type="button" onClick={() => onOpenSource(projectDetailView, detail.context)} className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700">
+                              Buka ULOK →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {/* Content grid — full width, 2 cols on large screens */}
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="space-y-4">
+                          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-700">Analisis Risiko &amp; Keterlambatan</p>
+                            <ContextInspector project={projectDetailView} context={detail.context} quality={pdQuality} lateDays={pdLate} penalty={pdPenalty} />
+                          </div>
+                          {pdPenalty.amount > 0 && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-red-600">Denda</p>
+                              <p className="text-3xl font-bold tracking-tight text-red-700">{formatRupiah(pdPenalty.amount)}</p>
+                              <p className="mt-1 text-[12px] font-medium text-red-600">{pdPenalty.days} hari keterlambatan</p>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <p className="mb-4 text-[11px] font-bold uppercase tracking-wider text-slate-700">Perjalanan Dokumen</p>
+                            <Timeline project={projectDetailView} stage={pdStage} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-            <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <Input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setSelectedIndex(0); }} placeholder="Cari toko, ULOK, cabang, atau kontraktor..." className="h-9 rounded-lg border-slate-200 pl-9 text-[11px]" />
-              </div>
-              {detail.context === "PROJECT" && !detail.subContext && (
-                <div className="w-[160px] shrink-0 pb-1 sm:pb-0">
-                  <Select value={detailCategory} onValueChange={(val) => { setDetailCategory(val); setSelectedIndex(0); }}>
-                    <SelectTrigger className="h-9 w-full rounded-lg border-slate-200 text-[11px] font-medium focus:ring-0 focus:ring-offset-0">
-                      <SelectValue placeholder="Semua Tahap" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Semua" className="text-[11px]">Semua Tahap</SelectItem>
-                      {PIPELINE.map((cat) => (
-                        <SelectItem key={cat} value={cat} className="text-[11px]">{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+              <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <Input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setSelectedIndex(0); }} placeholder="Cari toko, ULOK, cabang, atau kontraktor..." className="h-9 rounded-lg border-slate-200 pl-9 text-[11px]" />
                 </div>
-              )}
-            </div>
-
-            {!["NILAI_KONTRAKTOR", "BEANSPOT"].includes(detail.context) ? (
-              <div className="hidden shrink-0 grid-cols-[minmax(200px,1.5fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-slate-400 lg:grid">
-                <span>TOKO / IDENTITAS</span><span>{columnLabels[0]}</span><span>{columnLabels[1]}</span><span className="text-right">{columnLabels[2]}</span><span />
-              </div>
-            ) : null}
-
-            <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-auto">
-              {searchedRows.length === 0 ? (
-                <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
-                  <Search className="h-8 w-8 text-slate-300" />
-                  <p className="mt-3 text-sm font-medium text-slate-700">Data tidak ditemukan</p>
-                  <p className="mt-1 text-[11px] text-slate-400">Coba ubah pencarian atau kembali ke ringkasan.</p>
-                </div>
-              ) : (
-                searchedRows.map((row: any, index) => {
-                  if (row.__kind === "contractor") {
-                    return (
-                      <button key={row.nama_kontraktor} type="button" onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }} className="group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]">
-                        <div><p className="text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row.nama_kontraktor}</p><p className="mt-1 text-[10px] text-slate-400">{row.tokoCount} toko dinilai</p></div>
-                        <div className="flex items-center gap-2"><p className="text-lg font-semibold text-slate-950">{Number(row.nilai).toFixed(1)}</p><ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" /></div>
-                      </button>
-                    );
-                  }
-                  if (row.__kind === "beanspot") {
-                    return (
-                      <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }} className="group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]">
-                        <div><p className="text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row.nama_toko}</p><p className="mt-1 text-[10px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p></div>
-                        <div className="flex items-center gap-2"><p className="text-[12px] font-semibold text-slate-950">{formatRupiah(row.nominal)}</p><ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" /></div>
-                      </button>
-                    );
-                  }
-                  const stage = getStage(row);
-                  const late = getLateDays(row);
-                  const penalty = getPenalty(row);
-                  const quality = getQuality(opnameItemsMap[row?.toko?.id] || []);
-                  const cells = getContextCells(row, detail.context, stage, late, penalty, quality);
-                  return (
-                    <button
-                      key={row?.toko?.id || `${row?.toko?.nomor_ulok}-${index}`}
-                      type="button"
-                      onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }}
-                      className="group flex flex-col gap-3 lg:grid w-full lg:grid-cols-[minmax(200px,1.5fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] lg:items-center border-b border-slate-100 px-4 py-3.5 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]"
-                    >
-                      <div className="min-w-0 flex items-center justify-between lg:block">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row?.toko?.nama_toko || "-"}</p>
-                          <p className="mt-1 truncate text-[9px] text-slate-400">{row?.toko?.nomor_ulok || "-"} · {row?.toko?.cabang || "-"} · {row?.toko?.lingkup_pekerjaan || "-"}</p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 lg:hidden transition-colors group-hover:text-red-500" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:contents">
-                        {cells.map((cell, cellIndex) => (
-                          <div key={`${row?.toko?.id}-${cellIndex}`} className={`min-w-0 rounded-md bg-slate-50/50 p-2 lg:bg-transparent lg:p-0 ${cellIndex === 2 ? "lg:text-right" : ""}`}>
-                            <p className="mb-0.5 text-[8px] font-medium uppercase tracking-wider text-slate-400 lg:hidden">{columnLabels[cellIndex]}</p>
-                            <p className={`truncate text-[10px] font-semibold ${cell.danger ? "text-red-700" : "text-slate-700"}`}>{cell.value}</p>
-                            <p className="mt-1 truncate text-[9px] text-slate-400">{cell.helper}</p>
-                          </div>
+                {detail.context === "PROJECT" && !detail.subContext && (
+                  <div className="w-[160px] shrink-0 pb-1 sm:pb-0">
+                    <Select value={detailCategory} onValueChange={(val) => { setDetailCategory(val); setSelectedIndex(0); }}>
+                      <SelectTrigger className="h-9 w-full rounded-lg border-slate-200 text-[11px] font-medium focus:ring-0 focus:ring-offset-0">
+                        <SelectValue placeholder="Semua Tahap" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Semua" className="text-[11px]">Semua Tahap</SelectItem>
+                        {PIPELINE.map((cat) => (
+                          <SelectItem key={cat} value={cat} className="text-[11px]">{cat}</SelectItem>
                         ))}
-                      </div>
-                      <ChevronRight className="hidden lg:block h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" />
-                    </button>
-                  );
-                })
-              )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {!["NILAI_KONTRAKTOR", "BEANSPOT"].includes(detail.context) ? (
+                <div className="hidden shrink-0 grid-cols-[minmax(200px,1.5fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[8px] font-semibold uppercase tracking-[0.08em] text-slate-400 lg:grid">
+                  <span>TOKO / IDENTITAS</span><span>{columnLabels[0]}</span><span>{columnLabels[1]}</span><span className="text-right">{columnLabels[2]}</span><span />
+                </div>
+              ) : null}
+
+              <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-auto">
+                {searchedRows.length === 0 ? (
+                  <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
+                    <Search className="h-8 w-8 text-slate-300" />
+                    <p className="mt-3 text-sm font-medium text-slate-700">Data tidak ditemukan</p>
+                    <p className="mt-1 text-[11px] text-slate-400">Coba ubah pencarian atau kembali ke ringkasan.</p>
+                  </div>
+                ) : (
+                  searchedRows.map((row: any, index) => {
+                    if (row.__kind === "contractor") {
+                      return (
+                        <button key={row.nama_kontraktor} type="button" onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }} className="group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]">
+                          <div><p className="text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row.nama_kontraktor}</p><p className="mt-1 text-[10px] text-slate-400">{row.tokoCount} toko dinilai</p></div>
+                          <div className="flex items-center gap-2"><p className="text-lg font-semibold text-slate-950">{Number(row.nilai).toFixed(1)}</p><ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" /></div>
+                        </button>
+                      );
+                    }
+                    if (row.__kind === "beanspot") {
+                      return (
+                        <button key={`${row.nomor_ulok}-${index}`} type="button" onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }} className="group grid w-full grid-cols-[1fr_auto] gap-4 border-b border-slate-100 px-4 py-4 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]">
+                          <div><p className="text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row.nama_toko}</p><p className="mt-1 text-[10px] text-slate-400">{row.nomor_ulok} · {row.cabang}</p></div>
+                          <div className="flex items-center gap-2"><p className="text-[12px] font-semibold text-slate-950">{formatRupiah(row.nominal)}</p><ChevronRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" /></div>
+                        </button>
+                      );
+                    }
+                    const stage = getStage(row);
+                    const late = getLateDays(row);
+                    const penalty = getPenalty(row);
+                    const quality = getQuality(opnameItemsMap[row?.toko?.id] || []);
+                    const cells = getContextCells(row, detail.context, stage, late, penalty, quality);
+                    return (
+                      <button
+                        key={row?.toko?.id || `${row?.toko?.nomor_ulok}-${index}`}
+                        type="button"
+                        onClick={() => { setSelectedIndex(index); setProjectDetailView(row); }}
+                        className="group flex flex-col gap-3 lg:grid w-full lg:grid-cols-[minmax(200px,1.5fr)_minmax(110px,.7fr)_minmax(110px,.7fr)_minmax(120px,.75fr)_20px] lg:items-center border-b border-slate-100 px-4 py-3.5 text-left transition-all hover:bg-red-50 hover:shadow-[inset_3px_0_0_#dc2626]"
+                      >
+                        <div className="min-w-0 flex items-center justify-between lg:block">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[12px] font-semibold text-slate-900 transition-colors group-hover:text-red-700">{row?.toko?.nama_toko || "-"}</p>
+                            <p className="mt-1 truncate text-[9px] text-slate-400">{row?.toko?.nomor_ulok || "-"} · {row?.toko?.cabang || "-"} · {row?.toko?.lingkup_pekerjaan || "-"}</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 lg:hidden transition-colors group-hover:text-red-500" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:contents">
+                          {cells.map((cell, cellIndex) => (
+                            <div key={`${row?.toko?.id}-${cellIndex}`} className={`min-w-0 rounded-md bg-slate-50/50 p-2 lg:bg-transparent lg:p-0 ${cellIndex === 2 ? "lg:text-right" : ""}`}>
+                              <p className="mb-0.5 text-[8px] font-medium uppercase tracking-wider text-slate-400 lg:hidden">{columnLabels[cellIndex]}</p>
+                              <p className={`truncate text-[10px] font-semibold ${cell.danger ? "text-red-700" : "text-slate-700"}`}>{cell.value}</p>
+                              <p className="mt-1 truncate text-[9px] text-slate-400">{cell.helper}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <ChevronRight className="hidden lg:block h-4 w-4 text-slate-300 transition-colors group-hover:text-red-500" />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
           )
         )}
       </div>
@@ -1755,19 +1749,19 @@ export default function DashboardCommandWorkspace({
 
   const primaryKpis = isCompanyScoped
     ? [
-        ["Total proyek", stats.total, "Seluruh toko dalam cakupan", "PROJECT", "neutral"],
-        ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
-        ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final", "PENAWARAN", "neutral"],
-        ["Nilai SPK", formatRupiah(stats.spk), "SPK perusahaan", "SPK", "neutral"],
-        ["Denda", formatRupiah(stats.totalDenda), "", "DENDA", "danger"],
-      ]
+      ["Total proyek", stats.total, "Seluruh toko dalam cakupan", "PROJECT", "neutral"],
+      ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
+      ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final", "PENAWARAN", "neutral"],
+      ["Nilai SPK", formatRupiah(stats.spk), "SPK perusahaan", "SPK", "neutral"],
+      ["Denda", formatRupiah(stats.totalDenda), "", "DENDA", "danger"],
+    ]
     : [
-        ["Total proyek", stats.total, isGlobalView ? "Seluruh cabang pada filter" : `Cabang ${cabang}`, "PROJECT", "neutral"],
-        ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
-        ["Nilai SPK", formatRupiah(stats.spk), "Seluruh SPK non-ditolak", "SPK", "neutral"],
-        ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final penawaran aktif", "PENAWARAN", "neutral"],
-        ["Denda", formatRupiah(stats.totalDenda), "", "DENDA", "danger"],
-      ];
+      ["Total proyek", stats.total, isGlobalView ? "Seluruh cabang pada filter" : `Cabang ${cabang}`, "PROJECT", "neutral"],
+      ["Prioritas SLA", slaPriorityProjects.length, "Tahap yang melewati batas waktu atau berisiko", "ATTENTION", "danger"],
+      ["Nilai SPK", formatRupiah(stats.spk), "Seluruh SPK non-ditolak", "SPK", "neutral"],
+      ["Nilai penawaran", formatRupiah(stats.penawaran), "Grand total final penawaran aktif", "PENAWARAN", "neutral"],
+      ["Denda", formatRupiah(stats.totalDenda), "", "DENDA", "danger"],
+    ];
 
   const insightItems = [
     { label: "JHK pekerjaan", value: `${stats.avgJHK} hari`, context: "JHK", icon: CalendarDays },
@@ -1778,11 +1772,11 @@ export default function DashboardCommandWorkspace({
   const completeMetrics: Array<{ label: string; value: string | number; helper: string; context: string; subContext?: string; icon: typeof HardHat }> = [
     { label: "Ongoing", value: stats.miniStats.Ongoing, helper: "Sudah SPK dan masih berjalan", context: "PROJECT", subContext: "Ongoing", icon: HardHat },
     { label: "Done / ST", value: stats.miniStats.Done, helper: "Pekerjaan selesai", context: "PROJECT", subContext: "Done", icon: CheckCircle2 },
-    { label: "SPK", value: formatRupiah(stats.spk), helper: "Nilai komitmen kerja", context: "SPK", icon: DollarSign },
+    { label: "SPK", value: formatRupiah(stats.spk), helper: "Nilai SPK", context: "SPK", icon: DollarSign },
     { label: "Denda", value: formatRupiah(stats.totalDenda), helper: "", context: "DENDA", icon: AlertTriangle },
     { label: "Cost/m² bangunan", value: formatRupiah(stats.avgCostBangunan), helper: "Rata-rata luas bangunan", context: "COST_M2", icon: Ruler },
     { label: "Cost/m² terbuka", value: formatRupiah(stats.avgCostTerbuka), helper: "Rata-rata area terbuka", context: "COST_M2", icon: Layers3 },
-    { label: "Cost/m² terbangun", value: formatRupiah(stats.avgCostTerbangun), helper: "Total opname KTK final / luas terbangun", context: "COST_M2", icon: Layers3 },
+    { label: "Cost/m² terbangun", value: formatRupiah(stats.avgCostTerbangun), helper: "Rata-rata luas terbangun", context: "COST_M2", icon: Layers3 },
   ];
 
   return (
