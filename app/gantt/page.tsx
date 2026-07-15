@@ -2050,7 +2050,9 @@ function GanttBoard() {
                                                             nomorUlok={scope.nomor_ulok}
                                                             idToko={scope.id_toko}
                                                             spkStartDate={scope.spk_start_date || undefined}
-                                                            spkDuration={scope.spk_duration || undefined}
+                                                            spkDuration={scope.spk_effective_duration || scope.spk_duration || undefined}
+                                                            spkEffectiveDuration={scope.spk_effective_duration || undefined}
+                                                            spkOriginalDuration={scope.spk_duration || undefined}
                                                             title={`Timeline ${scopeName}`}
                                                             checkpoints={scope.checkpoints}
                                                             onCheckpointClick={(checkpoint, dayIndex) => openScopeCheckpoint(scope, checkpoint, dayIndex)}

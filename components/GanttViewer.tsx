@@ -29,11 +29,13 @@ function formatHeaderDate(date: Date): string {
     return `${d}/${m}`;
 }
 
-export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup }: {
+export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup }: {
     nomorUlok: string;
     idToko?: number;
-    spkStartDate?: string;  // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
-    spkDuration?: number;   // SPK duration in days
+    spkStartDate?: string;          // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
+    spkDuration?: number;           // SPK duration in days (effective, used as main duration)
+    spkEffectiveDuration?: number;  // Effective duration including approved extensions
+    spkOriginalDuration?: number;   // Original SPK duration before extensions (for marker line)
     title?: string;
     checkpoints?: SupervisionCheckpoint[];
     onCheckpointClick?: (checkpoint: SupervisionCheckpoint, dayIndex: number) => void;
@@ -128,8 +130,10 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     }
                 } else if (spkStartDate) {
                     effectiveStartDate = new Date(spkStartDate.split('T')[0] + 'T00:00:00');
-                    if (spkDuration && spkDuration > 0) {
-                        effectiveDuration = spkDuration;
+                    // Gunakan effective duration (termasuk pertambahan) jika tersedia
+                    const activeDuration = spkEffectiveDuration || spkDuration;
+                    if (activeDuration && activeDuration > 0) {
+                        effectiveDuration = activeDuration;
                     }
                 } else if (pengawasanDates.length > 0) {
                     // Fallback to earliest pengawasan date if SPK is missing, to avoid missing dots
@@ -167,9 +171,15 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                 setProjectData({
                     duration: effectiveDuration,
                     startDate: effectiveStartDate.toISOString().split('T')[0],
-                    useSpkDates: !!(spkStartDate && spkDuration && spkDuration > 0),
+                    useSpkDates: !!(spkStartDate && (spkEffectiveDuration || spkDuration) && (spkEffectiveDuration || spkDuration)! > 0),
                     spkStartDateObj: effectiveStartDate,
-                    pengawasanDates
+                    pengawasanDates,
+                    // Data marker pertambahan SPK
+                    originalSpkDays: spkOriginalDuration || spkDuration || 0,
+                    hasExtension: !!(spkEffectiveDuration && spkOriginalDuration && spkEffectiveDuration > spkOriginalDuration),
+                    extensionDays: (spkEffectiveDuration && spkOriginalDuration && spkEffectiveDuration > spkOriginalDuration)
+                        ? spkEffectiveDuration - spkOriginalDuration
+                        : 0,
                 });
 
                 let generatedTasks: any[] = kategori_pekerjaan.map((k: any, idx: number) => ({
@@ -406,6 +416,11 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             let isPengawasan = false;
                             let isLiveDay = false;
                             let fullDateString = '';
+                            // Apakah kolom ini bagian dari hari pertambahan SPK?
+                            const isExtensionDay = !!(projectData?.hasExtension
+                                && projectData?.originalSpkDays > 0
+                                && (i + 1) > projectData.originalSpkDays
+                            );
                             
                             if (projectData?.spkStartDateObj) {
                                 const d = new Date(projectData.spkStartDateObj);
@@ -436,31 +451,42 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             const isReadyOpname = readyCount > 0;
                             const isAlreadyOpname = !isReadyOpname && opnameCount > 0;
                             const isClickable = Boolean(checkpoint && onCheckpointClick);
+
+                            // Tentukan kelas warna: prioritas dari atas ke bawah
+                            let colClass = '';
+                            if (isReadyOpname) {
+                                colClass = 'relative bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 cursor-pointer hover:bg-red-100';
+                            } else if (isAlreadyOpname) {
+                                colClass = 'bg-emerald-50 text-emerald-700 cursor-pointer';
+                            } else if (isLiveDay) {
+                                colClass = isExtensionDay ? 'bg-amber-100 text-amber-800' : 'bg-green-50 text-green-700';
+                            } else if (isPengawasan) {
+                                colClass = isExtensionDay
+                                    ? 'bg-amber-100 text-amber-700 cursor-pointer hover:bg-amber-200'
+                                    : 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100';
+                            } else if (isExtensionDay) {
+                                colClass = 'bg-amber-50 text-amber-700';
+                            } else {
+                                colClass = 'bg-slate-50 text-slate-500';
+                            }
+
                             return (
                                 <button
                                     type="button"
                                     key={i}
                                     disabled={!isClickable}
                                     onClick={() => checkpoint && onCheckpointClick?.(checkpoint, i)}
-                                    className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 font-bold py-0.75 ${
-                                        isReadyOpname
-                                            ? 'relative bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 cursor-pointer hover:bg-red-100'
-                                            : isAlreadyOpname
-                                                ? 'bg-emerald-50 text-emerald-700 cursor-pointer'
-                                                : isLiveDay
-                                                    ? 'bg-green-50 text-green-700'
-                                                    : isPengawasan
-                                                        ? 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100'
-                                                        : 'bg-slate-50 text-slate-500'
-                                    }`}
+                                    className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 font-bold py-0.75 ${colClass}`}
                                     style={{ width: DAY_WIDTH, fontSize: projectData?.spkStartDateObj ? '9px' : undefined }}
                                     title={isReadyOpname
                                         ? `${readyCount} pekerjaan siap Opname`
                                         : isAlreadyOpname
                                             ? 'Pekerjaan sudah masuk Opname'
-                                            : isPengawasan
-                                                ? 'Buka checkpoint pengawasan'
-                                                : undefined}
+                                            : isExtensionDay
+                                                ? `Pertambahan SPK +${projectData.extensionDays} hari`
+                                                : isPengawasan
+                                                    ? 'Buka checkpoint pengawasan'
+                                                    : undefined}
                                 >
                                     <span>{label}</span>
                                     {isReadyOpname ? (
@@ -471,9 +497,11 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     ) : isAlreadyOpname ? (
                                         <CheckCircle2 className="mt-0.5 h-3 w-3 text-emerald-600" />
                                     ) : isPengawasan ? (
-                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />
+                                        <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isExtensionDay ? 'bg-amber-500' : 'bg-blue-500'}`} title="Hari Pengawasan" />
+                                    ) : isExtensionDay ? (
+                                        <div className="w-1 h-1 rounded-full bg-amber-400 mt-1" title={`Pertambahan SPK +${projectData.extensionDays} hari`} />
                                     ) : null}
-                                    {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
+                                    {isLiveDay && !isPengawasan && <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isExtensionDay ? 'bg-amber-600' : 'bg-green-500'}`} title="Hari Ini" />}
                                 </button>
                             );
                             })}
@@ -493,6 +521,32 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             <div 
                                 className="absolute top-0 bottom-0 pointer-events-none"
                                 style={{ left: (liveDayIndex * DAY_WIDTH) + (DAY_WIDTH / 2), width: 2, zIndex: 16, backgroundColor: 'rgba(34, 197, 94, 0.7)' }} 
+                            />
+                        )}
+
+                        {/* Area latar belakang amber untuk hari-hari pertambahan SPK */}
+                        {projectData?.hasExtension && projectData.originalSpkDays > 0 && (
+                            <div
+                                className="absolute top-0 bottom-0 pointer-events-none"
+                                style={{
+                                    left: projectData.originalSpkDays * DAY_WIDTH,
+                                    width: projectData.extensionDays * DAY_WIDTH,
+                                    zIndex: 1,
+                                    backgroundColor: 'rgba(251, 191, 36, 0.06)',
+                                }}
+                            />
+                        )}
+                        {/* Garis vertikal putus-putus penanda batas SPK original */}
+                        {projectData?.hasExtension && projectData.originalSpkDays > 0 && (
+                            <div
+                                className="absolute top-0 bottom-0 pointer-events-none"
+                                title={`Akhir SPK original (hari ke-${projectData.originalSpkDays})`}
+                                style={{
+                                    left: projectData.originalSpkDays * DAY_WIDTH - 1,
+                                    width: 2,
+                                    zIndex: 15,
+                                    backgroundImage: 'repeating-linear-gradient(to bottom, #d97706 0px, #d97706 6px, transparent 6px, transparent 12px)',
+                                }}
                             />
                         )}
 
@@ -557,6 +611,23 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     scrollbar-width: none;
                 }
             `}</style>
+            {/* Legenda: muncul hanya jika ada pertambahan SPK */}
+            {projectData?.hasExtension && (
+                <div className="px-4 py-2 border-t border-slate-100 flex items-center gap-4 text-[10px] text-slate-500 bg-slate-50/50">
+                    <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: 'rgba(251,191,36,0.35)', border: '1px solid #d97706' }} />
+                        Pertambahan SPK +{projectData.extensionDays} hari
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                        <span className="inline-block" style={{ width: 2, height: 12, backgroundImage: 'repeating-linear-gradient(to bottom, #d97706 0px, #d97706 4px, transparent 4px, transparent 8px)' }} />
+                        Batas SPK asli
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded-full bg-green-500 opacity-70" />
+                        Hari ini
+                    </span>
+                </div>
+            )}
         </div>
     );
 }

@@ -1856,6 +1856,8 @@ export type SupervisionScope = {
     link_pdf_serah_terima: string | null;
     spk_start_date: string | null;
     spk_duration: number | null;
+    spk_effective_duration: number | null;      // Durasi efektif termasuk pertambahan SPK approved
+    spk_effective_end_date: string | null;       // Tanggal akhir SPK efektif
     total_pengawasan_checkpoints?: number;
     filled_pengawasan_checkpoints?: number;
     missing_pengawasan_checkpoints?: number;
