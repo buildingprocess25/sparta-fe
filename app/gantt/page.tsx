@@ -358,7 +358,7 @@ function GanttBoard() {
 
         supervisionWorkspace.scopes.forEach((scope) => {
             const spkStart = parseCalendarDate(scope.spk_start_date);
-            const duration = Number(scope.spk_duration || 0);
+            const duration = Number(scope.spk_effective_duration || scope.spk_duration || 0);
             if (spkStart) {
                 starts.push(spkStart);
                 const end = new Date(spkStart);
