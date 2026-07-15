@@ -22,6 +22,7 @@ import {
     getAccessibleBranchesForUser,
     getSessionBranchCoverage,
     normalizeBranchValue,
+    getParentBranch,
 } from "@/lib/constants";
 import { downloadDashboardExport, fetchDashboardAll, type DashboardExportFormat } from "@/lib/api";
 import { formatRupiah } from "@/lib/utils";
@@ -150,16 +151,20 @@ export default function TarikanDataPage() {
         return allBranches.filter((branch) => accessible.includes(branch));
     }, [projects, roles, user]);
 
+    const allowedParentBranches = useMemo(() => {
+        return Array.from(new Set(allowedBranches.map(b => getParentBranch(b)))).sort();
+    }, [allowedBranches]);
+
     useEffect(() => {
         // removed auto-select branches effect to start empty
-    }, [allowedBranches, selectedBranches.size]);
+    }, [allowedParentBranches, selectedBranches.size]);
 
     const availableJobTypes = useMemo(() => {
         return Array.from(new Set(
             projects
                 .filter((project) => {
                     const branch = projectBranch(project);
-                    return selectedBranches.size === 0 || selectedBranches.has(branch);
+                    return selectedBranches.size === 0 || selectedBranches.has(getParentBranch(branch));
                 })
                 .flatMap(collectProjectWorkItems)
                 .filter(Boolean)
@@ -191,13 +196,13 @@ export default function TarikanDataPage() {
 
     const filteredProjects = useMemo(() => {
         const query = normalizeText(search);
-        // Saat selectedBranches kosong (= "Semua cabang akses"), tetap enforce ke allowedBranches
-        // agar ULOK dari cabang lain tidak bocor ke tampilan
-        const effectiveBranches = selectedBranches.size > 0 ? selectedBranches : new Set(allowedBranches);
+        const effectiveBranches = selectedBranches.size > 0 ? selectedBranches : new Set(allowedParentBranches);
         return projects.filter((project) => {
             const branch = projectBranch(project);
+            if (!branch) return false;
+            if (allowedParentBranches.length > 0 && !effectiveBranches.has(getParentBranch(branch))) return false;
+
             const workItems = collectProjectWorkItems(project);
-            if (allowedBranches.length > 0 && !effectiveBranches.has(branch)) return false;
             if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
@@ -246,9 +251,10 @@ export default function TarikanDataPage() {
                 periodMode,
                 dataTypes: Array.from(selectedDataTypes),
                 jobTypes: Array.from(selectedJobTypes),
-                // Selalu kirim cabangs yang diizinkan agar BE bisa enforce filter cabang
                 // Jika user memilih "Semua cabang" (selectedBranches kosong), kirim semua allowedBranches
-                cabangs: selectedBranches.size > 0 ? Array.from(selectedBranches) : allowedBranches,
+                cabangs: selectedBranches.size > 0 
+                    ? allowedBranches.filter(b => selectedBranches.has(getParentBranch(b))) 
+                    : allowedBranches,
                 spkStatus,
             });
             setNotice("Export berhasil dibuat sesuai pilihan data.");
@@ -371,7 +377,7 @@ export default function TarikanDataPage() {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === allowedBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
+                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === allowedParentBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
                                             <ChevronDown className="h-4 w-4 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -383,10 +389,10 @@ export default function TarikanDataPage() {
                                         <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
                                         <div className="p-1">
                                             <DropdownMenuCheckboxItem
-                                                checked={selectedBranches.size === allowedBranches.length && allowedBranches.length > 0}
+                                                checked={selectedBranches.size === allowedParentBranches.length && allowedParentBranches.length > 0}
                                                 onSelect={(e) => e.preventDefault()}
                                                 onCheckedChange={(checked) => {
-                                                    if (checked) setSelectedBranches(new Set(allowedBranches));
+                                                    if (checked) setSelectedBranches(new Set(allowedParentBranches));
                                                     else setSelectedBranches(new Set());
                                                 }}
                                                 className="font-black text-slate-900"
@@ -395,7 +401,7 @@ export default function TarikanDataPage() {
                                             </DropdownMenuCheckboxItem>
                                         </div>
                                         <DropdownMenuSeparator />
-                                        {allowedBranches.map((branch) => (
+                                        {allowedParentBranches.map((branch) => (
                                             <DropdownMenuCheckboxItem key={branch} checked={selectedBranches.has(branch)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedBranches, branch)}>
                                                 {branch}
                                             </DropdownMenuCheckboxItem>

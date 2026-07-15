@@ -13,7 +13,7 @@ import AppNavbar from '@/components/AppNavbar';
 import {
     fetchUserCabangList, createUserCabang, updateUserCabang, deleteUserCabang
 } from '@/lib/api';
-import { BRANCH_TO_ULOK } from '@/lib/constants';
+import { BRANCH_TO_ULOK, getParentBranch } from '@/lib/constants';
 
 // Role yang tersedia sesuai instruksi
 const JABATAN_OPTIONS = [
@@ -37,6 +37,8 @@ const CABANG_OPTIONS = Array.from(new Set([
     'HEAD OFFICE',
     ...Object.keys(BRANCH_TO_ULOK)
 ])).sort();
+
+const PARENT_CABANG_OPTIONS = Array.from(new Set(CABANG_OPTIONS.map(b => getParentBranch(b)))).sort();
 
 export default function UsersPage() {
     const router = useRouter();
@@ -104,7 +106,7 @@ export default function UsersPage() {
         setIsLoading(true);
         try {
             const scopedCabang = user?.isHO && !user?.isSuperHuman && !user?.isRegionalManager ? 'HEAD OFFICE' : cabang;
-            const res = await fetchUserCabangList({ search: searchStr, cabang: scopedCabang, jabatan });
+            const res = await fetchUserCabangList({ search: searchStr, cabang: scopedCabang, jabatan, include_branch_scope: true });
             setUsers(res.data || []);
         } catch (err: any) {
             showToast(err.message || 'Gagal memuat data user.', 'error');
@@ -283,16 +285,16 @@ export default function UsersPage() {
                     </form>
 
                     <div className="flex gap-2 shrink-0">
-                        <select 
-                            value={filterCabang} 
+                        <select
+                            className="w-36 md:w-44 p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={filterCabang}
                             onChange={(e) => {
                                 setFilterCabang(e.target.value);
                                 loadUsers(searchQuery, e.target.value, filterJabatan);
                             }}
-                            className="w-36 md:w-44 p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="">Semua Cabang</option>
-                            {CABANG_OPTIONS.map(c => (
+                            {PARENT_CABANG_OPTIONS.map(c => (
                                 <option key={c} value={c}>{c}</option>
                             ))}
                         </select>
