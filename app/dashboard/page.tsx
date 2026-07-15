@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import AppNavbar from '@/components/AppNavbar';
-import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches } from '@/lib/constants';
+import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
 import { downloadDashboardExport, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 import {
@@ -641,7 +641,9 @@ export default function DashboardPage() {
             userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman),
             user.email,
             namaPt,
-            companyScopedRole
+            companyScopedRole,
+            false,
+            roles
         );
         fetchApprovalNotificationCounts(user)
             .then(setApprovalCounts)
@@ -676,7 +678,8 @@ export default function DashboardPage() {
         userEmail = '',
         userNamaPt = '',
         shouldFilterByCompany = false,
-        forceRefresh = false
+        forceRefresh = false,
+        userRoles: string[] = []
     ) => {
         const now = Date.now();
         const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail;
@@ -700,12 +703,19 @@ export default function DashboardPage() {
             // User cabang biasa hanya melihat cabang session-nya sendiri.
             let allowedBranches: string[] = [];
             if (!canSeeAllBranches || shouldFilterByCompany) {
-                allowedBranches = [userCabang];
-                data = data.filter((p: any) => allowedBranches.includes(p.toko?.cabang?.toUpperCase()));
-                setCabangList(allowedBranches.sort());
+                // Expand allowedBranches untuk branch support users (Cikokol, Cileungsi, dll)
+                const sessionCoverage = getSessionBranchCoverage();
+                const accessibleBranches = getAccessibleBranchesForUser(userRoles, userCabang, sessionCoverage);
+                allowedBranches = accessibleBranches.length > 0 ? accessibleBranches : [userCabang];
+                data = data.filter((p: any) => allowedBranches.map(b => b.toUpperCase()).includes((p.toko?.cabang || '').toUpperCase()));
+                // Untuk user cabang/branch: tampilkan semua sub-cabang yang ada di data
+                const actualBranches = Array.from(new Set(data.map((p: any) => (p.toko?.cabang || '').toUpperCase()).filter(Boolean))) as string[];
+                setCabangList(actualBranches.sort());
             } else {
                 allowedBranches = Array.from(new Set(data.map((p: any) => p.toko?.cabang?.toUpperCase()).filter(Boolean)));
-                setCabangList(allowedBranches.sort());
+                // Untuk HO/SuperHuman: collapse ke cabang induk saja di dropdown
+                const parentBranches = Array.from(new Set(allowedBranches.map(b => getParentBranch(b))));
+                setCabangList(parentBranches.sort());
             }
 
             if (shouldFilterByCompany) {
@@ -798,7 +808,13 @@ export default function DashboardPage() {
                 p.toko.kode_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.toko.cabang?.toLowerCase().includes(searchQuery.toLowerCase());
             
-            const matchCabang = selectedCabang === 'ALL' || (p.toko?.cabang || '').toUpperCase() === selectedCabang;
+            const pCabang = (p.toko?.cabang || '').toUpperCase();
+            // HO: match by parent cabang group. User cabang/branch: match exact sub-cabang
+            const matchCabang = selectedCabang === 'ALL'
+                ? true
+                : canSeeAllBranches
+                    ? getParentBranch(pCabang) === selectedCabang
+                    : pCabang === selectedCabang;
             
             const pProyek = (p.toko?.proyek || '').toUpperCase();
             const matchProyek = 
@@ -1658,7 +1674,8 @@ export default function DashboardPage() {
                                         user?.email ?? '',
                                         userInfo.namaPt,
                                         isCompanyScopedUser,
-                                        true
+                                        true,
+                                        userInfo.roles
                                     )}
                                     disabled={isDataLoading}
                                 >

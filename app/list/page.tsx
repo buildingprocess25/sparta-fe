@@ -47,6 +47,8 @@ import {
     getSessionBranchCoverage,
     canAccessBranchForUser,
     normalizeBranchValue,
+    getParentBranch,
+    BRANCH_GROUPS,
 } from '@/lib/constants';
 
 // =============================================================================
@@ -2120,16 +2122,21 @@ export default function DaftarDokumenPage() {
         if (!upper) return [];
         const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
         if (canSeeAllBranches) {
-            return Object.keys(BRANCH_TO_ULOK).sort();
+            // Show only parent branches (induk) in dropdown
+            const allParents = Array.from(new Set(
+                Object.keys(BRANCH_TO_ULOK).map(b => getParentBranch(b))
+            ));
+            return allParents.sort();
         }
         // Use session storage coverage (updated by ensureBranchCoverage)
         const sessionCoverage = getSessionBranchCoverage();
-        if (sessionCoverage.length > 0) {
-            return sessionCoverage.sort();
-        }
-        // Fallback to old logic if session storage empty
-        return getAccessibleBranchesForUser(userInfo.role, upper, []).sort();
-    }, [userInfo.cabang, userInfo.role, isSuperHuman, branchCoverageTimestamp]); // Add timestamp as dependency
+        const source = sessionCoverage.length > 0
+            ? sessionCoverage
+            : getAccessibleBranchesForUser(userInfo.role, upper, []);
+        // Collapse to parent branches
+        const parents = Array.from(new Set(source.map(b => getParentBranch(b))));
+        return parents.sort();
+    }, [userInfo.cabang, userInfo.role, isSuperHuman, branchCoverageTimestamp]);
 
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const isHO = userInfo.cabang?.toUpperCase() === 'HEAD OFFICE';
@@ -2139,9 +2146,10 @@ export default function DaftarDokumenPage() {
     const filteredList = useMemo(() => {
         const q = searchQuery.toLowerCase();
         return listData.filter(item => {
-            // Cabang filter (HO only)
+            // Cabang filter — match against parent cabang group
             if (cabangFilter) {
-                if (normalizeBranchValue(item.cabang) !== normalizeBranchValue(cabangFilter)) return false;
+                const itemParent = getParentBranch(item.cabang);
+                if (itemParent !== normalizeBranchValue(cabangFilter)) return false;
             }
             // Search filter
             if (q) {

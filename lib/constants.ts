@@ -512,6 +512,11 @@ export const getBranchGroupForBranch = (branch?: string | null): { name: string;
     return entry ? { name: entry[0], branches: entry[1].map(normalizeBranchValue) } : null;
 };
 
+export const getParentBranch = (branch?: string | null): string => {
+    const group = getBranchGroupForBranch(branch);
+    return group ? group.name : normalizeBranchValue(branch);
+};
+
 export const getAccessibleBranchesForUser = (
     role: string | string[] | undefined | null,
     cabang?: string | null,

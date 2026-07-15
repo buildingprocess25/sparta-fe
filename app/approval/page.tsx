@@ -49,6 +49,7 @@ import {
     getAccessibleBranchesForUser,
     getSessionBranchCoverage,
     canAccessBranchForUser,
+    getParentBranch,
 } from '@/lib/constants';
 import {
     EMPTY_APPROVAL_COUNTS,
@@ -1910,9 +1911,18 @@ function ApprovalPageContent() {
     const isSuperHuman = user?.isSuperHuman ?? false;
     const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
     const accessibleBranches = useMemo(() => {
-        if (canSeeAllBranches) return Object.keys(BRANCH_TO_ULOK).sort();
+        if (canSeeAllBranches) {
+            // Show only parent (induk) branches in filter dropdown
+            const parents = Array.from(new Set(
+                Object.keys(BRANCH_TO_ULOK).map(b => getParentBranch(b))
+            ));
+            return parents.sort();
+        }
         const coverage = hydratedBranchCoverage.length > 0 ? hydratedBranchCoverage : getSessionBranchCoverage();
-        return getAccessibleBranchesForUser(userInfo.role, userInfo.cabang, coverage).sort();
+        const rawBranches = getAccessibleBranchesForUser(userInfo.role, userInfo.cabang, coverage);
+        // Collapse to parent branches
+        const parents = Array.from(new Set(rawBranches.map(b => getParentBranch(b))));
+        return parents.sort();
     }, [canSeeAllBranches, hydratedBranchCoverage, userInfo.cabang, userInfo.role]);
     const showCabangFilter = canSeeAllBranches || accessibleBranches.length > 1;
 
@@ -1937,7 +1947,9 @@ function ApprovalPageContent() {
         const q = searchQuery.toLowerCase();
         return listData.filter(item => {
             if (cabangFilter) {
-                if (item.cabang?.toUpperCase() !== cabangFilter.toUpperCase()) return false;
+                // Match by parent cabang group
+                const itemParent = getParentBranch(item.cabang);
+                if (itemParent !== cabangFilter.toUpperCase()) return false;
             }
             if (!q) return true;
             return item.nama_toko.toLowerCase().includes(q)
