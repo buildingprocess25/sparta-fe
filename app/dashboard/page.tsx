@@ -1116,7 +1116,7 @@ export default function DashboardPage() {
                 }
             }
 
-            if (luasTerbukaToko > 0 && costTerbukaToko > 0) {
+            if ((luasTerbukaToko > 0 && costTerbukaToko > 0) || (luasBangunanToko > 0 && costBangunanToko > 0) || (luasTerbangunToko > 0 && costTerbangunToko > 0)) {
                 // ✅ Aggregate per ULOK (deduplicate SIPIL+ME)
                 const ulokKey = normalizeStorePenaltyKeyPart(p?.toko?.nomor_ulok) || `TOKO_${p?.toko?.id}`;
                 const existing = costPerUlokMap.get(ulokKey) || {
