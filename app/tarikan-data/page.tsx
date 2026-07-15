@@ -23,6 +23,7 @@ import {
     getSessionBranchCoverage,
     normalizeBranchValue,
     getParentBranch,
+    getSubBranchesForParent,
 } from "@/lib/constants";
 import { downloadDashboardExport, fetchDashboardAll, type DashboardExportFormat } from "@/lib/api";
 import { formatRupiah } from "@/lib/utils";
@@ -265,6 +266,26 @@ export default function TarikanDataPage() {
         setExporting(format);
         setNotice("");
         try {
+            // Untuk HO: expand induk cabang yang dipilih ke semua sub-branch-nya
+            // Untuk non-HO: kirim cabang exact sesuai allowedBranches
+            let cabangsPayload: string[];
+            if (selectedBranches.size > 0) {
+                if (isHOUser) {
+                    // selectedBranches berisi parent (e.g. "CIKOKOL")
+                    // expand ke sub-branches menggunakan getSubBranchesForParent
+                    const expanded = new Set<string>();
+                    selectedBranches.forEach(parent => {
+                        getSubBranchesForParent(parent).forEach(b => expanded.add(b));
+                    });
+                    cabangsPayload = Array.from(expanded);
+                } else {
+                    cabangsPayload = allowedBranches.filter(b => selectedBranches.has(b));
+                }
+            } else {
+                // Tidak ada filter cabang: HO → tidak perlu batasi, non-HO → semua allowedBranches
+                cabangsPayload = isHOUser ? [] : allowedBranches;
+            }
+
             await downloadDashboardExport({
                 format,
                 actorRole: roles.join(", ") || "UNKNOWN",
@@ -275,12 +296,7 @@ export default function TarikanDataPage() {
                 periodMode,
                 dataTypes: Array.from(selectedDataTypes),
                 jobTypes: Array.from(selectedJobTypes),
-                // Payload cabangs: HO → expand selected parent to sub-branches; non-HO → kirim exact branches
-                cabangs: selectedBranches.size > 0
-                    ? (isHOUser
-                        ? allowedBranches.filter(b => selectedBranches.has(getParentBranch(b)))
-                        : allowedBranches.filter(b => selectedBranches.has(b)))
-                    : allowedBranches,
+                cabangs: cabangsPayload,
                 spkStatus,
             });
             setNotice("Export berhasil dibuat sesuai pilihan data.");
@@ -289,7 +305,7 @@ export default function TarikanDataPage() {
         } finally {
             setExporting(null);
         }
-    }, [exporting, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
+    }, [allowedBranches, exporting, isHOUser, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
 
     const monthLabel = periodMode === "ytd"
         ? `YTD ${selectedYear}`
