@@ -85,17 +85,16 @@ const collectProjectWorkItems = (project: any): string[] => {
         if (normalized) values.push(normalized);
     };
 
-    // Sumber utama: RAB
-    (project?.rab || []).forEach((rab: any) => {
-        (rab?.items || []).forEach((item: any) => {
-            if (item?.kategori_pekerjaan) push(item.kategori_pekerjaan);
+    // Backend tidak memuat rab_item/instruksi_item di getDashboardAll demi performa,
+    // maka kita tarik kategori_pekerjaan dari gantt (kategori_pekerjaan_gantt)
+    (project?.gantt || []).forEach((gantt: any) => {
+        (gantt?.kategori_pekerjaan || []).forEach((kat: any) => {
+            if (kat?.kategori_pekerjaan) push(kat.kategori_pekerjaan);
         });
-    });
-
-    // Sumber tambahan: Instruksi Lapangan (jika ada)
-    (project?.instruksi_lapangan || []).forEach((instruksi: any) => {
-        (instruksi?.items || []).forEach((item: any) => {
-            if (item?.kategori_pekerjaan) push(item.kategori_pekerjaan);
+        
+        // Sumber tambahan: pengawasan
+        (gantt?.pengawasan || []).forEach((pengawasan: any) => {
+            if (pengawasan?.kategori_pekerjaan) push(pengawasan.kategori_pekerjaan);
         });
     });
 
