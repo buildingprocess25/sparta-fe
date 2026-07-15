@@ -175,7 +175,11 @@ export default function TarikanDataPage() {
                 .filter((project) => {
                     const branch = projectBranch(project);
                     if (!branch) return false;
-                    if (selectedBranches.size === 0) return allowedBranches.includes(branch);
+                    if (selectedBranches.size === 0) {
+                        // Belum ada filter cabang dipilih → tampilkan semua item dari cabang yang diizinkan
+                        // Fallback ke semua jika allowedBranches belum terisi (loading)
+                        return allowedBranches.length === 0 || allowedBranches.includes(branch);
+                    }
                     // HO: match by parent; non-HO: exact match
                     return isHOUser
                         ? selectedBranches.has(getParentBranch(branch))
