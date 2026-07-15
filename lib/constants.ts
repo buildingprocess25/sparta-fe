@@ -533,7 +533,7 @@ export const getSubBranchesForParent = (parentBranch?: string | null): string[] 
 
 export const getAccessibleBranchesForUser = (
     role: string | string[] | undefined | null,
-    cabang?: string | null
+    cabang?: string | null,
     coverage: string[] = []
 ): string[] => {
     const upperCabang = normalizeBranchValue(cabang);
