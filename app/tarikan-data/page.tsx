@@ -57,7 +57,7 @@ const monthOptions = [
 
 const dataTypeOptions: DataTypeOption[] = [
     { id: "rab", label: "RAB & Luasan", desc: "Status RAB, total penawaran, area, GO, dan approval." },
-    { id: "spk", label: "SPK", desc: "Tanggal, durasi, nominal, pertambahan, dan real SPK." },
+    { id: "spk", label: "SPK dan cost/m2", desc: "Tanggal, durasi, nominal, pertambahan, real SPK, dan cost/m2." },
     { id: "pengawasan", label: "Pengawasan", desc: "Tanggal, kategori pekerjaan, status, dan catatan pengawasan." },
     { id: "opname_parsial", label: "Opname (Parsial)", desc: "Serah terima, keterlambatan, denda parsial, kerja tambah/kurang." },
     { id: "instruksi_lapangan", label: "Instruksi Lapangan", desc: "Detail item pekerjaan, status, dan tanggal instruksi lapangan." },
