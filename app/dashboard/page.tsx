@@ -1058,27 +1058,34 @@ export default function DashboardPage() {
                 if (!useOpnameFinal) {
                     costTerbangunToko += Number(rab.grand_total_final || 0);
                     
-                    const itemsFromCache = rabItemsMap[rab.id] || [];
-                    const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
-                    const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
-                    const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
-                    
-                    if (finalItems.length > 0) {
-                        finalItems.forEach((item: any) => {
-                            const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
-                            const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
-                            if (kat === 'PEKERJAAN AREA TERBUKA') {
-                                costTerbukaToko += itemTotal;
-                            } else {
-                                costBangunanToko += itemTotal;
-                            }
-                            if (kat === 'PEKERJAAN BEANSPOT') {
-                                beanspotTokoNominal += itemTotal;
-                            }
-                        });
+                    if (rab.cost_bangunan !== undefined || rab.cost_terbuka !== undefined) {
+                        costTerbukaToko += Number(rab.cost_terbuka || 0);
+                        costBangunanToko += Number(rab.cost_bangunan || 0);
+                        beanspotTokoNominal += Number(rab.cost_beanspot || 0);
                     } else {
-                        // Fallback jika tidak ada items sama sekali
-                        costBangunanToko += Number(rab.grand_total_final || 0);
+                        // Fallback lama (bila data agregat belum tersedia di API)
+                        const itemsFromCache = rabItemsMap[rab.id] || [];
+                        const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
+                        const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
+                        const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
+                        
+                        if (finalItems.length > 0) {
+                            finalItems.forEach((item: any) => {
+                                const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
+                                const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
+                                if (kat === 'PEKERJAAN AREA TERBUKA') {
+                                    costTerbukaToko += itemTotal;
+                                } else {
+                                    costBangunanToko += itemTotal;
+                                }
+                                if (kat === 'PEKERJAAN BEANSPOT') {
+                                    beanspotTokoNominal += itemTotal;
+                                }
+                            });
+                        } else {
+                            // Fallback jika tidak ada items sama sekali
+                            costBangunanToko += Number(rab.grand_total_final || 0);
+                        }
                     }
                 }
             });
@@ -1087,20 +1094,26 @@ export default function DashboardPage() {
                 // Untuk total terbangun, gunakan grand total opname final
                 costTerbangunToko = Number(latestOpnameFinal.grand_total_opname || 0);
 
-                opnameFinalItems.forEach((oItem: any) => {
-                    const itemTotal = Number(oItem.total_harga_opname || 0);
-                    // Dapatkan kategori dari map yang telah dibuat berdasarkan id_rab_item
-                    const kat = rabItemCategoryMap.get(oItem.id_rab_item) || '';
-                    
-                    if (kat === 'PEKERJAAN AREA TERBUKA') {
-                        costTerbukaToko += itemTotal;
-                    } else {
-                        costBangunanToko += itemTotal;
-                    }
-                    if (kat === 'PEKERJAAN BEANSPOT') {
-                        beanspotTokoNominal += itemTotal;
-                    }
-                });
+                if (latestOpnameFinal.cost_bangunan !== undefined || latestOpnameFinal.cost_terbuka !== undefined) {
+                    costTerbukaToko += Number(latestOpnameFinal.cost_terbuka || 0);
+                    costBangunanToko += Number(latestOpnameFinal.cost_bangunan || 0);
+                    beanspotTokoNominal += Number(latestOpnameFinal.cost_beanspot || 0);
+                } else {
+                    opnameFinalItems.forEach((oItem: any) => {
+                        const itemTotal = Number(oItem.total_harga_opname || 0);
+                        // Dapatkan kategori dari map yang telah dibuat berdasarkan id_rab_item
+                        const kat = rabItemCategoryMap.get(oItem.id_rab_item) || '';
+                        
+                        if (kat === 'PEKERJAAN AREA TERBUKA') {
+                            costTerbukaToko += itemTotal;
+                        } else {
+                            costBangunanToko += itemTotal;
+                        }
+                        if (kat === 'PEKERJAAN BEANSPOT') {
+                            beanspotTokoNominal += itemTotal;
+                        }
+                    });
+                }
             }
 
             if (luasTerbukaToko > 0 && costTerbukaToko > 0) {
