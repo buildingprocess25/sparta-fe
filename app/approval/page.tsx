@@ -768,7 +768,7 @@ function ApprovalPageContent() {
             return;
         }
 
-        // Prioritas Jabatan: DIREKTUR KONTRAKTOR > MANAGER > KOORDINATOR
+        // Prioritas Jabatan: DIREKTUR KONTRAKTOR > DIREKTUR > MANAGER > KOORDINATOR
         // Super Human mendapat jabatan MANAGER untuk bisa approve semua level
         let currentJabatan: ApprovalJabatan | null = null;
         if (isSuperHuman) {
