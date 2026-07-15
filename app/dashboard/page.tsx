@@ -809,6 +809,7 @@ export default function DashboardPage() {
                 p.toko.cabang?.toLowerCase().includes(searchQuery.toLowerCase());
             
             const pCabang = (p.toko?.cabang || '').toUpperCase();
+            const canSeeAllBranches = canViewAllBranches(userInfo?.roles, user?.isSuperHuman);
             // HO: match by parent cabang group. User cabang/branch: match exact sub-cabang
             const matchCabang = selectedCabang === 'ALL'
                 ? true
@@ -825,7 +826,7 @@ export default function DashboardPage() {
 
             return matchSearch && matchCabang && matchProyek;
         });
-    }, [projects, searchQuery, selectedCabang, selectedProyek]);
+    }, [projects, searchQuery, selectedCabang, selectedProyek, userInfo?.roles, user?.isSuperHuman]);
 
     const exportCandidates = useMemo(() => {
         return filteredProjects
