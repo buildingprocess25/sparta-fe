@@ -141,35 +141,50 @@ export default function TarikanDataPage() {
     const isBlocked = roles.some((role) => role === "KONTRAKTOR" || role === "DIREKTUR KONTRAKTOR" || role === "KONTRAKTOR DC");
     const canAccess = Boolean(user?.isSuperHuman) || roles.some((role) => ROLE_CONFIG[role]?.includes("menu-tarikan-data"));
 
+    const isHOUser = useMemo(() => {
+        if (!user) return false;
+        const userCabang = normalizeBranchValue(user.cabang);
+        return canViewAllBranches(roles, Boolean(user.isSuperHuman)) || userCabang === 'HEAD OFFICE';
+    }, [roles, user]);
+
     const allowedBranches = useMemo(() => {
         if (!user) return [];
         const userCabang = normalizeBranchValue(user.cabang);
         const allBranches = Array.from(new Set(projects.map(projectBranch).filter(Boolean))).sort();
-        if (canViewAllBranches(roles, Boolean(user.isSuperHuman)) || userCabang === "HEAD OFFICE") return allBranches;
+        if (isHOUser) return allBranches;
         const coverage = getSessionBranchCoverage();
         const accessible = getAccessibleBranchesForUser(roles, userCabang, coverage);
         return allBranches.filter((branch) => accessible.includes(branch));
-    }, [projects, roles, user]);
+    }, [projects, roles, user, isHOUser]);
 
-    const allowedParentBranches = useMemo(() => {
-        return Array.from(new Set(allowedBranches.map(b => getParentBranch(b)))).sort();
-    }, [allowedBranches]);
+    // HO: collapse ke induk cabang di dropdown. Non-HO: tampil cabang actual.
+    const displayBranches = useMemo(() => {
+        if (isHOUser) {
+            return Array.from(new Set(allowedBranches.map(b => getParentBranch(b)))).sort();
+        }
+        return allowedBranches;
+    }, [allowedBranches, isHOUser]);
 
     useEffect(() => {
         // removed auto-select branches effect to start empty
-    }, [allowedParentBranches, selectedBranches.size]);
+    }, [displayBranches, selectedBranches.size]);
 
     const availableJobTypes = useMemo(() => {
         return Array.from(new Set(
             projects
                 .filter((project) => {
                     const branch = projectBranch(project);
-                    return selectedBranches.size === 0 || selectedBranches.has(getParentBranch(branch));
+                    if (!branch) return false;
+                    if (selectedBranches.size === 0) return allowedBranches.includes(branch);
+                    // HO: match by parent; non-HO: exact match
+                    return isHOUser
+                        ? selectedBranches.has(getParentBranch(branch))
+                        : selectedBranches.has(branch);
                 })
                 .flatMap(collectProjectWorkItems)
                 .filter(Boolean)
         )).sort();
-    }, [projects, selectedBranches]);
+    }, [projects, selectedBranches, allowedBranches, isHOUser]);
 
     useEffect(() => {
         if (!user) return;
@@ -196,11 +211,19 @@ export default function TarikanDataPage() {
 
     const filteredProjects = useMemo(() => {
         const query = normalizeText(search);
-        const effectiveBranches = selectedBranches.size > 0 ? selectedBranches : new Set(allowedParentBranches);
+        const effectiveBranches = selectedBranches.size > 0 ? selectedBranches : new Set(displayBranches);
         return projects.filter((project) => {
             const branch = projectBranch(project);
             if (!branch) return false;
-            if (allowedParentBranches.length > 0 && !effectiveBranches.has(getParentBranch(branch))) return false;
+            // Security: always restrict to allowedBranches
+            if (!allowedBranches.includes(branch)) return false;
+            // Filter by selection: HO → match parent; non-HO → exact match
+            if (selectedBranches.size > 0) {
+                const matches = isHOUser
+                    ? selectedBranches.has(getParentBranch(branch))
+                    : selectedBranches.has(branch);
+                if (!matches) return false;
+            }
 
             const workItems = collectProjectWorkItems(project);
             if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
@@ -251,9 +274,11 @@ export default function TarikanDataPage() {
                 periodMode,
                 dataTypes: Array.from(selectedDataTypes),
                 jobTypes: Array.from(selectedJobTypes),
-                // Jika user memilih "Semua cabang" (selectedBranches kosong), kirim semua allowedBranches
-                cabangs: selectedBranches.size > 0 
-                    ? allowedBranches.filter(b => selectedBranches.has(getParentBranch(b))) 
+                // Payload cabangs: HO → expand selected parent to sub-branches; non-HO → kirim exact branches
+                cabangs: selectedBranches.size > 0
+                    ? (isHOUser
+                        ? allowedBranches.filter(b => selectedBranches.has(getParentBranch(b)))
+                        : allowedBranches.filter(b => selectedBranches.has(b)))
                     : allowedBranches,
                 spkStatus,
             });
@@ -377,7 +402,7 @@ export default function TarikanDataPage() {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === allowedParentBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
+                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === displayBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
                                             <ChevronDown className="h-4 w-4 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -389,10 +414,10 @@ export default function TarikanDataPage() {
                                         <DropdownMenuSeparator className="sticky top-8 z-10 bg-slate-100" />
                                         <div className="p-1">
                                             <DropdownMenuCheckboxItem
-                                                checked={selectedBranches.size === allowedParentBranches.length && allowedParentBranches.length > 0}
+                                                checked={selectedBranches.size === displayBranches.length && displayBranches.length > 0}
                                                 onSelect={(e) => e.preventDefault()}
                                                 onCheckedChange={(checked) => {
-                                                    if (checked) setSelectedBranches(new Set(allowedParentBranches));
+                                                    if (checked) setSelectedBranches(new Set(displayBranches));
                                                     else setSelectedBranches(new Set());
                                                 }}
                                                 className="font-black text-slate-900"
@@ -401,7 +426,7 @@ export default function TarikanDataPage() {
                                             </DropdownMenuCheckboxItem>
                                         </div>
                                         <DropdownMenuSeparator />
-                                        {allowedParentBranches.map((branch) => (
+                                        {displayBranches.map((branch) => (
                                             <DropdownMenuCheckboxItem key={branch} checked={selectedBranches.has(branch)} onSelect={(e) => e.preventDefault()} onCheckedChange={() => toggleSetValue(setSelectedBranches, branch)}>
                                                 {branch}
                                             </DropdownMenuCheckboxItem>
