@@ -1782,6 +1782,7 @@ export default function DashboardCommandWorkspace({
     { label: "Denda", value: formatRupiah(stats.totalDenda), helper: "", context: "DENDA", icon: AlertTriangle },
     { label: "Cost/m² bangunan", value: formatRupiah(stats.avgCostBangunan), helper: "Rata-rata luas bangunan", context: "COST_M2", icon: Ruler },
     { label: "Cost/m² terbuka", value: formatRupiah(stats.avgCostTerbuka), helper: "Rata-rata area terbuka", context: "COST_M2", icon: Layers3 },
+    { label: "Cost/m² terbangun", value: formatRupiah(stats.avgCostTerbangun), helper: "Total opname KTK final / luas terbangun", context: "COST_M2", icon: Layers3 },
   ];
 
   return (
@@ -1901,9 +1902,19 @@ export default function DashboardCommandWorkspace({
                 })}
               </div>
               {!isCompanyScoped ? (
-                <button type="button" onClick={() => onOpenDetail("Cost per m²", "COST_M2")} className="group flex w-full items-center justify-between border-t border-slate-200 px-4 py-3 text-left transition-all hover:bg-red-50 hover:shadow-[inset_0_-3px_0_#dc2626]">
-                  <span><span className="block text-[9px] text-slate-400">Cost/m² terbangun</span><span className="mt-1 block text-[11px] font-semibold text-slate-900">{formatRupiah(stats.avgCostTerbangun)}</span></span>
-                  <Layers3 className="h-4 w-4 text-slate-400" />
+                <button type="button" onClick={() => onOpenDetail("Cost per m²", "COST_M2")} className="group grid grid-cols-3 gap-px border-t border-slate-200 transition-all hover:bg-red-50 hover:shadow-[inset_0_-3px_0_#dc2626] w-full text-left">
+                  <span className="px-4 py-3">
+                    <span className="block text-[9px] text-slate-400">Cost/m² terbangun</span>
+                    <span className="mt-1 block text-[11px] font-semibold text-slate-900">{formatRupiah(stats.avgCostTerbangun)}</span>
+                  </span>
+                  <span className="border-x border-slate-200 px-4 py-3">
+                    <span className="block text-[9px] text-slate-400">Cost/m² bangunan</span>
+                    <span className="mt-1 block text-[11px] font-semibold text-slate-900">{formatRupiah(stats.avgCostBangunan)}</span>
+                  </span>
+                  <span className="px-4 py-3">
+                    <span className="block text-[9px] text-slate-400">Cost/m² terbuka</span>
+                    <span className="mt-1 block text-[11px] font-semibold text-slate-900">{formatRupiah(stats.avgCostTerbuka)}</span>
+                  </span>
                 </button>
               ) : null}
             </section>
