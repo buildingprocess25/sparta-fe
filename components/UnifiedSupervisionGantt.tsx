@@ -80,7 +80,7 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     // This creates a cleaner timeline based on actual work schedule
     workspace.scopes.forEach((scope) => {
         const spkStart = parseDate(scope.spk_start_date);
-        const duration = Number(scope.spk_duration || 0);
+        const duration = Number(scope.spk_effective_duration || scope.spk_duration || 0);
         if (spkStart && duration > 0) {
             starts.push(spkStart);
             const end = new Date(spkStart);
