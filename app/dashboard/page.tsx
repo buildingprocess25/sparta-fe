@@ -542,6 +542,7 @@ export default function DashboardPage() {
     const [projects, setProjects] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCabang, setSelectedCabang] = useState('ALL');
+    const [selectedProyek, setSelectedProyek] = useState('ALL');
     const [cabangList, setCabangList] = useState<string[]>([]);
     const [exportingFormat, setExportingFormat] = useState<DashboardExportFormat | null>(null);
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -799,9 +800,16 @@ export default function DashboardPage() {
             
             const matchCabang = selectedCabang === 'ALL' || (p.toko?.cabang || '').toUpperCase() === selectedCabang;
             
-            return matchSearch && matchCabang;
+            const pProyek = (p.toko?.proyek || '').toUpperCase();
+            const matchProyek = 
+                selectedProyek === 'ALL' ? true :
+                selectedProyek === 'RENOVASI' ? pProyek.includes('RENOVASI') || pProyek.includes('PERBAIKAN') || pProyek.includes('PEREMAJAAN') :
+                selectedProyek === 'REGULER' ? pProyek === 'REGULER' || pProyek === 'ALFAMART REGULER' :
+                false;
+
+            return matchSearch && matchCabang && matchProyek;
         });
-    }, [projects, searchQuery, selectedCabang]);
+    }, [projects, searchQuery, selectedCabang, selectedProyek]);
 
     const exportCandidates = useMemo(() => {
         return filteredProjects
@@ -1477,6 +1485,18 @@ export default function DashboardPage() {
                                         </SelectContent>
                                     </Select>
                                 )}
+
+                                {/* Proyek Select */}
+                                <Select value={selectedProyek} onValueChange={setSelectedProyek}>
+                                    <SelectTrigger className="w-full md:w-36 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
+                                        <SelectValue placeholder="Jenis Proyek" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ALL">Semua Proyek</SelectItem>
+                                        <SelectItem value="RENOVASI">Renovasi</SelectItem>
+                                        <SelectItem value="REGULER">Reguler</SelectItem>
+                                    </SelectContent>
+                                </Select>
 
                                 {canExportDashboard && (
                                     <>
