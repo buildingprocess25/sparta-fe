@@ -63,7 +63,7 @@ export default function SuratPeringatanPage() {
     const [reason, setReason] = useState<SpReason>("KETERLAMBATAN");
     const [alasanLainnya, setAlasanLainnya] = useState("");
     const [spLevel, setSpLevel] = useState<1 | 2 | 3>(1);
-    const [note, setNote] = useState("");
+    const [notes, setNotes] = useState<string[]>([""]);
     const [file, setFile] = useState<File | null>(null);
     const [rejectNote, setRejectNote] = useState<Record<number, string>>({});
     const [loading, setLoading] = useState(true);
@@ -100,8 +100,7 @@ export default function SuratPeringatanPage() {
             // KETERLAMBATAN: Hanya ULOK yang terlambat
             base = base.filter((c) => Number(c.hari_denda) > 0 || normalize(c.cabang) === "HEAD OFFICE");
         }
-        // MENOLAK SPK: Semua ULOK dari kontraktor (no additional filter)
-        // MANIPULASI: Tidak perlu filter (tapi tidak akan tampil karena tidak pilih ULOK)
+        // MENOLAK SPK, MANIPULASI, LAINNYA: Semua ULOK dari kontraktor (no additional filter)
 
         // Search filter
         const q = normalize(search);
@@ -122,9 +121,7 @@ export default function SuratPeringatanPage() {
     }, [contractors]);
 
     useEffect(() => {
-        if (reason === "MANIPULASI") {
-            setSelectedId(null);
-        } else if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0 && normalize(selected.cabang) !== "HEAD OFFICE") {
+        if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0 && normalize(selected.cabang) !== "HEAD OFFICE") {
             setSelectedId(null);
         }
     }, [reason, selected]);
@@ -196,10 +193,8 @@ export default function SuratPeringatanPage() {
     const submitSp = async () => {
         if (submitting || !selectedContractor) return;
         
-        const isKontraktorScope = reason === "MANIPULASI" || reason === "LAINNYA";
-        
-        if (!isKontraktorScope && !selected) {
-            setMessage({ type: "error", text: "Pilih kandidat ULOK untuk alasan selain Manipulasi/Lainnya." });
+        if (!selected) {
+            setMessage({ type: "error", text: "Pilih kandidat ULOK terlebih dahulu." });
             return;
         }
 
@@ -215,24 +210,21 @@ export default function SuratPeringatanPage() {
         setSubmitting(true);
         setMessage(null);
         try {
+            // Join non-empty notes with newline for backend
+            const catatanFinal = notes.filter(n => n.trim()).join("\n");
             const payload: any = {
                 sp_level: spLevel,
                 alasan_sp: reason,
                 alasan_lainnya: reason === "LAINNYA" ? alasanLainnya : undefined,
-                catatan: note,
+                catatan: catatanFinal,
                 lampiran: file,
+                id_toko: selected.id_toko,
+                id_opname_final: selected.opname_final_id,
             };
-            
-            if (isKontraktorScope) {
-                payload.nama_kontraktor = selectedContractor;
-            } else {
-                payload.id_toko = selected!.id_toko;
-                payload.id_opname_final = selected!.opname_final_id;
-            }
 
             const result = await createSpAction(payload);
             setMessage({ type: "success", text: result.message });
-            setNote("");
+            setNotes([""]);
             setAlasanLainnya("");
             setFile(null);
             setViewMode("list");
@@ -304,7 +296,7 @@ export default function SuratPeringatanPage() {
                                         setReason("KETERLAMBATAN");
                                         setSelectedContractor("");
                                         setSelectedId(null);
-                                        setNote("");
+                                        setNotes([""]);
                                         setFile(null);
                                         setViewMode("form");
                                     }}>
@@ -441,8 +433,7 @@ export default function SuratPeringatanPage() {
                                         </div>
                                     )}
 
-                                    {reason !== "MANIPULASI" && reason !== "LAINNYA" && (
-                                        <div className="mt-6">
+                                    <div className="mt-6">
                                             <Label className="text-sm font-bold text-slate-700 mb-2 block">Pilih Kandidat (ULOK) *</Label>
                                             <Popover open={openDropdown} onOpenChange={setOpenDropdown}>
                                                 <PopoverTrigger asChild>
@@ -506,10 +497,9 @@ export default function SuratPeringatanPage() {
                                                 </PopoverContent>
                                             </Popover>
                                         </div>
-                                    )}
                                 </div>
 
-                                {selectedContractor && (reason === "MANIPULASI" || reason === "LAINNYA" || selected) ? (
+                                {selectedContractor && selected ? (
                                     <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
                                         <h3 className="font-bold text-slate-700 border-b pb-2 mb-4">2. Detail SP &amp; Lampiran</h3>
                                         
@@ -580,8 +570,42 @@ export default function SuratPeringatanPage() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                                             <div className="space-y-2">
-                                                <Label className="text-sm font-bold text-slate-700">Catatan Tambahan</Label>
-                                                <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Masukkan instruksi tindak lanjut atau catatan tambahan..." className="min-h-[120px] resize-none border-slate-300 focus:ring-red-500 rounded-lg p-3" />
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-sm font-bold text-slate-700">Catatan Tambahan</Label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNotes([...notes, ""])}
+                                                        className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" /> Tambah Catatan
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {notes.map((n, idx) => (
+                                                        <div key={idx} className="flex items-start gap-2">
+                                                            <span className="text-xs font-bold text-slate-400 mt-3 shrink-0">{idx + 2}.</span>
+                                                            <Textarea
+                                                                value={n}
+                                                                onChange={(e) => {
+                                                                    const updated = [...notes];
+                                                                    updated[idx] = e.target.value;
+                                                                    setNotes(updated);
+                                                                }}
+                                                                placeholder={`Catatan ${idx + 1}...`}
+                                                                className="min-h-[70px] resize-none border-slate-300 focus:ring-red-500 rounded-lg p-3 flex-1"
+                                                            />
+                                                            {notes.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setNotes(notes.filter((_, i) => i !== idx))}
+                                                                    className="mt-2 text-slate-400 hover:text-red-500"
+                                                                >
+                                                                    <XCircle className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
 
                                             <div className="space-y-2">
@@ -599,15 +623,8 @@ export default function SuratPeringatanPage() {
 
                                 <div className="pt-2">
                                     {(() => {
-                                        const isKontraktorScope = reason === "MANIPULASI" || reason === "LAINNYA";
-                                        const hasPendingUlok = !isKontraktorScope && selected?.has_pending_approval;
-                                        // Fix: wrap condition in parentheses to avoid operator precedence bug
-                                        const hasPendingManipulasi = isKontraktorScope && actions.some(
-                                            (a) => a.action_type === "SP" &&
-                                                normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
-                                                a.status === "WAITING_MANAGER"
-                                        );
-                                        const isBlocked = hasPendingUlok || hasPendingManipulasi;
+                                        const hasPendingUlok = selected?.has_pending_approval;
+                                        const isBlocked = hasPendingUlok;
                                         return (
                                             <Button
                                                 className="w-full h-14 font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-60 flex items-center justify-center gap-2 overflow-hidden px-4"
