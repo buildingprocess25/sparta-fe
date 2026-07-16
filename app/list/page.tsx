@@ -1317,12 +1317,13 @@ export default function DaftarDokumenPage() {
                     group.sort((a, b) => b.id - a.id); // latest first
                     const latest = group[0];
                     const anyItem = latest as any;
+                    const isKontraktorScope = latest.alasan_sp === "MANIPULASI" || latest.alasan_sp === "LAINNYA";
                     
                     normalizedList.push({
                         id: latest.id,
                         tipe: 'SURAT_PERINGATAN',
-                        nomor_ulok: latest.nomor_ulok || '-',
-                        nama_toko: anyItem.toko?.nama_toko || '-',
+                        nomor_ulok: isKontraktorScope ? `SP ${latest.alasan_sp}` : (latest.nomor_ulok || '-'),
+                        nama_toko: isKontraktorScope ? (latest.nama_kontraktor || '-') : (anyItem.toko?.nama_toko || '-'),
                         cabang: latest.cabang || '-',
                         proyek: latest.lingkup_pekerjaan || '-',
                         email_pembuat: anyItem.submitted_by_email || '-',
@@ -3850,29 +3851,17 @@ export default function DaftarDokumenPage() {
                                         )}
 
                                         {/* Direct Download Button for Surat Peringatan */}
-                                        {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction?.link_pdf && (() => {
-                                            const fileIdMatch = selectedDetail.rawDendaAction.link_pdf.match(/\/d\/(.*?)\//) || selectedDetail.rawDendaAction.link_pdf.match(/id=(.*?)(&|$)/);
-                                            const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                                            
-                                            if (!fileId) {
-                                                // Fallback to normal URL if ID cannot be extracted
-                                                return (
-                                                    <a href={selectedDetail.rawDendaAction.link_pdf} target="_blank" rel="noopener noreferrer">
-                                                        <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
-                                                            <FileDown className="w-4 h-4 mr-2" /> Unduh PDF Surat Peringatan
-                                                        </Button>
-                                                    </a>
-                                                );
-                                            }
-
-                                            return (
-                                                <a href={`${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?fileId=${fileId}&download=true`} download>
-                                                    <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
-                                                        <Download className="w-4 h-4 mr-2" /> Unduh PDF Surat Peringatan
-                                                    </Button>
-                                                </a>
-                                            );
-                                        })()}
+                                        {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction?.link_pdf && (
+                                            <a 
+                                                href={`${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction.link_pdf)}&download=true`} 
+                                                download 
+                                                className="inline-block"
+                                            >
+                                                <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
+                                                    <Download className="w-4 h-4 mr-2" /> Unduh PDF Surat Peringatan
+                                                </Button>
+                                            </a>
+                                        )}
 
                                         {/* Pertambahan SPK Attachment */}
                                         {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && selectedDetail.link_lampiran_pendukung && (
