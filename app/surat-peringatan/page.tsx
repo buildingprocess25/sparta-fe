@@ -515,7 +515,7 @@ export default function SuratPeringatanPage() {
                                                 {(() => {
                                                     const isKontraktorScope = reason === "MANIPULASI" || reason === "LAINNYA";
                                                     
-                                                    let relevantActions = [];
+                                                    let relevantActions: DendaAction[] = [];
                                                     if (isKontraktorScope) {
                                                         relevantActions = actions.filter((a) =>
                                                             a.action_type === "SP" &&
