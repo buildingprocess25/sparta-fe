@@ -2765,19 +2765,22 @@ function ApprovalPageContent() {
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status SP</p>
                                                     <p className="text-sm font-semibold text-slate-800">{selectedDetail._raw?.status || '-'}</p>
                                                 </div>
-                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 md:col-span-2">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Alasan SP</p>
-                                                    <p className="text-sm font-bold text-red-700">{selectedDetail._raw?.alasan_sp || '-'}</p>
+                                                    <p className="text-sm font-bold text-red-700">
+                                                        {selectedDetail._raw?.alasan_sp || '-'}
+                                                        {selectedDetail._raw?.alasan_lainnya ? ` - ${selectedDetail._raw.alasan_lainnya}` : ''}
+                                                    </p>
+                                                    {selectedDetail._raw?.catatan && (
+                                                        <div className="mt-3 rounded-md border border-red-100 bg-white px-3 py-2 text-sm text-slate-800 whitespace-pre-wrap">
+                                                            {selectedDetail._raw.catatan}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai Denda</p>
                                                     <p className="text-sm font-semibold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
                                                 </div>
-                                            </div>
-                                            {/* Catatan SP */}
-                                            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                                                <p className="text-[11px] font-bold text-red-600 uppercase tracking-wider mb-1">Catatan</p>
-                                                <p className="text-sm text-slate-800">{selectedDetail._raw?.catatan || '-'}</p>
                                             </div>
                                             {/* Lampiran links */}
                                             {selectedDetail.link_lampiran_pendukung && (

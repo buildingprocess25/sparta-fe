@@ -55,21 +55,16 @@ const matchesContractorCompany = (actionCompany?: string | null, userCompany?: s
 const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH BUILDING & MAINTENANCE MANAGER" || role.includes("SUPER HUMAN"));
 const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
 
-const getSpTimeline = (action: DendaAction, contractorView = false) => {
+const getSpTimeline = (action: DendaAction) => {
     const hasPdf = Boolean(action.link_pdf);
     const isRejected = action.status === "REJECTED_BY_MANAGER";
     const isSent = ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(action.status);
-    const isViewed = ["VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(action.status);
-    const isAcknowledged = action.status === "ACKNOWLEDGED_BY_CONTRACTOR";
-    const steps = [
+    return [
         { label: "Diajukan", done: true, tone: "green" },
         { label: "PDF Draft", done: hasPdf, tone: hasPdf ? "green" : "slate" },
         { label: isRejected ? "Ditolak" : "BBMM", done: isRejected || isSent, tone: isRejected ? "red" : isSent ? "green" : "slate" },
         { label: "Dikirim", done: isSent, tone: isSent ? "green" : "slate" },
-        { label: "Dilihat", done: isViewed, tone: isViewed ? "green" : "slate" },
-        { label: "Acknowledged", done: isAcknowledged, tone: isAcknowledged ? "blue" : "slate" },
     ];
-    return contractorView ? steps.slice(0, 4) : steps;
 };
 
 type GroupedSpAction = {
@@ -725,16 +720,16 @@ export default function SuratPeringatanPage() {
                                 ) : null}
 
                                 {(() => {
-                                    const steps = getSpTimeline(selectedDetailGroup.latest, userIsContractor);
+                                    const steps = getSpTimeline(selectedDetailGroup.latest);
                                     const doneCount = steps.filter(step => step.done).length;
                                     const progress = steps.length > 1 ? Math.max(0, (doneCount - 1) / (steps.length - 1) * 100) : 0;
                                     return (
                                         <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
-                                            <div className="relative px-2 pt-2">
-                                                <div className="absolute left-8 right-8 top-6 h-1 rounded-full bg-slate-200" />
+                                            <div className="relative px-3 pt-2">
+                                                <div className="absolute left-12 right-12 top-6 h-1 rounded-full bg-slate-200" />
                                                 <div
                                                     className="absolute left-8 top-6 h-1 rounded-full bg-emerald-500 transition-all"
-                                                    style={{ width: `${progress}%` }}
+                                                    style={{ left: "3rem", width: `calc((100% - 6rem) * ${progress / 100})` }}
                                                 />
                                                 <div className="relative grid gap-2" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
                                                     {steps.map((step) => (
