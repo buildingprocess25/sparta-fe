@@ -794,7 +794,7 @@ export default function SuratPeringatanPage() {
                                             if (selectedDetailGroup.latest.alasan_sp === "LAINNYA") {
                                                 setAlasanLainnya(selectedDetailGroup.latest.alasan_lainnya || "");
                                             }
-                                            setNote(selectedDetailGroup.latest.catatan || "");
+                                            setNotes((selectedDetailGroup.latest.catatan || "").split('\n').filter(Boolean).length > 0 ? (selectedDetailGroup.latest.catatan || "").split('\n') : [""]);
                                             setViewMode("form");
                                         }}>
                                             <AlertTriangle className="h-4 w-4 mr-2" />
