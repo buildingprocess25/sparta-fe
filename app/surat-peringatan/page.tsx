@@ -138,8 +138,12 @@ export default function SuratPeringatanPage() {
                 if (!user.isHO && !canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage())) return;
             }
             
-            // Group by toko/kontraktor AND SP level, so SP 1 and SP 2 for same store are separate threads
-            const key = `${action.id_toko || 'no-toko'}-${normalize(action.nama_kontraktor)}-${action.sp_level}`;
+            // Group by kontraktor scope (MANIPULASI/LAINNYA) or ULOK+reason
+            // sp_level is NOT part of the key — SP 1 and SP 2 for same entity belong to same thread
+            const isKontraktorScopeAction = action.alasan_sp === "MANIPULASI" || action.alasan_sp === "LAINNYA";
+            const key = isKontraktorScopeAction
+                ? `kontraktor-${normalize(action.nama_kontraktor)}-${action.alasan_sp}`
+                : `toko-${action.id_toko}-${action.alasan_sp}`;
             if (!map.has(key)) map.set(key, []);
             map.get(key)!.push(action);
         });
