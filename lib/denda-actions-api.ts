@@ -2,7 +2,7 @@ import { apiFetch, safeFetchJSON } from "./api";
 import { API_URL } from "./constants";
 
 export type DendaActionType = "SP" | "TAKEOVER";
-export type SpReason = "KETERLAMBATAN" | "MENOLAK_SPK" | "MANIPULASI";
+export type SpReason = "KETERLAMBATAN" | "MENOLAK_SPK" | "MANIPULASI" | "LAINNYA";
 export type DendaActionStatus =
     | "WAITING_MANAGER"
     | "REJECTED_BY_MANAGER"
@@ -51,6 +51,7 @@ export type DendaAction = {
     hari_denda: number;
     nilai_denda: string;
     alasan_sp: SpReason | null;
+    alasan_lainnya: string | null;
     catatan: string | null;
     instruksi_tindak_lanjut: string | null;
     deadline_tindak_lanjut: string | null;
@@ -86,6 +87,7 @@ export type CreateSpActionPayload = {
     id_opname_final?: number | null;
     sp_level: number;
     alasan_sp: SpReason;
+    alasan_lainnya?: string;
     catatan: string;
     lampiran?: File | null;
     lampiran_1_url?: string | null;
@@ -130,6 +132,7 @@ export const createSpAction = async (
     form.append("action_type", "SP");
     form.append("sp_level", String(payload.sp_level));
     form.append("alasan_sp", payload.alasan_sp);
+    if (payload.alasan_lainnya) form.append("alasan_lainnya", payload.alasan_lainnya);
     form.append("catatan", payload.catatan);
     if (payload.lampiran) form.append("lampiran", payload.lampiran);
     if (payload.lampiran_1_url?.trim()) form.append("lampiran_1_url", payload.lampiran_1_url.trim());
