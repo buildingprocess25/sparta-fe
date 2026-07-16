@@ -595,8 +595,10 @@ export default function SuratPeringatanPage() {
 
                                 <div className="pt-2">
                                     {(() => {
-                                        const hasPendingUlok = reason !== "MANIPULASI" && selected?.has_pending_approval;
-                                        const hasPendingManipulasi = reason === "MANIPULASI" || reason === "LAINNYA" && actions.some(
+                                        const isKontraktorScope = reason === "MANIPULASI" || reason === "LAINNYA";
+                                        const hasPendingUlok = !isKontraktorScope && selected?.has_pending_approval;
+                                        // Fix: wrap condition in parentheses to avoid operator precedence bug
+                                        const hasPendingManipulasi = isKontraktorScope && actions.some(
                                             (a) => a.action_type === "SP" &&
                                                 normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
                                                 a.status === "WAITING_MANAGER"
@@ -604,12 +606,16 @@ export default function SuratPeringatanPage() {
                                         const isBlocked = hasPendingUlok || hasPendingManipulasi;
                                         return (
                                             <Button
-                                                className="w-full h-14 text-lg font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-60"
+                                                className="w-full h-14 font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-60 flex items-center justify-center gap-2 overflow-hidden px-4"
                                                 onClick={submitSp}
                                                 disabled={!userCanSubmit || submitting || isBlocked}
                                             >
-                                                {submitting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <FileText className="mr-2 h-6 w-6" />}
-                                                {isBlocked ? "SP Sedang Dalam Proses (Tidak Bisa Ajukan Baru)" : "Ajukan Surat Peringatan"}
+                                                <span className="shrink-0">
+                                                    {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
+                                                </span>
+                                                <span className="truncate text-sm md:text-base">
+                                                    {isBlocked ? "SP Sedang Diproses — Tidak Bisa Ajukan Baru" : "Ajukan Surat Peringatan"}
+                                                </span>
                                             </Button>
                                         );
                                     })()}
