@@ -44,8 +44,24 @@ const statusLabel = (status: string) => ({
 }[status] ?? status);
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
-const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH MANAGER" || role.includes("SUPER HUMAN"));
+const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH BUILDING & MAINTENANCE MANAGER" || role.includes("SUPER HUMAN"));
 const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
+
+const getSpTimeline = (action: DendaAction) => {
+    const hasPdf = Boolean(action.link_pdf);
+    const isRejected = action.status === "REJECTED_BY_MANAGER";
+    const isSent = ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(action.status);
+    const isViewed = ["VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(action.status);
+    const isAcknowledged = action.status === "ACKNOWLEDGED_BY_CONTRACTOR";
+    return [
+        { label: "Diajukan", done: true, tone: "green" },
+        { label: "PDF Draft", done: hasPdf, tone: hasPdf ? "green" : "slate" },
+        { label: isRejected ? "Ditolak" : "BBMM", done: isRejected || isSent, tone: isRejected ? "red" : isSent ? "green" : "slate" },
+        { label: "Dikirim", done: isSent, tone: isSent ? "green" : "slate" },
+        { label: "Dilihat", done: isViewed, tone: isViewed ? "green" : "slate" },
+        { label: "Acknowledged", done: isAcknowledged, tone: isAcknowledged ? "blue" : "slate" },
+    ];
+};
 
 type GroupedSpAction = {
     latest: DendaAction;
@@ -628,7 +644,12 @@ export default function SuratPeringatanPage() {
                                                 <Label className="text-sm font-bold text-slate-700">Upload Lampiran Pendukung *</Label>
                                                 <label className="flex h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-3 text-center transition hover:border-red-400 hover:bg-red-50/50 group">
                                                     <Upload className="mb-2 h-6 w-6 text-slate-400 group-hover:text-red-500 transition-colors" />
-                                                    <span className="text-sm font-semibold text-slate-600 group-hover:text-red-600">{file ? file.name : "Klik atau Drop file di sini"}</span>
+                                                    <span
+                                                        className="block max-w-full truncate px-2 text-sm font-semibold text-slate-600 group-hover:text-red-600"
+                                                        title={file?.name}
+                                                    >
+                                                        {file ? file.name : "Klik atau Drop file di sini"}
+                                                    </span>
                                                     <span className="text-xs text-slate-400 mt-1">Maks. 5MB (PDF/JPG/PNG)</span>
                                                     <input type="file" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
                                                 </label>
@@ -689,6 +710,40 @@ export default function SuratPeringatanPage() {
                                         <p>{message.text}</p>
                                     </div>
                                 ) : null}
+
+                                <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+                                    <div className="relative px-2 pt-2">
+                                        <div className="absolute left-8 right-8 top-6 h-1 rounded-full bg-slate-200" />
+                                        <div
+                                            className="absolute left-8 top-6 h-1 rounded-full bg-emerald-500 transition-all"
+                                            style={{
+                                                width: `${Math.max(0, (getSpTimeline(selectedDetailGroup.latest).filter(step => step.done).length - 1) / (getSpTimeline(selectedDetailGroup.latest).length - 1) * 100)}%`,
+                                            }}
+                                        />
+                                        <div className="relative grid grid-cols-6 gap-2">
+                                            {getSpTimeline(selectedDetailGroup.latest).map((step) => (
+                                                <div key={step.label} className="flex flex-col items-center gap-2 text-center">
+                                                    <div className={`flex h-8 w-8 items-center justify-center rounded-full border-4 bg-white ${
+                                                        step.tone === "blue" ? "border-blue-500 text-blue-600" :
+                                                        step.tone === "red" ? "border-red-500 text-red-600" :
+                                                        step.done ? "border-emerald-500 text-emerald-600" :
+                                                        "border-slate-300 text-slate-400"
+                                                    }`}>
+                                                        {step.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+                                                    </div>
+                                                    <span className={`text-[10px] font-bold leading-tight ${
+                                                        step.tone === "blue" ? "text-blue-700" :
+                                                        step.tone === "red" ? "text-red-700" :
+                                                        step.done ? "text-emerald-700" :
+                                                        "text-slate-400"
+                                                    }`}>
+                                                        {step.label}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>

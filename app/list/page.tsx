@@ -1119,17 +1119,17 @@ export default function DaftarDokumenPage() {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     const handleRegeneratePDF = async (actionId: number) => {
-        if (!confirm("Apakah Anda yakin ingin meng-generate ulang PDF Surat Peringatan ini? Link PDF yang lama akan tertimpa.")) return;
         setIsGeneratingPdf(true);
         try {
             const { regenerateSpPdf } = await import("@/lib/denda-actions-api");
             const result = await regenerateSpPdf(actionId);
-            alert("Berhasil: " + result.message);
+            showToast(result.message || "PDF Surat Peringatan berhasil digenerate.", "success");
             // Update the selected detail state with the new link_pdf
             if (selectedDetail && selectedDetail.rawDendaAction) {
                 const newLink = result.data.link_pdf;
                 setSelectedDetail({
                     ...selectedDetail,
+                    link_pdf: newLink,
                     rawDendaAction: {
                         ...selectedDetail.rawDendaAction,
                         link_pdf: newLink,
@@ -1137,12 +1137,12 @@ export default function DaftarDokumenPage() {
                 });
                 setListData(prev => prev.map(d => 
                     d.id === selectedDetail.id && d.tipe === 'SURAT_PERINGATAN' 
-                        ? { ...d, link_pdf: newLink } 
+                        ? { ...d, link_pdf: newLink, rawDendaAction: { ...(d.rawDendaAction as any), link_pdf: newLink } } 
                         : d
                 ));
             }
         } catch (error: any) {
-            alert("Gagal: " + (error.message || "Terjadi kesalahan saat generate ulang PDF"));
+            showToast(error.message || "Gagal generate PDF Surat Peringatan.", "error");
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -1362,7 +1362,7 @@ export default function DaftarDokumenPage() {
                         proyek: latest.lingkup_pekerjaan || '-',
                         email_pembuat: anyItem.submitted_by_email || '-',
                         total_nilai: 0,
-                        link_pdf: latest.lampiran_2_url || latest.lampiran_1_url || null,
+                        link_pdf: latest.link_pdf || null,
                         lingkup_pekerjaan: latest.lingkup_pekerjaan || '-',
                         nama_kontraktor: latest.nama_kontraktor || '-',
                         status: latest.status,
@@ -3884,23 +3884,25 @@ export default function DaftarDokumenPage() {
                                             </Button>
                                         )}
 
-                                        {/* Direct Download Button for Surat Peringatan */}
-                                        {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction?.link_pdf && (
+                                        {/* PDF actions for Surat Peringatan */}
+                                        {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction && (
                                             <div className="flex flex-col sm:flex-row items-center gap-2">
-                                                <Button 
-                                                    className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto"
-                                                    onClick={() => {
-                                                        const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction!.link_pdf!)}&download=true`;
-                                                        const link = document.createElement('a');
-                                                        link.href = url;
-                                                        link.download = '';
-                                                        document.body.appendChild(link);
-                                                        link.click();
-                                                        document.body.removeChild(link);
-                                                    }}
-                                                >
-                                                    <Download className="w-4 h-4 mr-2" /> Unduh PDF
-                                                </Button>
+                                                {selectedDetail.rawDendaAction.link_pdf && (
+                                                    <Button 
+                                                        className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto"
+                                                        onClick={() => {
+                                                            const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction!.link_pdf!)}&download=true`;
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.download = '';
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            document.body.removeChild(link);
+                                                        }}
+                                                    >
+                                                        <Download className="w-4 h-4 mr-2" /> Unduh PDF
+                                                    </Button>
+                                                )}
                                                 <Button 
                                                     variant="outline"
                                                     className="border-slate-300 text-slate-700 hover:bg-slate-50 w-full sm:w-auto"
@@ -3908,7 +3910,7 @@ export default function DaftarDokumenPage() {
                                                     onClick={() => handleRegeneratePDF(selectedDetail.id)}
                                                 >
                                                     {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                                    Generate Ulang PDF
+                                                    Generate PDF
                                                 </Button>
                                             </div>
                                         )}

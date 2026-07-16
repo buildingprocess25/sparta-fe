@@ -401,10 +401,10 @@ function KontraktorSuratPeringatanContent() {
                                 <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg">
                                     <h3 className="font-bold text-amber-800 mb-4 flex items-center gap-2">
                                         <AlertTriangle className="w-5 h-5" />
-                                        Action Required: Acknowledge Surat Peringatan
+                                        Konfirmasi Penerimaan Surat Peringatan
                                     </h3>
                                     <p className="text-sm text-amber-700 mb-4">
-                                        Anda diwajibkan untuk mengakui bahwa telah menerima dan membaca surat peringatan ini.
+                                        Mohon baca dokumen Surat Peringatan, lalu konfirmasi penerimaan setelah dokumen diterima dengan baik.
                                         Silakan tambahkan catatan jika diperlukan.
                                     </p>
                                     <Label className="block mb-2">Catatan (Opsional)</Label>
@@ -420,7 +420,7 @@ function KontraktorSuratPeringatanContent() {
                                         disabled={loading}
                                         className="w-full bg-red-600 hover:bg-red-700"
                                     >
-                                        {loading ? "Processing..." : "✓ Acknowledge Surat Peringatan"}
+                                        {loading ? "Processing..." : "✓ Konfirmasi Penerimaan"}
                                     </Button>
                                 </div>
                             )}

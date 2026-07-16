@@ -76,7 +76,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     OPNAME: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "COORDINATOR", "MANAGER"],
     INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
     PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
-    SURAT_PERINGATAN: ["BRANCH MANAGER"],
+    SURAT_PERINGATAN: ["BRANCH BUILDING & MAINTENANCE MANAGER"],
 };
 
 const normalizeBranch = (branch?: string | null) => (branch ?? "").trim().toUpperCase();
@@ -350,7 +350,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
     }
 
-    // SURAT_PERINGATAN: handled purely by status (Branch Manager sees all WAITING_MANAGER)
+    // SURAT_PERINGATAN: handled purely by status (manager sees all WAITING_MANAGER)
     if (item.tipe === "SURAT_PERINGATAN") {
         if (jabatan === "KOORDINATOR") return upper.includes("REJECT");
         return upper === "WAITING_MANAGER";
