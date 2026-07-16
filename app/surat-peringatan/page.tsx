@@ -271,9 +271,26 @@ export default function SuratPeringatanPage() {
         }
     };
 
+    const isHOUser = user?.isHO || user?.roles?.some(r => r.includes("SUPER HUMAN"));
+
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12 relative">
             <AppNavbar title="SURAT PERINGATAN" showBackButton backHref="/dashboard" />
+
+            {!isHOUser && user ? (
+                <main className="max-w-5xl mx-auto p-4 md:p-8 mt-4">
+                    <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+                        <div className="p-4 bg-red-50 rounded-full">
+                            <AlertTriangle className="w-12 h-12 text-red-400" />
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-700">Akses Terbatas</h2>
+                        <p className="text-slate-500 max-w-sm text-sm leading-relaxed">
+                            Halaman <strong>Surat Peringatan</strong> hanya dapat diakses oleh pengguna <strong>Head Office (HO)</strong>.
+                            Silakan hubungi administrator jika Anda memerlukan akses.
+                        </p>
+                    </div>
+                </main>
+            ) : (
 
             <main className="max-w-5xl mx-auto p-4 md:p-8 mt-4">
                 {viewMode === "list" && (
@@ -807,6 +824,7 @@ export default function SuratPeringatanPage() {
                     </div>
                 )}
             </main>
+            )}
         </div>
     );
 }
