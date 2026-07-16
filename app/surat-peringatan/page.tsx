@@ -114,7 +114,7 @@ export default function SuratPeringatanPage() {
         // Apply reason-specific filters
         if (reason === "KETERLAMBATAN") {
             // KETERLAMBATAN: Hanya ULOK yang terlambat
-            base = base.filter((c) => Number(c.hari_denda) > 0 || normalize(c.cabang) === "HEAD OFFICE");
+            base = base.filter((c) => Number(c.hari_denda) > 0);
         }
         // MENOLAK SPK, MANIPULASI, LAINNYA: Semua ULOK dari kontraktor (no additional filter)
 
@@ -137,7 +137,7 @@ export default function SuratPeringatanPage() {
     }, [contractors]);
 
     useEffect(() => {
-        if (reason === "KETERLAMBATAN" && selected && selected.hari_denda <= 0 && normalize(selected.cabang) !== "HEAD OFFICE") {
+        if (reason === "KETERLAMBATAN" && selected && Number(selected.hari_denda) <= 0) {
             setSelectedId(null);
         }
     }, [reason, selected]);
