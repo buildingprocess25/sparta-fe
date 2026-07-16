@@ -1317,7 +1317,8 @@ export default function DaftarDokumenPage() {
                     group.sort((a, b) => b.id - a.id); // latest first
                     const latest = group[0];
                     const anyItem = latest as any;
-                    const isKontraktorScope = latest.alasan_sp === "MANIPULASI" || latest.alasan_sp === "LAINNYA";
+                    const alasanUpper = (latest.alasan_sp || '').toUpperCase();
+                    const isKontraktorScope = alasanUpper === "MANIPULASI" || alasanUpper === "LAINNYA";
                     
                     normalizedList.push({
                         id: latest.id,
@@ -3852,15 +3853,20 @@ export default function DaftarDokumenPage() {
 
                                         {/* Direct Download Button for Surat Peringatan */}
                                         {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction?.link_pdf && (
-                                            <a 
-                                                href={`${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction.link_pdf)}&download=true`} 
-                                                download 
-                                                className="inline-block"
+                                            <Button 
+                                                className="bg-red-600 hover:bg-red-700 text-white"
+                                                onClick={() => {
+                                                    const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction!.link_pdf!)}&download=true`;
+                                                    const link = document.createElement('a');
+                                                    link.href = url;
+                                                    link.download = '';
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    document.body.removeChild(link);
+                                                }}
                                             >
-                                                <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
-                                                    <Download className="w-4 h-4 mr-2" /> Unduh PDF Surat Peringatan
-                                                </Button>
-                                            </a>
+                                                <Download className="w-4 h-4 mr-2" /> Unduh PDF Surat Peringatan
+                                            </Button>
                                         )}
 
                                         {/* Pertambahan SPK Attachment */}
