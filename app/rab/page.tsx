@@ -311,7 +311,7 @@ function RABPageContent() {
     // Simpan otomatis jika tidak dalam mode loading, bukan readonly, tidak sedang edit revisi (currentRabId == null),
     // dan jika form atau tabel sudah terisi sebagian
     if (!isLoading && !isReadOnly && user?.email && !currentRabId && !hasProjectPlanningRequest) {
-      const draftKey = `rab_draft_${user.email}`;
+      const draftKey = `rab_draft_${user.email}_${user.role}_${user.cabang}`;
       const hasData = tableRows.length > 0 || formData.namaToko.trim() !== '' || formData.lokasiTanggal.trim() !== '';
       if (hasData) {
          localStorage.setItem(draftKey, JSON.stringify({ formData, tableRows }));
@@ -321,7 +321,7 @@ function RABPageContent() {
 
   useEffect(() => {
     if (user?.email && !currentRabId && !hasProjectPlanningRequest) {
-      const draftKey = `rab_draft_${user.email}`;
+      const draftKey = `rab_draft_${user.email}_${user.role}_${user.cabang}`;
       const savedDraft = localStorage.getItem(draftKey);
       if (savedDraft) {
         try {
@@ -346,8 +346,8 @@ function RABPageContent() {
   };
 
   const deleteDraft = () => {
-    if (user?.email) {
-      localStorage.removeItem(`rab_draft_${user.email}`);
+    if (user?.email && user?.role && user?.cabang) {
+      localStorage.removeItem(`rab_draft_${user.email}_${user.role}_${user.cabang}`);
     }
     setDraftData(null);
     setDraftDialogOpen(false);
