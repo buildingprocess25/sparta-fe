@@ -280,13 +280,12 @@ export default function SuratPeringatanPage() {
             {!isHOUser && user ? (
                 <main className="max-w-5xl mx-auto p-4 md:p-8 mt-4">
                     <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
-                        <div className="p-4 bg-red-50 rounded-full">
-                            <AlertTriangle className="w-12 h-12 text-red-400" />
+                        <div className="p-4 bg-blue-50 rounded-full">
+                            <Clock3 className="w-12 h-12 text-blue-400" />
                         </div>
-                        <h2 className="text-xl font-bold text-slate-700">Akses Terbatas</h2>
+                        <h2 className="text-xl font-bold text-slate-700">Fitur Sedang Disiapkan (Ongoing)</h2>
                         <p className="text-slate-500 max-w-sm text-sm leading-relaxed">
-                            Halaman <strong>Surat Peringatan</strong> hanya dapat diakses oleh pengguna <strong>Head Office (HO)</strong>.
-                            Silakan hubungi administrator jika Anda memerlukan akses.
+                            Halo! Saat ini fitur <strong>Surat Peringatan</strong> masih dalam tahap pengembangan dan baru bisa diakses oleh tim HO. Ditunggu ya update selanjutnya!
                         </p>
                     </div>
                 </main>
