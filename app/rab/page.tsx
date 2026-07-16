@@ -116,7 +116,7 @@ const priceValueToNumber = (value: unknown, fallback: number) => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed || /^(kondisional|sbo)$/i.test(trimmed)) return fallback;
-    if (trimmed.toLowerCase() === 'beban kontraktor') return 0;
+    if (trimmed.toLowerCase().includes('kontraktor')) return 0;
     const parsed = Number(trimmed.replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'));
     return Number.isFinite(parsed) ? parsed : fallback;
   }
@@ -138,7 +138,7 @@ const isNumericPriceValue = (value: unknown) => {
 };
 
 const isBebanKontraktor = (value: unknown) => 
-  typeof value === 'string' && String(value).trim().toLowerCase() === 'beban kontraktor';
+  typeof value === 'string' && String(value).trim().toLowerCase().includes('kontraktor');
 
 const isTextPriceDirective = (value: unknown) =>
   typeof value === 'string' && value.trim() !== '' && value.trim() !== '-' && !isNumericPriceValue(value) && !isBebanKontraktor(value);
