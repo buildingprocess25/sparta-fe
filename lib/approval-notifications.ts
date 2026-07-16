@@ -449,6 +449,10 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                     raw: item,
                 })), user, jabatan);
             } else if (type === "SURAT_PERINGATAN") {
+                if (isContractorCompanyScopedRole(user.roles)) {
+                    counts.SURAT_PERINGATAN = 0;
+                    continue;
+                }
                 const res = await fetchDendaActions(
                     jabatan === "KOORDINATOR" ? { action_type: "SP" } : { action_type: "SP" }
                 );
@@ -585,6 +589,9 @@ export const fetchApprovalNotificationItems = async (user: UserSession): Promise
                     raw: item,
                 }));
             } else if (type === "SURAT_PERINGATAN") {
+                if (isContractorCompanyScopedRole(user.roles)) {
+                    countableItems = [];
+                } else {
                 const res = await fetchDendaActions(
                     jabatan === "KOORDINATOR" ? { action_type: "SP" } : { action_type: "SP" }
                 );
@@ -598,6 +605,7 @@ export const fetchApprovalNotificationItems = async (user: UserSession): Promise
                     cabang: item.cabang,
                     raw: item,
                 }));
+                }
             }
 
             items.push(...countableItems.filter(item => canCountForUser(item, user, jabatan)).map(toApprovalNotificationItem));

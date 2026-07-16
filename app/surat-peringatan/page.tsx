@@ -44,16 +44,24 @@ const statusLabel = (status: string) => ({
 }[status] ?? status);
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+const isContractorUser = (roles: string[]) => roles.some((role) => role === "KONTRAKTOR" || role.includes("DIREKTUR KONTRAKTOR"));
+const contractorVisibleSpStatuses = new Set(["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"]);
+const matchesContractorCompany = (actionCompany?: string | null, userCompany?: string | null) => {
+    const actionName = normalize(actionCompany);
+    const sessionName = normalize(userCompany);
+    if (!actionName || !sessionName) return false;
+    return actionName === sessionName || actionName.includes(sessionName) || sessionName.includes(actionName);
+};
 const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH BUILDING & MAINTENANCE MANAGER" || role.includes("SUPER HUMAN"));
 const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
 
-const getSpTimeline = (action: DendaAction) => {
+const getSpTimeline = (action: DendaAction, contractorView = false) => {
     const hasPdf = Boolean(action.link_pdf);
     const isRejected = action.status === "REJECTED_BY_MANAGER";
     const isSent = ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(action.status);
     const isViewed = ["VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(action.status);
     const isAcknowledged = action.status === "ACKNOWLEDGED_BY_CONTRACTOR";
-    return [
+    const steps = [
         { label: "Diajukan", done: true, tone: "green" },
         { label: "PDF Draft", done: hasPdf, tone: hasPdf ? "green" : "slate" },
         { label: isRejected ? "Ditolak" : "BBMM", done: isRejected || isSent, tone: isRejected ? "red" : isSent ? "green" : "slate" },
@@ -61,6 +69,7 @@ const getSpTimeline = (action: DendaAction) => {
         { label: "Dilihat", done: isViewed, tone: isViewed ? "green" : "slate" },
         { label: "Acknowledged", done: isAcknowledged, tone: isAcknowledged ? "blue" : "slate" },
     ];
+    return contractorView ? steps.slice(0, 4) : steps;
 };
 
 type GroupedSpAction = {
@@ -70,6 +79,7 @@ type GroupedSpAction = {
 
 export default function SuratPeringatanPage() {
     const { user } = useSession();
+    const userIsContractor = isContractorUser(user?.roles ?? []);
     const [candidates, setCandidates] = useState<DendaActionCandidate[]>([]);
     const [contractors, setContractors] = useState<string[]>([]);
     const [actions, setActions] = useState<DendaAction[]>([]);
@@ -146,7 +156,10 @@ export default function SuratPeringatanPage() {
         const map = new Map<string, DendaAction[]>();
         actions.forEach(action => {
             if (action.action_type !== "SP") return;
-            if (user && !user.roles.includes("SUPER HUMAN")) {
+            if (userIsContractor) {
+                if (!contractorVisibleSpStatuses.has(action.status)) return;
+                if (!matchesContractorCompany(action.nama_kontraktor, user?.namaPt)) return;
+            } else if (user && !user.roles.includes("SUPER HUMAN")) {
                 if (user.isHO && normalize(action.cabang) !== "HEAD OFFICE") return;
                 if (!user.isHO && !canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage())) return;
             }
@@ -174,7 +187,7 @@ export default function SuratPeringatanPage() {
         });
 
         return groups;
-    }, [actions, user]);
+    }, [actions, user, userIsContractor]);
     const userCanApprove = canApprove(user?.roles ?? [], Boolean(user?.isHO));
     const userCanSubmit = canSubmit(user?.roles ?? [], Boolean(user?.isHO));
 
@@ -287,7 +300,7 @@ export default function SuratPeringatanPage() {
         }
     };
 
-    const isHOUser = user?.isHO || user?.roles?.some(r => r.includes("SUPER HUMAN"));
+    const isHOUser = user?.isHO || userIsContractor || user?.roles?.some(r => r.includes("SUPER HUMAN"));
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12 relative">
@@ -382,7 +395,7 @@ export default function SuratPeringatanPage() {
                                                 </div>
                                             </div>
                                             <div className="shrink-0 flex items-center gap-3">
-                                                {group.history.length > 1 && (
+                                                {!userIsContractor && group.history.length > 1 && (
                                                     <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full hidden sm:inline-block">
                                                         {group.history.length} Riwayat
                                                     </span>
@@ -711,39 +724,44 @@ export default function SuratPeringatanPage() {
                                     </div>
                                 ) : null}
 
-                                <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
-                                    <div className="relative px-2 pt-2">
-                                        <div className="absolute left-8 right-8 top-6 h-1 rounded-full bg-slate-200" />
-                                        <div
-                                            className="absolute left-8 top-6 h-1 rounded-full bg-emerald-500 transition-all"
-                                            style={{
-                                                width: `${Math.max(0, (getSpTimeline(selectedDetailGroup.latest).filter(step => step.done).length - 1) / (getSpTimeline(selectedDetailGroup.latest).length - 1) * 100)}%`,
-                                            }}
-                                        />
-                                        <div className="relative grid grid-cols-6 gap-2">
-                                            {getSpTimeline(selectedDetailGroup.latest).map((step) => (
-                                                <div key={step.label} className="flex flex-col items-center gap-2 text-center">
-                                                    <div className={`flex h-8 w-8 items-center justify-center rounded-full border-4 bg-white ${
-                                                        step.tone === "blue" ? "border-blue-500 text-blue-600" :
-                                                        step.tone === "red" ? "border-red-500 text-red-600" :
-                                                        step.done ? "border-emerald-500 text-emerald-600" :
-                                                        "border-slate-300 text-slate-400"
-                                                    }`}>
-                                                        {step.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-                                                    </div>
-                                                    <span className={`text-[10px] font-bold leading-tight ${
-                                                        step.tone === "blue" ? "text-blue-700" :
-                                                        step.tone === "red" ? "text-red-700" :
-                                                        step.done ? "text-emerald-700" :
-                                                        "text-slate-400"
-                                                    }`}>
-                                                        {step.label}
-                                                    </span>
+                                {(() => {
+                                    const steps = getSpTimeline(selectedDetailGroup.latest, userIsContractor);
+                                    const doneCount = steps.filter(step => step.done).length;
+                                    const progress = steps.length > 1 ? Math.max(0, (doneCount - 1) / (steps.length - 1) * 100) : 0;
+                                    return (
+                                        <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+                                            <div className="relative px-2 pt-2">
+                                                <div className="absolute left-8 right-8 top-6 h-1 rounded-full bg-slate-200" />
+                                                <div
+                                                    className="absolute left-8 top-6 h-1 rounded-full bg-emerald-500 transition-all"
+                                                    style={{ width: `${progress}%` }}
+                                                />
+                                                <div className="relative grid gap-2" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+                                                    {steps.map((step) => (
+                                                        <div key={step.label} className="flex flex-col items-center gap-2 text-center">
+                                                            <div className={`flex h-8 w-8 items-center justify-center rounded-full border-4 bg-white ${
+                                                                step.tone === "blue" ? "border-blue-500 text-blue-600" :
+                                                                step.tone === "red" ? "border-red-500 text-red-600" :
+                                                                step.done ? "border-emerald-500 text-emerald-600" :
+                                                                "border-slate-300 text-slate-400"
+                                                            }`}>
+                                                                {step.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+                                                            </div>
+                                                            <span className={`text-[10px] font-bold leading-tight ${
+                                                                step.tone === "blue" ? "text-blue-700" :
+                                                                step.tone === "red" ? "text-red-700" :
+                                                                step.done ? "text-emerald-700" :
+                                                                "text-slate-400"
+                                                            }`}>
+                                                                {step.label}
+                                                            </span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    );
+                                })()}
 
                                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -808,7 +826,7 @@ export default function SuratPeringatanPage() {
                                 )}
 
                                 
-                                {selectedDetailGroup.history.length > 1 && (
+                                {!userIsContractor && selectedDetailGroup.history.length > 1 && (
                                     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-6">
                                         <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">Riwayat Pengajuan</h3>
                                         <div className="space-y-4">

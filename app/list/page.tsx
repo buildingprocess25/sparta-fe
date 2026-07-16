@@ -419,6 +419,7 @@ const getRoleParts = (role: string) =>
 const canAccessSuratPeringatanDocs = (role: string, isSuperHuman: boolean) => {
     if (isSuperHuman) return true;
     const roles = getRoleParts(role);
+    if (roles.some(roleName => roleName === 'KONTRAKTOR' || roleName.includes('DIREKTUR KONTRAKTOR'))) return true;
     return roles.some(roleName =>
         roleName.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
         roleName.includes('BRANCH BUILDING COORDINATOR') ||
