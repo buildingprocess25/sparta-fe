@@ -116,6 +116,7 @@ const priceValueToNumber = (value: unknown, fallback: number) => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed || /^(kondisional|sbo)$/i.test(trimmed)) return fallback;
+    if (trimmed.toLowerCase() === 'beban kontraktor') return 0;
     const parsed = Number(trimmed.replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.'));
     return Number.isFinite(parsed) ? parsed : fallback;
   }
@@ -136,8 +137,11 @@ const isNumericPriceValue = (value: unknown) => {
   return Number.isFinite(parsed);
 };
 
+const isBebanKontraktor = (value: unknown) => 
+  typeof value === 'string' && String(value).trim().toLowerCase() === 'beban kontraktor';
+
 const isTextPriceDirective = (value: unknown) =>
-  typeof value === 'string' && value.trim() !== '' && value.trim() !== '-' && !isNumericPriceValue(value);
+  typeof value === 'string' && value.trim() !== '' && value.trim() !== '-' && !isNumericPriceValue(value) && !isBebanKontraktor(value);
 
 const isManualInputFlag = (value: unknown) =>
   value === true || value === 1 || String(value ?? '').trim().toLowerCase() === 'true';
@@ -1481,7 +1485,7 @@ function RABPageContent() {
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaMaterial)}</td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaUpah)}</td>
                                 <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
-                                <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder={row.isKondisional ? "Wajib diisi untuk kondisional..." : "Catatan..."} disabled={isReadOnly} className={`min-h-9 py-1 px-2 text-xs border-slate-300 focus-visible:ring-blue-500 resize-y ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 focus-visible:ring-red-500 placeholder:text-red-400' : 'bg-white'}`} value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
+                                <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder={row.isKondisional ? "Wajib isi detail pekerjaan..." : "Catatan..."} disabled={isReadOnly} className={`min-h-9 py-1 px-2 text-xs border-slate-300 focus-visible:ring-blue-500 resize-y ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 focus-visible:ring-red-500 placeholder:text-red-400' : 'bg-white'}`} value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
                                 <td className="p-2 text-center whitespace-nowrap">
                                   {!isReadOnly && (
                                     <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button>

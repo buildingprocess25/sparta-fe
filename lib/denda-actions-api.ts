@@ -9,7 +9,8 @@ export type DendaActionStatus =
     | "APPROVED"
     | "SENT_TO_CONTRACTOR"
     | "VIEWED_BY_CONTRACTOR"
-    | "ACKNOWLEDGED_BY_CONTRACTOR";
+    | "ACKNOWLEDGED_BY_CONTRACTOR"
+    | "EXPIRED";
 
 export type DendaActionCandidate = {
     opname_final_id: number | null;

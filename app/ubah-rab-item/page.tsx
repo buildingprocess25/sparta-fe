@@ -81,8 +81,11 @@ const isNumericPriceValue = (value: unknown) => {
   return Number.isFinite(parsed);
 };
 
+const isBebanKontraktor = (value: unknown) => 
+  typeof value === 'string' && String(value).trim().toLowerCase() === 'beban kontraktor';
+
 const isTextPriceDirective = (value: unknown) =>
-  typeof value === "string" && value.trim() !== "" && value.trim() !== "-" && !isNumericPriceValue(value);
+  typeof value === "string" && value.trim() !== "" && value.trim() !== "-" && !isNumericPriceValue(value) && !isBebanKontraktor(value);
 
 const isManualInputFlag = (value: unknown) =>
   value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true";
@@ -117,6 +120,7 @@ const priceValueToNumber = (value: unknown, fallback = 0) => {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed || /^(kondisional|sbo)$/i.test(trimmed)) return fallback;
+    if (trimmed.toLowerCase() === 'beban kontraktor') return 0;
     const parsed = Number(trimmed.replace(/[.,](?=\d{3}(\D|$))/g, "").replace(",", "."));
     return Number.isFinite(parsed) ? parsed : fallback;
   }
@@ -797,7 +801,7 @@ export default function UbahRabItemPage() {
                           value={row.catatan}
                           onChange={(e) => updateRow(row.tempId, "catatan", e.target.value)}
                           className={`h-9 w-full min-w-35 focus-visible:ring-red-500 ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 placeholder:text-red-400 focus-visible:ring-red-500' : ''}`}
-                          placeholder={row.isKondisional ? "Wajib diisi..." : "Catatan..."}
+                          placeholder={row.isKondisional ? "Wajib isi detail pekerjaan..." : "Catatan..."}
                         />
                       </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-slate-700">

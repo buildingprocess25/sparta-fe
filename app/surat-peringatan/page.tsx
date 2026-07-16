@@ -39,6 +39,7 @@ const statusLabel = (status: string) => ({
     SENT_TO_CONTRACTOR: "Dikirim Kontraktor",
     VIEWED_BY_CONTRACTOR: "Dilihat Kontraktor",
     ACKNOWLEDGED_BY_CONTRACTOR: "Diterima Kontraktor",
+    EXPIRED: "Kadaluwarsa",
 }[status] ?? status);
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
@@ -349,6 +350,7 @@ export default function SuratPeringatanPage() {
                                                 <Badge className={
                                                     isPending ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none" :
                                                     isRejected ? "border-red-200 bg-red-50 text-red-700 shadow-none" :
+                                                    action.status === "EXPIRED" ? "border-slate-300 bg-slate-100 text-slate-500 shadow-none" :
                                                     "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none"
                                                 }>
                                                     {statusLabel(action.status)}
@@ -569,7 +571,7 @@ export default function SuratPeringatanPage() {
                                         <h2 className="text-xl font-bold text-slate-800">Detail Surat Peringatan</h2>
                                         <p className="text-sm text-slate-500">Informasi lengkap pengajuan SP dan persetujuan.</p>
                                     </div>
-                                    <Badge className={selectedDetailGroup.latest.status === "REJECTED_BY_MANAGER" ? "border-red-200 bg-red-50 text-red-700 shadow-none px-3 py-1" : selectedDetailGroup.latest.status === "WAITING_MANAGER" ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none px-3 py-1" : "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none px-3 py-1"}>
+                                    <Badge className={selectedDetailGroup.latest.status === "REJECTED_BY_MANAGER" ? "border-red-200 bg-red-50 text-red-700 shadow-none px-3 py-1" : selectedDetailGroup.latest.status === "WAITING_MANAGER" ? "border-amber-200 bg-amber-50 text-amber-700 shadow-none px-3 py-1" : selectedDetailGroup.latest.status === "EXPIRED" ? "border-slate-300 bg-slate-100 text-slate-500 shadow-none px-3 py-1" : "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none px-3 py-1"}>
                                         {statusLabel(selectedDetailGroup.latest.status)}
                                     </Badge>
                                 </div>
@@ -619,6 +621,21 @@ export default function SuratPeringatanPage() {
                                         >
                                             <FileDown className="w-4 h-4 text-slate-500" />
                                             Lihat Lampiran Pendukung
+                                        </a>
+                                    </div>
+                                )}
+
+                                {selectedDetailGroup.latest.link_pdf && (
+                                    <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm mt-2">
+                                        <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">PDF Resmi Surat Peringatan</Label>
+                                        <a
+                                            href={`${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetailGroup.latest.link_pdf)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors"
+                                        >
+                                            <FileDown className="w-4 h-4 text-blue-500" />
+                                            Lihat PDF Resmi SP
                                         </a>
                                     </div>
                                 )}
