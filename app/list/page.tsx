@@ -413,6 +413,20 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
     },
 };
 
+const getRoleParts = (role: string) =>
+    role.split(',').map(part => part.trim().toUpperCase()).filter(Boolean);
+
+const canAccessSuratPeringatanDocs = (role: string, isSuperHuman: boolean) => {
+    if (isSuperHuman) return true;
+    const roles = getRoleParts(role);
+    return roles.some(roleName =>
+        roleName.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
+        roleName.includes('BRANCH BUILDING COORDINATOR') ||
+        roleName === 'COORDINATOR' ||
+        roleName.includes('KOORDINATOR')
+    );
+};
+
 const STATUS_BADGE: Record<string, string> = {
     'PENDING':                          'bg-yellow-100 text-yellow-700 border-yellow-200',
     'PENDING_KOORDINATOR':              'bg-yellow-100 text-yellow-700 border-yellow-200',
@@ -1118,12 +1132,22 @@ export default function DaftarDokumenPage() {
     const [selectedDetail, setSelectedDetail] = useState<NormalizedDetail | null>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+    const downloadSpPdfLink = (pdfUrl: string) => {
+        const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(pdfUrl)}&download=true`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleRegeneratePDF = async (actionId: number) => {
         setIsGeneratingPdf(true);
         try {
             const { regenerateSpPdf } = await import("@/lib/denda-actions-api");
             const result = await regenerateSpPdf(actionId);
-            showToast(result.message || "PDF Surat Peringatan berhasil digenerate.", "success");
+            showToast("PDF Surat Peringatan siap diunduh.", "success");
             // Update the selected detail state with the new link_pdf
             if (selectedDetail && selectedDetail.rawDendaAction) {
                 const newLink = result.data.link_pdf;
@@ -1140,9 +1164,10 @@ export default function DaftarDokumenPage() {
                         ? { ...d, link_pdf: newLink, rawDendaAction: { ...(d.rawDendaAction as any), link_pdf: newLink } } 
                         : d
                 ));
+                if (newLink) downloadSpPdfLink(newLink);
             }
         } catch (error: any) {
-            showToast(error.message || "Gagal generate PDF Surat Peringatan.", "error");
+            showToast(error.message || "Gagal mengunduh PDF Surat Peringatan.", "error");
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -1275,6 +1300,11 @@ export default function DaftarDokumenPage() {
         const sessionRoleRaw = sessionStorage.getItem('userRole') || '';
         const sessionRoles = sessionRoleRaw.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
         const sessionIsSuperHuman = hasSuperHumanRole(sessionRoles);
+        if (kategori === 'SURAT_PERINGATAN' && !canAccessSuratPeringatanDocs(sessionRoleRaw, sessionIsSuperHuman)) {
+            showToast('Role ini tidak memiliki akses ke dokumen Surat Peringatan.', 'error');
+            setListData([]);
+            return;
+        }
         const sessionCanViewAllBranches = canViewAllBranches(sessionRoles, sessionIsSuperHuman);
         const sessionEmail = sessionStorage.getItem('loggedInUserEmail') || '';
         const sessionCabangForCoverage = (sessionStorage.getItem('loggedInUserCabang') || '').toUpperCase();
@@ -1487,6 +1517,7 @@ export default function DaftarDokumenPage() {
 
         setHasAppliedQueryParams(true);
         if (!kategori || !(kategori in KATEGORI_CONFIG)) return;
+        if (kategori === 'SURAT_PERINGATAN' && !canAccessSuratPeringatanDocs(userInfo.role, isSuperHuman)) return;
 
         setSelectedKategori(kategori);
         setSelectedDetail(null);
@@ -1495,7 +1526,7 @@ export default function DaftarDokumenPage() {
         setSelectedDocumentGroupKey(null);
         setActiveView('list');
         loadList(kategori, query);
-    }, [hasAppliedQueryParams, loadList]);
+    }, [hasAppliedQueryParams, isSuperHuman, loadList, userInfo.role]);
 
     // =========================================================================
     // LOAD DETAIL
@@ -2025,6 +2056,10 @@ export default function DaftarDokumenPage() {
     // NAVIGATION
     // =========================================================================
     const handleSelectKategori = (kat: DokumenKategori) => {
+        if (kat === 'SURAT_PERINGATAN' && !canAccessSuratPeringatanDocs(userInfo.role, isSuperHuman)) {
+            showToast('Role ini tidak memiliki akses ke dokumen Surat Peringatan.', 'error');
+            return;
+        }
         setSelectedKategori(kat);
         setSelectedDetail(null);
         setSelectedPengawasanGroupKey(null);
@@ -2547,6 +2582,7 @@ export default function DaftarDokumenPage() {
                                 // Hide PROJECT_PLANNING dari KONTRAKTOR dan DIREKTUR
                                 if (kat === 'PROJECT_PLANNING' && (isContractor || isDirektur)) return false;
                                 if (kat === 'PROJECT_PLANNING' && !canViewAllBranches(userInfo.role, isSuperHuman) && !canAccessProjectPlanningByCabang(userInfo.cabang)) return false;
+                                if (kat === 'SURAT_PERINGATAN' && !canAccessSuratPeringatanDocs(userInfo.role, isSuperHuman)) return false;
                                 return true;
                             }).map(kat => {
                                 const cfg = KATEGORI_CONFIG[kat];
@@ -3887,30 +3923,13 @@ export default function DaftarDokumenPage() {
                                         {/* PDF actions for Surat Peringatan */}
                                         {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction && (
                                             <div className="flex flex-col sm:flex-row items-center gap-2">
-                                                {selectedDetail.rawDendaAction.link_pdf && (
-                                                    <Button 
-                                                        className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto"
-                                                        onClick={() => {
-                                                            const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction!.link_pdf!)}&download=true`;
-                                                            const link = document.createElement('a');
-                                                            link.href = url;
-                                                            link.download = '';
-                                                            document.body.appendChild(link);
-                                                            link.click();
-                                                            document.body.removeChild(link);
-                                                        }}
-                                                    >
-                                                        <Download className="w-4 h-4 mr-2" /> Unduh PDF
-                                                    </Button>
-                                                )}
                                                 <Button 
-                                                    variant="outline"
-                                                    className="border-slate-300 text-slate-700 hover:bg-slate-50 w-full sm:w-auto"
+                                                    className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto"
                                                     disabled={isGeneratingPdf}
                                                     onClick={() => handleRegeneratePDF(selectedDetail.id)}
                                                 >
-                                                    {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                                    Generate PDF
+                                                    {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                                                    Unduh PDF
                                                 </Button>
                                             </div>
                                         )}

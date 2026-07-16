@@ -156,6 +156,13 @@ const getApprovalJabatan = (user: UserSession): ApprovalJabatan => {
     return null;
 };
 
+const canApproveSuratPeringatan = (user: UserSession) =>
+    user.isSuperHuman || user.roles.some(role => {
+        const normalized = role.trim().toUpperCase();
+        return normalized === "BRANCH BUILDING & MAINTENANCE MANAGER"
+            || normalized.includes("BRANCH BUILDING & MAINTENANCE MANAGER");
+    });
+
 export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] => {
     // KONTRAKTOR role gets RAB type for revision tracking (rejected submissions)
     const isContractorOnly = user.roles.some(role => role.trim().toUpperCase() === 'KONTRAKTOR');
@@ -350,9 +357,10 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
     }
 
-    // SURAT_PERINGATAN: handled purely by status (manager sees all WAITING_MANAGER)
+    // SURAT_PERINGATAN: only Branch Building & Maintenance Manager approves SP.
     if (item.tipe === "SURAT_PERINGATAN") {
         if (jabatan === "KOORDINATOR") return upper.includes("REJECT");
+        if (!canApproveSuratPeringatan(user)) return false;
         return upper === "WAITING_MANAGER";
     }
 
