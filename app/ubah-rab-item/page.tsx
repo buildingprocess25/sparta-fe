@@ -496,6 +496,14 @@ export default function UbahRabItemPage() {
       return;
     }
 
+    const conditionalItemsWithoutNotes = tableRows.filter(row => 
+        row.jenisPekerjaan && Number(row.volume) > 0 && row.isKondisional && (!row.catatan || row.catatan.trim() === '')
+    );
+    if (conditionalItemsWithoutNotes.length > 0) {
+       showAlert("Peringatan", "Item pekerjaan kondisional wajib mengisi catatan tambahan. Silakan periksa kembali rincian RAB Anda.", "warning");
+       return;
+    }
+
     const itemsPayload = tableRows
       .filter(row => row.jenisPekerjaan && Number(row.volume) > 0)
       .map(row => ({
@@ -714,7 +722,7 @@ export default function UbahRabItemPage() {
                     <th className="px-3 py-3 w-[10%]">Volume</th>
                     <th className="px-3 py-3 w-[12%]">Harga Material</th>
                     <th className="px-3 py-3 w-[12%]">Harga Upah</th>
-                    <th className="px-3 py-3 w-[12%]">Catatan</th>
+                    <th className="px-3 py-3 w-[12%]">Catatan<br/><span className="text-[10px] font-normal leading-tight">(Wajib jika Kondisional)</span></th>
                     <th className="px-3 py-3 w-[15%] text-right">Total Harga</th>
                     <th className="px-3 py-3 w-[5%] text-center">Aksi</th>
                   </tr>
@@ -788,8 +796,8 @@ export default function UbahRabItemPage() {
                         <Input
                           value={row.catatan}
                           onChange={(e) => updateRow(row.tempId, "catatan", e.target.value)}
-                          className="h-9 w-full min-w-35 focus-visible:ring-red-500"
-                          placeholder="Catatan..."
+                          className={`h-9 w-full min-w-35 focus-visible:ring-red-500 ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 placeholder:text-red-400 focus-visible:ring-red-500' : ''}`}
+                          placeholder={row.isKondisional ? "Wajib diisi..." : "Catatan..."}
                         />
                       </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-slate-700">

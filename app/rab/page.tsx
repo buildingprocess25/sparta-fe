@@ -910,6 +910,14 @@ function RABPageContent() {
       return showAlert("Peringatan", "Minimal harus ada 1 item pekerjaan dengan volume.", "warning");
     }
 
+    const conditionalItemsWithoutNotes = tableRows.filter(row => 
+        row.jenisPekerjaan && Number(row.volume) > 0 && row.isKondisional && (!row.catatan || row.catatan.trim() === '')
+    );
+    if (conditionalItemsWithoutNotes.length > 0) {
+       setIsLoading(false);
+       return showAlert("Peringatan", "Item pekerjaan kondisional wajib mengisi catatan tambahan. Silakan periksa kembali rincian RAB Anda.", "warning");
+    }
+
     const isRevisionSubmit = currentRabId !== null;
     if (isRevisionSubmit) {
       const revisionItemIds = Object.keys(revisionItemNotes)
@@ -1434,7 +1442,7 @@ function RABPageContent() {
                               <th colSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Harga Satuan (Rp)</th>
                               <th colSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Total Harga Satuan (Rp)</th>
                               <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Total Harga (Rp)<br/><span className="font-normal">(f=d+e)</span></th>
-                              <th rowSpan={2} className="p-2 border border-red-100 min-w-48">Catatan Tambahan<br/><span className="font-normal">(Opsional)</span></th>
+                              <th rowSpan={2} className="p-2 border border-red-100 min-w-48">Catatan Tambahan<br/><span className="font-normal">(Wajib jika Kondisional)</span></th>
                               <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Aksi</th>
                             </tr>
                             <tr>
@@ -1473,7 +1481,7 @@ function RABPageContent() {
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaMaterial)}</td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaUpah)}</td>
                                 <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
-                                <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder="Catatan..." disabled={isReadOnly} className="min-h-9 py-1 px-2 text-xs bg-white border-slate-300 focus-visible:ring-blue-500 resize-y" value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
+                                <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder={row.isKondisional ? "Wajib diisi untuk kondisional..." : "Catatan..."} disabled={isReadOnly} className={`min-h-9 py-1 px-2 text-xs border-slate-300 focus-visible:ring-blue-500 resize-y ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 focus-visible:ring-red-500 placeholder:text-red-400' : 'bg-white'}`} value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
                                 <td className="p-2 text-center whitespace-nowrap">
                                   {!isReadOnly && (
                                     <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button>
