@@ -183,3 +183,14 @@ export const rejectDendaAction = async (
     if (!res.ok) throw new Error(result.message || "Gagal reject SP/Takeover.");
     return result;
 };
+
+export const regenerateSpPdf = async (
+    id: number
+): Promise<{ status: string; message: string; data: DendaAction }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/${id}/regenerate-pdf`, {
+        method: "POST",
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal generate ulang PDF.");
+    return result;
+};

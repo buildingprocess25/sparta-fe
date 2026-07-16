@@ -1113,7 +1113,40 @@ export default function DaftarDokumenPage() {
 
     // --- Data ---
     const [listData, setListData] = useState<NormalizedDoc[]>([]);
+    const [activeTab, setActiveTab] = useState<DokumenKategori | 'SEMUA'>('SEMUA');
+    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'detail'>('list');
     const [selectedDetail, setSelectedDetail] = useState<NormalizedDetail | null>(null);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+    const handleRegeneratePDF = async (actionId: number) => {
+        if (!confirm("Apakah Anda yakin ingin meng-generate ulang PDF Surat Peringatan ini? Link PDF yang lama akan tertimpa.")) return;
+        setIsGeneratingPdf(true);
+        try {
+            const { regenerateSpPdf } = await import("@/lib/denda-actions-api");
+            const result = await regenerateSpPdf(actionId);
+            alert("Berhasil: " + result.message);
+            // Update the selected detail state with the new link_pdf
+            if (selectedDetail && selectedDetail.rawDendaAction) {
+                const newLink = result.data.link_pdf;
+                setSelectedDetail({
+                    ...selectedDetail,
+                    rawDendaAction: {
+                        ...selectedDetail.rawDendaAction,
+                        link_pdf: newLink,
+                    }
+                });
+                setListData(prev => prev.map(d => 
+                    d.id === selectedDetail.id && d.tipe === 'SURAT_PERINGATAN' 
+                        ? { ...d, link_pdf: newLink } 
+                        : d
+                ));
+            }
+        } catch (error: any) {
+            alert("Gagal: " + (error.message || "Terjadi kesalahan saat generate ulang PDF"));
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
 
     // --- Filters ---
     const [searchQuery, setSearchQuery] = useState('');
@@ -3853,20 +3886,31 @@ export default function DaftarDokumenPage() {
 
                                         {/* Direct Download Button for Surat Peringatan */}
                                         {selectedDetail.tipe === 'SURAT_PERINGATAN' && selectedDetail.rawDendaAction?.link_pdf && (
-                                            <Button 
-                                                className="bg-red-600 hover:bg-red-700 text-white"
-                                                onClick={() => {
-                                                    const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction!.link_pdf!)}&download=true`;
-                                                    const link = document.createElement('a');
-                                                    link.href = url;
-                                                    link.download = '';
-                                                    document.body.appendChild(link);
-                                                    link.click();
-                                                    document.body.removeChild(link);
-                                                }}
-                                            >
-                                                <Download className="w-4 h-4 mr-2" /> Unduh PDF Surat Peringatan
-                                            </Button>
+                                            <div className="flex flex-col sm:flex-row items-center gap-2">
+                                                <Button 
+                                                    className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto"
+                                                    onClick={() => {
+                                                        const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetail.rawDendaAction!.link_pdf!)}&download=true`;
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.download = '';
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        document.body.removeChild(link);
+                                                    }}
+                                                >
+                                                    <Download className="w-4 h-4 mr-2" /> Unduh PDF
+                                                </Button>
+                                                <Button 
+                                                    variant="outline"
+                                                    className="border-slate-300 text-slate-700 hover:bg-slate-50 w-full sm:w-auto"
+                                                    disabled={isGeneratingPdf}
+                                                    onClick={() => handleRegeneratePDF(selectedDetail.id)}
+                                                >
+                                                    {isGeneratingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                                    Generate Ulang PDF
+                                                </Button>
+                                            </div>
                                         )}
 
                                         {/* Pertambahan SPK Attachment */}
