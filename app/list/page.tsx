@@ -1296,30 +1296,46 @@ export default function DaftarDokumenPage() {
                 const res = await fetchPertambahanSPKList(Object.keys(filters).length > 0 ? filters : undefined);
                 docs = normalizePertambahanSPKDocs(res.data ?? []);
             } else if (kategori === 'SURAT_PERINGATAN') {
-                const normalizedList: NormalizedDoc[] = [];
                 const spData = await fetchDendaActions({ action_type: "SP" });
+                
+                // Group SP to only show the latest per thread
+                const map = new Map<string, DendaAction[]>();
                 if (Array.isArray(spData?.data)) {
-                    spData.data.forEach((item: DendaAction) => {
-                        const anyItem = item as any;
-                        normalizedList.push({
-                            id: item.id,
-                            tipe: 'SURAT_PERINGATAN',
-                            nomor_ulok: item.nomor_ulok || '-',
-                            nama_toko: anyItem.toko?.nama_toko || '-',
-                            cabang: item.cabang || '-',
-                            proyek: item.lingkup_pekerjaan || '-',
-                            email_pembuat: anyItem.submitted_by_email || '-',
-                            total_nilai: 0,
-                            link_pdf: null,
-                            lingkup_pekerjaan: item.lingkup_pekerjaan || '-',
-                            nama_kontraktor: item.nama_kontraktor || '-',
-                            status: item.status,
-                            created_at: item.created_at || new Date().toISOString(),
-                            nomor_spk: item.nomor_spk || undefined,
-                            rawDendaAction: item,
-                        });
+                    spData.data.forEach((action: DendaAction) => {
+                        const normalize = (str?: string | null) => (str || '').trim().toUpperCase();
+                        const isKontraktorScopeAction = action.alasan_sp === "MANIPULASI" || action.alasan_sp === "LAINNYA";
+                        const key = isKontraktorScopeAction
+                            ? `kontraktor-${normalize(action.nama_kontraktor)}-${action.alasan_sp}`
+                            : `toko-${action.id_toko}-${action.alasan_sp}`;
+                        if (!map.has(key)) map.set(key, []);
+                        map.get(key)!.push(action);
                     });
                 }
+                
+                const normalizedList: NormalizedDoc[] = [];
+                Array.from(map.values()).forEach(group => {
+                    group.sort((a, b) => b.id - a.id); // latest first
+                    const latest = group[0];
+                    const anyItem = latest as any;
+                    
+                    normalizedList.push({
+                        id: latest.id,
+                        tipe: 'SURAT_PERINGATAN',
+                        nomor_ulok: latest.nomor_ulok || '-',
+                        nama_toko: anyItem.toko?.nama_toko || '-',
+                        cabang: latest.cabang || '-',
+                        proyek: latest.lingkup_pekerjaan || '-',
+                        email_pembuat: anyItem.submitted_by_email || '-',
+                        total_nilai: 0,
+                        link_pdf: latest.lampiran_2_url || latest.lampiran_1_url || null,
+                        lingkup_pekerjaan: latest.lingkup_pekerjaan || '-',
+                        nama_kontraktor: latest.nama_kontraktor || '-',
+                        status: latest.status,
+                        created_at: latest.created_at || new Date().toISOString(),
+                        nomor_spk: latest.nomor_spk || undefined,
+                        rawDendaAction: latest,
+                    });
+                });
                 docs = normalizedList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             } else if (kategori === 'OPNAME' || kategori === 'OPNAME_FINAL') {
                 let filters: any = undefined;
