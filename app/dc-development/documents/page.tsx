@@ -43,6 +43,7 @@ import {
 import {
   DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
   DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
+  DC_DOCUMENT_ADMIN_ROLE,
   SUPER_HUMAN_ROLE,
   normalizeRoles,
   canViewAllBranches,
@@ -73,6 +74,7 @@ const CAN_CREATE_ARCHIVE_ROLES = [
   SUPER_HUMAN_ROLE,
   DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
   DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
+  DC_DOCUMENT_ADMIN_ROLE,
 ];
 
 const emptyArchiveForm = {
@@ -208,7 +210,8 @@ export default function DcDocumentsPage() {
   const [archiveForm, setArchiveForm] = useState(emptyArchiveForm);
 
   const actor = useMemo(() => actorFromUser(user), [user]);
-  const canAddData = useMemo(() => canCreateArchive(user?.roles), [user?.roles]);
+  const roleSource = user?.roles?.length ? user.roles : user?.role;
+  const canAddData = useMemo(() => canCreateArchive(roleSource), [roleSource]);
 
   const isHOUser = useMemo(() => (
     canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || user?.cabang?.toUpperCase() === "HEAD OFFICE"

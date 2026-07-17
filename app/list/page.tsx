@@ -600,7 +600,7 @@ const getRabDisplayTotal = (rab: RabDisplayTotalSource) => {
 const roundSpkDisplayTotal = (value: unknown) => {
     const amount = parseCurrency(value);
     if (!amount) return 0;
-    return Math.round(amount / 1000) * 1000;
+    return Math.floor(amount / 10000) * 10000;
 };
 
 const PROYEK_LABEL_MAP: Record<string, string> = {

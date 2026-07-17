@@ -678,10 +678,9 @@ export default function DashboardPage() {
             fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
                 .then((result) => setRabPlanningRequestCount(result.count || 0))
                 .catch(() => setRabPlanningRequestCount(0));
-            fetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/kontraktor/list?nama_kontraktor=${encodeURIComponent(namaPt)}`, { credentials: "include" })
-                .then((res) => res.ok ? res.json() : Promise.reject(new Error("Gagal memuat SP kontraktor")))
+            fetchDendaActions({ action_type: "SP" })
                 .then((result) => {
-                    const active = ((result.data?.actions ?? []) as DendaAction[])
+                    const active = ((result.data ?? []) as DendaAction[])
                         .filter((item: DendaAction) => item.action_type === "SP")
                         .filter((item: DendaAction) => !item.is_expired && ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(item.status))
                         .sort((a: DendaAction, b: DendaAction) => b.id - a.id);
@@ -1537,21 +1536,21 @@ export default function DashboardPage() {
                 <main className="flex-1 flex flex-col overflow-hidden p-3 gap-2 min-w-0">
 
                     {/* === TOP BAR: info user (1 baris kompak) + judul === */}
-                    <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-1.5 shrink-0 shadow-sm gap-3">
+                    <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:py-1.5">
 
                         {/* Kiri: Judul Halaman */}
-                        <div className="flex items-center gap-2.5 min-w-0 pl-2">
-                            <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                        <div className="flex min-w-0 items-center gap-2.5 md:pl-2">
+                            <span className="truncate text-lg font-extrabold tracking-tight text-slate-800">
                                 Dashboard Operasional
                             </span>
                         </div>
 
                         {canViewMonitoringDashboard && (
-                            <div className="flex items-center gap-3 shrink-0">
+                            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:shrink-0 md:flex-nowrap md:gap-3">
                                 {/* Branch Select (For HO or Group) */}
                                 {cabangList.length > 1 && (
                                     <Select value={selectedCabang} onValueChange={setSelectedCabang}>
-                                        <SelectTrigger className="w-full md:w-40 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
+                                        <SelectTrigger className="h-9 min-w-[138px] flex-1 rounded-lg border-slate-200 bg-slate-50 text-xs md:h-8 md:w-40 md:flex-none">
                                             <SelectValue placeholder="Pilih Cabang" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1563,7 +1562,7 @@ export default function DashboardPage() {
 
                                 {/* Proyek Select */}
                                 <Select value={selectedProyek} onValueChange={setSelectedProyek}>
-                                    <SelectTrigger className="w-full md:w-36 h-8 rounded-lg text-xs bg-slate-50 border-slate-200">
+                                    <SelectTrigger className="h-9 min-w-[132px] flex-1 rounded-lg border-slate-200 bg-slate-50 text-xs md:h-8 md:w-36 md:flex-none">
                                         <SelectValue placeholder="Jenis Proyek" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1579,7 +1578,7 @@ export default function DashboardPage() {
                                             <DropdownMenuTrigger asChild>
                                                 <Button
                                                     variant="outline"
-                                                    className="h-8 rounded-lg border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 shadow-sm"
+                                                    className="h-9 min-w-0 flex-1 rounded-lg border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 sm:flex-none md:h-8"
                                                     disabled={Boolean(exportingFormat)}
                                                 >
                                                     {exportingFormat ? (
@@ -1726,7 +1725,7 @@ export default function DashboardPage() {
                                 <Button
                                     variant="outline"
                                     size="icon"
-                                    className="h-8 w-8 shrink-0 bg-slate-50 border-slate-200"
+                                    className="h-9 w-10 shrink-0 border-slate-200 bg-slate-50 md:h-8 md:w-8"
                                     onClick={() => fetchDashboardData(
                                         userInfo.cabang,
                                         canSeeAllMonitoringBranches,
