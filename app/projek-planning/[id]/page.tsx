@@ -17,7 +17,7 @@ import {
   User, Building2, Droplets, Wind, Zap, History, Loader2, Send, Eye, Download, AlertTriangle,
 } from "lucide-react";
 import {
-  fetchProjekPlanningDetail, processBmApproval, processPpApproval1,
+  fetchProjekPlanningDetail, processBmApproval, processBmRegionalApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
   downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
@@ -31,6 +31,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   PP_DESIGN_3D_REQUIRED: { label: "Desain 3D", color: "bg-purple-100 text-purple-800" },
   WAITING_RAB_UPLOAD: { label: "Input Tahap 2", color: "bg-orange-100 text-orange-800" },
   WAITING_BM_APPROVAL_2: { label: "Menunggu B&M (2)", color: "bg-amber-100 text-amber-800" },
+  WAITING_BM_REGIONAL_APPROVAL: { label: "Menunggu B&M Reg.", color: "bg-sky-100 text-sky-800" },
   WAITING_PP_APPROVAL_2: { label: "Menunggu PP (2)", color: "bg-cyan-100 text-cyan-800" },
   WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr (Final)", color: "bg-indigo-100 text-indigo-800" },
   COMPLETED: { label: "Selesai", color: "bg-green-100 text-green-800" },
@@ -112,6 +113,7 @@ const FPD_STEPS = [
   { id: "WAITING_PP_APPROVAL_1", label: "PP Tahap 1" },
   { id: "WAITING_RAB_UPLOAD", label: "Input Tahap 2" },
   { id: "WAITING_BM_APPROVAL_2", label: "B&M Tahap 2" },
+  { id: "WAITING_BM_REGIONAL_APPROVAL", label: "B&M Reg." },
   { id: "WAITING_PP_APPROVAL_2", label: "PP Tahap 2" },
   { id: "WAITING_PP_MANAGER_APPROVAL", label: "PP Manager" },
   { id: "COMPLETED", label: "Selesai" },
@@ -143,9 +145,10 @@ function FpdTimeline({ currentStatus }: { currentStatus: string }) {
   if (currentStatus === "WAITING_PP_APPROVAL_1") activeIndex = 1;
   if (currentStatus === "PP_DESIGN_3D_REQUIRED" || currentStatus === "WAITING_RAB_UPLOAD") activeIndex = 2;
   if (currentStatus === "WAITING_BM_APPROVAL_2") activeIndex = 3;
-  if (currentStatus === "WAITING_PP_APPROVAL_2") activeIndex = 4;
-  if (currentStatus === "WAITING_PP_MANAGER_APPROVAL") activeIndex = 5;
-  if (currentStatus === "COMPLETED") activeIndex = 6;
+  if (currentStatus === "WAITING_BM_REGIONAL_APPROVAL") activeIndex = 4;
+  if (currentStatus === "WAITING_PP_APPROVAL_2") activeIndex = 5;
+  if (currentStatus === "WAITING_PP_MANAGER_APPROVAL") activeIndex = 6;
+  if (currentStatus === "COMPLETED") activeIndex = 7;
 
   return (
     <div className="mb-10 mt-2 w-full relative">
@@ -672,6 +675,7 @@ export default function DetailProjekPlanning() {
     setActionLoading(true);
     try {
       if (type === "bm") await processBmApproval(id, { approver_email: userEmail, tindakan: "APPROVE", catatan: approvalNote });
+      else if (type === "bm_regional") await processBmRegionalApproval(id, { approver_email: userEmail, tindakan: "APPROVE", catatan: approvalNote });
       else if (type === "pp1") await processPpApproval1(id, { approver_email: userEmail, tindakan: "APPROVE", butuh_desain_3d: need3d, catatan: approvalNote });
       else if (type === "pp_mgr") await handleFinalReview("pp_mgr");
       else if (type === "pp2") await handleFinalReview("pp2");
@@ -740,6 +744,7 @@ export default function DetailProjekPlanning() {
     try {
       const payload = { approver_email: userEmail, tindakan: "REJECT" as const, alasan_penolakan: rejectReason };
       if (pendingAction === "bm") await processBmApproval(id, payload);
+      else if (pendingAction === "bm_regional") await processBmRegionalApproval(id, payload);
       else if (pendingAction === "pp1") await processPpApproval1(id, { ...payload, butuh_desain_3d: false });
       else if (pendingAction === "pp_mgr" || pendingAction === "pp2") {
         setRabReviewAction("REJECT");
@@ -750,7 +755,7 @@ export default function DetailProjekPlanning() {
       }
       setShowRejectDialog(false); setRejectReason("");
 
-      const rejectMsg = (pendingAction === "pp_mgr" || pendingAction === "pp2")
+      const rejectMsg = (pendingAction === "pp_mgr" || pendingAction === "pp2" || pendingAction === "bm_regional")
         ? "Pengajuan dikembalikan ke Cabang untuk Upload Ulang RAB & Gambar Kerja."
         : "Pengajuan telah ditolak dan dikembalikan ke pengaju dari awal.";
 
@@ -854,6 +859,11 @@ export default function DetailProjekPlanning() {
     try { return new Date(d).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
     catch { return d; }
   };
+  const fmtDateLong = (d: string | null | undefined) => {
+    if (!d) return "-";
+    try { return new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }); }
+    catch { return String(d); }
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -870,7 +880,7 @@ export default function DetailProjekPlanning() {
 
   const st = STATUS_MAP[data.status] || { label: data.status, color: "bg-slate-100" };
   const backHref = searchParams.get("from") === "approval" ? "/approval" : "/projek-planning";
-  const { isCoor, isBM, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
+  const { isCoor, isBM, isBMRegional, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
   const isBBMM = userRole.includes("MAINTENANCE MANAGER") || userRole.includes("BBMM");
   const isBogorBm = (isBM || isBBMM) && (data.cabang || "").toUpperCase() === "BOGOR";
   const canActAsSubmitter = isCoor || isBogorBm;
@@ -878,6 +888,7 @@ export default function DetailProjekPlanning() {
   const coordinatorFields = [
     data.link_fpd ? "fpd" : null,
     (data as any).link_siteplan ? "siteplan" : null,
+    (data as any).link_ba_tidak_sesuai_standar ? "ba_tidak_sesuai_standar" : null,
     data.link_gambar_kerja ? "gambar_kerja_awal" : null,
     data.link_gambar_kompetitor ? "gambar_kompetitor" : null,
   ].filter(Boolean) as string[];
@@ -968,6 +979,8 @@ export default function DetailProjekPlanning() {
                 <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
                 <InfoRow label="Cabang" value={data.cabang} />
                 <InfoRow label="Proyek" value={data.proyek || data.jenis_proyek} />
+                <InfoRow label="Akhir Masa Sewa" value={(data as any).akhir_masa_sewa ? fmtDateLong((data as any).akhir_masa_sewa) : null} />
+                <InfoRow label="SPD" value={(data as any).spd ? `Rp ${Number((data as any).spd).toLocaleString("id-ID")}` : null} />
                 <InfoRow label="Tipe Bangunan" value={`${data.is_ruko ? 'Ruko' : 'Non-Ruko'}${data.jumlah_lantai ? ` — ${data.jumlah_lantai} Lantai` : ''}`} />
                 <InfoRow label="Kategori Toko" value={(data.jenis_pengajuan || '').includes('DARK STORE') ? '-' : ((data as any).is_dark_store ? 'B2B' : 'Reguler')} />
                 <InfoRow label="Lingkup Pekerjaan" value={data.lingkup_pekerjaan} />
@@ -1074,6 +1087,7 @@ export default function DetailProjekPlanning() {
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Dokumen Pengajuan ({(data.cabang || "").toUpperCase() === "BOGOR" ? "B&M Manager" : "Koordinator"})</h3>
               <FileProxyRow label="Gambar Kerja Sipil (FPD)" hasFile={!!data.link_fpd} projektId={id} field="fpd" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_fpd} />
               <FileProxyRow label="Siteplan" hasFile={!!(data as any).link_siteplan} projektId={id} field="siteplan" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={(data as any).link_siteplan} />
+              <FileProxyRow label="BA Tidak Sesuai Standar" hasFile={!!(data as any).link_ba_tidak_sesuai_standar} projektId={id} field="ba_tidak_sesuai_standar" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={(data as any).link_ba_tidak_sesuai_standar} />
               <FileProxyRow label="Gambar Kerja ME" hasFile={!!data.link_gambar_kerja} projektId={id} field="gambar_kerja_awal" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja} />
               <FileProxyRow label="Gambar Kompetitor" hasFile={!!data.link_gambar_kompetitor} projektId={id} field="gambar_kompetitor" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kompetitor} />
             </div>
@@ -1169,6 +1183,25 @@ export default function DetailProjekPlanning() {
                 </Button>
                 <Button onClick={() => openApproveDialog("bm")} className="flex-1 bg-green-600 hover:bg-green-700 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {data.status === "WAITING_BM_REGIONAL_APPROVAL" && isBMRegional && (
+          <Card className="border-sky-200 bg-sky-50/60">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-sky-800">Approval B&M Regional Manager</CardTitle></CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <p className="text-sm text-sky-800 bg-white/70 p-3 rounded-lg border border-sky-100">
+                Review hasil upload tahap 2 dari cabang sebelum diteruskan ke PP Specialist.
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={() => openApproveDialog("bm_regional")} className="flex-1 bg-sky-600 hover:bg-sky-700 text-white shadow-sm" disabled={!allLinksOpened}>
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
+                </Button>
+                <Button variant="outline" onClick={() => { setPendingAction("bm_regional"); setShowRejectDialog(true); }} className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 bg-white">
+                  <XCircle className="w-4 h-4 mr-1.5" /> Tolak
                 </Button>
               </div>
             </CardContent>
@@ -1674,6 +1707,7 @@ export default function DetailProjekPlanning() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-bold flex items-center gap-2"><History className="w-4 h-4 text-slate-600" /> Riwayat Approval</CardTitle></CardHeader>
           <CardContent className="space-y-0">
+            <InfoRow label="B&M Regional Manager" value={(data as any).bm_regional_approver_email ? `${(data as any).bm_regional_approver_email} - ${fmt((data as any).bm_regional_waktu_persetujuan)}` : null} />
             <InfoRow label="B&M Manager" value={data.bm_approver_email ? `${data.bm_approver_email} — ${fmt(data.bm_waktu_persetujuan)}` : null} />
             <InfoRow label="B&M Manager (2)" value={(data as any).bm2_approver_email ? `${(data as any).bm2_approver_email} — ${fmt((data as any).bm2_waktu_persetujuan)}` : null} />
             <InfoRow label="PP Specialist (1)" value={data.pp1_approver_email ? `${data.pp1_approver_email} — ${fmt(data.pp1_waktu_persetujuan)}` : null} />

@@ -61,6 +61,17 @@ const formatDecimalInput = (value: number) => {
   return Number(value.toFixed(2)).toString();
 };
 
+const parseRupiahInput = (value: string) => {
+  const digits = value.replace(/[^\d]/g, "");
+  return digits ? Number(digits) : undefined;
+};
+
+const formatRupiahInput = (value: string | number | null | undefined) => {
+  const number = typeof value === "number" ? value : parseRupiahInput(String(value ?? ""));
+  if (!number) return "";
+  return `Rp ${number.toLocaleString("id-ID")}`;
+};
+
 function FormProjekPlanningInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,6 +83,7 @@ function FormProjekPlanningInner() {
   const [fileRabMe, setFileRabMe] = useState<ProjectFileState>([]);
   const [fileGambarKompetitor, setFileGambarKompetitor] = useState<ProjectFileState>([]);
   const [fileSiteplan, setFileSiteplan] = useState<ProjectFileState>([]);
+  const [fileBaTidakSesuaiStandar, setFileBaTidakSesuaiStandar] = useState<ProjectFileState>([]);
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMsg, setAlertMsg] = useState({ title: "", desc: "", type: "" });
   const [tokoList, setTokoList] = useState<TokoOption[]>([]);
@@ -222,6 +234,9 @@ function FormProjekPlanningInner() {
     sumber_air_bersih: "", drainase_air_kotor: "",
     link_gambar_kerja: "",
     link_gambar_kompetitor: "",
+    akhir_masa_sewa: "",
+    spd: "",
+    link_ba_tidak_sesuai_standar: "",
     jarak_head_to_head: "",
     link_google_maps: "",
     is_ruko: false, jumlah_lantai: "",
@@ -330,7 +345,7 @@ function FormProjekPlanningInner() {
       fetchProjekPlanningDetail(Number(resubmitId)).then(r => {
         if (r.data && r.data.projek) {
           const p = r.data.projek;
-          const merged = { ...f, ...p };
+          const merged = { ...f, ...p, spd: formatRupiahInput((p as any).spd) };
           setF(merged as any);
           setOriginalF(merged);
           const ulokParts = p.nomor_ulok ? p.nomor_ulok.split("-") : [];
@@ -436,6 +451,7 @@ function FormProjekPlanningInner() {
         fileGambarKerjaMe.length > 0 ||
         fileGambarKompetitor.length > 0 ||
         fileSiteplan.length > 0 ||
+        fileBaTidakSesuaiStandar.length > 0 ||
         Object.keys(fotoFiles).length > 0;
       if (!hasChanges) {
         setAlertMsg({ title: "Peringatan", desc: "Silakan ubah minimal satu data / isi form sebelum melakukan resubmit.", type: "error" });
@@ -467,6 +483,7 @@ function FormProjekPlanningInner() {
         listrik_phase,
         sumber_air_bersih,
         drainase_air_kotor,
+        spd,
         ...stageOneForm
       } = f;
 
@@ -485,6 +502,9 @@ function FormProjekPlanningInner() {
         jumlah_lantai: f.jumlah_lantai ? Number(f.jumlah_lantai) : undefined,
         // Multi-select jenis: join with comma
         jenis_pengajuan: jenisSelected.join(","),
+        akhir_masa_sewa: !isManualUlok ? (f as any).akhir_masa_sewa || undefined : undefined,
+        spd: !isManualUlok ? parseRupiahInput(String((f as any).spd || "")) : undefined,
+        link_ba_tidak_sesuai_standar: !isManualUlok ? (f as any).link_ba_tidak_sesuai_standar : undefined,
         // New fields
         is_head_to_head: isDarkStoreDesign ? false : isHeadToHead,
         is_seating_area: isDarkStoreDesign ? false : isSeatingArea,
@@ -503,9 +523,9 @@ function FormProjekPlanningInner() {
 
       let res;
       if (resubmitId) {
-        res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, validFotoFiles);
+        res = await resubmitProjekPlanning(Number(resubmitId), payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
       } else {
-        res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, validFotoFiles);
+        res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
       }
       const skipBmApproval = ["BOGOR", "BATAM"].includes(finalCabang.toUpperCase());
       setAlertMsg({
@@ -592,9 +612,9 @@ function FormProjekPlanningInner() {
                   onClick={() => {
                     if (!!resubmitId) return;
                     setIsManualUlok(true);
-                    setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "Reguler", nama_lokasi: "" }));
+                    setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "Reguler", nama_lokasi: "", akhir_masa_sewa: "", spd: "", link_ba_tidak_sesuai_standar: "" }));
                     setTokoSearch(""); setShowToko(false);
-                    setFotoFiles({}); setFotoExistingUrls({}); setActiveFotoTab(1);
+                    setFotoFiles({}); setFotoExistingUrls({}); setActiveFotoTab(1); setFileBaTidakSesuaiStandar([]);
                   }}
                 >
                   <div className={`p-2.5 rounded-full ${isManualUlok ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
@@ -652,6 +672,52 @@ function FormProjekPlanningInner() {
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700">Link Google Maps</Label>
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" />
+                    </div>
+                    <div className="rounded-xl border border-red-100 bg-white/80 p-4 shadow-sm">
+                      <h4 className="text-sm font-bold text-red-900 mb-3">Data Khusus Renovasi</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-bold text-slate-700">Akhir Masa Sewa</Label>
+                          <Input
+                            type="date"
+                            value={(f as any).akhir_masa_sewa}
+                            onChange={e => set("akhir_masa_sewa", e.target.value)}
+                            className="h-11 bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-bold text-slate-700">SPD</Label>
+                          <Input
+                            value={(f as any).spd}
+                            onChange={e => set("spd", formatRupiahInput(e.target.value))}
+                            placeholder="Contoh: Rp 13.600.000"
+                            className="h-11 bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400"
+                          />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label className="text-sm font-bold text-slate-700">Lampiran Berita Acara Tidak Sesuai Standar</Label>
+                          <p className="text-xs text-slate-500">Apabila ada pekerjaan yang tidak sesuai standar dan approval hingga Branch Manager.</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Link Google Drive..."
+                              value={(f as any).link_ba_tidak_sesuai_standar}
+                              onChange={e => { set("link_ba_tidak_sesuai_standar", e.target.value); setFileBaTidakSesuaiStandar([]); }}
+                              className="bg-white"
+                              disabled={fileBaTidakSesuaiStandar.length > 0}
+                            />
+                            <div>
+                              <Input
+                                type="file"
+                                accept="image/*,.pdf"
+                                multiple
+                                className="bg-white file:bg-red-50 file:text-red-600 file:border-0 file:rounded-md file:px-3 file:py-1 file:mr-3 hover:file:bg-red-100 cursor-pointer"
+                                onChange={handleMultiFileChange(setFileBaTidakSesuaiStandar, () => set("link_ba_tidak_sesuai_standar", ""))}
+                              />
+                              {fileBaTidakSesuaiStandar.length > 0 && <p className="text-[10px] text-red-600 mt-1">File siap diupload: {fileBaTidakSesuaiStandar.map(file => file.name).join(", ")}</p>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : (

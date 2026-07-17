@@ -326,7 +326,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "BUILDING & MAINTENANCE REGIONAL MANAGER": [
-        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
+        "menu-approval", "menu-projek-planning", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
     ],
 
     "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER": [
@@ -651,8 +651,13 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
         r.includes("BBMM") ||
         r.includes("BM ")
     );
+    const isBMRegional = upperRoles.some(r =>
+        r.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") ||
+        r.includes("B&M REGIONAL") ||
+        r.includes("REGIONAL MANAGER")
+    );
     const isPPMgr = upperRoles.some(r => r.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || r.includes("PROJECT PLANNING MANAGER") || r.includes("PP MANAGER")) || email === "wildan.pp.manager@gmail.com";
     const isPP = upperRoles.some(r => (r.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || r.includes("PP SPECIALIST") || (r.includes("PROJECT PLANNING") && !r.includes("MANAGER")))) || email === "wildan.pp@gmail.com";
 
-    return { isCoor, isBM, isPP, isPPMgr };
+    return { isCoor, isBM, isBMRegional, isPP, isPPMgr };
 };

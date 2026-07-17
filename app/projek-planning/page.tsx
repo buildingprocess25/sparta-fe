@@ -26,6 +26,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   PP_DESIGN_3D_REQUIRED: { label: "Desain 3D", color: "bg-purple-50 text-purple-700 border-purple-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_RAB_UPLOAD: { label: "Input Tahap 2", color: "bg-orange-50 text-orange-700 border-orange-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_BM_APPROVAL_2: { label: "Menunggu B&M (2)", color: "bg-amber-50 text-amber-700 border-amber-300", icon: <Clock className="w-3 h-3" /> },
+  WAITING_BM_REGIONAL_APPROVAL: { label: "Menunggu B&M Reg.", color: "bg-sky-50 text-sky-700 border-sky-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_PP_APPROVAL_2: { label: "Menunggu PP (2)", color: "bg-cyan-50 text-cyan-700 border-cyan-300", icon: <Clock className="w-3 h-3" /> },
   WAITING_PP_MANAGER_APPROVAL: { label: "Menunggu PP Mgr (Final)", color: "bg-indigo-50 text-indigo-700 border-indigo-300", icon: <Clock className="w-3 h-3" /> },
   COMPLETED: { label: "Selesai", color: "bg-green-50 text-green-700 border-green-300", icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -59,9 +60,9 @@ export default function ProjekPlanningPage() {
       
       const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
       const canSeeAllBranches = canViewAllBranches(userRole);
-      const { isCoor, isBM, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
+      const { isCoor, isBM, isBMRegional, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
 
-      const isOnlyCoor = isCoor && !isBM && !isPP && !isPPMgr;
+      const isOnlyCoor = isCoor && !isBM && !isBMRegional && !isPP && !isPPMgr;
 
       // Coordinator: filter by email only — their FPDs may be for any branch
       if (isOnlyCoor && userEmail) {
@@ -81,11 +82,12 @@ export default function ProjekPlanningPage() {
       data = data.filter((d: any) => {
         if (canSeeAllBranches) return true;
         if (!isCoor && d.status !== "COMPLETED") return false;
-        if (isHO && !isCoor && !isBM && !isPP && !isPPMgr) return true; // Admin/Direktur
+        if (isHO && !isCoor && !isBM && !isBMRegional && !isPP && !isPPMgr) return true; // Admin/Direktur
         
         let visible = false;
         if (isCoor && d.email_pembuat === userEmail) visible = true;
         if (isBM && (d.status !== "DRAFT" || d.bm_alasan_penolakan)) visible = true;
+        if (isBMRegional && (d.status === "WAITING_BM_REGIONAL_APPROVAL" || d.bm_regional_alasan_penolakan || d.bm_regional_approver_email)) visible = true;
         if (isPP && (!["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status) || d.pp1_alasan_penolakan || d.pp2_alasan_penolakan)) visible = true;
         if (isPPMgr && (["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status) || d.pp_manager_alasan_penolakan)) visible = true;
         

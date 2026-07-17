@@ -4847,6 +4847,9 @@ export type ProjekPlanningItem = {
     link_fpd_approved: string | null;
     link_gambar_kompetitor: string | null;
     link_google_maps: string | null;
+    akhir_masa_sewa?: string | null;
+    spd?: string | number | null;
+    link_ba_tidak_sesuai_standar?: string | null;
     link_siteplan?: string | null;
     link_rab_sipil: string | null;
     link_rab_me: string | null;
@@ -4868,6 +4871,9 @@ export type ProjekPlanningItem = {
     bm2_approver_email?: string | null;
     bm2_waktu_persetujuan?: string | null;
     bm2_alasan_penolakan?: string | null;
+    bm_regional_approver_email?: string | null;
+    bm_regional_waktu_persetujuan?: string | null;
+    bm_regional_alasan_penolakan?: string | null;
     pp1_approver_email: string | null;
     pp1_waktu_persetujuan: string | null;
     pp1_alasan_penolakan: string | null;
@@ -4988,6 +4994,7 @@ export type ProjectPlanningInterventionPayload = {
         | "PP_DESIGN_3D_REQUIRED"
         | "WAITING_RAB_UPLOAD"
         | "WAITING_BM_APPROVAL_2"
+        | "WAITING_BM_REGIONAL_APPROVAL"
         | "WAITING_PP_MANAGER_APPROVAL"
         | "WAITING_PP_APPROVAL_2"
         | "COMPLETED"
@@ -5004,6 +5011,7 @@ export const submitProjekPlanning = async (
     fileGambarKerjaMe?: File | File[],
     fileGambarKompetitor?: File | File[],
     fileSiteplan?: File | File[],
+    fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/submit`;
@@ -5018,7 +5026,7 @@ export const submitProjekPlanning = async (
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
 
-    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || (Array.isArray(fileSiteplan) ? fileSiteplan.length > 0 : !!fileSiteplan) || hasPhotos) {
+    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || (Array.isArray(fileSiteplan) ? fileSiteplan.length > 0 : !!fileSiteplan) || (Array.isArray(fileBaTidakSesuaiStandar) ? fileBaTidakSesuaiStandar.length > 0 : !!fileBaTidakSesuaiStandar) || hasPhotos) {
         const formData = new FormData();
         Object.entries(payload).forEach(([key, value]) => {
             if (value !== undefined && value !== null) formData.append(key, String(value));
@@ -5027,6 +5035,7 @@ export const submitProjekPlanning = async (
         appendFiles(formData, "file_gambar_kerja_me", fileGambarKerjaMe);
         appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
         appendFiles(formData, "file_siteplan", fileSiteplan);
+        appendFiles(formData, "file_ba_tidak_sesuai_standar", fileBaTidakSesuaiStandar);
         
         if (fotoFiles) {
             Object.entries(fotoFiles).forEach(([index, file]) => {
@@ -5063,6 +5072,7 @@ export const resubmitProjekPlanning = async (
     fileGambarKerjaMe?: File | File[],
     fileGambarKompetitor?: File | File[],
     fileSiteplan?: File | File[],
+    fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/resubmit`;
@@ -5077,7 +5087,7 @@ export const resubmitProjekPlanning = async (
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
 
-    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || (Array.isArray(fileSiteplan) ? fileSiteplan.length > 0 : !!fileSiteplan) || hasPhotos) {
+    if ((Array.isArray(fileFpd) ? fileFpd.length > 0 : !!fileFpd) || (Array.isArray(fileGambarKerjaMe) ? fileGambarKerjaMe.length > 0 : !!fileGambarKerjaMe) || (Array.isArray(fileGambarKompetitor) ? fileGambarKompetitor.length > 0 : !!fileGambarKompetitor) || (Array.isArray(fileSiteplan) ? fileSiteplan.length > 0 : !!fileSiteplan) || (Array.isArray(fileBaTidakSesuaiStandar) ? fileBaTidakSesuaiStandar.length > 0 : !!fileBaTidakSesuaiStandar) || hasPhotos) {
         const formData = new FormData();
         Object.entries(payload).forEach(([key, value]) => {
             if (value !== undefined && value !== null) formData.append(key, String(value));
@@ -5086,6 +5096,7 @@ export const resubmitProjekPlanning = async (
         appendFiles(formData, "file_gambar_kerja_me", fileGambarKerjaMe);
         appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
         appendFiles(formData, "file_siteplan", fileSiteplan);
+        appendFiles(formData, "file_ba_tidak_sesuai_standar", fileBaTidakSesuaiStandar);
         
         if (fotoFiles) {
             Object.entries(fotoFiles).forEach(([index, file]) => {
@@ -5298,6 +5309,23 @@ export const processBmApproval = async (id: number, payload: {
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal memproses approval BM.");
+    return result;
+};
+
+/** Proses approval B&M Regional Manager. */
+export const processBmRegionalApproval = async (id: number, payload: {
+    approver_email: string;
+    tindakan: "APPROVE" | "REJECT";
+    catatan?: string;
+    alasan_penolakan?: string;
+}) => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/bm-regional-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal memproses approval B&M Regional Manager.");
     return result;
 };
 

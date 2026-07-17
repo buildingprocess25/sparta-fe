@@ -75,7 +75,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     PERTAMBAHAN_SPK: ["BRANCH MANAGER", "MANAGER"],
     OPNAME: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "DIREKTUR KONTRAKTOR", "COORDINATOR", "MANAGER"],
     INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
-    PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
+    PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "BUILDING & MAINTENANCE REGIONAL MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
     SURAT_PERINGATAN: ["BRANCH BUILDING & MAINTENANCE MANAGER"],
 };
 
@@ -261,6 +261,10 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
         role.includes("MAINTENANCE MANAGER") ||
         role.includes("BBMM")
     );
+    const isBmRegionalManager = roles.some(role =>
+        role.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") ||
+        role.includes("REGIONAL MANAGER")
+    );
     const isPpSpecialist = roles.some(role =>
         role.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") ||
         role.includes("PP SPECIALIST")
@@ -270,10 +274,11 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
         role.includes("PP MANAGER")
     );
 
-    if (canSeeAll) return true;
+    if (canSeeAll && !isBmRegionalManager) return true;
 
     const statusMatchesRole =
         (isBmManager && (upper === "WAITING_BM_APPROVAL" || upper === "WAITING_BM_APPROVAL_2")) ||
+        (isBmRegionalManager && upper === "WAITING_BM_REGIONAL_APPROVAL") ||
         (isPpSpecialist && ["WAITING_PP_APPROVAL_1", "PP_DESIGN_3D_REQUIRED", "WAITING_PP_APPROVAL_2"].includes(upper)) ||
         (isPpManager && (
             upper === "WAITING_PP_MANAGER_APPROVAL" ||
@@ -287,11 +292,11 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
 
 const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan: ApprovalJabatan) => {
     if (!isPendingProcessStatus(item.status, item.tipe)) return false;
-    if (isViewOnlyUser(user.roles, user.isSuperHuman)) return false;
-
     if (item.tipe === "PROJECT_PLANNING") {
         return canCountProjectPlanningForUser(item, user);
     }
+
+    if (isViewOnlyUser(user.roles, user.isSuperHuman)) return false;
 
     const upper = item.status.toUpperCase();
     const userCabang = normalizeBranch(user.cabang);
