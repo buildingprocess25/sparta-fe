@@ -44,6 +44,7 @@ import {
   DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
   DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
   DC_DOCUMENT_ADMIN_ROLE,
+  BRANCH_TO_ULOK,
   SUPER_HUMAN_ROLE,
   normalizeRoles,
   canViewAllBranches,
@@ -86,6 +87,12 @@ const emptyArchiveForm = {
   address: "",
   notes: "",
 };
+
+const ARCHIVE_BRANCH_OPTIONS = Object.keys(BRANCH_TO_ULOK)
+  .filter((branch) => branch !== "HEAD OFFICE")
+  .sort((a, b) => a.localeCompare(b));
+
+const PROJECT_TYPE_OPTIONS = ["New", "Renovasi"] as const;
 
 type ExportRow = Record<string, string | number>;
 
@@ -732,11 +739,29 @@ export default function DcDocumentsPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Cabang / Area</Label>
-                <Input value={archiveForm.branch_name} onChange={(event) => setArchiveForm((prev) => ({ ...prev, branch_name: event.target.value }))} placeholder="Contoh: LAMPUNG" />
+                <Select value={archiveForm.branch_name} onValueChange={(value) => setArchiveForm((prev) => ({ ...prev, branch_name: value }))}>
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="-- Pilih Cabang --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ARCHIVE_BRANCH_OPTIONS.map((branch) => (
+                      <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Tipe Project</Label>
-                <Input value={archiveForm.project_type} onChange={(event) => setArchiveForm((prev) => ({ ...prev, project_type: event.target.value }))} placeholder="Contoh: Renovasi" />
+                <Select value={archiveForm.project_type} onValueChange={(value) => setArchiveForm((prev) => ({ ...prev, project_type: value }))}>
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="-- Pilih Tipe Project --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_TYPE_OPTIONS.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid gap-2">

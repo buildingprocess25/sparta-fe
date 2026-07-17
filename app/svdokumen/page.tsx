@@ -164,6 +164,14 @@ function isHiddenBranch(cabang?: string | null): boolean {
   return HIDDEN_BRANCHES.has(getBranchLocationName(cabang));
 }
 
+const FORM_CABANG_OPTIONS = Array.from(new Set(
+  Object.keys(BRANCH_TO_ULOK)
+    .map(branch => getBranchLocationName(branch))
+    .filter(branch => !HIDDEN_BRANCHES.has(branch))
+)).sort((a, b) => a.localeCompare(b));
+
+const PROJECT_TYPE_OPTIONS = ["New", "Renovasi"] as const;
+
 function isDokumenLengkap(toko: PenyimpananDokumenTokoWithStatus): boolean {
   const counts = toko.kategori_counts ?? {};
   return REQUIRED_DOCUMENT_CATEGORY_KEYS.every(key => Number(counts[key] ?? 0) > 0);
@@ -1295,21 +1303,29 @@ export default function PenyimpananDokumenPage() {
             </div>
             <div className="space-y-2">
               <Label>Cabang</Label>
-              <Input
-                value={newStoreForm.cabang}
-                onChange={e => setNewStoreForm(prev => ({ ...prev, cabang: e.target.value }))}
-                placeholder="Contoh: CILEUNGSI"
-                className="rounded-xl"
-              />
+              <Select value={newStoreForm.cabang} onValueChange={value => setNewStoreForm(prev => ({ ...prev, cabang: value }))}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="-- Pilih Cabang --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORM_CABANG_OPTIONS.map(branch => (
+                    <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Proyek</Label>
-              <Input
-                value={newStoreForm.proyek}
-                onChange={e => setNewStoreForm(prev => ({ ...prev, proyek: e.target.value }))}
-                placeholder="Contoh: Alfamart Reguler"
-                className="rounded-xl"
-              />
+              <Label>Tipe Project</Label>
+              <Select value={newStoreForm.proyek} onValueChange={value => setNewStoreForm(prev => ({ ...prev, proyek: value }))}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="-- Pilih Tipe Project --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_TYPE_OPTIONS.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

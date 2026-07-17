@@ -1817,13 +1817,7 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-between gap-3 sm:justify-end">
-                                    <div className="text-left sm:text-right">
-                                        <p className="text-2xl font-black leading-none text-slate-950">{contractorSpSummary.active}</p>
-                                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">SP Aktif</p>
-                                    </div>
-                                    <ChevronRight className="h-5 w-5 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-red-500" />
-                                </div>
+                                <ChevronRight className="h-5 w-5 self-end text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-red-500 sm:self-center" />
                             </div>
                         </Link>
                     )}
