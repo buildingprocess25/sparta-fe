@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Building2, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,13 +15,24 @@ export default function WorkspacePage() {
   const router = useRouter();
   const { user, isLoading } = useSession();
 
-  const canOpenDc = hasDcDevelopmentRole(user?.roles);
-  const canOpenStore = hasStoreWorkspaceRole(user?.roles);
+  const roleSource = user?.roles?.length ? user.roles : user?.role;
+  const canOpenDc = hasDcDevelopmentRole(roleSource);
+  const canOpenStore = hasStoreWorkspaceRole(roleSource);
 
   useEffect(() => {
     if (isLoading || !user) return;
+    const rawRole = String(user.role || "").toUpperCase();
+    const looksLikeDcRole =
+      rawRole.includes(" DC")
+      || rawRole.includes("DC ")
+      || rawRole.includes("DC DOCUMENT")
+      || rawRole.includes("KONSULTAN SOIL")
+      || rawRole.includes("KONSULTAN PERENCANA")
+      || rawRole.includes("KONSULTAN PENGAWAS")
+      || rawRole.includes("BUILDING & DEVELOPMENT")
+      || rawRole.includes("PROPERTY DEVELOPMENT");
 
-    if (canOpenDc && !canOpenStore) {
+    if ((canOpenDc || looksLikeDcRole) && !canOpenStore) {
       sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "dc");
       router.replace("/dc-development");
       return;
@@ -53,7 +65,7 @@ export default function WorkspacePage() {
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-600">SPARTA Building</p>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">Pilih Workspace</h1>
           </div>
-          <img src="/assets/Alfamart-Emblem.png" alt="Alfamart" className="h-12 w-auto object-contain" />
+          <Image src="/assets/Alfamart-Emblem.png" alt="Alfamart" width={118} height={48} priority className="h-12 w-auto object-contain" />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

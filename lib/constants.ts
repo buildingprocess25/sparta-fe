@@ -4,9 +4,9 @@
 // =============================================================================
 
 import {
-    FileText, Stamp, FileSignature, Users, CheckSquare,
+    FileText, FileSignature, Users, CheckSquare,
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
-    AlertTriangle, Activity, PieChart, ClipboardCheck,
+    AlertTriangle, ClipboardCheck,
     FileStack, ClipboardList, FileEdit, Upload, Building2,
     ShieldAlert, SlidersHorizontal, CalendarClock, Download,
 } from "lucide-react";
@@ -293,6 +293,10 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-dc-development", "menu-approval", "menu-daftardokumen",
     ],
 
+    "DC DOCUMENT ADMIN": [
+        "menu-dc-development",
+    ],
+
     "DC BUILDING & DEVELOPMENT SPECIALIST": [
         "menu-dc-development", "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
@@ -363,6 +367,7 @@ export const DC_SOIL_CONSULTANT_ROLE = "KONSULTAN SOIL INVESTIGATION";
 export const DC_PLANNER_CONSULTANT_ROLE = "KONSULTAN PERENCANA";
 export const DC_SUPERVISOR_MK_ROLE = "KONSULTAN PENGAWAS DC";
 export const DC_CONTRACTOR_ROLE = "KONTRAKTOR DC";
+export const DC_DOCUMENT_ADMIN_ROLE = "DC DOCUMENT ADMIN";
 export const DC_BUILDING_DEVELOPMENT_MANAGER_ROLE = "DC BUILDING & DEVELOPMENT MANAGER";
 export const DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE = "DC BUILDING & DEVELOPMENT SPECIALIST";
 export const BUILDING_DEVELOPMENT_GM_ROLE = "BUILDING & DEVELOPMENT GENERAL MANAGER";
@@ -374,6 +379,7 @@ export const DC_DEVELOPMENT_ROLES = [
     DC_PLANNER_CONSULTANT_ROLE,
     DC_SUPERVISOR_MK_ROLE,
     DC_CONTRACTOR_ROLE,
+    DC_DOCUMENT_ADMIN_ROLE,
     DC_BUILDING_DEVELOPMENT_MANAGER_ROLE,
     DC_BUILDING_DEVELOPMENT_SPECIALIST_ROLE,
     BUILDING_DEVELOPMENT_GM_ROLE,
@@ -409,7 +415,16 @@ export const hasSuperHumanRole = (role: string | string[] | undefined | null): b
     normalizeRoles(role).some(r => r === SUPER_HUMAN_ROLE);
 
 export const hasDcDevelopmentRole = (role: string | string[] | undefined | null): boolean =>
-    normalizeRoles(role).some(r => DC_DEVELOPMENT_ROLES.includes(r as typeof DC_DEVELOPMENT_ROLES[number]));
+    normalizeRoles(role).some(r =>
+        DC_DEVELOPMENT_ROLES.includes(r as typeof DC_DEVELOPMENT_ROLES[number])
+        || r.includes("DC")
+        || r.includes("KONSULTAN SOIL")
+        || r.includes("KONSULTAN PERENCANA")
+        || r.includes("KONSULTAN PENGAWAS")
+        || r.includes("BUILDING & DEVELOPMENT")
+        || r.includes("LOCATION & DEVELOPMENT")
+        || r.includes("PROPERTY DEVELOPMENT")
+    );
 
 export const hasStoreWorkspaceRole = (role: string | string[] | undefined | null): boolean =>
     normalizeRoles(role).some(r => {
@@ -641,6 +656,3 @@ export const getPpRoles = (userRole: string | string[], email: string) => {
 
     return { isCoor, isBM, isPP, isPPMgr };
 };
-
-
-
