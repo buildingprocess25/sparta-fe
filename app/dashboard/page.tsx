@@ -296,6 +296,46 @@ type ProjectPenaltyInfo = {
     actionOptions: Array<'SP' | 'TAKEOVER'>;
 };
 
+const getContractorSpDashboardKey = (action: DendaAction) => {
+    const nomorSurat = normalizeDashboardText(action.nomor_surat);
+    if (nomorSurat) return `SURAT|${nomorSurat}`;
+    return [
+        'SP',
+        normalizeDashboardText(action.nomor_ulok),
+        action.sp_level || '-',
+        normalizeDashboardText(action.alasan_sp),
+        normalizeDashboardText(action.nama_kontraktor),
+    ].join('|');
+};
+
+const getContractorSpStatusRank = (status: string) => ({
+    APPROVED: 1,
+    SENT_TO_CONTRACTOR: 2,
+    VIEWED_BY_CONTRACTOR: 3,
+    ACKNOWLEDGED_BY_CONTRACTOR: 4,
+}[status] ?? 0);
+
+const getUniqueContractorDashboardSp = (actions: DendaAction[]) => {
+    const grouped = new Map<string, DendaAction>();
+    actions.forEach((action) => {
+        const key = getContractorSpDashboardKey(action);
+        const current = grouped.get(key);
+        if (!current) {
+            grouped.set(key, action);
+            return;
+        }
+
+        const nextRank = getContractorSpStatusRank(action.status);
+        const currentRank = getContractorSpStatusRank(current.status);
+        const nextTime = new Date(action.updated_at || action.created_at).getTime();
+        const currentTime = new Date(current.updated_at || current.created_at).getTime();
+        if (nextRank > currentRank || (nextRank === currentRank && (nextTime > currentTime || action.id > current.id))) {
+            grouped.set(key, action);
+        }
+    });
+    return Array.from(grouped.values()).sort((a, b) => b.id - a.id);
+};
+
 const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyInfo => {
     const calculatedDays = lateDays ?? calculateProjectLateDays(project);
     const calculatedAmount = calculateProjectPenalty(calculatedDays);
@@ -680,10 +720,10 @@ export default function DashboardPage() {
                 .catch(() => setRabPlanningRequestCount(0));
             fetchDendaActions({ action_type: "SP" })
                 .then((result) => {
-                    const active = ((result.data ?? []) as DendaAction[])
+                    const active = getUniqueContractorDashboardSp(((result.data ?? []) as DendaAction[])
                         .filter((item: DendaAction) => item.action_type === "SP")
                         .filter((item: DendaAction) => !item.is_expired && ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(item.status))
-                        .sort((a: DendaAction, b: DendaAction) => b.id - a.id);
+                    );
                     if (active.length === 0) {
                         setContractorSpSummary(null);
                         return;
@@ -1750,7 +1790,7 @@ export default function DashboardPage() {
 
                     {isCompanyScopedUser && contractorSpSummary && contractorSpSummary.active > 0 && (
                         <Link
-                            href="/kontraktor/surat-peringatan"
+                            href="/surat-peringatan"
                             className={`group shrink-0 rounded-xl border bg-white px-4 py-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
                                 contractorSpSummary.pendingAck > 0
                                     ? "border-red-200 hover:border-red-300"
@@ -1775,11 +1815,6 @@ export default function DashboardPage() {
                                                 SP {contractorSpSummary.highestLevel || "-"}
                                             </Badge>
                                         </div>
-                                        <p className="mt-0.5 text-xs font-medium text-slate-500">
-                                            {contractorSpSummary.pendingAck > 0
-                                                ? `${contractorSpSummary.pendingAck} surat perlu dikonfirmasi`
-                                                : "Semua surat aktif sudah dikonfirmasi"}
-                                        </p>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between gap-3 sm:justify-end">

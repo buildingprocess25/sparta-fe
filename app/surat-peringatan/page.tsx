@@ -12,11 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/context/SessionContext";
 import {
+    acknowledgeDendaAction,
     approveDendaAction,
     createSpAction,
     fetchDendaActionCandidates,
     fetchDendaActionKontraktor,
     fetchDendaActions,
+    regenerateSpPdf,
     rejectDendaAction,
     type DendaAction,
     type DendaActionCandidate,
@@ -87,6 +89,7 @@ export default function SuratPeringatanPage() {
     const [notes, setNotes] = useState<string[]>([""]);
     const [file, setFile] = useState<File | null>(null);
     const [rejectNote, setRejectNote] = useState<Record<number, string>>({});
+    const [ackNote, setAckNote] = useState<Record<number, string>>({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -286,6 +289,39 @@ export default function SuratPeringatanPage() {
             await loadData();
         } catch (error) {
             setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal reject SP." });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleAcknowledge = async (action: DendaAction) => {
+        if (!action.nama_kontraktor) {
+            setMessage({ type: "error", text: "Nama kontraktor tidak ditemukan pada Surat Peringatan ini." });
+            return;
+        }
+        setSubmitting(true);
+        setMessage(null);
+        try {
+            const result = await acknowledgeDendaAction(action.id, action.nama_kontraktor, ackNote[action.id] ?? "");
+            setMessage({ type: "success", text: result.message });
+            setAckNote((prev) => ({ ...prev, [action.id]: "" }));
+            await loadData();
+        } catch (error) {
+            setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal konfirmasi SP." });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleRegeneratePdf = async (id: number) => {
+        setSubmitting(true);
+        setMessage(null);
+        try {
+            const result = await regenerateSpPdf(id);
+            setMessage({ type: "success", text: result.message });
+            await loadData();
+        } catch (error) {
+            setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal generate PDF SP." });
         } finally {
             setSubmitting(false);
         }
@@ -789,18 +825,72 @@ export default function SuratPeringatanPage() {
                                     </div>
                                 )}
 
-                                {selectedDetailGroup.latest.link_pdf && (
+                                {(selectedDetailGroup.latest.link_pdf || userIsContractor) && (
                                     <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm mt-2">
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">PDF Resmi Surat Peringatan</Label>
-                                        <a
-                                            href={`${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetailGroup.latest.link_pdf)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors"
-                                        >
-                                            <FileDown className="w-4 h-4 text-blue-500" />
-                                            Lihat PDF Resmi SP
-                                        </a>
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                            {userIsContractor && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="gap-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                                    onClick={() => handleRegeneratePdf(selectedDetailGroup.latest.id)}
+                                                    disabled={submitting}
+                                                >
+                                                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                                    Generate PDF
+                                                </Button>
+                                            )}
+                                            {selectedDetailGroup.latest.link_pdf && (
+                                                <a
+                                                    href={`${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(selectedDetailGroup.latest.link_pdf)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors"
+                                                >
+                                                    <FileDown className="w-4 h-4 text-blue-500" />
+                                                    Unduh PDF SP
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {userIsContractor && ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR"].includes(selectedDetailGroup.latest.status) && (
+                                    <div className="bg-white p-5 rounded-xl border border-emerald-200 shadow-sm mt-6">
+                                        <h3 className="font-bold text-emerald-800 border-b border-emerald-100 pb-2 mb-4 flex items-center gap-2">
+                                            <CheckCircle2 className="h-5 w-5" /> Konfirmasi Surat Peringatan
+                                        </h3>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <Label className="text-sm font-bold text-slate-700 mb-2 block">Catatan Konfirmasi (Opsional)</Label>
+                                                <Textarea
+                                                    value={ackNote[selectedDetailGroup.latest.id] ?? ""}
+                                                    onChange={(event) => setAckNote((prev) => ({ ...prev, [selectedDetailGroup.latest.id]: event.target.value }))}
+                                                    placeholder="Tambahkan catatan jika diperlukan..."
+                                                    className="min-h-20 text-sm resize-none rounded-lg"
+                                                />
+                                            </div>
+                                            <Button
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11 shadow-sm"
+                                                onClick={() => handleAcknowledge(selectedDetailGroup.latest)}
+                                                disabled={submitting}
+                                            >
+                                                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                                                Konfirmasi Diterima
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {userIsContractor && selectedDetailGroup.latest.status === "ACKNOWLEDGED_BY_CONTRACTOR" && (
+                                    <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 shadow-sm mt-6">
+                                        <h3 className="font-bold text-emerald-800 flex items-center gap-2">
+                                            <CheckCircle2 className="h-5 w-5" /> Surat Peringatan sudah dikonfirmasi
+                                        </h3>
+                                        <p className="mt-1 text-sm font-medium text-emerald-700">
+                                            Status konfirmasi sudah tercatat di sistem.
+                                        </p>
                                     </div>
                                 )}
 

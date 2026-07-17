@@ -184,6 +184,21 @@ export const rejectDendaAction = async (
     return result;
 };
 
+export const acknowledgeDendaAction = async (
+    id: number,
+    nama_kontraktor: string,
+    catatan_acknowledge = ""
+): Promise<{ status: string; message: string; data: DendaAction }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/kontraktor/${id}/acknowledge?nama_kontraktor=${encodeURIComponent(nama_kontraktor)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ catatan_acknowledge: catatan_acknowledge.trim() || undefined }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal konfirmasi Surat Peringatan.");
+    return result;
+};
+
 export const regenerateSpPdf = async (
     id: number
 ): Promise<{ status: string; message: string; data: DendaAction }> => {
