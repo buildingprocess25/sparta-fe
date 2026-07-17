@@ -40,7 +40,7 @@ Aplikasi ini terdiri dari beberapa modul fungsional utama:
 3. Konfigurasi Environment Variables:
    Buat file `.env.local` dan tambahkan:
    ```env
-   NEXT_PUBLIC_API_URL=https://sparta-be.onrender.com
+   NEXT_PUBLIC_API_URL=https://api-building.sparta-alfamart.web.id
    ```
 
 ### Menjalankan Development Server
