@@ -1039,7 +1039,19 @@ function SpecializedDetailContent({
       lateDays: rows.filter((row) => getStage(row) === stage).reduce((sum, row) => sum + getLateDays(row), 0),
     })).filter(s => s.count > 0);
     const maxCount = Math.max(...stageBreakdown.map(s => s.count), 1);
-    const totalExposure = rows.reduce((sum, row) => sum + getPenalty(row).amount, 0);
+    const officialPenaltyByUlok = new Map<string, ReturnType<Props["getPenalty"]>>();
+    rows.forEach((row) => {
+      const penalty = getPenalty(row);
+      if (penalty.source !== "Resmi" || penalty.amount <= 0) return;
+
+      const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
+      const existing = officialPenaltyByUlok.get(ulokKey);
+      if (!existing || penalty.amount < existing.amount) {
+        officialPenaltyByUlok.set(ulokKey, penalty);
+      }
+    });
+    const totalExposure = Array.from(officialPenaltyByUlok.values())
+      .reduce((sum, penalty) => sum + penalty.amount, 0);
     const totalLate = rows.reduce((sum, row) => sum + getLateDays(row), 0);
     return (
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50">
@@ -1075,7 +1087,7 @@ function SpecializedDetailContent({
               </div>
               <div>
                 <p className="text-xl font-bold tracking-tight text-red-600">{formatRupiah(totalExposure)}</p>
-                <p className="text-[11px] font-medium text-slate-500 mt-1">Estimasi dan Resmi</p>
+                <p className="text-[11px] font-medium text-slate-500 mt-1">Denda resmi</p>
               </div>
             </div>
           </div>

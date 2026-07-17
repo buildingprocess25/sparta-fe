@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import AppNavbar from '@/components/AppNavbar';
-import { ALL_MENUS, ROLE_CONFIG, canAccessProjectPlanningByCabang, canViewAllBranches, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage } from '@/lib/constants';
+import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
 import { downloadDashboardExport, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 import {
@@ -37,6 +37,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
 import TaskNotificationBell from '@/components/TaskNotificationBell';
+import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
 
 
 // =============================================================================
@@ -84,6 +85,23 @@ const projectMatchesCompany = (project: unknown, companyName: string) => {
 
     return companyCandidates.some(candidate => normalizeDashboardText(candidate) === normalizedCompany);
 };
+
+const SP_DASHBOARD_ACTIVE_STATUSES = new Set([
+    'WAITING_MANAGER',
+    'APPROVED',
+    'SENT_TO_CONTRACTOR',
+    'VIEWED_BY_CONTRACTOR',
+    'ACKNOWLEDGED_BY_CONTRACTOR',
+]);
+
+const canViewInternalSpDashboard = (roles: string[]) =>
+    roles.some(role =>
+        role === 'BRANCH BUILDING & MAINTENANCE MANAGER' ||
+        role.includes('BRANCH BUILDING COORDINATOR') ||
+        role.includes('KOORDINATOR') ||
+        role.includes('COORDINATOR') ||
+        role.includes('SUPER HUMAN')
+    );
 
 const parseDashboardDate = (value: unknown): Date | null => {
     const raw = String(value || '').trim();
@@ -537,6 +555,8 @@ export default function DashboardPage() {
     const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts>(EMPTY_APPROVAL_COUNTS);
     const [rabRevisionCount, setRabRevisionCount] = useState(0);
     const [rabPlanningRequestCount, setRabPlanningRequestCount] = useState(0);
+    const [contractorSpSummary, setContractorSpSummary] = useState<{ active: number; pendingAck: number; highestLevel: number; latest?: DendaAction } | null>(null);
+    const [internalSpContractorCount, setInternalSpContractorCount] = useState(0);
 
     // Data State
     const [projects, setProjects] = useState<any[]>([]);
@@ -658,9 +678,47 @@ export default function DashboardPage() {
             fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
                 .then((result) => setRabPlanningRequestCount(result.count || 0))
                 .catch(() => setRabPlanningRequestCount(0));
+            fetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/kontraktor/list?nama_kontraktor=${encodeURIComponent(namaPt)}`, { credentials: "include" })
+                .then((res) => res.ok ? res.json() : Promise.reject(new Error("Gagal memuat SP kontraktor")))
+                .then((result) => {
+                    const active = ((result.data?.actions ?? []) as DendaAction[])
+                        .filter((item: DendaAction) => item.action_type === "SP")
+                        .filter((item: DendaAction) => !item.is_expired && ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(item.status))
+                        .sort((a: DendaAction, b: DendaAction) => b.id - a.id);
+                    if (active.length === 0) {
+                        setContractorSpSummary(null);
+                        return;
+                    }
+                    setContractorSpSummary({
+                        active: active.length,
+                        pendingAck: active.filter((item) => ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR"].includes(item.status)).length,
+                        highestLevel: Math.max(...active.map((item) => item.sp_level || 0)),
+                        latest: active[0],
+                    });
+                })
+                .catch(() => setContractorSpSummary(null));
         } else {
             setRabRevisionCount(0);
             setRabPlanningRequestCount(0);
+            setContractorSpSummary(null);
+        }
+        if (!companyScopedRole && canViewInternalSpDashboard(roles)) {
+            fetchDendaActions({ action_type: "SP" })
+                .then((result) => {
+                    const canSeeAllSpBranches = userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman);
+                    const activeActions = (result.data || [])
+                        .filter((item) => SP_DASHBOARD_ACTIVE_STATUSES.has(item.status))
+                        .filter((item) => !item.is_expired)
+                        .filter((item) => canSeeAllSpBranches || canAccessBranchForUser(item.cabang, roles, userCabang, getSessionBranchCoverage()));
+
+                    const contractorKeys = new Set(
+                        activeActions.map((item) => normalizeDashboardText(item.nama_kontraktor) || `SP-${item.id}`)
+                    );
+                    setInternalSpContractorCount(contractorKeys.size);
+                })
+                .catch(() => setInternalSpContractorCount(0));
+        } else {
+            setInternalSpContractorCount(0);
         }
         setIsLoading(false);
     }, [user]);
@@ -1690,6 +1748,81 @@ export default function DashboardPage() {
                             </div>
                         )}
                     </div>
+
+                    {isCompanyScopedUser && contractorSpSummary && contractorSpSummary.active > 0 && (
+                        <Link
+                            href="/kontraktor/surat-peringatan"
+                            className={`group shrink-0 rounded-xl border bg-white px-4 py-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                                contractorSpSummary.pendingAck > 0
+                                    ? "border-red-200 hover:border-red-300"
+                                    : "border-amber-200 hover:border-amber-300"
+                            }`}
+                        >
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                                        contractorSpSummary.pendingAck > 0 ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"
+                                    }`}>
+                                        <AlertTriangle className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="text-sm font-black text-slate-900">Surat Peringatan Aktif</p>
+                                            <Badge className={`h-5 rounded-full px-2 text-[10px] shadow-none ${
+                                                contractorSpSummary.pendingAck > 0
+                                                    ? "border-red-200 bg-red-50 text-red-700"
+                                                    : "border-amber-200 bg-amber-50 text-amber-700"
+                                            }`}>
+                                                SP {contractorSpSummary.highestLevel || "-"}
+                                            </Badge>
+                                        </div>
+                                        <p className="mt-0.5 text-xs font-medium text-slate-500">
+                                            {contractorSpSummary.pendingAck > 0
+                                                ? `${contractorSpSummary.pendingAck} surat perlu dikonfirmasi`
+                                                : "Semua surat aktif sudah dikonfirmasi"}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                    <div className="text-left sm:text-right">
+                                        <p className="text-2xl font-black leading-none text-slate-950">{contractorSpSummary.active}</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">SP Aktif</p>
+                                    </div>
+                                    <ChevronRight className="h-5 w-5 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-red-500" />
+                                </div>
+                            </div>
+                        </Link>
+                    )}
+
+                    {!isCompanyScopedUser && internalSpContractorCount > 0 && (
+                        <section className="shrink-0 rounded-xl border border-red-100 bg-white px-4 py-3 shadow-sm">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex min-w-0 items-start gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                                        <AlertTriangle className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h2 className="text-sm font-black text-slate-950">Kontraktor dengan SP Aktif</h2>
+                                            <Badge className="h-5 rounded-full border-red-100 bg-red-50 px-2 text-[10px] font-black text-red-700 shadow-none">
+                                                {internalSpContractorCount} kontraktor
+                                            </Badge>
+                                        </div>
+                                        <p className="mt-0.5 text-xs font-medium text-slate-500">
+                                            Ada kontraktor yang sedang memiliki Surat Peringatan aktif dan perlu dipantau.
+                                        </p>
+                                    </div>
+                                </div>
+                                <Link
+                                    href="/surat-peringatan"
+                                    className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 sm:w-auto"
+                                >
+                                    Lihat Semua
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                </Link>
+                            </div>
+                        </section>
+                    )}
 
                     <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                         <DashboardCommandWorkspace
@@ -3335,4 +3468,3 @@ function AnimatedNumber({ value, isLoading }: { value: string | number, isLoadin
 
     return <>{Math.floor(displayValue)}</>;
 }
-

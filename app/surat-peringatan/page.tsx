@@ -45,7 +45,7 @@ const statusLabel = (status: string) => ({
 
 const normalize = (value?: string | null) => String(value ?? "").trim().toUpperCase();
 const isContractorUser = (roles: string[]) => roles.some((role) => role === "KONTRAKTOR" || role.includes("DIREKTUR KONTRAKTOR"));
-const contractorVisibleSpStatuses = new Set(["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"]);
+const contractorVisibleSpStatuses = new Set(["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"]);
 const matchesContractorCompany = (actionCompany?: string | null, userCompany?: string | null) => {
     const actionName = normalize(actionCompany);
     const sessionName = normalize(userCompany);
@@ -93,7 +93,6 @@ export default function SuratPeringatanPage() {
     const [openDropdown, setOpenDropdown] = useState(false);
     const [viewMode, setViewMode] = useState<"list" | "form" | "detail">("list");
     const [selectedDetailGroup, setSelectedDetailGroup] = useState<GroupedSpAction | null>(null);
-
     const selected = useMemo(
         () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? null,
         [candidates, selectedId]
@@ -161,10 +160,7 @@ export default function SuratPeringatanPage() {
             
             // Group by kontraktor scope (MANIPULASI/LAINNYA) or ULOK+reason
             // sp_level is NOT part of the key — SP 1 and SP 2 for same entity belong to same thread
-            const isKontraktorScopeAction = action.alasan_sp === "MANIPULASI" || action.alasan_sp === "LAINNYA";
-            const key = isKontraktorScopeAction
-                ? `kontraktor-${normalize(action.nama_kontraktor)}-${action.alasan_sp}`
-                : `toko-${action.id_toko}-${action.alasan_sp}`;
+            const key = `kontraktor-${normalize(action.nama_kontraktor)}`;
             if (!map.has(key)) map.set(key, []);
             map.get(key)!.push(action);
         });
@@ -523,7 +519,7 @@ export default function SuratPeringatanPage() {
                                                                     <div className="flex justify-between items-start gap-2 w-full">
                                                                         <span className="font-bold text-sm text-slate-950 line-clamp-1">{candidate.nomor_ulok} &middot; {candidate.nama_toko}</span>
                                                                         <div className="flex gap-1 shrink-0">
-                                                                            {candidate.hari_denda > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700 text-[10px] px-1.5 py-0">Late {candidate.hari_denda}d</Badge> : null}
+                                                                            {candidate.hari_denda > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700 text-[10px] px-1.5 py-0">Terlambat {candidate.hari_denda} hari</Badge> : null}
                                                                         </div>
                                                                     </div>
                                                                     <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-semibold text-slate-400">
@@ -547,24 +543,12 @@ export default function SuratPeringatanPage() {
                                             <div className="space-y-2">
                                                 <Label className="text-sm font-bold text-slate-700">Tingkat SP</Label>
                                                 {(() => {
-                                                    const isKontraktorScope = reason === "MANIPULASI" || reason === "LAINNYA";
-                                                    
-                                                    let relevantActions: DendaAction[] = [];
-                                                    if (isKontraktorScope) {
-                                                        relevantActions = actions.filter((a) =>
-                                                            a.action_type === "SP" &&
-                                                            normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
-                                                            ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status) &&
-                                                            !a.is_expired
-                                                        );
-                                                    } else if (selected) {
-                                                        relevantActions = actions.filter((a) =>
-                                                            a.action_type === "SP" &&
-                                                            a.id_toko === selected.id_toko &&
-                                                            ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status) &&
-                                                            !a.is_expired
-                                                        );
-                                                    }
+                                                    const relevantActions = actions.filter((a) =>
+                                                        a.action_type === "SP" &&
+                                                        normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
+                                                        ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status) &&
+                                                        !a.is_expired
+                                                    );
                                                     
                                                     const activeCount = relevantActions.length;
                                                     const highestActiveLevel = activeCount > 0 ? Math.max(...relevantActions.map(a => a.sp_level || 0)) : 0;

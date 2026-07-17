@@ -567,6 +567,42 @@ const getBuildingClassification = (value?: boolean | null, fallback?: string | n
     return raw;
 };
 
+const isNoPpnArea = (input: { cabang?: string | null; nama_toko?: string | null; alamat?: string | null }) => {
+    const identity = [input.cabang, input.nama_toko, input.alamat]
+        .map(value => String(value ?? '').trim().toUpperCase());
+    return identity.some(value => value === 'BATAM' || value === 'BINTAN' || /\bBATAM\b|\bBINTAN\b/.test(value));
+};
+
+type RabDisplayTotalSource = {
+    cabang?: string | null;
+    nama_toko?: string | null;
+    alamat?: string | null;
+    grand_total?: string | number | null;
+    grand_total_non_sbo?: string | number | null;
+    grand_total_final?: string | number | null;
+    toko?: {
+        cabang?: string | null;
+        nama_toko?: string | null;
+        alamat?: string | null;
+    } | null;
+};
+
+const getRabDisplayTotal = (rab: RabDisplayTotalSource) => {
+    const cabang = rab?.cabang ?? rab?.toko?.cabang;
+    const nama_toko = rab?.nama_toko ?? rab?.toko?.nama_toko;
+    const alamat = rab?.alamat ?? rab?.toko?.alamat;
+    if (isNoPpnArea({ cabang, nama_toko, alamat })) {
+        return parseCurrency(rab?.grand_total_non_sbo ?? rab?.grand_total ?? rab?.grand_total_final);
+    }
+    return parseCurrency(rab?.grand_total_final ?? rab?.grand_total);
+};
+
+const roundSpkDisplayTotal = (value: unknown) => {
+    const amount = parseCurrency(value);
+    if (!amount) return 0;
+    return Math.round(amount / 1000) * 1000;
+};
+
 const PROYEK_LABEL_MAP: Record<string, string> = {
     'perpanjangan':        'Renovasi Perpanjangan',
     'perluasan':           'Renovasi Perluasan',
@@ -830,7 +866,7 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] =>
         proyek:        r.proyek     ?? r.toko?.proyek     ?? '-',
         status:        r.status,
         email_pembuat: r.email_pembuat,
-        total_nilai:   parseCurrency(r.grand_total_final ?? r.grand_total),
+        total_nilai:   getRabDisplayTotal(r),
         created_at:    r.created_at,
         link_pdf:      r.link_pdf_gabungan ?? null,
         lingkup_pekerjaan: (r as any).lingkup_pekerjaan || (r as any).toko?.lingkup_pekerjaan,
@@ -850,7 +886,7 @@ const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
             proyek:            s.proyek ?? '-',
             status:            s.status,
             email_pembuat:     s.email_pembuat,
-            total_nilai:       parseCurrency(s.grand_total),
+            total_nilai:       roundSpkDisplayTotal(s.grand_total),
             created_at:        s.created_at,
             link_pdf:          s.link_pdf ?? null,
             nomor_spk:         s.nomor_spk,
@@ -1367,10 +1403,7 @@ export default function DaftarDokumenPage() {
                 if (Array.isArray(spData?.data)) {
                     spData.data.forEach((action: DendaAction) => {
                         const normalize = (str?: string | null) => (str || '').trim().toUpperCase();
-                        const isKontraktorScopeAction = action.alasan_sp === "MANIPULASI" || action.alasan_sp === "LAINNYA";
-                        const key = isKontraktorScopeAction
-                            ? `kontraktor-${normalize(action.nama_kontraktor)}-${action.alasan_sp}`
-                            : `toko-${action.id_toko}-${action.alasan_sp}`;
+                        const key = `kontraktor-${normalize(action.nama_kontraktor)}`;
                         if (!map.has(key)) map.set(key, []);
                         map.get(key)!.push(action);
                     });
@@ -1556,7 +1589,12 @@ export default function DaftarDokumenPage() {
                     nama_pt:             d.rab.nama_pt,
                     durasi_pekerjaan:    d.rab.durasi_pekerjaan,
                     kategori_lokasi:     d.rab.kategori_lokasi,
-                    total_nilai:         parseCurrency(d.rab.grand_total_final ?? d.rab.grand_total),
+                    total_nilai:         getRabDisplayTotal({
+                        ...d.rab,
+                        cabang: d.toko.cabang,
+                        nama_toko: d.toko.nama_toko,
+                        alamat: d.toko.alamat,
+                    }),
                     grand_total:         d.rab.grand_total,
                     grand_total_non_sbo: d.rab.grand_total_non_sbo,
                     grand_total_final:   d.rab.grand_total_final,
@@ -1598,7 +1636,7 @@ export default function DaftarDokumenPage() {
                     proyek:            d.pengajuan.proyek,
                     status:            d.pengajuan.status,
                     email_pembuat:     d.pengajuan.email_pembuat,
-                    total_nilai:       parseCurrency(d.pengajuan.grand_total),
+                    total_nilai:       roundSpkDisplayTotal(d.pengajuan.grand_total),
                     created_at:        d.pengajuan.created_at,
                     nomor_spk:         d.pengajuan.nomor_spk,
                     nama_kontraktor:   d.pengajuan.nama_kontraktor,
