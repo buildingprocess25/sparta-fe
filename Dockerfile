@@ -10,7 +10,7 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG NEXT_PUBLIC_API_URL=https://sparta-be.onrender.com
+ARG NEXT_PUBLIC_API_URL=https://api-building.sparta-alfamart.web.id
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 COPY --from=deps /app/node_modules ./node_modules

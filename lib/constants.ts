@@ -17,7 +17,7 @@ import {
 
 /** Server utama (Sparta Backend) */
 export const API_URL =
-    process.env.NEXT_PUBLIC_API_URL || "https://sparta-be.onrender.com";
+    process.env.NEXT_PUBLIC_API_URL || "https://api-building.sparta-alfamart.web.id";
 
 // -----------------------------------------------------------------------------
 // KONFIGURASI MENU APLIKASI

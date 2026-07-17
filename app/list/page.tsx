@@ -1170,7 +1170,7 @@ export default function DaftarDokumenPage() {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     const downloadSpPdfLink = (pdfUrl: string) => {
-        const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://sparta-be.onrender.com'}/api/denda/actions/proxy-file?url=${encodeURIComponent(pdfUrl)}&download=true`;
+        const url = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-building.sparta-alfamart.web.id'}/api/denda/actions/proxy-file?url=${encodeURIComponent(pdfUrl)}&download=true`;
         const link = document.createElement('a');
         link.href = url;
         link.download = '';
