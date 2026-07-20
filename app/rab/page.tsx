@@ -41,6 +41,11 @@ const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id
 const normalizeBranchName = (value?: string | null) =>
   String(value ?? '').trim().toUpperCase().replace(/^CAB(?:ANG)?\.?\s+/, '').replace(/^CABANG\s+/, '').trim();
 
+const isCikokolBranchGroup = (branch?: string | null) => {
+  const normalized = normalizeBranchName(branch);
+  return normalized === 'CIKOKOL' || (BRANCH_GROUPS.CIKOKOL || []).map(normalizeBranchName).includes(normalized);
+};
+
 const normalizeJobName = (value?: string | null) =>
   String(value ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s]/gu, '').trim();
 
@@ -185,6 +190,31 @@ const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: P
       isMaterialKondisional: isMatCond,
       isUpahKondisional: isUpahCond,
       volume: itemData["Satuan"] === 'Ls' ? 1 : row.volume,
+    };
+  });
+};
+
+const refreshRevisionRowsWithMasterPrices = <T extends RabTableRow>(rows: T[], masterPrices: PriceMaster): T[] => {
+  return rows.map((row) => {
+    if (!row.category || !row.jenisPekerjaan) return row;
+
+    const itemData = getPriceItemsForCategory(masterPrices, row.category)
+      .find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizeJobName(row.jenisPekerjaan))
+      ?? Object.values(masterPrices || {})
+        .flat()
+        .find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizeJobName(row.jenisPekerjaan));
+
+    if (!itemData) return row;
+
+    const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
+    return {
+      ...row,
+      satuan: itemData["Satuan"] || row.satuan,
+      hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial),
+      hargaUpah: isUpahCond ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], row.hargaUpah),
+      isKondisional: isMatCond || isUpahCond,
+      isMaterialKondisional: isMatCond,
+      isUpahKondisional: isUpahCond,
     };
   });
 };
@@ -709,9 +739,14 @@ function RABPageContent() {
                   }
               }
           }
-          setTableRows(newRows);
+          const revisionOriginalRows = newRows;
+          const rowsToDisplay = isCikokolBranchGroup(resolvedCabang)
+              ? refreshRevisionRowsWithMasterPrices(newRows, fetchedPrices)
+              : newRows;
+
+          setTableRows(rowsToDisplay);
           setRevisionItemOriginals(
-              newRows.reduce((acc: Record<number, RevisionComparableRow>, row) => {
+              revisionOriginalRows.reduce((acc: Record<number, RevisionComparableRow>, row) => {
                   const sourceItemId = Number(row.sourceItemId);
                   if (Number.isFinite(sourceItemId) && sourceItemId > 0 && revisionNotes[sourceItemId]) {
                       acc[sourceItemId] = toComparableRevisionRow(row);
