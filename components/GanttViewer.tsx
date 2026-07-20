@@ -475,16 +475,14 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             let colClass = '';
                             if (isReadyOpname) {
                                 colClass = 'relative bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 cursor-pointer hover:bg-red-100';
+                            } else if (isExtensionDay) {
+                                colClass = `relative bg-amber-50 text-amber-900 border-amber-300 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-amber-100' : ''}`;
                             } else if (isAlreadyOpname) {
                                 colClass = 'bg-emerald-50 text-emerald-700 cursor-pointer';
                             } else if (isLiveDay) {
-                                colClass = isExtensionDay ? 'bg-amber-100 text-amber-800' : 'bg-green-50 text-green-700';
+                                colClass = 'bg-green-50 text-green-700';
                             } else if (isPengawasan) {
-                                colClass = isExtensionDay
-                                    ? 'bg-amber-100 text-amber-700 cursor-pointer hover:bg-amber-200'
-                                    : 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100';
-                            } else if (isExtensionDay) {
-                                colClass = 'bg-amber-50 text-amber-700';
+                                colClass = 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100';
                             } else {
                                 colClass = 'bg-slate-50 text-slate-500';
                             }
@@ -495,7 +493,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     key={i}
                                     disabled={!isClickable}
                                     onClick={() => checkpoint && onCheckpointClick?.(checkpoint, i)}
-                                    className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 font-bold py-0.75 ${colClass}`}
+                                    className={`shrink-0 flex flex-col items-center justify-center border-r-2 border-slate-300 font-bold py-0.75 ${colClass}`}
                                     style={{ width: DAY_WIDTH, fontSize: projectData?.spkStartDateObj ? '9px' : undefined }}
                                     title={isReadyOpname
                                         ? `${readyCount} pekerjaan siap Opname`
@@ -507,7 +505,12 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                                     ? 'Buka checkpoint pengawasan'
                                                     : undefined}
                                 >
-                                    <span>{label}</span>
+                                    <span className={isExtensionDay ? 'leading-3' : undefined}>{label}</span>
+                                    {isExtensionDay && (
+                                        <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-extrabold leading-3 text-amber-950">
+                                            SPK+
+                                        </span>
+                                    )}
                                     {isReadyOpname ? (
                                         <span className="mt-0.5 flex items-center">
                                             <span className="h-2.5 w-2.5 animate-ping rounded-full bg-red-500 absolute" />
@@ -516,9 +519,9 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     ) : isAlreadyOpname ? (
                                         <CheckCircle2 className="mt-0.5 h-3 w-3 text-emerald-600" />
                                     ) : isPengawasan ? (
-                                        <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isExtensionDay ? 'bg-amber-500' : 'bg-blue-500'}`} title="Hari Pengawasan" />
+                                        <div className={`w-1.5 h-1.5 rounded-full ${isExtensionDay ? 'mt-0.5 bg-amber-700' : 'mt-1 bg-blue-500'}`} title="Hari Pengawasan" />
                                     ) : isExtensionDay ? (
-                                        <div className="w-1 h-1 rounded-full bg-amber-400 mt-1" title={`Pertambahan SPK +${projectData.extensionDays} hari`} />
+                                        null
                                     ) : null}
                                     {isLiveDay && !isPengawasan && <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isExtensionDay ? 'bg-amber-600' : 'bg-green-500'}`} title="Hari Ini" />}
                                 </button>

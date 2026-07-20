@@ -494,6 +494,7 @@ export const ME_CATEGORIES = [
  * Digunakan untuk filter dan tampilan dashboard.
  */
 export const BRANCH_GROUPS: Record<string, string[]> = {
+    "BANDUNG RAYA": ["BANDUNG RAYA", "BANDUNG", "BANDUNG 1", "BANDUNG 2"],
     LOMBOK: ["LOMBOK", "SUMBAWA"],
     CILEUNGSI: ["CILEUNGSI", "BOGOR", "BEKASI", "KARAWANG"],
     CIKOKOL: ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"], // BINTAN masuk Cikokol group
