@@ -163,6 +163,24 @@ export default function UnifiedSupervisionGantt({
         return map;
     }, [workspace.unified_checkpoints]);
 
+    const extensionDates = useMemo(() => {
+        const dates = new Set<string>();
+
+        workspace.scopes.forEach((scope) => {
+            const spkStart = parseDate(scope.spk_start_date);
+            const originalDuration = Number(scope.spk_duration || 0);
+            const effectiveDuration = Number(scope.spk_effective_duration || 0);
+
+            if (!spkStart || originalDuration <= 0 || effectiveDuration <= originalDuration) return;
+
+            for (let day = originalDuration; day < effectiveDuration; day += 1) {
+                dates.add(formatFullDate(addDays(spkStart, day)));
+            }
+        });
+
+        return dates;
+    }, [workspace.scopes]);
+
     useEffect(() => {
         let cancelled = false;
 
@@ -473,6 +491,7 @@ export default function UnifiedSupervisionGantt({
                         {timeline.dates.map((date, dayIndex) => {
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
+                            const isExtension = extensionDates.has(fullDate);
                             const activeScopeIds = activeScopeIdsByDate.get(fullDate) ?? new Set<number>();
                             const actionableCheckpoint = checkpoint && activeScopeIds.size > 0
                                 ? {
@@ -493,17 +512,28 @@ export default function UnifiedSupervisionGantt({
                                     className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${
                                         isReady
                                             ? "bg-red-600 text-white ring-2 ring-inset ring-red-200"
-                                            : isDone
-                                                ? "bg-emerald-500 text-white"
-                                                : checkpoint
-                                                    ? "bg-blue-600 text-white hover:bg-blue-500"
-                                                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                                            : isExtension
+                                                ? "bg-amber-50 text-amber-950 shadow-[inset_0_3px_0_#f59e0b] hover:bg-amber-100"
+                                                : isDone
+                                                    ? "bg-emerald-500 text-white"
+                                                    : checkpoint
+                                                        ? "bg-blue-600 text-white hover:bg-blue-500"
+                                                        : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                                     }`}
                                     style={{ width: DAY_WIDTH }}
-                                    title={checkpoint ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname` : fullDate}
+                                    title={isExtension
+                                        ? `${fullDate} - tanggal pertambahan SPK`
+                                        : checkpoint
+                                            ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
+                                            : fullDate}
                                 >
-                                    <span>{formatShortDate(date)}</span>
-                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                                    <span className={isExtension ? "leading-3" : undefined}>{formatShortDate(date)}</span>
+                                    {isExtension && !isReady ? (
+                                        <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-black leading-3 text-amber-950">
+                                            SPK+
+                                        </span>
+                                    ) : null}
+                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone && !isExtension ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${isExtension ? "bg-amber-700" : "bg-white"}`} /> : null}
                                 </button>
                             );
                         })}
@@ -540,12 +570,21 @@ export default function UnifiedSupervisionGantt({
                 }}>
                     <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
                         {timeline.dates.map((date, dayIndex) => {
-                            const checkpoint = checkpointByDate.get(formatFullDate(date));
+                            const fullDate = formatFullDate(date);
+                            const checkpoint = checkpointByDate.get(fullDate);
+                            const isExtension = extensionDates.has(fullDate);
                             return (
                                 <div
-                                    key={formatFullDate(date)}
-                                    className={`absolute top-0 bottom-0 border-r ${checkpoint ? "bg-blue-50/70 border-blue-200" : "border-slate-200"}`}
+                                    key={fullDate}
+                                    className={`absolute top-0 bottom-0 border-r ${
+                                        isExtension
+                                            ? "bg-amber-50/70 border-amber-200 shadow-[inset_0_3px_0_#f59e0b]"
+                                            : checkpoint
+                                                ? "bg-blue-50/70 border-blue-200"
+                                                : "border-slate-200"
+                                    }`}
                                     style={{ left: dayIndex * DAY_WIDTH, width: DAY_WIDTH }}
+                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : undefined}
                                 />
                             );
                         })}
