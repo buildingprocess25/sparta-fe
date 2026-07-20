@@ -1794,7 +1794,7 @@ function ApprovalPageContent() {
     // ==========================================
     // PDF DOWNLOAD (RAB & SPK)
     // ==========================================
-    const handleDownloadPDF = async (id: number, type: ApprovalType) => {
+    const handleDownloadPDF = async (id: number, type: ApprovalType, storedLink?: string | null) => {
         setProcessingId(`pdf-${id}`);
         try {
             if (type === 'RAB') {
@@ -1802,7 +1802,11 @@ function ApprovalPageContent() {
             } else if (type === 'SPK') {
                 await downloadSPKPdf(id);
             } else if (type === 'OPNAME') {
-                await downloadOpnameFinalPdf(id);
+                if (storedLink) {
+                    window.open(storedLink, '_blank', 'noopener,noreferrer');
+                } else {
+                    await downloadOpnameFinalPdf(id);
+                }
             } else if (type === 'INSTRUKSI_LAPANGAN') {
                 await downloadInstruksiLapanganPdf(id);
             }
@@ -2496,7 +2500,7 @@ function ApprovalPageContent() {
                                         variant="outline"
                                         className="border-sky-600 text-sky-700 hover:bg-sky-50 font-bold"
                                         disabled={processingId === `pdf-${selectedDetail.id}`}
-                                        onClick={() => handleDownloadPDF(selectedDetail.id as number, 'OPNAME')}
+                                        onClick={() => handleDownloadPDF(selectedDetail.id as number, 'OPNAME', selectedDetail.link_pdf_gabungan)}
                                     >
                                         {processingId === `pdf-${selectedDetail.id}`
                                             ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />

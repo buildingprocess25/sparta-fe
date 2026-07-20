@@ -2027,7 +2027,7 @@ export default function DaftarDokumenPage() {
     // =========================================================================
     // PDF DOWNLOAD
     // =========================================================================
-    const handleDownloadPDF = useCallback(async (id: number, tipe: DokumenKategori) => {
+    const handleDownloadPDF = useCallback(async (id: number, tipe: DokumenKategori, storedLink?: string | null) => {
         setDownloadingId(id);
         try {
             if (tipe === 'RAB') {
@@ -2037,7 +2037,11 @@ export default function DaftarDokumenPage() {
             } else if (tipe === 'PERTAMBAHAN_SPK') {
                 await downloadPertambahanSPKPdf(id);
             } else if (tipe === 'OPNAME' || tipe === 'OPNAME_FINAL') {
-                await downloadOpnameFinalPdf(id);
+                if (storedLink) {
+                    window.open(storedLink, '_blank', 'noopener,noreferrer');
+                } else {
+                    await downloadOpnameFinalPdf(id);
+                }
             } else if (tipe === 'PENGAWASAN') {
                 await downloadPengawasanPdf(id);
             } else if (tipe === 'INSTRUKSI_LAPANGAN') {
@@ -3968,7 +3972,7 @@ export default function DaftarDokumenPage() {
                                                         window.open(selectedDetail.link_pdf, '_blank', 'noopener,noreferrer');
                                                         return;
                                                     }
-                                                    void handleDownloadPDF(selectedDetail.id, selectedDetail.tipe);
+                                                    void handleDownloadPDF(selectedDetail.id, selectedDetail.tipe, selectedDetail.link_pdf);
                                                 }}
                                             >
                                                 {downloadingId === selectedDetail.id ? (

@@ -2432,7 +2432,11 @@ function GanttBoard() {
                             loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
                         }
 
-                        if (unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length) {
+                        const shouldOpenOpname = options?.openOpname !== false;
+                        const completedFlow = unifiedMemoFlow;
+                        const currentFlowScope = completedFlow?.scopes?.[completedFlow.index];
+
+                        if (!shouldOpenOpname && unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length) {
                             const nextIndex = unifiedMemoFlow.index + 1;
                             const next = unifiedMemoFlow.scopes[nextIndex];
                             setUnifiedMemoFlow({ ...unifiedMemoFlow, index: nextIndex });
@@ -2445,21 +2449,23 @@ function GanttBoard() {
                             setShowMemoModal(true);
                             return;
                         }
-                        const completedFlow = unifiedMemoFlow;
                         setUnifiedMemoFlow(null);
 
-                        if (options?.openOpname === false) {
+                        if (!shouldOpenOpname) {
                             return;
                         }
-                        if (completedFlow && completedFlow.scopes.length > 1) {
-                            const first = completedFlow.scopes[0];
+                        if (completedFlow && currentFlowScope) {
+                            const readyScopes = completedFlow.scopes.filter((entry, index) =>
+                                index === completedFlow.index || Number(entry.checkpoint?.ready_opname_items || 0) > 0
+                            );
+                            const opnameScopes = readyScopes.length > 0 ? readyScopes : [currentFlowScope];
                             setUnifiedOpnameFlow({
-                                scopes: completedFlow.scopes,
+                                scopes: opnameScopes,
                                 index: 0,
                                 dayIndex: completedFlow.dayIndex,
                                 dateString: completedFlow.dateString,
                             });
-                            await loadDataByToko(first.scope.id_toko);
+                            await loadDataByToko(opnameScopes[0].scope.id_toko);
                             setActiveHeaderClick({
                                 dayIndex: completedFlow.dayIndex,
                                 dateString: completedFlow.dateString,
@@ -3401,7 +3407,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     </div>
                                     <h3 className="text-lg font-bold text-slate-700 mb-1">Semua Pekerjaan Selesai</h3>
                                     <p className="font-medium mb-6">Pekerjaan pada hari ini telah memiliki memo Selesai.</p>
-                                    <Button onClick={onSuccess} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 h-auto text-sm shadow-md transition-transform hover:scale-105">
+                                    <Button onClick={() => onSuccess({ openOpname: true })} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 h-auto text-sm shadow-md transition-transform hover:scale-105">
                                         Lanjut ke Form Opname &rarr;
                                     </Button>
                                 </div>
@@ -3584,7 +3590,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
                         <div>
                             {hasCurrentDateSelesaiItems && (
-                                <Button variant="outline" onClick={onSuccess} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
+                                <Button variant="outline" onClick={() => onSuccess({ openOpname: true })} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
                                     Lanjut ke Opname &rarr;
                                 </Button>
                             )}
