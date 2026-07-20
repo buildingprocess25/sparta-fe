@@ -198,17 +198,21 @@ const refreshRevisionRowsWithMasterPrices = <T extends RabTableRow>(rows: T[], m
   return rows.map((row) => {
     if (!row.category || !row.jenisPekerjaan) return row;
 
-    const itemData = getPriceItemsForCategory(masterPrices, row.category)
-      .find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizeJobName(row.jenisPekerjaan))
-      ?? Object.values(masterPrices || {})
-        .flat()
-        .find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizeJobName(row.jenisPekerjaan));
+    const normalizedJob = normalizeJobName(row.jenisPekerjaan);
+    const categoryMatch = getPriceItemsForCategory(masterPrices, row.category)
+      .find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
+    const fallbackMatch = Object.entries(masterPrices || {})
+      .flatMap(([category, items]) => items.map((item) => ({ category, item })))
+      .find(({ item }) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
+    const itemData = categoryMatch ?? fallbackMatch?.item;
 
     if (!itemData) return row;
 
     const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
     return {
       ...row,
+      category: categoryMatch ? row.category : fallbackMatch?.category ?? row.category,
+      jenisPekerjaan: itemData["Jenis Pekerjaan"] || row.jenisPekerjaan,
       satuan: itemData["Satuan"] || row.satuan,
       hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial),
       hargaUpah: isUpahCond ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], row.hargaUpah),
