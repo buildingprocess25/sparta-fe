@@ -132,37 +132,56 @@ export default function SpkBackdatePolicyPage() {
   const canSave = Boolean(user?.isSuperHuman && !loading && !saving);
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <AppNavbar title="POLICY BACKDATE SPK" showBackButton backHref="/dashboard" showBuildingLogo />
+    <main className="min-h-screen bg-slate-100 font-sans text-slate-950">
+      <AppNavbar title="Policy Backdate SPK" showBackButton backHref="/dashboard" showBuildingLogo />
 
       <section className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
-        <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Kontrol tanggal SPK</p>
-            <h1 className="mt-2 text-2xl font-black tracking-normal text-slate-950">Policy Backdate SPK</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Pilih cabang yang boleh mengisi tanggal mulai pelaksanaan SPK sebelum tanggal hari ini.
-            </p>
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-600">Kontrol tanggal SPK</p>
+              <h1 className="mt-2 text-xl font-bold tracking-normal text-slate-950">Policy Backdate SPK</h1>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                Pilih cabang yang boleh mengisi tanggal mulai pelaksanaan SPK sebelum tanggal hari ini.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={loadPolicy}
+              disabled={loading || saving}
+              className="h-10 rounded-lg border-slate-200 bg-white font-semibold shadow-sm hover:bg-red-50 hover:text-red-700"
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Refresh
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            onClick={loadPolicy}
-            disabled={loading || saving}
-            className="h-10 rounded-lg border-slate-200 bg-white shadow-sm"
-          >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Refresh
-          </Button>
+        </div>
+
+        <div className="mb-5 rounded-lg border border-red-100 bg-red-50/60 px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-red-700 shadow-sm">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-slate-950">Akses khusus Super Human</p>
+              <p className="mt-1 text-sm leading-5 text-slate-600">
+                Policy ini menjadi acuan form SPK dan validasi backend saat tanggal mulai dibuat mundur.
+              </p>
+            </div>
+            <Badge className="hidden rounded-md border border-red-200 bg-white px-3 py-1 font-bold text-red-700 md:inline-flex">
+              {enabledBranches.length} aktif
+            </Badge>
+          </div>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-5 flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-700">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-100 bg-red-50 text-red-700">
                 <CalendarClock className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-black text-slate-950">Daftar Cabang</h2>
+                <h2 className="text-base font-bold text-slate-950">Daftar Cabang</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
                   {loading
                     ? "Mengambil policy dari server..."
@@ -177,7 +196,7 @@ export default function SpkBackdatePolicyPage() {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Cari cabang"
-                className="h-10 rounded-lg bg-white pl-9"
+                className="h-10 rounded-lg border-slate-200 bg-white pl-9 text-sm"
               />
             </div>
 
@@ -203,7 +222,7 @@ export default function SpkBackdatePolicyPage() {
                         onClick={() => toggleBranch(branch)}
                         className={`grid w-full grid-cols-[1fr_110px_120px] items-center px-4 py-3 text-left text-sm transition-colors hover:bg-red-50 ${active ? "bg-red-50 shadow-[inset_4px_0_0_#dc2626]" : "bg-white"}`}
                       >
-                        <span className="font-bold text-slate-950">{branch}</span>
+                        <span className="font-semibold text-slate-950">{branch}</span>
                         <span className="font-semibold text-slate-500">{BRANCH_TO_ULOK[branch] ?? "-"}</span>
                         <span className="flex justify-end">
                           <span className={`flex h-6 w-11 items-center rounded-full p-1 transition-colors ${active ? "bg-red-700" : "bg-slate-300"}`}>
@@ -225,11 +244,11 @@ export default function SpkBackdatePolicyPage() {
           <aside className="space-y-5">
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-5 flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700">
                   <ShieldCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-950">Ringkasan</h2>
+                  <h2 className="text-base font-bold text-slate-950">Ringkasan</h2>
                   <p className="mt-1 text-sm leading-6 text-slate-500">Perubahan berlaku untuk form SPK dan validasi backend.</p>
                 </div>
               </div>
@@ -237,7 +256,7 @@ export default function SpkBackdatePolicyPage() {
               <div className="space-y-4 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-semibold text-slate-500">Cabang aktif</span>
-                  <Badge variant="secondary" className="rounded-md bg-red-50 text-red-700">{enabledBranches.length}</Badge>
+                  <Badge variant="secondary" className="rounded-md bg-red-50 font-bold text-red-700">{enabledBranches.length}</Badge>
                 </div>
                 <div>
                   <p className="font-semibold text-slate-500">Update terakhir</p>
@@ -257,7 +276,7 @@ export default function SpkBackdatePolicyPage() {
               </Button>
             </section>
 
-            <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
               Tanggal lampau mengubah tanggal selesai SPK dan dapat memengaruhi timeline serta perhitungan denda. Aktifkan hanya untuk cabang yang memang butuh toleransi input administratif.
             </section>
           </aside>
