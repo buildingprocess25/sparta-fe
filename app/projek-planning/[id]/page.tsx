@@ -105,6 +105,22 @@ const formatCurrency = (value: unknown) => {
   return `Rp ${number.toLocaleString("id-ID")}`;
 };
 
+const formatMeters = (value: unknown) => {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return /\bm\b/i.test(text) ? text : `${text} m`;
+};
+
+const formatDimensionMeters = (length: unknown, width: unknown, fallback?: unknown) => {
+  const p = formatMeters(length);
+  const l = formatMeters(width);
+  if (p && l) return `${p} x ${l}`;
+  const fallbackText = String(fallback ?? "").trim();
+  if (!fallbackText) return null;
+  if (/\bm\b/i.test(fallbackText)) return fallbackText;
+  return fallbackText.replace(/\s*x\s*/i, " m x ") + " m";
+};
+
 const getRabScope = (rab: any) =>
   String(rab?.toko?.lingkup_pekerjaan || rab?.lingkup_pekerjaan || "").toUpperCase();
 
@@ -1009,8 +1025,8 @@ export default function DetailProjekPlanning() {
                 <InfoRow label="Luas Gudang" value={(data as any).luas_gudang ? `${(data as any).luas_gudang} m²` : null} />
                 <InfoRow label="Luas Area Parkir" value={(data as any).luas_area_parkir ? `${(data as any).luas_area_parkir} m²` : null} />
                 <InfoRow label="Luas Area Sales" value={(data as any).luas_area_sales ? `${(data as any).luas_area_sales} m²` : null} />
-                <InfoRow label="P x L Bangunan" value={(data as any).p_bangunan && (data as any).l_bangunan ? `${(data as any).p_bangunan} x ${(data as any).l_bangunan}` : (data as any).pxl_bangunan || null} />
-                <InfoRow label="P x L Area Parkir" value={(data as any).p_area_parkir && (data as any).l_area_parkir ? `${(data as any).p_area_parkir} x ${(data as any).l_area_parkir}` : (data as any).pxl_area_parkir || null} />
+                <InfoRow label="P x L Bangunan" value={formatDimensionMeters((data as any).p_bangunan, (data as any).l_bangunan, (data as any).pxl_bangunan)} />
+                <InfoRow label="P x L Area Parkir" value={formatDimensionMeters((data as any).p_area_parkir, (data as any).l_area_parkir, (data as any).pxl_area_parkir)} />
               </div>
             </div>
 

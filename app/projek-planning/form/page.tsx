@@ -797,12 +797,12 @@ function FormProjekPlanningInner() {
                     <h4 className="text-sm font-bold text-slate-700 mb-3">Dimensi Bangunan</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-semibold text-slate-600">P Bangunan</Label>
-                        <Input type="number" min="0" step="0.01" value={(f as any).p_bangunan} onChange={e => set("p_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
+                        <Label className="text-xs font-semibold text-slate-600">P Bangunan (m)</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).p_bangunan} onChange={e => set("p_bangunan", e.target.value)} placeholder="0.00 m" className="mt-1" />
                       </div>
                       <div>
-                        <Label className="text-xs font-semibold text-slate-600">L Bangunan</Label>
-                        <Input type="number" min="0" step="0.01" value={(f as any).l_bangunan} onChange={e => set("l_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
+                        <Label className="text-xs font-semibold text-slate-600">L Bangunan (m)</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).l_bangunan} onChange={e => set("l_bangunan", e.target.value)} placeholder="0.00 m" className="mt-1" />
                       </div>
                     </div>
                   </div>
@@ -810,12 +810,12 @@ function FormProjekPlanningInner() {
                     <h4 className="text-sm font-bold text-slate-700 mb-3">Dimensi Area Parkir</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-semibold text-slate-600">P Area Parkir</Label>
-                        <Input type="number" min="0" step="0.01" value={(f as any).p_area_parkir} onChange={e => set("p_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
+                        <Label className="text-xs font-semibold text-slate-600">P Area Parkir (m)</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).p_area_parkir} onChange={e => set("p_area_parkir", e.target.value)} placeholder="0.00 m" className="mt-1" />
                       </div>
                       <div>
-                        <Label className="text-xs font-semibold text-slate-600">L Area Parkir</Label>
-                        <Input type="number" min="0" step="0.01" value={(f as any).l_area_parkir} onChange={e => set("l_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
+                        <Label className="text-xs font-semibold text-slate-600">L Area Parkir (m)</Label>
+                        <Input type="number" min="0" step="0.01" value={(f as any).l_area_parkir} onChange={e => set("l_area_parkir", e.target.value)} placeholder="0.00 m" className="mt-1" />
                       </div>
                     </div>
                   </div>
@@ -842,19 +842,19 @@ function FormProjekPlanningInner() {
                   </div>
                 ))}
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">P Bangunan</Label>
+                  <Label className="text-xs font-semibold text-slate-600">P Bangunan (m)</Label>
                   <Input type="number" min="0" step="0.01" value={(f as any).p_bangunan} onChange={e => set("p_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
                 </div>
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">L Bangunan</Label>
+                  <Label className="text-xs font-semibold text-slate-600">L Bangunan (m)</Label>
                   <Input type="number" min="0" step="0.01" value={(f as any).l_bangunan} onChange={e => set("l_bangunan", e.target.value)} placeholder="0.00" className="mt-1" />
                 </div>
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">P Area Parkir</Label>
+                  <Label className="text-xs font-semibold text-slate-600">P Area Parkir (m)</Label>
                   <Input type="number" min="0" step="0.01" value={(f as any).p_area_parkir} onChange={e => set("p_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
                 </div>
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">L Area Parkir</Label>
+                  <Label className="text-xs font-semibold text-slate-600">L Area Parkir (m)</Label>
                   <Input type="number" min="0" step="0.01" value={(f as any).l_area_parkir} onChange={e => set("l_area_parkir", e.target.value)} placeholder="0.00" className="mt-1" />
                 </div>
               </div>
