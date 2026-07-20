@@ -463,10 +463,12 @@ function RABPageContent() {
         const isRenovasi = parts.at(-1)?.toUpperCase() === 'R';
         const rawProject = String(prefill.proyek || '').trim();
         const normalizedProject = rawProject.toUpperCase();
-        const projectValue = normalizedProject === 'REGULER'
+        const projectValue = isRenovasi
+          ? 'Renovasi'
+          : normalizedProject === 'REGULER'
           ? 'Reguler'
           : normalizedProject === 'RENOVASI'
-            ? 'Peremajaan/Perbaikan'
+            ? 'Renovasi'
             : rawProject;
         const nextForm = {
           ...formData,
@@ -475,7 +477,7 @@ function RABPageContent() {
           lokasiTanggal: parts[1] || '',
           lokasiManual: parts[2] || '',
           isRenovasi,
-          proyek: projectValue || (isRenovasi ? '' : 'Reguler'),
+          proyek: projectValue || (isRenovasi ? 'Renovasi' : 'Reguler'),
           alamat: prefill.alamat || '',
           cabang: normalizeBranchName(prefill.cabang),
           lingkupPekerjaan: prefill.lingkup_pekerjaan === 'SIPIL' ? 'Sipil' : 'ME',
@@ -602,7 +604,8 @@ function RABPageContent() {
           let finalProyek = tokoRef.proyek || data["Proyek"] || formData.proyek;
           const upperProyek = finalProyek?.toUpperCase();
           
-          if (upperProyek === 'REGULER') finalProyek = 'Reguler';
+          if (isRenovasi) finalProyek = 'Renovasi';
+          else if (upperProyek === 'REGULER') finalProyek = 'Reguler';
           else if (upperProyek === 'RENOVASI') finalProyek = 'Renovasi';
           else if (upperProyek === 'PERPANJANGAN') { finalProyek = 'Perpanjangan'; isRenovasi = true; }
           else if (upperProyek === 'TOKO TUTUP') { finalProyek = 'Toko Tutup'; isRenovasi = true; }
@@ -1233,7 +1236,7 @@ function RABPageContent() {
                 <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isReadOnly} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className="bg-white" required /></div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" disabled={isReadOnly || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
+                    <Checkbox id="isRenovasi" disabled={isReadOnly || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? 'Renovasi' : 'Reguler'}))}/>
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
                   </div>
                   <div className="flex gap-2 items-center">
@@ -1248,22 +1251,7 @@ function RABPageContent() {
                 <div className="space-y-2">
                   <Label>Proyek <span className="text-red-500">*</span></Label>
                   {formData.isRenovasi ? (
-                    <Select 
-                      disabled={isReadOnly}
-                      onValueChange={(val) => handleSelectChange('proyek', val)} 
-                      value={formData.proyek} 
-                      required
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder="-- Pilih Jenis Proyek --" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Perpanjangan">Renovasi Perpanjangan</SelectItem>
-                        <SelectItem value="Toko Tutup">Renovasi Toko Tutup</SelectItem>
-                        <SelectItem value="Peremajaan/Perbaikan">Renovasi Peremajaan</SelectItem>
-                        <SelectItem value="Perluasan">Renovasi Perluasan</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input value="Renovasi" readOnly className="bg-slate-100 text-slate-700 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                   ) : (
                     <Input value="Reguler" readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                   )}

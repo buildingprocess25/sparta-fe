@@ -212,6 +212,20 @@ export type SystemAccessSchedule = {
     can_manage: boolean;
 };
 
+export type SpkBackdatePolicyBranch = {
+    branch_name: string;
+    is_enabled: boolean;
+    updated_by_email: string | null;
+    updated_by_role: string | null;
+    updated_at: string;
+};
+
+export type SpkBackdatePolicy = {
+    branches: SpkBackdatePolicyBranch[];
+    enabled_branches: string[];
+    can_manage: boolean;
+};
+
 export const fetchSystemMaintenanceStatus = async (
     options?: ApiRequestOptions
 ): Promise<{ status: string; data: SystemMaintenanceStatus }> =>
@@ -241,6 +255,22 @@ export const updateSystemAccessSchedule = async (
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        ...options,
+    });
+
+export const fetchSpkBackdatePolicy = async (
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: SpkBackdatePolicy }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/spk-backdate-policy`, options);
+
+export const updateSpkBackdatePolicyBranches = async (
+    branches: string[],
+    options?: ApiRequestOptions
+): Promise<{ status: string; message: string; data: SpkBackdatePolicy }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/spk-backdate-policy/branches`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branches }),
         ...options,
     });
 

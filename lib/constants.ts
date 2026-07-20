@@ -216,6 +216,13 @@ export const ALL_MENUS = [
         icon: SlidersHorizontal,
     },
     {
+        id: "menu-spk-backdate-policy",
+        title: "Policy Backdate SPK",
+        desc: "Atur cabang yang boleh memilih tanggal mulai SPK lampau.",
+        href: "/spk/backdate",
+        icon: CalendarClock,
+    },
+    {
         id: "menu-serah-terima-date-correction",
         title: "Tanggal Serah Terima",
         desc: "Koreksi tanggal Serah Terima dan sinkronkan dokumen terkait.",
@@ -347,7 +354,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-serah-terima-date-correction", "menu-projek-planning",
+        "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-spk-backdate-policy", "menu-serah-terima-date-correction", "menu-projek-planning",
         "menu-migrasi-rab", "menu-migrasi-spk", "menu-migrasi-tambahspk",
         "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final",
         "menu-migrasi-dokumen", "menu-migrasi-il", "menu-migrasi-serah-terima", "menu-tarikan-data",

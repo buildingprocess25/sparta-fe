@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
-import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification } from '@/lib/api';
-import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
+import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification, fetchSpkBackdatePolicy } from '@/lib/api';
+import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch, normalizeBranchValue } from '@/lib/constants';
 import { parseCurrency } from '@/lib/utils';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -61,8 +61,6 @@ const getTodayDateString = () => {
     return `${year}-${month}-${day}`;
 };
 
-const BACKDATE_ALLOWED_BRANCHES = ['LAMPUNG', 'LUWU', 'JEMBER', 'CILACAP', 'BANJARMASIN', 'BANDUNG', 'BANDUNG 1', 'BANDUNG 2', 'BANDUNG RAYA', 'BANDUNG_RAYA', 'CILEUNGSI', 'MALANG'];
-
 // Tipe untuk data form yang dimuat saat revisi
 type RevisiFormSnapshot = {
     kode_toko: string;
@@ -97,6 +95,7 @@ export default function SPKPage() {
     // Data API
     const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
     const [kontraktorList, setKontraktorList] = useState<string[]>([]);
+    const [backdateBranches, setBackdateBranches] = useState<string[]>([]);
     const [searchUlok, setSearchUlok] = useState('');
     const [cabangFilter, setCabangFilter] = useState('');
     const [autoSelectedTargetKey, setAutoSelectedTargetKey] = useState<string | null>(null);
@@ -125,6 +124,8 @@ export default function SPKPage() {
     const { user } = useSession();
     const isSuperHuman = user?.isSuperHuman ?? false;
     const isReadOnly = isViewOnlyUser(user?.roles, isSuperHuman);
+    const activeBackdateBranch = normalizeBranchValue(selectedRabObj?.Cabang || userInfo.cabang);
+    const canBackdateStartDate = Boolean(activeBackdateBranch && backdateBranches.includes(activeBackdateBranch));
 
     useEffect(() => {
         if (!user) return;
@@ -144,8 +145,19 @@ export default function SPKPage() {
         setUserInfo({ name, role, cabang, email });
         setForm(prev => ({ ...prev, kode_cabang: getCabangCode(cabang) }));
 
+        loadBackdatePolicy();
         loadApprovedRabs(cabang, canViewAllBranches(user.roles, isSHUser));
     }, [user, router]);
+
+    const loadBackdatePolicy = async () => {
+        try {
+            const result = await fetchSpkBackdatePolicy({ suppressGlobalError: true });
+            setBackdateBranches((result.data.enabled_branches ?? []).map(normalizeBranchValue));
+        } catch (error) {
+            console.warn("Gagal memuat policy backdate SPK:", error);
+            setBackdateBranches([]);
+        }
+    };
 
     const loadApprovedRabs = async (cabang: string, canSeeAllBranches = false) => {
         setIsLoading(true);
@@ -613,12 +625,12 @@ export default function SPKPage() {
                                             value={form.waktu_mulai}
                                             onChange={val => setForm({...form, waktu_mulai: val})}
                                             disabled={isReadOnly}
-                                            min={BACKDATE_ALLOWED_BRANCHES.includes(userInfo.cabang?.toUpperCase()) ? undefined : (revisiData.isRevisi && revisiMinStartDate ? revisiMinStartDate : getTodayDateString())}
+                                            min={canBackdateStartDate ? undefined : (revisiData.isRevisi && revisiMinStartDate ? revisiMinStartDate : getTodayDateString())}
                                             className="font-semibold"
                                         />
                                         <p className="text-xs text-slate-500 mt-1">
-                                            {BACKDATE_ALLOWED_BRANCHES.includes(userInfo.cabang?.toUpperCase()) 
-                                                ? `Cabang ${userInfo.cabang?.toUpperCase()} dapat memilih tanggal sebelum hari ini (backdate).`
+                                            {canBackdateStartDate 
+                                                ? `Cabang ${activeBackdateBranch} dapat memilih tanggal sebelum hari ini (backdate).`
                                                 : revisiData.isRevisi && revisiMinStartDate
                                                     ? `Revisi SPK ditolak dapat memilih tanggal mulai minimal ${revisiMinStartDate.split('-').reverse().join('/')}.`
                                                 : "Tanggal sebelum hari ini tidak bisa dipilih."}

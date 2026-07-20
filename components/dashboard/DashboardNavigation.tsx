@@ -81,7 +81,7 @@ const GROUPS: NavigationGroup[] = [
     id: "control",
     label: "Kontrol Sistem",
     icon: Settings2,
-    menuIds: ["menu-approval", "menu-intervensi", "menu-users", "menu-system-maintenance", "menu-serah-terima-date-correction", "menu-sp"],
+    menuIds: ["menu-approval", "menu-intervensi", "menu-users", "menu-system-maintenance", "menu-spk-backdate-policy", "menu-serah-terima-date-correction", "menu-sp"],
   },
 ];
 
@@ -91,6 +91,7 @@ const SPECIAL_ICONS: Record<string, typeof LayoutDashboard> = {
   "menu-daftardokumen": FolderArchive,
   "menu-tarikan-data": Download,
   "menu-system-maintenance": SlidersHorizontal,
+  "menu-spk-backdate-policy": CalendarClock,
   "menu-serah-terima-date-correction": CalendarClock,
 };
 

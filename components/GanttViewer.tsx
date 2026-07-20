@@ -29,6 +29,13 @@ function formatHeaderDate(date: Date): string {
     return `${d}/${m}`;
 }
 
+function formatFullDate(date: Date): string {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+}
+
 export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup }: {
     nomorUlok: string;
     idToko?: number;
@@ -168,6 +175,18 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     return diff + 1;
                 };
 
+                const extensionDays = (spkEffectiveDuration && spkOriginalDuration && spkEffectiveDuration > spkOriginalDuration)
+                    ? spkEffectiveDuration - spkOriginalDuration
+                    : 0;
+                const extensionStartDate = extensionDays > 0 ? new Date(effectiveStartDate) : null;
+                if (extensionStartDate && spkOriginalDuration) {
+                    extensionStartDate.setDate(extensionStartDate.getDate() + spkOriginalDuration);
+                }
+                const extensionEndDate = extensionDays > 0 ? new Date(effectiveStartDate) : null;
+                if (extensionEndDate && spkEffectiveDuration) {
+                    extensionEndDate.setDate(extensionEndDate.getDate() + spkEffectiveDuration - 1);
+                }
+
                 setProjectData({
                     duration: effectiveDuration,
                     startDate: effectiveStartDate.toISOString().split('T')[0],
@@ -177,9 +196,9 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     // Data marker pertambahan SPK
                     originalSpkDays: spkOriginalDuration || spkDuration || 0,
                     hasExtension: !!(spkEffectiveDuration && spkOriginalDuration && spkEffectiveDuration > spkOriginalDuration),
-                    extensionDays: (spkEffectiveDuration && spkOriginalDuration && spkEffectiveDuration > spkOriginalDuration)
-                        ? spkEffectiveDuration - spkOriginalDuration
-                        : 0,
+                    extensionDays,
+                    extensionStartLabel: extensionStartDate ? formatFullDate(extensionStartDate) : '',
+                    extensionEndLabel: extensionEndDate ? formatFullDate(extensionEndDate) : '',
                 });
 
                 let generatedTasks: any[] = kategori_pekerjaan.map((k: any, idx: number) => ({
@@ -238,7 +257,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                 setErrorMsg(err?.message || "Gagal memuat detail Gantt Chart.");
                 setIsLoading(false);
             });
-    }, [nomorUlok, idToko, spkStartDate, spkDuration, timelineStartDate, timelineDuration]);
+    }, [nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, timelineStartDate, timelineDuration]);
 
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
@@ -535,6 +554,20 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     backgroundColor: 'rgba(251, 191, 36, 0.06)',
                                 }}
                             />
+                        )}
+                        {projectData?.hasExtension && projectData.originalSpkDays > 0 && projectData.extensionDays >= 2 && (
+                            <div
+                                className="absolute top-1 z-[17] pointer-events-none flex h-6 items-center rounded border border-amber-200 bg-amber-50/95 px-2 text-[10px] font-semibold text-amber-900 shadow-sm"
+                                style={{
+                                    left: projectData.originalSpkDays * DAY_WIDTH + 4,
+                                    maxWidth: Math.max(0, projectData.extensionDays * DAY_WIDTH - 8),
+                                }}
+                                title={`Perpanjangan SPK: ${projectData.extensionStartLabel} - ${projectData.extensionEndLabel}`}
+                            >
+                                <span className="truncate">
+                                    Perpanjangan SPK: {projectData.extensionStartLabel} - {projectData.extensionEndLabel}
+                                </span>
+                            </div>
                         )}
                         {/* Garis vertikal putus-putus penanda batas SPK original */}
                         {projectData?.hasExtension && projectData.originalSpkDays > 0 && (

@@ -1159,11 +1159,12 @@ function GanttBoard() {
                     await lockGanttChart(selectedGanttId, email);
                 }
             } else {
+                const isRenovasiUlok = /-R$/i.test(String(projectData.ulokClean || '').trim());
                 const payload: any = {
                     nomor_ulok: projectData.ulokClean,
                     nama_toko: projectData.store,
                     kode_toko: projectData.kode_toko,
-                    proyek: "Reguler",
+                    proyek: isRenovasiUlok ? "Renovasi" : "Reguler",
                     cabang: cabang,
                     alamat: "-",
                     nama_kontraktor: namaKontraktor,
