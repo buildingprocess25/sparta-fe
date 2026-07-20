@@ -1487,13 +1487,18 @@ function RABPageContent() {
                               const priceDirective = getPriceDirectiveForRow(prices, row);
                               const canEditMaterialPrice = priceDirective.isMaterialEditable;
                               const canEditUpahPrice = priceDirective.isUpahEditable;
+                              const priceItems = getPriceItemsForCategory(prices, category);
+                              const hasCurrentJobOption = priceItems.some((p) => p["Jenis Pekerjaan"] === row.jenisPekerjaan);
                               return (
                               <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
                                 <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
                                   <select disabled={isReadOnly} className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
                                     <option value="">-- Pilih --</option>
-                                    {getPriceItemsForCategory(prices, category).map((p: any) => {
+                                    {row.jenisPekerjaan && !hasCurrentJobOption && (
+                                      <option value={row.jenisPekerjaan}>{row.jenisPekerjaan}</option>
+                                    )}
+                                    {priceItems.map((p: any) => {
                                         const jobName = p["Jenis Pekerjaan"];
                                         const isSelectedElsewhere = selectedJobs.includes(jobName) && row.jenisPekerjaan !== jobName;
                                         return <option key={jobName} value={jobName} title={jobName} disabled={isSelectedElsewhere} className={isSelectedElsewhere ? "text-slate-300 bg-slate-50" : ""}>{jobName}</option>;
