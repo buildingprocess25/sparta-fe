@@ -78,8 +78,10 @@ export const nextBusinessDayAfter = (date: Date): Date => {
 export const calculateEffectiveStDate = (spkEndDate: Date): {
     effectiveStDate: Date;
     skippedDays: number;
+    offsetDays: number;
     skippedWeekends: number;
     skippedHolidays: number;
+    label: string;
     explanation: string;
 } => {
     let current = addDays(spkEndDate, 1);
@@ -96,6 +98,7 @@ export const calculateEffectiveStDate = (spkEndDate: Date): {
     }
     
     const totalSkipped = skippedWeekends + skippedHolidays;
+    const offsetDays = Math.max(0, Math.round((current.getTime() - spkEndDate.getTime()) / (24 * 60 * 60 * 1000)));
     const parts: string[] = [];
     
     if (skippedWeekends > 0) {
@@ -105,15 +108,18 @@ export const calculateEffectiveStDate = (spkEndDate: Date): {
         parts.push(`${skippedHolidays} libur nasional`);
     }
     
+    const label = `SPK +${offsetDays} hari`;
     const explanation = parts.length > 0 
-        ? `SPK+${totalSkipped} (${parts.join(", ")})`
-        : "SPK (tidak ada skip)";
+        ? `${label} (${parts.join(", ")})`
+        : label;
     
     return {
         effectiveStDate: current,
         skippedDays: totalSkipped,
+        offsetDays,
         skippedWeekends,
         skippedHolidays,
+        label,
         explanation
     };
 };
@@ -124,6 +130,7 @@ export type GanttScheduleResult = {
     durasiKalender: number;
     effectiveStDate: string;
     skippedDays: number;
+    offsetDays: number;
     skippedWeekends: number;
     skippedHolidays: number;
     stLabel: string;
@@ -150,6 +157,7 @@ export const calculateGanttSchedule = (
         durasiKalender: durasi,
         effectiveStDate: toIsoDate(stInfo.effectiveStDate),
         skippedDays: stInfo.skippedDays,
+        offsetDays: stInfo.offsetDays,
         skippedWeekends: stInfo.skippedWeekends,
         skippedHolidays: stInfo.skippedHolidays,
         stLabel: stInfo.explanation,

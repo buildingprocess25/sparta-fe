@@ -87,6 +87,10 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
             end.setDate(end.getDate() + duration - 1);
             ends.push(end);
         }
+        const stTarget = parseDate(scope.st_target_date);
+        if (stTarget) {
+            ends.push(stTarget);
+        }
     });
 
     // Fallback: include checkpoints if no SPK dates available
@@ -179,6 +183,29 @@ export default function UnifiedSupervisionGantt({
         });
 
         return dates;
+    }, [workspace.scopes]);
+
+    const stBufferByDate = useMemo(() => {
+        const map = new Map<string, { label: string; explanation: string; offsetDays: number }>();
+
+        workspace.scopes.forEach((scope) => {
+            const spkEnd = parseDate(scope.spk_effective_end_date);
+            const stTarget = parseDate(scope.st_target_date);
+            const offsetDays = Number(scope.st_offset_days || 0);
+            if (!spkEnd || !stTarget || offsetDays <= 0 || stTarget <= spkEnd) return;
+
+            for (let day = 1; day <= offsetDays; day += 1) {
+                const date = addDays(spkEnd, day);
+                if (date > stTarget) break;
+                map.set(formatFullDate(date), {
+                    label: scope.st_offset_label || `SPK +${offsetDays} hari`,
+                    explanation: scope.st_offset_explanation || `Target ST ${formatFullDate(stTarget)}`,
+                    offsetDays,
+                });
+            }
+        });
+
+        return map;
     }, [workspace.scopes]);
 
     useEffect(() => {
@@ -492,6 +519,7 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
+                            const stBuffer = stBufferByDate.get(fullDate);
                             const activeScopeIds = activeScopeIdsByDate.get(fullDate) ?? new Set<number>();
                             const actionableCheckpoint = checkpoint && activeScopeIds.size > 0
                                 ? {
@@ -514,26 +542,35 @@ export default function UnifiedSupervisionGantt({
                                             ? "bg-red-600 text-white ring-2 ring-inset ring-red-200"
                                             : isExtension
                                                 ? "bg-amber-50 text-amber-950 shadow-[inset_0_3px_0_#f59e0b] hover:bg-amber-100"
-                                                : isDone
-                                                    ? "bg-emerald-500 text-white"
-                                                    : checkpoint
-                                                        ? "bg-blue-600 text-white hover:bg-blue-500"
-                                                        : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                                                : stBuffer
+                                                    ? "bg-slate-100 text-slate-800 shadow-[inset_0_3px_0_#0f766e] hover:bg-slate-200"
+                                                    : isDone
+                                                        ? "bg-emerald-500 text-white"
+                                                        : checkpoint
+                                                            ? "bg-blue-600 text-white hover:bg-blue-500"
+                                                            : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                                     }`}
                                     style={{ width: DAY_WIDTH }}
                                     title={isExtension
                                         ? `${fullDate} - tanggal pertambahan SPK`
-                                        : checkpoint
-                                            ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
-                                            : fullDate}
+                                        : stBuffer
+                                            ? `${fullDate} - ${stBuffer.explanation}`
+                                            : checkpoint
+                                                ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
+                                                : fullDate}
                                 >
-                                    <span className={isExtension ? "leading-3" : undefined}>{formatShortDate(date)}</span>
+                                    <span className={isExtension || stBuffer ? "leading-3" : undefined}>{formatShortDate(date)}</span>
                                     {isExtension && !isReady ? (
                                         <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-black leading-3 text-amber-950">
                                             SPK+
                                         </span>
                                     ) : null}
-                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone && !isExtension ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${isExtension ? "bg-amber-700" : "bg-white"}`} /> : null}
+                                    {stBuffer && !isExtension && !isReady ? (
+                                        <span className="mt-0.5 whitespace-nowrap rounded-sm bg-teal-700 px-1 text-[8px] font-black leading-3 text-white">
+                                            {stBuffer.offsetDays > 1 ? stBuffer.label.replace(" hari", "") : "ST"}
+                                        </span>
+                                    ) : null}
+                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone && !isExtension && !stBuffer ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${isExtension ? "bg-amber-700" : stBuffer ? "bg-teal-700" : "bg-white"}`} /> : null}
                                 </button>
                             );
                         })}
@@ -573,18 +610,21 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
+                            const stBuffer = stBufferByDate.get(fullDate);
                             return (
                                 <div
                                     key={fullDate}
                                     className={`absolute top-0 bottom-0 border-r ${
                                         isExtension
                                             ? "bg-amber-50/70 border-amber-200 shadow-[inset_0_3px_0_#f59e0b]"
+                                            : stBuffer
+                                                ? "bg-slate-100/75 border-teal-100 shadow-[inset_0_3px_0_#0f766e]"
                                             : checkpoint
                                                 ? "bg-blue-50/70 border-blue-200"
                                                 : "border-slate-200"
                                     }`}
                                     style={{ left: dayIndex * DAY_WIDTH, width: DAY_WIDTH }}
-                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : undefined}
+                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : undefined}
                                 />
                             );
                         })}

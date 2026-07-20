@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fetchGanttList, fetchGanttDetail, fetchGanttDetailByToko } from '@/lib/api';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import type { SupervisionCheckpoint } from '@/lib/api';
+import { calculateEffectiveStDate } from '@/lib/gantt-calculator';
 
 const SUPERVISION_RULES: Record<number, number[]> = {
     10: [2, 5, 8, 10], 14: [2, 7, 10, 14], 20: [2, 12, 16, 20],
@@ -186,6 +187,13 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                 if (extensionEndDate && spkEffectiveDuration) {
                     extensionEndDate.setDate(extensionEndDate.getDate() + spkEffectiveDuration - 1);
                 }
+                const spkEndDate = new Date(effectiveStartDate);
+                spkEndDate.setDate(spkEndDate.getDate() + effectiveDuration - 1);
+                const stInfo = calculateEffectiveStDate(spkEndDate);
+                const stOffsetDays = timelineDuration ? 0 : stInfo.offsetDays;
+                if (!timelineDuration && stOffsetDays > 0) {
+                    effectiveDuration += stOffsetDays;
+                }
 
                 setProjectData({
                     duration: effectiveDuration,
@@ -199,6 +207,11 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     extensionDays,
                     extensionStartLabel: extensionStartDate ? formatFullDate(extensionStartDate) : '',
                     extensionEndLabel: extensionEndDate ? formatFullDate(extensionEndDate) : '',
+                    stBufferStartDay: (spkEffectiveDuration || spkDuration || 0) + 1,
+                    stBufferDays: stOffsetDays,
+                    stBufferLabel: stInfo.label,
+                    stBufferOffsetDays: stInfo.offsetDays,
+                    stBufferExplanation: stInfo.explanation,
                 });
 
                 let generatedTasks: any[] = kategori_pekerjaan.map((k: any, idx: number) => ({
@@ -439,6 +452,11 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             const isExtensionDay = !!(projectData?.hasExtension
                                 && projectData?.originalSpkDays > 0
                                 && (i + 1) > projectData.originalSpkDays
+                                && (i + 1) <= (projectData.originalSpkDays + projectData.extensionDays)
+                            );
+                            const isStBufferDay = !!(projectData?.stBufferDays > 0
+                                && (i + 1) >= projectData.stBufferStartDay
+                                && (i + 1) < projectData.stBufferStartDay + projectData.stBufferDays
                             );
                             
                             if (projectData?.spkStartDateObj) {
@@ -477,6 +495,8 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                 colClass = 'relative bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 cursor-pointer hover:bg-red-100';
                             } else if (isExtensionDay) {
                                 colClass = `relative bg-amber-50 text-amber-900 border-amber-300 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-amber-100' : ''}`;
+                            } else if (isStBufferDay) {
+                                colClass = `relative bg-slate-100 text-slate-800 border-teal-100 shadow-[inset_0_3px_0_#0f766e] ${isClickable ? 'cursor-pointer hover:bg-slate-200' : ''}`;
                             } else if (isAlreadyOpname) {
                                 colClass = 'bg-emerald-50 text-emerald-700 cursor-pointer';
                             } else if (isLiveDay) {
@@ -501,14 +521,21 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                             ? 'Pekerjaan sudah masuk Opname'
                                             : isExtensionDay
                                                 ? `Pertambahan SPK +${projectData.extensionDays} hari`
-                                                : isPengawasan
-                                                    ? 'Buka checkpoint pengawasan'
-                                                    : undefined}
+                                                : isStBufferDay
+                                                    ? projectData.stBufferExplanation
+                                                    : isPengawasan
+                                                        ? 'Buka checkpoint pengawasan'
+                                                        : undefined}
                                 >
-                                    <span className={isExtensionDay ? 'leading-3' : undefined}>{label}</span>
+                                    <span className={isExtensionDay || isStBufferDay ? 'leading-3' : undefined}>{label}</span>
                                     {isExtensionDay && (
                                         <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-extrabold leading-3 text-amber-950">
                                             SPK+
+                                        </span>
+                                    )}
+                                    {isStBufferDay && (
+                                        <span className="mt-0.5 whitespace-nowrap rounded-sm bg-teal-700 px-1 text-[8px] font-extrabold leading-3 text-white">
+                                            {Number(projectData.stBufferOffsetDays || 0) > 1 ? String(projectData.stBufferLabel || '').replace(' hari', '') : 'ST'}
                                         </span>
                                     )}
                                     {isReadyOpname ? (
@@ -519,11 +546,11 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                     ) : isAlreadyOpname ? (
                                         <CheckCircle2 className="mt-0.5 h-3 w-3 text-emerald-600" />
                                     ) : isPengawasan ? (
-                                        <div className={`w-1.5 h-1.5 rounded-full ${isExtensionDay ? 'mt-0.5 bg-amber-700' : 'mt-1 bg-blue-500'}`} title="Hari Pengawasan" />
+                                        <div className={`w-1.5 h-1.5 rounded-full ${isExtensionDay ? 'mt-0.5 bg-amber-700' : isStBufferDay ? 'mt-0.5 bg-teal-700' : 'mt-1 bg-blue-500'}`} title="Hari Pengawasan" />
                                     ) : isExtensionDay ? (
                                         null
                                     ) : null}
-                                    {isLiveDay && !isPengawasan && <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isExtensionDay ? 'bg-amber-600' : 'bg-green-500'}`} title="Hari Ini" />}
+                                    {isLiveDay && !isPengawasan && <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isExtensionDay ? 'bg-amber-600' : isStBufferDay ? 'bg-teal-700' : 'bg-green-500'}`} title="Hari Ini" />}
                                 </button>
                             );
                             })}
@@ -570,6 +597,31 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                 <span className="truncate">
                                     Perpanjangan SPK: {projectData.extensionStartLabel} - {projectData.extensionEndLabel}
                                 </span>
+                            </div>
+                        )}
+                        {projectData?.stBufferDays > 0 && (
+                            <div
+                                className="absolute top-0 bottom-0 pointer-events-none"
+                                style={{
+                                    left: (projectData.stBufferStartDay - 1) * DAY_WIDTH,
+                                    width: projectData.stBufferDays * DAY_WIDTH,
+                                    zIndex: 2,
+                                    backgroundColor: 'rgba(15, 118, 110, 0.07)',
+                                    boxShadow: 'inset 0 3px 0 #0f766e',
+                                }}
+                                title={projectData.stBufferExplanation}
+                            />
+                        )}
+                        {projectData?.stBufferDays > 0 && (
+                            <div
+                                className="absolute top-8 z-[17] pointer-events-none flex h-6 items-center rounded border border-teal-200 bg-white/95 px-2 text-[10px] font-semibold text-teal-900 shadow-sm"
+                                style={{
+                                    left: (projectData.stBufferStartDay - 1) * DAY_WIDTH + 4,
+                                    maxWidth: Math.max(0, projectData.stBufferDays * DAY_WIDTH - 8),
+                                }}
+                                title={projectData.stBufferExplanation}
+                            >
+                                <span className="truncate">{projectData.stBufferExplanation}</span>
                             </div>
                         )}
                         {/* Garis vertikal putus-putus penanda batas SPK original */}
@@ -647,17 +699,26 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     scrollbar-width: none;
                 }
             `}</style>
-            {/* Legenda: muncul hanya jika ada pertambahan SPK */}
-            {projectData?.hasExtension && (
+            {(projectData?.hasExtension || projectData?.stBufferDays > 0) && (
                 <div className="px-4 py-2 border-t border-slate-100 flex items-center gap-4 text-[10px] text-slate-500 bg-slate-50/50">
-                    <span className="flex items-center gap-1.5">
-                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: 'rgba(251,191,36,0.35)', border: '1px solid #d97706' }} />
-                        Pertambahan SPK +{projectData.extensionDays} hari
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                        <span className="inline-block" style={{ width: 2, height: 12, backgroundImage: 'repeating-linear-gradient(to bottom, #d97706 0px, #d97706 4px, transparent 4px, transparent 8px)' }} />
-                        Batas SPK asli
-                    </span>
+                    {projectData?.hasExtension && (
+                        <>
+                            <span className="flex items-center gap-1.5">
+                                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: 'rgba(251,191,36,0.35)', border: '1px solid #d97706' }} />
+                                Pertambahan SPK +{projectData.extensionDays} hari
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="inline-block" style={{ width: 2, height: 12, backgroundImage: 'repeating-linear-gradient(to bottom, #d97706 0px, #d97706 4px, transparent 4px, transparent 8px)' }} />
+                                Batas SPK asli
+                            </span>
+                        </>
+                    )}
+                    {projectData?.stBufferDays > 0 && (
+                        <span className="flex items-center gap-1.5">
+                            <span className="inline-block w-3 h-3 rounded-sm border border-teal-700 bg-slate-100" />
+                            Target ST{Number(projectData.stBufferOffsetDays || 0) > 1 ? ` ${projectData.stBufferLabel}` : ''}
+                        </span>
+                    )}
                     <span className="flex items-center gap-1.5">
                         <span className="inline-block w-3 h-3 rounded-full bg-green-500 opacity-70" />
                         Hari ini

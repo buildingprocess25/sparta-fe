@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatRupiah } from "@/lib/utils";
+import { addDays, calculateEffectiveStDate, toIsoDate } from "@/lib/gantt-calculator";
 
 export type DashboardDetailState = {
   open: boolean;
@@ -204,6 +205,8 @@ function getContextCells(
   const extensions = getApprovedExtensions(project);
   const extensionDays = extensions.reduce((sum: number, item: any) => sum + Number(item?.pertambahan_hari || 0), 0);
   const date = formatDashboardDate;
+  const spkTargetSt = getSpkTargetSt(spk, extensionDays);
+  const effectiveEndDate = getSpkEffectiveEndDate(spk, extensionDays);
   const area = Number(rab?.luas_terbangun || 0);
   const totalCost = Number(opname?.grand_total_opname || rab?.grand_total_final || 0);
   const latestValue = ["Kerja Tambah Kurang", "Done"].includes(stage)
@@ -227,7 +230,7 @@ function getContextCells(
   ];
   if (context === "DENDA") return [
     { value: "Opname Final", helper: "Dari dokumen resmi", danger: true },
-    { value: `${penalty.days} hari`, helper: `Target ${date(spk?.waktu_selesai)}`, danger: penalty.days > 0 },
+    { value: `${penalty.days} hari`, helper: `Target ST ${date(spkTargetSt?.date || spk?.waktu_selesai)}`, danger: penalty.days > 0 },
     { value: formatRupiah(penalty.amount), helper: st ? `ST ${date(st.created_at)}` : "ST belum tersedia", danger: penalty.amount > 0 },
   ];
   if (context === "JHK") return [
@@ -236,7 +239,7 @@ function getContextCells(
     { value: `${Number(spk?.durasi || 0) + extensionDays + lateDays} hari`, helper: lateDays > 0 ? `Termasuk ${lateDays} hari terlambat` : "Sesuai target" },
   ];
   if (context === "DELAY") return [
-    { value: date(spk?.waktu_selesai), helper: "Target efektif terakhir" },
+    { value: date(spkTargetSt?.date || spk?.waktu_selesai), helper: spkTargetSt?.label || "Target ST" },
     { value: st ? "Sudah ST" : "Belum ST", helper: st ? date(st.created_at) : "Masih berjalan" },
     { value: `${lateDays} hari`, helper: lateDays > 0 ? "Melewati target" : "Dalam target", danger: lateDays > 0 },
   ];
@@ -321,6 +324,31 @@ const formatDashboardDate = (value: unknown) => {
 const parseSlaDate = (value: unknown) => {
   const date = value ? new Date(String(value)) : null;
   return date && !Number.isNaN(date.getTime()) ? date : null;
+};
+
+const parseDateOnly = (value: unknown) => {
+  if (!value) return null;
+  const raw = String(value).split("T")[0];
+  const date = new Date(`${raw}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getSpkEffectiveEndDate = (spk: any, extensionDays = 0) => {
+  const existingEffective = parseDateOnly(spk?.effective_waktu_selesai);
+  if (existingEffective) return existingEffective;
+  const rawEnd = parseDateOnly(spk?.waktu_selesai);
+  return rawEnd ? addDays(rawEnd, extensionDays) : null;
+};
+
+const getSpkTargetSt = (spk: any, extensionDays = 0) => {
+  const effectiveEnd = getSpkEffectiveEndDate(spk, extensionDays);
+  if (!effectiveEnd) return null;
+  const info = calculateEffectiveStDate(effectiveEnd);
+  return {
+    date: toIsoDate(info.effectiveStDate),
+    label: info.offsetDays > 1 ? info.label : null,
+    explanation: info.explanation,
+  };
 };
 
 const diffSlaDays = (start: Date | null, end: Date | null) => {
@@ -636,6 +664,8 @@ function ContextInspector({
   const extensions = getApprovedExtensions(project);
   const extensionDays = extensions.reduce((sum: number, item: any) => sum + Number(item?.pertambahan_hari || 0), 0);
   const date = formatDashboardDate;
+  const spkTargetSt = getSpkTargetSt(spk, extensionDays);
+  const effectiveEndDate = getSpkEffectiveEndDate(spk, extensionDays);
   const infoBox = (label: string, value: string, helper?: string, danger = false) => (
     <div className={`rounded-xl border p-3 ${danger ? "border-red-200 bg-red-50" : "border-slate-200 bg-white"}`}>
       <p className={`text-[8px] font-medium uppercase tracking-[0.08em] ${danger ? "text-red-500" : "text-slate-400"}`}>{label}</p>
@@ -661,7 +691,8 @@ function ContextInspector({
         {infoBox("Nilai SPK", formatRupiah(spk?.grand_total || 0))}
         {infoBox("Status", spk?.status || "-")}
         {infoBox("Mulai", date(spk?.waktu_mulai))}
-        {infoBox("Selesai", date(spk?.waktu_selesai))}
+        {infoBox("Akhir SPK", date(effectiveEndDate || spk?.waktu_selesai))}
+        {spkTargetSt ? infoBox("Target ST", date(spkTargetSt.date), spkTargetSt.label || undefined) : null}
       </div>
       <div className="rounded-xl border border-slate-200 p-3"><p className="text-[9px] font-semibold text-slate-700">Durasi pekerjaan</p><div className="mt-3 flex items-end gap-2"><p className="text-2xl font-semibold text-slate-950">{Number(spk?.durasi || 0) + extensionDays}</p><p className="pb-1 text-[10px] text-slate-400">hari efektif</p></div><p className="mt-1 text-[9px] text-slate-400">{Number(spk?.durasi || 0)} hari awal + {extensionDays} hari tambahan</p></div>
     </div>
@@ -671,7 +702,7 @@ function ContextInspector({
       <div className="grid grid-cols-2 gap-2">
         {infoBox("Keterlambatan", `${lateDays} hari`, "Dari target efektif", lateDays > 0)}
         {infoBox("Nilai denda", formatRupiah(penalty.amount), "Opname final", penalty.amount > 0)}
-        {infoBox("Target SPK", date(spk?.waktu_selesai))}
+        {infoBox("Target ST", date(spkTargetSt?.date || spk?.waktu_selesai), spkTargetSt?.label || undefined)}
         {infoBox("Serah terima", st ? date(st.created_at) : "Belum tersedia", undefined, !st)}
       </div>
       <div className="rounded-xl border border-red-200 bg-red-50 p-3"><p className="text-[9px] font-semibold text-red-800">Dasar perhitungan</p><p className="mt-2 text-[9px] leading-relaxed text-red-700">Nilai denda berasal dari opname final yang telah disetujui.</p></div>
@@ -1026,7 +1057,7 @@ function SpecializedDetailContent({
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
         <div className="mb-4"><h2 className="text-lg font-semibold text-slate-950">Peta keterlambatan</h2><p className="mt-1 text-[10px] text-slate-400">Bandingkan target SPK dengan kondisi serah terima.</p></div>
         <div className="space-y-3">
-          {rows.map((row, index) => { const spk = firstSpk(row); const st = Array.isArray(row?.berkas_serah_terima) ? row.berkas_serah_terima[0] : row?.berkas_serah_terima; const late = getLateDays(row); return <button key={row?.toko?.id || index} type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 ${selectedIndex === index ? "border-red-500 shadow-[inset_4px_0_0_#dc2626]" : "border-slate-200"}`}><div className="grid gap-4 lg:grid-cols-[220px_1fr_90px] lg:items-center"><div><p className="text-[11px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {getStage(row)}</p></div><div className="relative pt-4"><div className="h-1.5 rounded-full bg-slate-200"><div className="h-full rounded-full bg-red-600" style={{ width: `${Math.min(100, Math.max(8, late * 7))}%` }} /></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>Target {formatDashboardDate(spk?.waktu_selesai)}</span><span>{st ? `ST ${formatDashboardDate(st.created_at)}` : "Belum ST"}</span></div></div><p className="text-right text-2xl font-semibold text-red-700">{late}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p></div></button> })}
+          {rows.map((row, index) => { const spk = firstSpk(row); const extra = getApprovedExtensions(row).reduce((sum: number, item: any) => sum + Number(item?.pertambahan_hari || 0), 0); const targetSt = getSpkTargetSt(spk, extra); const st = Array.isArray(row?.berkas_serah_terima) ? row.berkas_serah_terima[0] : row?.berkas_serah_terima; const late = getLateDays(row); return <button key={row?.toko?.id || index} type="button" onClick={() => { onSelect(index); if (!row.__kind) onOpenProjectDetail(row); }} className={`w-full rounded-2xl border bg-white p-5 text-left transition-all hover:border-red-400 hover:bg-red-50 ${selectedIndex === index ? "border-red-500 shadow-[inset_4px_0_0_#dc2626]" : "border-slate-200"}`}><div className="grid gap-4 lg:grid-cols-[220px_1fr_90px] lg:items-center"><div><p className="text-[11px] font-semibold">{row?.toko?.nama_toko}</p><p className="mt-1 text-[9px] text-slate-400">{row?.toko?.cabang} · {getStage(row)}</p></div><div className="relative pt-4"><div className="h-1.5 rounded-full bg-slate-200"><div className="h-full rounded-full bg-red-600" style={{ width: `${Math.min(100, Math.max(8, late * 7))}%` }} /></div><div className="mt-2 flex justify-between text-[8px] text-slate-400"><span>Target ST {formatDashboardDate(targetSt?.date || spk?.waktu_selesai)}</span><span>{st ? `ST ${formatDashboardDate(st.created_at)}` : "Belum ST"}</span></div></div><p className="text-right text-2xl font-semibold text-red-700">{late}<span className="ml-1 text-[9px] font-normal text-slate-400">hari</span></p></div></button> })}
         </div>
       </div>
     );

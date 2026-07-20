@@ -1761,6 +1761,15 @@ function GanttBoard() {
                             </Card>
                         ) : supervisionWorkspace ? (
                             <>
+                                {(() => {
+                                    const latestTargetStScope = supervisionWorkspace.scopes
+                                        .filter(scope => scope.st_target_date)
+                                        .sort((a, b) => new Date(String(b.st_target_date)).getTime() - new Date(String(a.st_target_date)).getTime())[0];
+                                    const targetStText = latestTargetStScope?.st_target_date
+                                        ? new Date(String(latestTargetStScope.st_target_date).split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : null;
+
+                                    return (
                                 <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
                                     <div className="relative p-6 md:p-7 text-slate-900">
                                         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -1821,6 +1830,12 @@ function GanttBoard() {
                                                                     ? 'Siap diproses'
                                                                     : 'Menunggu pekerjaan selesai masuk Opname'}
                                                         </p>
+                                                        {targetStText && (
+                                                            <p className="mt-2 inline-flex items-center gap-2 rounded-md border border-teal-200 bg-white px-2.5 py-1 text-[11px] font-bold text-teal-700">
+                                                                Target ST {targetStText}
+                                                                {Number(latestTargetStScope?.st_offset_days || 0) > 1 && latestTargetStScope?.st_offset_label ? <span className="text-teal-500">{latestTargetStScope.st_offset_label}</span> : null}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     {supervisionWorkspace.unified_serah_terima_generated
                                                         ? <CheckCircle className="h-7 w-7 text-emerald-400" />
@@ -1874,6 +1889,8 @@ function GanttBoard() {
                                         </div>
                                     </div>
                                 </div>
+                                    );
+                                })()}
 
                                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
                                     <div className="flex items-start gap-3">

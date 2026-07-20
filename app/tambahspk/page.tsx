@@ -24,6 +24,7 @@ import {
     downloadPertambahanSPKLampiran,
 } from '@/lib/api';
 import { canViewAllBranches, isViewOnlyUser, BRANCH_GROUPS } from '@/lib/constants';
+import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,6 +57,24 @@ const addDays = (dateStr: string, days: number): string => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+const parseDateOnly = (dateStr: string | null | undefined): Date | null => {
+    if (!dateStr) return null;
+    const raw = String(dateStr).split('T')[0];
+    const date = new Date(`${raw}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const buildTargetSt = (dateStr: string | null | undefined) => {
+    const date = parseDateOnly(dateStr);
+    if (!date) return null;
+    const info = calculateEffectiveStDate(date);
+    return {
+        date: toIsoDate(info.effectiveStDate),
+        label: info.offsetDays > 1 ? info.label || `SPK +${info.offsetDays} hari` : null,
+        explanation: info.explanation,
+    };
 };
 
 
@@ -128,6 +147,15 @@ export default function TambahSPKPage() {
         if (!tanggalSpkAkhir || !pertambahanHari || parseInt(pertambahanHari) <= 0) return '';
         return addDays(tanggalSpkAkhir, parseInt(pertambahanHari));
     }, [tanggalSpkAkhir, pertambahanHari]);
+
+    const targetStSaatIni = useMemo(() => {
+        const effectiveEnd = (selectedSpk as any)?.effective_waktu_selesai || selectedSpk?.waktu_selesai;
+        return buildTargetSt(effectiveEnd);
+    }, [selectedSpk]);
+
+    const targetStSetelahPerpanjangan = useMemo(() => {
+        return buildTargetSt(tanggalSetelahPerpanjangan);
+    }, [tanggalSetelahPerpanjangan]);
 
     /** Group SPKs by ULOK - satu ULOK bisa punya multiple lingkup (SIPIL, ME) */
     const ulokGroups = useMemo(() => {
@@ -610,6 +638,14 @@ export default function TambahSPKPage() {
                                                 value={formatTanggal(selectedSpk.waktu_selesai)}
                                                 highlight
                                             />
+                                            {targetStSaatIni && (
+                                                <InfoItem
+                                                    icon={<CalendarClock className="w-3.5 h-3.5" />}
+                                                    label="Target ST"
+                                                    value={`${formatTanggal(targetStSaatIni.date)}${targetStSaatIni.label ? ` · ${targetStSaatIni.label}` : ''}`}
+                                                    highlight
+                                                />
+                                            )}
                                         </div>
                                         
                                         {/* Show all SPKs in this ULOK if multiple lingkup */}
@@ -728,6 +764,23 @@ export default function TambahSPKPage() {
                                                     <span className="text-emerald-700">Tgl Akhir Setelah Perpanjangan:</span>
                                                     <span className="font-bold text-emerald-800 text-base">{formatTanggal(tanggalSetelahPerpanjangan)}</span>
                                                 </div>
+                                                {targetStSetelahPerpanjangan && (
+                                                    <div className="flex items-center justify-between gap-3 rounded-lg border border-teal-200 bg-white/80 px-3 py-2 text-sm">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <CalendarClock className="w-4 h-4 text-teal-600 shrink-0" />
+                                                            <span className="text-slate-600">Target ST:</span>
+                                                            <span className="font-bold text-slate-800">{formatTanggal(targetStSetelahPerpanjangan.date)}</span>
+                                                        </div>
+                                                        {targetStSetelahPerpanjangan.label && (
+                                                            <span
+                                                                className="shrink-0 rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-[11px] font-bold text-teal-700"
+                                                                title={targetStSetelahPerpanjangan.explanation}
+                                                            >
+                                                                {targetStSetelahPerpanjangan.label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 text-sm text-slate-500 flex items-center gap-2">

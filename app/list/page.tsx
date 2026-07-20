@@ -35,6 +35,7 @@ import {
 } from '@/lib/api';
 import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
+import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
 import {
     API_URL,
     BRANCH_TO_ULOK,
@@ -78,6 +79,10 @@ interface NormalizedDoc {
     durasi?: number;
     waktu_mulai?: string;
     waktu_selesai?: string;
+    st_target_date?: string | null;
+    st_offset_days?: number;
+    st_offset_label?: string | null;
+    st_offset_explanation?: string | null;
     // Pertambahan SPK specific
     pertambahan_hari?: string;
     alasan_perpanjangan?: string;
@@ -187,6 +192,10 @@ interface NormalizedDetail {
     durasi?: number;
     waktu_mulai?: string;
     waktu_selesai?: string;
+    st_target_date?: string | null;
+    st_offset_days?: number;
+    st_offset_label?: string | null;
+    st_offset_explanation?: string | null;
     terbilang?: string;
     par?: string;
     alasan_penolakan?: string | null;
@@ -275,6 +284,33 @@ interface NormalizedDetail {
     // Surat Peringatan specific
     rawDendaAction?: DendaAction;
 }
+
+const buildStTargetDisplay = (endDate?: string | null) => {
+    if (!endDate) {
+        return {
+            st_target_date: null,
+            st_offset_days: 0,
+            st_offset_label: null,
+            st_offset_explanation: null,
+        };
+    }
+    const parsed = new Date(String(endDate).split('T')[0] + 'T00:00:00');
+    if (Number.isNaN(parsed.getTime())) {
+        return {
+            st_target_date: null,
+            st_offset_days: 0,
+            st_offset_label: null,
+            st_offset_explanation: null,
+        };
+    }
+    const target = calculateEffectiveStDate(parsed);
+    return {
+        st_target_date: toIsoDate(target.effectiveStDate),
+        st_offset_days: target.offsetDays,
+        st_offset_label: target.offsetDays > 1 ? target.label : null,
+        st_offset_explanation: target.explanation,
+    };
+};
 
 // =============================================================================
 // CONSTANTS
@@ -895,6 +931,10 @@ const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
             durasi:            s.durasi,
             waktu_mulai:       s.waktu_mulai,
             waktu_selesai:     s.waktu_selesai,
+            st_target_date:    s.st_target_date,
+            st_offset_days:    s.st_offset_days,
+            st_offset_label:   s.st_offset_label,
+            st_offset_explanation: s.st_offset_explanation,
         };
     });
 
@@ -1627,6 +1667,7 @@ export default function DaftarDokumenPage() {
             } else if (doc.tipe === 'SPK') {
                 const res = await fetchSPKDetail(doc.id);
                 const d = res.data;
+                const stTarget = buildStTargetDisplay((d.pengajuan as any).effective_waktu_selesai || d.pengajuan.waktu_selesai);
                 detail = {
                     id: d.pengajuan.id,
                     tipe: 'SPK',
@@ -1644,6 +1685,7 @@ export default function DaftarDokumenPage() {
                     durasi:            d.pengajuan.durasi,
                     waktu_mulai:       d.pengajuan.waktu_mulai,
                     waktu_selesai:     d.pengajuan.waktu_selesai,
+                    ...stTarget,
                     terbilang:         d.pengajuan.terbilang,
                     par:               d.pengajuan.par,
                     link_pdf:          d.pengajuan.link_pdf,
@@ -1660,6 +1702,7 @@ export default function DaftarDokumenPage() {
             } else if (doc.tipe === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKDetail(doc.id);
                 const d = res.data;
+                const stTarget = buildStTargetDisplay(d.tanggal_spk_akhir_setelah_perpanjangan || d.spk?.waktu_selesai);
                 detail = {
                     id: d.id,
                     tipe: 'PERTAMBAHAN_SPK',
@@ -1677,6 +1720,7 @@ export default function DaftarDokumenPage() {
                     durasi:            d.spk?.durasi,
                     waktu_mulai:       d.spk?.waktu_mulai,
                     waktu_selesai:     d.spk?.waktu_selesai,
+                    ...stTarget,
                     pertambahan_hari:  d.pertambahan_hari,
                     alasan_perpanjangan: d.alasan_perpanjangan,
                     tanggal_spk_akhir: d.tanggal_spk_akhir,
@@ -3289,6 +3333,13 @@ export default function DaftarDokumenPage() {
                                                     {selectedDetail.waktu_selesai && (
                                                         <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Selesai" value={formatDateFull(selectedDetail.waktu_selesai)} />
                                                     )}
+                                                    {selectedDetail.st_target_date && (
+                                                        <InfoRow
+                                                            icon={<CalendarDays className="w-4 h-4" />}
+                                                            label="Target ST"
+                                                            value={`${formatDateFull(selectedDetail.st_target_date)}${selectedDetail.st_offset_label ? ` · ${selectedDetail.st_offset_label}` : ''}`}
+                                                        />
+                                                    )}
                                                 </>
                                             )}
 
@@ -3299,6 +3350,13 @@ export default function DaftarDokumenPage() {
                                                     <InfoRow icon={<Clock className="w-4 h-4" />} label="Pertambahan Hari" value={`+${selectedDetail.pertambahan_hari || '-'} Hari`} />
                                                     <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir SPK" value={selectedDetail.tanggal_spk_akhir ? formatDateFull(selectedDetail.tanggal_spk_akhir) : '-'} />
                                                     <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir Setelah Perpanjangan" value={selectedDetail.tanggal_spk_akhir_setelah_perpanjangan ? formatDateFull(selectedDetail.tanggal_spk_akhir_setelah_perpanjangan) : '-'} />
+                                                    {selectedDetail.st_target_date && (
+                                                        <InfoRow
+                                                            icon={<CalendarDays className="w-4 h-4" />}
+                                                            label="Target ST"
+                                                            value={`${formatDateFull(selectedDetail.st_target_date)}${selectedDetail.st_offset_label ? ` · ${selectedDetail.st_offset_label}` : ''}`}
+                                                        />
+                                                    )}
                                                     {selectedDetail.alasan_perpanjangan && (
                                                         <div className="col-span-1 sm:col-span-2 lg:col-span-2">
                                                             <InfoRow icon={<FileText className="w-4 h-4" />} label="Alasan Perpanjangan" value={selectedDetail.alasan_perpanjangan} />

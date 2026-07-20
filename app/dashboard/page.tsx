@@ -38,6 +38,7 @@ import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
 import TaskNotificationBell from '@/components/TaskNotificationBell';
 import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
+import { isNonWorkingDay } from '@/lib/gantt-calculator';
 
 
 // =============================================================================
@@ -140,19 +141,13 @@ const isDashboardWeekend = (date: Date) => {
 
 const nextDashboardBusinessDayAfter = (date: Date) => {
     let current = addDashboardDays(date, 1);
-    while (isDashboardWeekend(current)) current = addDashboardDays(current, 1);
+    while (isNonWorkingDay(current)) current = addDashboardDays(current, 1);
     return current;
 };
 
 const countDashboardWeekdaysAfter = (freeDate: Date, compareDate: Date) => {
     if (compareDate <= freeDate) return 0;
-    let current = addDashboardDays(freeDate, 1);
-    let count = 0;
-    while (current <= compareDate) {
-        if (!isDashboardWeekend(current)) count += 1;
-        current = addDashboardDays(current, 1);
-    }
-    return count;
+    return Math.max(0, Math.floor((compareDate.getTime() - freeDate.getTime()) / (1000 * 60 * 60 * 24)));
 };
 
 const isApprovedDashboardSpk = (spk: any) => {

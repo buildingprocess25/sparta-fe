@@ -1889,6 +1889,12 @@ export type SupervisionScope = {
     spk_duration: number | null;
     spk_effective_duration: number | null;      // Durasi efektif termasuk pertambahan SPK approved
     spk_effective_end_date: string | null;       // Tanggal akhir SPK efektif
+    st_target_date?: string | null;
+    st_offset_days?: number;
+    st_offset_label?: string | null;
+    st_offset_explanation?: string | null;
+    st_skipped_weekends?: number;
+    st_skipped_holidays?: number;
     total_pengawasan_checkpoints?: number;
     filled_pengawasan_checkpoints?: number;
     missing_pengawasan_checkpoints?: number;
@@ -2743,6 +2749,12 @@ export type SPKListItem = {
     effective_waktu_selesai?: string | null;
     effective_durasi?: number | null;
     pertambahan_spk_approved_until?: string | null;
+    st_target_date?: string | null;
+    st_offset_days?: number;
+    st_offset_label?: string | null;
+    st_offset_explanation?: string | null;
+    st_skipped_weekends?: number;
+    st_skipped_holidays?: number;
     grand_total: number;
     terbilang: string;
     nomor_spk: string;

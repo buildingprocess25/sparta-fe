@@ -41,6 +41,7 @@ import {
 } from '@/lib/denda-actions-api';
 
 import { parseCurrency } from '@/lib/utils';
+import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
 import {
     API_URL,
     BRANCH_TO_ULOK,
@@ -157,6 +158,10 @@ interface NormalizedDetail {
     durasi?: number;
     waktu_mulai?: string;
     waktu_selesai?: string;
+    st_target_date?: string | null;
+    st_offset_days?: number;
+    st_offset_label?: string | null;
+    st_offset_explanation?: string | null;
     nilai_kontrak?: number;
     // PDF
     link_pdf_gabungan?: string | null;
@@ -202,6 +207,33 @@ const formatDate = (dateStr: string) => {
     try {
         return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
     } catch { return dateStr; }
+};
+
+const buildStTargetDisplay = (endDate?: string | null) => {
+    if (!endDate) {
+        return {
+            st_target_date: null,
+            st_offset_days: 0,
+            st_offset_label: null,
+            st_offset_explanation: null,
+        };
+    }
+    const parsed = new Date(String(endDate).split('T')[0] + 'T00:00:00');
+    if (Number.isNaN(parsed.getTime())) {
+        return {
+            st_target_date: null,
+            st_offset_days: 0,
+            st_offset_label: null,
+            st_offset_explanation: null,
+        };
+    }
+    const target = calculateEffectiveStDate(parsed);
+    return {
+        st_target_date: toIsoDate(target.effectiveStDate),
+        st_offset_days: target.offsetDays,
+        st_offset_label: target.offsetDays > 1 ? target.label : null,
+        st_offset_explanation: target.explanation,
+    };
 };
 
 const normalizeBranch = (branch?: string | null) => (branch ?? '').trim().toUpperCase();
@@ -1229,6 +1261,7 @@ function ApprovalPageContent() {
             } else if (item.tipe === 'SPK') {
             const res = await fetchSPKDetail(item.id);
             const d = res.data;
+            const stTarget = buildStTargetDisplay((d.pengajuan as any).effective_waktu_selesai || (d.pengajuan as any).waktu_selesai);
             detail = {
                 id: d.pengajuan.id,
                 tipe: 'SPK',
@@ -1247,6 +1280,7 @@ function ApprovalPageContent() {
                 durasi:            (d.pengajuan as any).durasi,
                 waktu_mulai:       (d.pengajuan as any).waktu_mulai,
                 waktu_selesai:     (d.pengajuan as any).waktu_selesai,
+                ...stTarget,
                 nilai_kontrak:     parseCurrency((d.pengajuan as any).grand_total),
                 items: [],
             };
@@ -1254,6 +1288,7 @@ function ApprovalPageContent() {
             } else if (item.tipe === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKDetail(item.id);
                 const d = res.data;
+                const stTarget = buildStTargetDisplay(d.tanggal_spk_akhir_setelah_perpanjangan || d.spk?.waktu_selesai);
                 detail = {
                     id: d.id,
                     tipe: 'PERTAMBAHAN_SPK',
@@ -1273,6 +1308,7 @@ function ApprovalPageContent() {
                     durasi:            d.spk?.durasi,
                     waktu_mulai:       d.spk?.waktu_mulai,
                     waktu_selesai:     d.spk?.waktu_selesai,
+                    ...stTarget,
                     link_lampiran_pendukung: d.link_lampiran_pendukung || null,
                     link_pdf:          d.link_pdf || null,
                     // Pertambahan SPK specific
@@ -2563,6 +2599,17 @@ function ApprovalPageContent() {
                                                         <span className="flex items-center gap-1.5">
                                                             <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
                                                             Tanggal Selesai: <b>{formatDate(selectedDetail.waktu_selesai)}</b>
+                                                        </span>
+                                                    )}
+                                                    {selectedDetail.st_target_date && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <CalendarDays className="w-3.5 h-3.5 text-teal-600" />
+                                                            Target ST: <b>{formatDate(selectedDetail.st_target_date)}</b>
+                                                            {selectedDetail.st_offset_label && (
+                                                                <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
+                                                                    {selectedDetail.st_offset_label}
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     )}
                                                 </div>
