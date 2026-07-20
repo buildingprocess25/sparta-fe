@@ -628,15 +628,23 @@ const getRabDisplayTotal = (rab: RabDisplayTotalSource) => {
     const nama_toko = rab?.nama_toko ?? rab?.toko?.nama_toko;
     const alamat = rab?.alamat ?? rab?.toko?.alamat;
     if (isNoPpnArea({ cabang, nama_toko, alamat })) {
-        return parseCurrency(rab?.grand_total_non_sbo ?? rab?.grand_total ?? rab?.grand_total_final);
+        return roundBeforePpn(parseCurrency(rab?.grand_total_non_sbo ?? rab?.grand_total ?? rab?.grand_total_final));
     }
     return parseCurrency(rab?.grand_total_final ?? rab?.grand_total);
 };
 
-const roundSpkDisplayTotal = (value: unknown) => {
+const roundBeforePpn = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    return Math.floor(value / 10000) * 10000;
+};
+
+const getSpkDisplayTotal = (
+    value: unknown,
+    input?: { cabang?: string | null; nama_toko?: string | null; alamat?: string | null }
+) => {
     const amount = parseCurrency(value);
     if (!amount) return 0;
-    return Math.floor(amount / 10000) * 10000;
+    return input && isNoPpnArea(input) ? roundBeforePpn(amount) : amount;
 };
 
 const PROYEK_LABEL_MAP: Record<string, string> = {
@@ -922,7 +930,11 @@ const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
             proyek:            s.proyek ?? '-',
             status:            s.status,
             email_pembuat:     s.email_pembuat,
-            total_nilai:       roundSpkDisplayTotal(s.grand_total),
+            total_nilai:       getSpkDisplayTotal(s.grand_total, {
+                cabang: raw.toko?.cabang ?? raw.cabang,
+                nama_toko: raw.toko?.nama_toko ?? raw.nama_toko,
+                alamat: raw.toko?.alamat ?? raw.alamat,
+            }),
             created_at:        s.created_at,
             link_pdf:          s.link_pdf ?? null,
             nomor_spk:         s.nomor_spk,
@@ -1677,7 +1689,11 @@ export default function DaftarDokumenPage() {
                     proyek:            d.pengajuan.proyek,
                     status:            d.pengajuan.status,
                     email_pembuat:     d.pengajuan.email_pembuat,
-                    total_nilai:       roundSpkDisplayTotal(d.pengajuan.grand_total),
+                    total_nilai:       getSpkDisplayTotal(d.pengajuan.grand_total, {
+                        cabang: d.pengajuan.toko?.cabang ?? doc.cabang,
+                        nama_toko: d.pengajuan.toko?.nama_toko ?? doc.nama_toko,
+                        alamat: d.pengajuan.toko?.alamat,
+                    }),
                     created_at:        d.pengajuan.created_at,
                     nomor_spk:         d.pengajuan.nomor_spk,
                     nama_kontraktor:   d.pengajuan.nama_kontraktor,

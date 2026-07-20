@@ -52,6 +52,17 @@ function isReasonableSpkStart(date: Date | null): date is Date {
     return year >= 2024 && year <= new Date().getFullYear() + 1;
 }
 
+function getScopeSpkEnd(scope: SupervisionWorkspace["scopes"][number]): Date | null {
+    const explicitEnd = parseDate(scope.spk_effective_end_date);
+    if (explicitEnd) return explicitEnd;
+
+    const spkStart = parseDate(scope.spk_start_date);
+    const duration = Number(scope.spk_effective_duration || scope.spk_duration || 0);
+    if (!spkStart || duration <= 0) return null;
+
+    return addDays(spkStart, duration - 1);
+}
+
 type ScopeDetail = {
     id_toko: number;
     scopeName: string;
@@ -195,7 +206,7 @@ export default function UnifiedSupervisionGantt({
         const map = new Map<string, { label: string; scopes: string[] }>();
 
         workspace.scopes.forEach((scope) => {
-            const spkEnd = parseDate(scope.spk_effective_end_date);
+            const spkEnd = getScopeSpkEnd(scope);
             if (!spkEnd) return;
             const fullDate = formatFullDate(spkEnd);
             const current = map.get(fullDate) || { label: "Akhir SPK", scopes: [] };
@@ -208,14 +219,22 @@ export default function UnifiedSupervisionGantt({
 
     const stBufferByDate = useMemo(() => {
         const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean }>();
+        const unifiedCheckpointDates = (workspace.unified_checkpoints || [])
+            .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
+            .filter((date): date is Date => Boolean(date));
 
         workspace.scopes.forEach((scope) => {
-            const spkEnd = parseDate(scope.spk_effective_end_date);
+            const spkEnd = getScopeSpkEnd(scope);
             let stTarget = parseDate(scope.st_target_date);
             if (!stTarget && spkEnd) {
                 stTarget = (scope.checkpoints || [])
                     .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
                     .filter((date): date is Date => Boolean(date && date > spkEnd))
+                    .sort((left, right) => left.getTime() - right.getTime())[0] || null;
+            }
+            if (!stTarget && spkEnd) {
+                stTarget = unifiedCheckpointDates
+                    .filter((date) => date > spkEnd)
                     .sort((left, right) => left.getTime() - right.getTime())[0] || null;
             }
             const offsetDays = Number(scope.st_offset_days || 0);
@@ -235,7 +254,7 @@ export default function UnifiedSupervisionGantt({
         });
 
         return map;
-    }, [workspace.scopes]);
+    }, [workspace.scopes, workspace.unified_checkpoints]);
 
     const stDelaySummaries = useMemo(() => {
         const summaries = new Map<string, { date: string; label: string }>();
@@ -528,45 +547,52 @@ export default function UnifiedSupervisionGantt({
     });
 
     return (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-xs shadow-sm">
-            <div className="border-b bg-slate-100 p-4 text-sm">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h3 className="font-bold text-slate-800">Gantt Chart Terpadu</h3>
-                        <p className="text-xs text-slate-500">
+        <div className="overflow-hidden rounded-lg border border-slate-300 bg-white text-xs shadow-[0_12px_30px_-24px_rgba(15,23,42,0.55)]">
+            <div className="border-b border-slate-200 bg-white px-4 py-3 text-sm sm:px-5">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-black text-slate-900">Gantt Chart Terpadu</h3>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                {timeline.days} hari kalender
+                            </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
                             {details.length === 1 
                                 ? `Hanya scope ${details[0].scopeName} yang tersedia untuk ULOK ini.`
                                 : `${details.map(d => d.scopeName).join(' + ')} dalam satu tanggal pengawasan.`
                             }
                         </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm bg-slate-800 shadow-[inset_0_3px_0_#f59e0b]" />
-                                Akhir SPK
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm bg-teal-700" />
-                                Target ST
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm border border-teal-200 bg-teal-50" />
-                                Weekend/libur
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm border border-amber-300 bg-amber-100" />
-                                Pertambahan SPK
-                            </span>
-                        </div>
                         {stDelaySummaries.length > 0 && (
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-teal-800">
-                                <span className="text-slate-500">ST mundur:</span>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-teal-800">
+                                <span className="text-slate-500">ST mundur</span>
                                 {stDelaySummaries.map((item) => (
-                                    <span key={item.date} className="rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5">
+                                    <span key={item.date} className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1">
                                         {item.date.slice(0, 5)} {item.label.replace(" hari", "")}
                                     </span>
                                 ))}
                             </div>
                         )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap xl:max-w-2xl xl:justify-end">
+                        {[
+                            { label: "Pengawasan", detail: "checkpoint", swatch: "bg-blue-600" },
+                            { label: "Akhir SPK", detail: "batas kerja", swatch: "bg-slate-900 shadow-[inset_0_3px_0_#f59e0b]" },
+                            { label: "Target ST", detail: "H+1 normal", swatch: "bg-teal-700" },
+                            { label: "SPK +N", detail: "weekend/libur", swatch: "bg-teal-700 ring-2 ring-teal-100" },
+                            { label: "Weekend/libur", detail: "jeda ST", swatch: "border border-teal-200 bg-teal-50" },
+                            { label: "Pertambahan", detail: "SPK+", swatch: "border border-amber-300 bg-amber-100" },
+                            { label: "Siap opname", detail: "perlu aksi", swatch: "bg-red-600" },
+                            { label: "Sudah opname", detail: "selesai", swatch: "bg-emerald-500" },
+                        ].map((item) => (
+                            <span key={item.label} className="inline-flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                                <span className={`h-3 w-3 shrink-0 rounded-sm ${item.swatch}`} />
+                                <span className="min-w-0">
+                                    <span className="block truncate text-[10px] font-black leading-3 text-slate-800">{item.label}</span>
+                                    <span className="block truncate text-[9px] font-semibold leading-3 text-slate-400">{item.detail}</span>
+                                </span>
+                            </span>
+                        ))}
                     </div>
                     {details.length === 1 && (
                         <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
@@ -577,8 +603,8 @@ export default function UnifiedSupervisionGantt({
                 </div>
             </div>
 
-            <div className="flex border-b border-slate-300">
-                <div className="flex h-10 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-50 px-4 font-bold text-slate-600 overflow-hidden" style={{ width: labelWidth }}>
+            <div className="flex border-b border-slate-300 bg-slate-50">
+                <div className="flex h-12 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-100 px-4 font-black text-slate-700 overflow-hidden" style={{ width: labelWidth }}>
                     Tahapan Pekerjaan
                 </div>
                 <div className="min-w-0 flex-1 overflow-x-auto" id="unified-gantt-scroll-top" onScroll={(e) => {
@@ -609,7 +635,7 @@ export default function UnifiedSupervisionGantt({
                                     type="button"
                                     disabled={!checkpoint}
                                     onClick={() => actionableCheckpoint && onCheckpointClick(actionableCheckpoint, dayIndex)}
-                                    className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${
+                                    className={`flex h-12 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[10px] font-black transition-colors ${
                                         isReady
                                             ? "bg-red-600 text-white ring-2 ring-inset ring-red-200"
                                             : isExtension

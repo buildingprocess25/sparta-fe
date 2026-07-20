@@ -45,10 +45,15 @@ const isNoPpnArea = (rab: any) => {
     return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
 };
 
+const roundBeforePpn = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    return Math.floor(value / 10000) * 10000;
+};
+
 const getSpkGrandTotal = (rab: any) => {
     if (!rab) return 0;
     if (isNoPpnArea(rab)) {
-        return parseCurrency(rab["Grand Total Non PPN"] ?? rab["Grand Total"] ?? rab["Grand Total Final"]) || 0;
+        return roundBeforePpn(parseCurrency(rab["Grand Total Non PPN"] ?? rab["Grand Total"] ?? rab["Grand Total Final"]) || 0);
     }
     return parseCurrency(rab["Grand Total Final"] ?? rab["Grand Total"]) || 0;
 };
