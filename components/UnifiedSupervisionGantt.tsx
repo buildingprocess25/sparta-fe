@@ -76,8 +76,7 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
 
-    // Use ONLY SPK dates for timeline (not checkpoints)
-    // This creates a cleaner timeline based on actual work schedule
+    // SPK dates define the base work schedule; checkpoints can extend it for Target ST.
     workspace.scopes.forEach((scope) => {
         const spkStart = parseDate(scope.spk_start_date);
         const duration = Number(scope.spk_effective_duration || scope.spk_duration || 0);
@@ -91,9 +90,16 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
         if (stTarget) {
             ends.push(stTarget);
         }
+
+        (scope.checkpoints || []).forEach((checkpoint) => {
+            const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
+            if (checkpointDate) {
+                ends.push(checkpointDate);
+            }
+        });
     });
 
-    // Fallback: include checkpoints if no SPK dates available
+    // Fallback: use checkpoints as start/end if no SPK start dates are available.
     if (starts.length === 0) {
         workspace.scopes.forEach((scope) => {
             (scope.checkpoints || []).forEach((checkpoint) => {
