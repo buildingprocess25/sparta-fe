@@ -49,6 +49,77 @@ const isCikokolBranchGroup = (branch?: string | null) => {
 const normalizeJobName = (value?: string | null) =>
   String(value ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s]/gu, '').trim();
 
+const FUZZY_JOB_MATCH_THRESHOLD = 0.82;
+const FUZZY_JOB_MATCH_MARGIN = 0.06;
+const JOB_MATCH_STOPWORDS = new Set([
+  'pekerjaan', 'pasang', 'pemasangan', 'merk', 'ukuran', 'warna',
+  'dan', 'atau', 'dengan', 'untuk', 'unit', 'buah', 'set', 'type'
+]);
+
+const tokenizeJobName = (value?: string | null) =>
+  normalizeJobName(value)
+    .split(' ')
+    .filter((token) => token.length > 1 && !JOB_MATCH_STOPWORDS.has(token));
+
+const levenshteinDistance = (left: string, right: string) => {
+  if (left === right) return 0;
+  if (!left) return right.length;
+  if (!right) return left.length;
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = Array(right.length + 1).fill(0);
+
+  for (let i = 1; i <= left.length; i += 1) {
+    current[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const substitutionCost = left[i - 1] === right[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + substitutionCost
+      );
+    }
+    for (let j = 0; j <= right.length; j += 1) previous[j] = current[j];
+  }
+
+  return previous[right.length];
+};
+
+const stringSimilarity = (left: string, right: string) => {
+  const a = normalizeJobName(left);
+  const b = normalizeJobName(right);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const maxLength = Math.max(a.length, b.length);
+  return maxLength === 0 ? 0 : 1 - (levenshteinDistance(a, b) / maxLength);
+};
+
+const tokenSimilarity = (left: string, right: string) => {
+  const leftTokens = new Set(tokenizeJobName(left));
+  const rightTokens = new Set(tokenizeJobName(right));
+  if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
+
+  let overlap = 0;
+  leftTokens.forEach((token) => {
+    if (rightTokens.has(token)) overlap += 1;
+  });
+
+  return (2 * overlap) / (leftTokens.size + rightTokens.size);
+};
+
+const fuzzyJobScore = (left?: string | null, right?: string | null) => {
+  const a = normalizeJobName(left);
+  const b = normalizeJobName(right);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const stringScore = stringSimilarity(a, b);
+  const tokenScore = tokenSimilarity(a, b);
+  const containsBonus = a.includes(b) || b.includes(a) ? 0.08 : 0;
+  return Math.min(1, Math.max(stringScore, (tokenScore * 0.78) + (stringScore * 0.22) + containsBonus));
+};
+
 const normalizePriceCategoryName = (value?: string | null) =>
   String(value ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s&/]/gu, '').trim();
 
@@ -69,6 +140,40 @@ const getPriceItemsForCategory = (priceData: PriceMaster, category: string): Pri
   const targetKey = normalizePriceCategoryName(category);
   const matchedEntry = Object.entries(priceData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
   return matchedEntry?.[1] || [];
+};
+
+const findBestMasterPriceMatch = (
+  masterPrices: PriceMaster,
+  category: string,
+  jenisPekerjaan: string
+): { category: string; item: PriceMasterItem } | null => {
+  const normalizedJob = normalizeJobName(jenisPekerjaan);
+  if (!normalizedJob) return null;
+
+  const categoryItems = getPriceItemsForCategory(masterPrices, category);
+  const exactCategoryMatch = categoryItems.find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
+  if (exactCategoryMatch) return { category, item: exactCategoryMatch };
+
+  const allCandidates = Object.entries(masterPrices || {})
+    .flatMap(([candidateCategory, items]) => items.map((item) => ({ category: candidateCategory, item })));
+  const exactAnyCategoryMatch = allCandidates.find(({ item }) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
+  if (exactAnyCategoryMatch) return exactAnyCategoryMatch;
+
+  const normalizedCategory = normalizePriceCategoryName(category);
+  const ranked = allCandidates
+    .map((candidate) => {
+      const sameCategory = normalizePriceCategoryName(candidate.category) === normalizedCategory;
+      const score = fuzzyJobScore(jenisPekerjaan, candidate.item["Jenis Pekerjaan"]) + (sameCategory ? 0.04 : 0);
+      return { ...candidate, score };
+    })
+    .filter((candidate) => candidate.score >= FUZZY_JOB_MATCH_THRESHOLD)
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length === 0) return null;
+  const [best, second] = ranked;
+  if (second && best.score - second.score < FUZZY_JOB_MATCH_MARGIN) return null;
+
+  return { category: best.category, item: best.item };
 };
 
 type RabTableRow = {
@@ -198,20 +303,14 @@ const refreshRevisionRowsWithMasterPrices = <T extends RabTableRow>(rows: T[], m
   return rows.map((row) => {
     if (!row.category || !row.jenisPekerjaan) return row;
 
-    const normalizedJob = normalizeJobName(row.jenisPekerjaan);
-    const categoryMatch = getPriceItemsForCategory(masterPrices, row.category)
-      .find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
-    const fallbackMatch = Object.entries(masterPrices || {})
-      .flatMap(([category, items]) => items.map((item) => ({ category, item })))
-      .find(({ item }) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
-    const itemData = categoryMatch ?? fallbackMatch?.item;
+    const match = findBestMasterPriceMatch(masterPrices, row.category, row.jenisPekerjaan);
+    if (!match) return row;
 
-    if (!itemData) return row;
-
+    const itemData = match.item;
     const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
     return {
       ...row,
-      category: categoryMatch ? row.category : fallbackMatch?.category ?? row.category,
+      category: match.category || row.category,
       jenisPekerjaan: itemData["Jenis Pekerjaan"] || row.jenisPekerjaan,
       satuan: itemData["Satuan"] || row.satuan,
       hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial),
