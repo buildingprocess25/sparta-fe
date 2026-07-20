@@ -13,7 +13,7 @@ import {
   updateSpkBackdatePolicyBranches,
   type SpkBackdatePolicyBranch,
 } from "@/lib/api";
-import { BRANCH_TO_ULOK, normalizeBranchValue } from "@/lib/constants";
+import { BRANCH_GROUPS, BRANCH_TO_ULOK, getParentBranch, normalizeBranchValue } from "@/lib/constants";
 import {
   CalendarClock,
   CheckCircle2,
@@ -37,13 +37,25 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
-const buildBranchOptions = (policyRows: SpkBackdatePolicyBranch[]) =>
-  Array.from(
+const toPolicyBranchKey = (branch?: string | null) => getParentBranch(branch);
+
+const buildBranchOptions = (policyRows: SpkBackdatePolicyBranch[]) => {
+  const groupChildren = new Set(
+    Object.values(BRANCH_GROUPS)
+      .flat()
+      .map(normalizeBranchValue)
+  );
+
+  return Array.from(
     new Set([
-      ...Object.keys(BRANCH_TO_ULOK),
-      ...policyRows.map((row) => row.branch_name),
-    ].map(normalizeBranchValue).filter(Boolean))
+      ...Object.keys(BRANCH_GROUPS).map(normalizeBranchValue),
+      ...Object.keys(BRANCH_TO_ULOK)
+        .map(normalizeBranchValue)
+        .filter((branch) => !groupChildren.has(branch)),
+      ...policyRows.map((row) => toPolicyBranchKey(row.branch_name)),
+    ].filter(Boolean))
   ).sort();
+};
 
 export default function SpkBackdatePolicyPage() {
   const router = useRouter();
@@ -56,7 +68,7 @@ export default function SpkBackdatePolicyPage() {
   const [saving, setSaving] = useState(false);
 
   const branchOptions = useMemo(() => buildBranchOptions(policyRows), [policyRows]);
-  const enabledSet = useMemo(() => new Set(enabledBranches.map(normalizeBranchValue)), [enabledBranches]);
+  const enabledSet = useMemo(() => new Set(enabledBranches.map(toPolicyBranchKey)), [enabledBranches]);
   const latestUpdate = useMemo(() => {
     const enabledRows = policyRows.filter((row) => row.is_enabled);
     return enabledRows.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ?? null;
@@ -73,7 +85,7 @@ export default function SpkBackdatePolicyPage() {
     try {
       const result = await fetchSpkBackdatePolicy({ suppressGlobalError: true });
       setPolicyRows(result.data.branches ?? []);
-      setEnabledBranches((result.data.enabled_branches ?? []).map(normalizeBranchValue));
+      setEnabledBranches((result.data.enabled_branches ?? []).map(toPolicyBranchKey));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal memuat policy backdate SPK.";
       showAlert({ title: "Policy Tidak Terbaca", message, type: "error" });
@@ -98,9 +110,9 @@ export default function SpkBackdatePolicyPage() {
   }, [isLoading, loadPolicy, router, showAlert, user]);
 
   const toggleBranch = (branch: string) => {
-    const normalized = normalizeBranchValue(branch);
+    const normalized = toPolicyBranchKey(branch);
     setEnabledBranches((current) => {
-      const next = new Set(current.map(normalizeBranchValue));
+      const next = new Set(current.map(toPolicyBranchKey));
       if (next.has(normalized)) {
         next.delete(normalized);
       } else {
@@ -115,7 +127,7 @@ export default function SpkBackdatePolicyPage() {
     try {
       const result = await updateSpkBackdatePolicyBranches(enabledBranches, { suppressGlobalError: true });
       setPolicyRows(result.data.branches ?? []);
-      setEnabledBranches((result.data.enabled_branches ?? []).map(normalizeBranchValue));
+      setEnabledBranches((result.data.enabled_branches ?? []).map(toPolicyBranchKey));
       showAlert({
         title: "Policy Disimpan",
         message: `${result.data.enabled_branches.length} cabang dapat memilih tanggal mulai SPK sebelum hari ini.`,

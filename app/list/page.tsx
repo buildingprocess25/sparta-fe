@@ -2012,7 +2012,12 @@ export default function DaftarDokumenPage() {
                 return;
             }
 
-            if ((detail.tipe === 'RAB' || detail.tipe === 'SPK') && detail.link_pdf) {
+            if (detail.tipe === 'SPK') {
+                await viewGeneratedPdfOnline(detail.id, detail.tipe);
+                return;
+            }
+
+            if (detail.tipe === 'RAB' && detail.link_pdf) {
                 window.open(detail.link_pdf, '_blank', 'noopener,noreferrer');
                 return;
             }
@@ -3871,7 +3876,7 @@ export default function DaftarDokumenPage() {
                                         {/* Download button for generated/stored PDFs */}
                                         {(
                                             (selectedDetail.tipe === 'RAB' && selectedDetail.link_pdf_gabungan) ||
-                                            (selectedDetail.tipe === 'SPK' && selectedDetail.link_pdf) ||
+                                            selectedDetail.tipe === 'SPK' ||
                                             selectedDetail.tipe === 'PERTAMBAHAN_SPK' ||
                                             selectedDetail.tipe === 'OPNAME' ||
                                             selectedDetail.tipe === 'OPNAME_FINAL' ||
@@ -3941,7 +3946,8 @@ export default function DaftarDokumenPage() {
                                         )}
 
                                         {(
-                                            ((selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && selectedDetail.link_pdf) ||
+                                            (selectedDetail.tipe === 'RAB' && selectedDetail.link_pdf) ||
+                                            selectedDetail.tipe === 'SPK' ||
                                             selectedDetail.tipe === 'OPNAME' ||
                                             selectedDetail.tipe === 'OPNAME_FINAL' ||
                                             selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ||

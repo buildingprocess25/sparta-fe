@@ -9,7 +9,7 @@ import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, Ale
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification, fetchSpkBackdatePolicy } from '@/lib/api';
-import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch, normalizeBranchValue } from '@/lib/constants';
+import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
 import { parseCurrency } from '@/lib/utils';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -124,7 +124,7 @@ export default function SPKPage() {
     const { user } = useSession();
     const isSuperHuman = user?.isSuperHuman ?? false;
     const isReadOnly = isViewOnlyUser(user?.roles, isSuperHuman);
-    const activeBackdateBranch = normalizeBranchValue(selectedRabObj?.Cabang || userInfo.cabang);
+    const activeBackdateBranch = getParentBranch(selectedRabObj?.Cabang || userInfo.cabang);
     const canBackdateStartDate = Boolean(activeBackdateBranch && backdateBranches.includes(activeBackdateBranch));
 
     useEffect(() => {
@@ -152,7 +152,7 @@ export default function SPKPage() {
     const loadBackdatePolicy = async () => {
         try {
             const result = await fetchSpkBackdatePolicy({ suppressGlobalError: true });
-            setBackdateBranches((result.data.enabled_branches ?? []).map(normalizeBranchValue));
+            setBackdateBranches((result.data.enabled_branches ?? []).map(getParentBranch));
         } catch (error) {
             console.warn("Gagal memuat policy backdate SPK:", error);
             setBackdateBranches([]);

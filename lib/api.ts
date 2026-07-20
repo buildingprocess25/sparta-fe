@@ -4231,7 +4231,7 @@ export const downloadDokumentasiBangunanPdf = async (id: number): Promise<boolea
 
 export const viewGeneratedPdfOnline = async (
     id: number,
-    tipe: "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
+    tipe: "SPK" | "OPNAME" | "OPNAME_FINAL" | "INSTRUKSI_LAPANGAN" | "PROJECT_PLANNING" | "BERKAS_SERAH_TERIMA" | "DOKUMENTASI_BANGUNAN" | "PENGAWASAN" | "PERTAMBAHAN_SPK"
 ): Promise<boolean> => {
     const popup = window.open("about:blank", "_blank");
     if (!popup) throw new Error("Browser memblokir tab baru. Izinkan popup untuk membuka PDF online.");
@@ -4249,6 +4249,7 @@ export const viewGeneratedPdfOnline = async (
     }
 
     const endpointByType = {
+        SPK: `/api/spk/${id}/pdf`,
         OPNAME: `/api/final_opname/${id}/pdf`,
         OPNAME_FINAL: `/api/final_opname/${id}/pdf`,
         INSTRUKSI_LAPANGAN: `/api/instruksi-lapangan/${id}/pdf`,
