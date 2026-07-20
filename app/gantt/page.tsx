@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -271,6 +271,10 @@ function GanttBoard() {
     const [ganttNoteInput, setGanttNoteInput] = useState('');
     const [isGanttNoteLoading, setIsGanttNoteLoading] = useState(false);
     const [isGanttNoteSending, setIsGanttNoteSending] = useState(false);
+    const [showProjectInfo, setShowProjectInfo] = useState(true);
+    const [showDateLegend, setShowDateLegend] = useState(true);
+    const [showHandoverPanel, setShowHandoverPanel] = useState(true);
+    const [showGanttNotes, setShowGanttNotes] = useState(false);
 
     const [projectData, setProjectData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -312,6 +316,36 @@ function GanttBoard() {
         return list;
     }, [allTokoList, searchUlokInput, spkFilter, spkTokoIds]);
 
+    const spkFilterOptions = useMemo(() => {
+        const uniqueUloks = [...new Map(allTokoList.map(t => [t.nomor_ulok, t])).keys()];
+        const getScopes = (ulok: string) => allTokoList.filter(t => t.nomor_ulok === ulok);
+        const hasSpk = (toko: any) => spkTokoIds.has(Number(toko.id_toko || toko.id));
+
+        const countAll = uniqueUloks.length;
+        const countSpk = uniqueUloks.filter(ulok => {
+            const scopes = getScopes(ulok);
+            return scopes.length >= 2 && scopes.every(hasSpk);
+        }).length;
+        const countSingle = uniqueUloks.filter(ulok => {
+            const scopes = getScopes(ulok);
+            return scopes.length === 1 && scopes.every(hasSpk);
+        }).length;
+        const countPartial = uniqueUloks.filter(ulok => {
+            const scopes = getScopes(ulok);
+            const spkCount = scopes.filter(hasSpk).length;
+            return scopes.length >= 2 && spkCount > 0 && spkCount < scopes.length;
+        }).length;
+        const countNoSpk = uniqueUloks.filter(ulok => getScopes(ulok).every(toko => !hasSpk(toko))).length;
+
+        return [
+            { key: 'all', label: 'Semua SPK', count: countAll },
+            { key: 'spk', label: 'SPK Lengkap', count: countSpk },
+            { key: 'single', label: 'SPK Tunggal', count: countSingle },
+            { key: 'partial', label: 'SPK Partial', count: countPartial },
+            { key: 'no_spk', label: 'Belum SPK', count: countNoSpk },
+        ] as Array<{ key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number }>;
+    }, [allTokoList, spkTokoIds]);
+
     const [tasks, setTasks] = useState<any[]>([]);
     const [isApplying, setIsApplying] = useState(false);
 
@@ -351,6 +385,9 @@ function GanttBoard() {
 
     const isViewOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
     const isReadOnly = isViewOnly;
+    const activeNotesGanttId = selectedGanttId
+        ?? supervisionWorkspace?.scopes.find(scope => scope.gantt_id)?.gantt_id
+        ?? null;
     const unifiedTimeline = useMemo(() => {
         if (!supervisionWorkspace) return null;
         const starts: Date[] = [];
@@ -385,7 +422,7 @@ function GanttBoard() {
             syncGroup: `unified-${supervisionWorkspace.nomor_ulok}`.replace(/[^a-zA-Z0-9_-]/g, '-'),
         };
     }, [supervisionWorkspace]);
-    const canWriteGanttCommunication = appMode === 'pic' && !!selectedGanttId && !isReadOnly;
+    const canWriteGanttCommunication = !!activeNotesGanttId && !isReadOnly;
 
     const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
         if (!nomorUlok) return;
@@ -394,6 +431,11 @@ function GanttBoard() {
             const response = await fetchSupervisionWorkspace(nomorUlok);
             setSupervisionWorkspace(response.data);
             setSelectedUlok(formatUlokWithDash(nomorUlok));
+            const firstGanttId = response.data?.scopes?.find((scope: SupervisionScope) => scope.gantt_id)?.gantt_id;
+            if (firstGanttId) {
+                setSelectedGanttId(Number(firstGanttId));
+                loadGanttNotes(Number(firstGanttId));
+            }
             // NOTE: spkTokoIds TIDAK dioverride di sini.
             // spkTokoIds sudah diisi dengan benar dari fetchSPKList({ status: 'SPK_APPROVED' })
             // saat halaman pertama kali dimuat. Mengoverride di sini dengan kondisi
@@ -512,10 +554,10 @@ function GanttBoard() {
     };
 
     const handleSendGanttNote = async () => {
-        if (!selectedGanttId || !user || !ganttNoteInput.trim()) return;
+        if (!activeNotesGanttId || !user || !ganttNoteInput.trim()) return;
         setIsGanttNoteSending(true);
         try {
-            const res = await createGanttNote(selectedGanttId, {
+            const res = await createGanttNote(activeNotesGanttId, {
                 author_email: user.email,
                 author_name: user.namaLengkap || user.email,
                 author_role: user.role,
@@ -1409,6 +1451,37 @@ function GanttBoard() {
                                                         onChange={(e) => setSearchUlokInput(e.target.value)}
                                                     />
                                                 </div>
+                                                <div className="grid gap-3 sm:grid-cols-[1fr_128px]">
+                                                    <Select value={spkFilter} onValueChange={(value) => setSpkFilter(value as typeof spkFilter)}>
+                                                        <SelectTrigger className="h-11 border-slate-300 bg-white text-sm font-semibold text-slate-800 focus:ring-red-500">
+                                                            <SlidersHorizontal className="mr-2 h-4 w-4 text-red-600" />
+                                                            <SelectValue placeholder="Status SPK" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {spkFilterOptions.map((option) => (
+                                                                <SelectItem key={option.key} value={option.key}>
+                                                                    <span className="flex w-full items-center justify-between gap-4">
+                                                                        <span>{option.label}</span>
+                                                                        <span className="text-xs text-slate-500">{option.count}</span>
+                                                                    </span>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="h-11 justify-center border-slate-300 bg-white font-semibold text-slate-700"
+                                                        onClick={() => {
+                                                            setSearchUlokInput("");
+                                                            setSpkFilter("all");
+                                                        }}
+                                                    >
+                                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                                        Reset
+                                                    </Button>
+                                                </div>
+                                                {false && <>
                                                 {/* Filter SPK - Always visible */}
                                                 <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
                                                     <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
@@ -1475,6 +1548,7 @@ function GanttBoard() {
                                                         })()}
                                                     </div>
                                                 </div>
+                                                </>}
                                             </>
                                         )}
                                         {/* Dropdown Pilih Proyek */}
@@ -1616,7 +1690,7 @@ function GanttBoard() {
                         </CardContent>
                     </Card>
 
-                    {projectData && (
+                    {projectData && showProjectInfo && (
                         <Card className={`col-span-1 ${appMode === 'pic' && selectedGanttId ? 'lg:col-span-8 xl:col-span-5' : 'lg:col-span-8 xl:col-span-8'} border border-slate-200 bg-white text-slate-900 shadow-sm transition-all`}>
                             <CardContent className="p-5 flex flex-col justify-center h-full">
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4">
@@ -1681,7 +1755,7 @@ function GanttBoard() {
                         </Card>
                     )}
 
-                    {projectData && selectedGanttId && appMode === 'pic' && (
+                    {activeNotesGanttId && showGanttNotes && (
                         <Card className="col-span-1 lg:col-span-12 xl:col-span-4 border-slate-200 bg-white shadow-sm h-full flex flex-col">
                             <CardContent className="p-4 flex flex-col h-full">
                                 <div className="flex items-start gap-3">
@@ -1772,9 +1846,10 @@ function GanttBoard() {
                                     return (
                                 <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
                                     <div className="relative p-6 md:p-7 text-slate-900">
-                                        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                                            <div>
-                                                <div className="mb-2 flex flex-wrap items-center gap-2">
+                                        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                                    <div className="flex flex-wrap items-center gap-2">
                                                     <Badge className="border border-red-200 bg-red-50 text-red-700 font-bold">WORKSPACE PENGAWASAN</Badge>
                                                     <Badge className="border border-red-200 bg-red-600 text-white font-bold">
                                                         {supervisionWorkspace.scopes.filter(scope => scope.gantt_id).length} Lingkup Aktif
