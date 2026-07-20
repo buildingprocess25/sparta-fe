@@ -1387,18 +1387,10 @@ function GanttBoard() {
 
             <main className="p-4 md:p-8 max-w-[1600px] mx-auto mt-2">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6 items-stretch">
-                    <Card className={`col-span-1 lg:col-span-4 ${projectData && selectedGanttId && appMode === 'pic' ? 'xl:col-span-3' : 'xl:col-span-4'} overflow-hidden rounded-lg border-slate-300 bg-white shadow-[0_14px_32px_-26px_rgba(15,23,42,0.7)]`}>
-                        <CardContent className="p-4 sm:p-5 flex flex-col justify-center h-full">
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Cari ULOK</p>
-                                        <h2 className="text-base font-black text-slate-900">Pilih proyek pengawasan</h2>
-                                    </div>
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-500">
-                                        {filteredTokoList.length} hasil
-                                    </span>
-                                </div>
+                    <Card className={`col-span-1 lg:col-span-4 ${projectData && selectedGanttId && appMode === 'pic' ? 'xl:col-span-3' : 'xl:col-span-4'} shadow-sm border-slate-200 bg-white`}>
+                        <CardContent className="p-5 flex flex-col justify-center h-full">
+                            <div className="space-y-3">
+                                <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
                                 {(urlIdToko || urlUlok) && !isDirectAccess ? (
                                     <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
                                         <span>{selectedUlok || projectData?.ulokClean || "Memuat..."}</span><Lock className="w-5 h-5 text-slate-400" />
@@ -1412,21 +1404,18 @@ function GanttBoard() {
                                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
                                                     <Input
                                                         placeholder="Cari Nomor / Toko / Cabang..."
-                                                        className="h-11 rounded-lg border-slate-300 bg-slate-50 pl-9 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-slate-300"
+                                                        className="pl-9 h-11 text-sm focus-visible:ring-blue-500 bg-white"
                                                         value={searchUlokInput}
                                                         onChange={(e) => setSearchUlokInput(e.target.value)}
                                                     />
                                                 </div>
                                                 {/* Filter SPK - Always visible */}
-                                                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                                                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <SlidersHorizontal className="h-4 w-4 text-slate-500" />
-                                                            <span className="text-xs font-black uppercase tracking-wide text-slate-700">Filter Status SPK</span>
-                                                        </div>
-                                                        <span className="text-[10px] font-semibold text-slate-400">ULOK</span>
+                                                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
+                                                    <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                                                        <SlidersHorizontal className="h-4 w-4 text-slate-500" />
+                                                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Filter Status SPK</span>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-5 lg:grid-cols-2 xl:grid-cols-1">
+                                                    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                         {(() => {
                                                             // Deduplicate per ULOK untuk hitungan yang benar
                                                             const uniqueUloks = [...new Map(allTokoList.map(t => [t.nomor_ulok, t])).keys()];
@@ -1456,30 +1445,31 @@ function GanttBoard() {
                                                                 return ulokTokos.every(t => !spkTokoIds.has(Number(t.id_toko || t.id)));
                                                             }).length;
                                                             
-                                                            const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number; activeClass: string; idleClass: string; mark: string; hint: string }[] = [
-                                                                { key: 'all', label: 'Semua', count: countAll, activeClass: 'border-slate-900 bg-slate-900 text-white', idleClass: 'border-slate-200 bg-white text-slate-700 hover:border-slate-400', mark: 'ALL', hint: 'semua status' },
-                                                                { key: 'spk', label: 'Lengkap', count: countSpk, activeClass: 'border-emerald-600 bg-emerald-600 text-white', idleClass: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400', mark: '2/2', hint: 'SIPIL + ME' },
-                                                                { key: 'single' as any, label: 'Tunggal', count: countSingle, activeClass: 'border-blue-600 bg-blue-600 text-white', idleClass: 'border-blue-200 bg-blue-50 text-blue-800 hover:border-blue-400', mark: '1/1', hint: 'satu lingkup' },
-                                                                { key: 'partial', label: 'Partial', count: countPartial, activeClass: 'border-amber-500 bg-amber-500 text-white', idleClass: 'border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-400', mark: '1/2', hint: 'belum lengkap' },
-                                                                { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'border-slate-500 bg-slate-500 text-white', idleClass: 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-400', mark: '0', hint: 'tanpa SPK' },
+                                                            const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number; activeClass: string; hoverClass: string; icon: string }[] = [
+                                                                { key: 'all', label: 'Semua', count: countAll, activeClass: 'bg-slate-900 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '📋' },
+                                                                { key: 'spk', label: 'SPK Lengkap', count: countSpk, activeClass: 'bg-emerald-600 text-white shadow-md', hoverClass: 'text-emerald-700 hover:bg-emerald-50 border-emerald-300 border', icon: '✓✓' },
+                                                                { key: 'single' as any, label: 'SPK Tunggal', count: countSingle, activeClass: 'bg-blue-600 text-white shadow-md', hoverClass: 'text-blue-700 hover:bg-blue-50 border-blue-300 border', icon: '✓' },
+                                                                { key: 'partial', label: 'SPK Partial', count: countPartial, activeClass: 'bg-amber-500 text-white shadow-md', hoverClass: 'text-amber-700 hover:bg-amber-50 border-amber-300 border', icon: '½' },
+                                                                { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'bg-slate-500 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '○' },
                                                             ];
                                                             return filters.map(f => (
                                                                 <button
                                                                     key={f.key}
                                                                     type="button"
                                                                     onClick={() => setSpkFilter(f.key as any)}
-                                                                    className={`min-w-0 rounded-md border px-2.5 py-2 text-left transition-colors ${
-                                                                        spkFilter === f.key ? f.activeClass : f.idleClass
+                                                                    className={`py-3 px-3 text-xs font-bold rounded-lg transition-all text-left flex items-center justify-between gap-2 ${
+                                                                        spkFilter === f.key ? f.activeClass : f.hoverClass
                                                                     }`}
                                                                 >
-                                                                    <div className="flex items-center justify-between gap-2">
-                                                                        <span className={`rounded-sm px-1.5 py-0.5 text-[9px] font-black ${spkFilter === f.key ? 'bg-white/20 text-white' : 'bg-white text-current'}`}>
-                                                                            {f.mark}
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center gap-2 mb-1">
+                                                                            <span className="text-lg">{f.icon}</span>
+                                                                            <span>{f.label}</span>
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-normal ${spkFilter === f.key ? 'opacity-90' : 'opacity-60'}`}>
+                                                                            {f.count} proyek
                                                                         </span>
-                                                                        <span className="text-[10px] font-black">{f.count}</span>
                                                                     </div>
-                                                                    <div className="mt-1 truncate text-[11px] font-black">{f.label}</div>
-                                                                    <div className={`truncate text-[9px] font-semibold ${spkFilter === f.key ? 'text-white/75' : 'text-slate-400'}`}>{f.hint}</div>
                                                                 </button>
                                                             ));
                                                         })()}
