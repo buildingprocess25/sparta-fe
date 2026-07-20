@@ -458,6 +458,10 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                 && (i + 1) >= projectData.stBufferStartDay
                                 && (i + 1) < projectData.stBufferStartDay + projectData.stBufferDays
                             );
+                            const isSpkEndDay = !!(projectData?.stBufferDays > 0
+                                && projectData?.stBufferStartDay > 1
+                                && (i + 1) === projectData.stBufferStartDay - 1
+                            );
                             
                             if (projectData?.spkStartDateObj) {
                                 const d = new Date(projectData.spkStartDateObj);
@@ -496,7 +500,12 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             } else if (isExtensionDay) {
                                 colClass = `relative bg-amber-50 text-amber-900 border-amber-300 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-amber-100' : ''}`;
                             } else if (isStBufferDay) {
-                                colClass = `relative bg-slate-100 text-slate-800 border-teal-100 shadow-[inset_0_3px_0_#0f766e] ${isClickable ? 'cursor-pointer hover:bg-slate-200' : ''}`;
+                                const isStTargetDay = (i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1;
+                                colClass = isStTargetDay
+                                    ? `relative bg-teal-700 text-white border-teal-800 shadow-[inset_0_3px_0_#134e4a] ${isClickable ? 'cursor-pointer hover:bg-teal-600' : ''}`
+                                    : `relative bg-teal-50 text-teal-900 border-teal-100 shadow-[inset_0_3px_0_#99f6e4] ${isClickable ? 'cursor-pointer hover:bg-teal-100' : ''}`;
+                            } else if (isSpkEndDay) {
+                                colClass = `relative bg-slate-800 text-white border-slate-700 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-slate-700' : ''}`;
                             } else if (isAlreadyOpname) {
                                 colClass = 'bg-emerald-50 text-emerald-700 cursor-pointer';
                             } else if (isLiveDay) {
@@ -520,22 +529,31 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                         : isAlreadyOpname
                                             ? 'Pekerjaan sudah masuk Opname'
                                             : isExtensionDay
-                                                ? `Pertambahan SPK +${projectData.extensionDays} hari`
+                                                ? (isSpkEndDay ? 'Akhir SPK' : `Pertambahan SPK +${projectData.extensionDays} hari`)
                                                 : isStBufferDay
                                                     ? projectData.stBufferExplanation
+                                                    : isSpkEndDay
+                                                        ? 'Akhir SPK'
                                                     : isPengawasan
                                                         ? 'Buka checkpoint pengawasan'
                                                         : undefined}
                                 >
-                                    <span className={isExtensionDay || isStBufferDay ? 'leading-3' : undefined}>{label}</span>
+                                    <span className={isExtensionDay || isStBufferDay || isSpkEndDay ? 'leading-3' : undefined}>{label}</span>
                                     {isExtensionDay && (
                                         <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-extrabold leading-3 text-amber-950">
-                                            SPK+
+                                            {isSpkEndDay ? 'Akhir' : 'SPK+'}
                                         </span>
                                     )}
                                     {isStBufferDay && (
-                                        <span className="mt-0.5 whitespace-nowrap rounded-sm bg-teal-700 px-1 text-[8px] font-extrabold leading-3 text-white">
-                                            {Number(projectData.stBufferOffsetDays || 0) > 1 ? String(projectData.stBufferLabel || '').replace(' hari', '') : 'ST'}
+                                        <span className={`mt-0.5 whitespace-nowrap rounded-sm px-1 text-[8px] font-extrabold leading-3 ${(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1 ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'}`}>
+                                            {(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1
+                                                ? (Number(projectData.stBufferOffsetDays || 0) > 1 ? String(projectData.stBufferLabel || '').replace(' hari', '') : 'ST')
+                                                : 'libur'}
+                                        </span>
+                                    )}
+                                    {isSpkEndDay && !isExtensionDay && (
+                                        <span className="mt-0.5 rounded-sm bg-amber-300 px-1 text-[8px] font-extrabold leading-3 text-slate-950">
+                                            Akhir
                                         </span>
                                     )}
                                     {isReadyOpname ? (

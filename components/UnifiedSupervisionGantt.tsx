@@ -191,28 +191,65 @@ export default function UnifiedSupervisionGantt({
         return dates;
     }, [workspace.scopes]);
 
-    const stBufferByDate = useMemo(() => {
-        const map = new Map<string, { label: string; explanation: string; offsetDays: number }>();
+    const spkEndByDate = useMemo(() => {
+        const map = new Map<string, { label: string; scopes: string[] }>();
 
         workspace.scopes.forEach((scope) => {
             const spkEnd = parseDate(scope.spk_effective_end_date);
-            const stTarget = parseDate(scope.st_target_date);
-            const offsetDays = Number(scope.st_offset_days || 0);
-            if (!spkEnd || !stTarget || offsetDays <= 0 || stTarget <= spkEnd) return;
+            if (!spkEnd) return;
+            const fullDate = formatFullDate(spkEnd);
+            const current = map.get(fullDate) || { label: "Akhir SPK", scopes: [] };
+            current.scopes.push(String(scope.lingkup_pekerjaan || "SPK"));
+            map.set(fullDate, current);
+        });
 
-            for (let day = 1; day <= offsetDays; day += 1) {
+        return map;
+    }, [workspace.scopes]);
+
+    const stBufferByDate = useMemo(() => {
+        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean }>();
+
+        workspace.scopes.forEach((scope) => {
+            const spkEnd = parseDate(scope.spk_effective_end_date);
+            let stTarget = parseDate(scope.st_target_date);
+            if (!stTarget && spkEnd) {
+                stTarget = (scope.checkpoints || [])
+                    .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
+                    .filter((date): date is Date => Boolean(date && date > spkEnd))
+                    .sort((left, right) => left.getTime() - right.getTime())[0] || null;
+            }
+            const offsetDays = Number(scope.st_offset_days || 0);
+            const effectiveOffsetDays = offsetDays || (spkEnd && stTarget ? Math.max(0, diffDays(stTarget, spkEnd)) : 0);
+            if (!spkEnd || !stTarget || effectiveOffsetDays <= 0 || stTarget <= spkEnd) return;
+
+            for (let day = 1; day <= effectiveOffsetDays; day += 1) {
                 const date = addDays(spkEnd, day);
                 if (date > stTarget) break;
                 map.set(formatFullDate(date), {
-                    label: scope.st_offset_label || `SPK +${offsetDays} hari`,
+                    label: scope.st_offset_label || `SPK +${effectiveOffsetDays} hari`,
                     explanation: scope.st_offset_explanation || `Target ST ${formatFullDate(stTarget)}`,
-                    offsetDays,
+                    offsetDays: effectiveOffsetDays,
+                    isTarget: formatFullDate(date) === formatFullDate(stTarget),
                 });
             }
         });
 
         return map;
     }, [workspace.scopes]);
+
+    const stDelaySummaries = useMemo(() => {
+        const summaries = new Map<string, { date: string; label: string }>();
+        stBufferByDate.forEach((value, date) => {
+            if (value.isTarget && value.offsetDays > 1) {
+                summaries.set(date, { date, label: value.label });
+            }
+        });
+        return Array.from(summaries.values()).sort((left, right) => {
+            const leftDate = parseDate(left.date);
+            const rightDate = parseDate(right.date);
+            return (leftDate?.getTime() || 0) - (rightDate?.getTime() || 0);
+        });
+    }, [stBufferByDate]);
 
     useEffect(() => {
         let cancelled = false;
@@ -502,6 +539,34 @@ export default function UnifiedSupervisionGantt({
                                 : `${details.map(d => d.scopeName).join(' + ')} dalam satu tanggal pengawasan.`
                             }
                         </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="h-3 w-3 rounded-sm bg-slate-800 shadow-[inset_0_3px_0_#f59e0b]" />
+                                Akhir SPK
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="h-3 w-3 rounded-sm bg-teal-700" />
+                                Target ST
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="h-3 w-3 rounded-sm border border-teal-200 bg-teal-50" />
+                                Weekend/libur
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="h-3 w-3 rounded-sm border border-amber-300 bg-amber-100" />
+                                Pertambahan SPK
+                            </span>
+                        </div>
+                        {stDelaySummaries.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-teal-800">
+                                <span className="text-slate-500">ST mundur:</span>
+                                {stDelaySummaries.map((item) => (
+                                    <span key={item.date} className="rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5">
+                                        {item.date.slice(0, 5)} {item.label.replace(" hari", "")}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     {details.length === 1 && (
                         <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
@@ -525,6 +590,7 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
+                            const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
                             const activeScopeIds = activeScopeIdsByDate.get(fullDate) ?? new Set<number>();
                             const actionableCheckpoint = checkpoint && activeScopeIds.size > 0
@@ -548,35 +614,46 @@ export default function UnifiedSupervisionGantt({
                                             ? "bg-red-600 text-white ring-2 ring-inset ring-red-200"
                                             : isExtension
                                                 ? "bg-amber-50 text-amber-950 shadow-[inset_0_3px_0_#f59e0b] hover:bg-amber-100"
-                                                : stBuffer
-                                                    ? "bg-slate-100 text-slate-800 shadow-[inset_0_3px_0_#0f766e] hover:bg-slate-200"
-                                                    : isDone
-                                                        ? "bg-emerald-500 text-white"
-                                                        : checkpoint
-                                                            ? "bg-blue-600 text-white hover:bg-blue-500"
-                                                            : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                                                : stBuffer?.isTarget
+                                                    ? "bg-teal-700 text-white shadow-[inset_0_3px_0_#134e4a] hover:bg-teal-600"
+                                                    : spkEnd
+                                                        ? "bg-slate-800 text-white shadow-[inset_0_3px_0_#f59e0b] hover:bg-slate-700"
+                                                        : stBuffer
+                                                            ? "bg-teal-50 text-teal-900 shadow-[inset_0_3px_0_#99f6e4] hover:bg-teal-100"
+                                                            : isDone
+                                                                ? "bg-emerald-500 text-white"
+                                                                : checkpoint
+                                                                    ? "bg-blue-600 text-white hover:bg-blue-500"
+                                                                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                                     }`}
                                     style={{ width: DAY_WIDTH }}
                                     title={isExtension
-                                        ? `${fullDate} - tanggal pertambahan SPK`
+                                        ? `${fullDate} - ${spkEnd ? `Akhir SPK ${spkEnd.scopes.join(" + ")}` : "tanggal pertambahan SPK"}`
                                         : stBuffer
                                             ? `${fullDate} - ${stBuffer.explanation}`
-                                            : checkpoint
-                                                ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
-                                                : fullDate}
+                                            : spkEnd
+                                                ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}`
+                                                : checkpoint
+                                                    ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
+                                                    : fullDate}
                                 >
-                                    <span className={isExtension || stBuffer ? "leading-3" : undefined}>{formatShortDate(date)}</span>
+                                    <span className={isExtension || stBuffer || spkEnd ? "leading-3" : undefined}>{formatShortDate(date)}</span>
                                     {isExtension && !isReady ? (
                                         <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-black leading-3 text-amber-950">
-                                            SPK+
+                                            {spkEnd ? "Akhir" : "SPK+"}
                                         </span>
                                     ) : null}
                                     {stBuffer && !isExtension && !isReady ? (
-                                        <span className="mt-0.5 whitespace-nowrap rounded-sm bg-teal-700 px-1 text-[8px] font-black leading-3 text-white">
-                                            {stBuffer.offsetDays > 1 ? stBuffer.label.replace(" hari", "") : "ST"}
+                                        <span className={`mt-0.5 whitespace-nowrap rounded-sm px-1 text-[8px] font-black leading-3 ${stBuffer.isTarget ? "bg-white text-teal-800" : "bg-teal-100 text-teal-800"}`}>
+                                            {stBuffer.isTarget ? (stBuffer.offsetDays > 1 ? stBuffer.label.replace(" hari", "") : "ST") : "libur"}
                                         </span>
                                     ) : null}
-                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone && !isExtension && !stBuffer ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${isExtension ? "bg-amber-700" : stBuffer ? "bg-teal-700" : "bg-white"}`} /> : null}
+                                    {spkEnd && !isExtension && !stBuffer && !isReady ? (
+                                        <span className="mt-0.5 rounded-sm bg-amber-300 px-1 text-[8px] font-black leading-3 text-slate-950">
+                                            Akhir
+                                        </span>
+                                    ) : null}
+                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone && !isExtension && !stBuffer && !spkEnd ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${isExtension ? "bg-amber-700" : stBuffer ? "bg-white" : spkEnd ? "bg-amber-300" : "bg-white"}`} /> : null}
                                 </button>
                             );
                         })}
@@ -616,6 +693,7 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
+                            const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
                             return (
                                 <div
@@ -623,14 +701,18 @@ export default function UnifiedSupervisionGantt({
                                     className={`absolute top-0 bottom-0 border-r ${
                                         isExtension
                                             ? "bg-amber-50/70 border-amber-200 shadow-[inset_0_3px_0_#f59e0b]"
-                                            : stBuffer
-                                                ? "bg-slate-100/75 border-teal-100 shadow-[inset_0_3px_0_#0f766e]"
-                                            : checkpoint
-                                                ? "bg-blue-50/70 border-blue-200"
-                                                : "border-slate-200"
+                                            : stBuffer?.isTarget
+                                                ? "bg-teal-100/80 border-teal-300 shadow-[inset_0_3px_0_#0f766e]"
+                                                : spkEnd
+                                                    ? "bg-slate-100/90 border-slate-300 shadow-[inset_0_3px_0_#f59e0b]"
+                                                    : stBuffer
+                                                        ? "bg-teal-50/60 border-teal-100"
+                                                        : checkpoint
+                                                            ? "bg-blue-50/70 border-blue-200"
+                                                            : "border-slate-200"
                                     }`}
                                     style={{ left: dayIndex * DAY_WIDTH, width: DAY_WIDTH }}
-                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : undefined}
+                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : spkEnd ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}` : undefined}
                                 />
                             );
                         })}
