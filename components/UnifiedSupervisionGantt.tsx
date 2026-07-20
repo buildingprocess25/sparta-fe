@@ -165,11 +165,11 @@ export default function UnifiedSupervisionGantt({
     const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
     const timeline = workspaceTimeline ?? ganttFallbackTimeline;
     
-    // Responsive label width for mobile
+    // Keep the task label readable without stealing too much timeline space on mobile.
     const [labelWidth, setLabelWidth] = useState(340);
     useEffect(() => {
         const handleResize = () => {
-            setLabelWidth(window.innerWidth < 640 ? 180 : 340);
+            setLabelWidth(window.innerWidth < 640 ? 230 : window.innerWidth < 1024 ? 280 : 340);
         };
         handleResize(); // Initialize
         window.addEventListener("resize", handleResize);
