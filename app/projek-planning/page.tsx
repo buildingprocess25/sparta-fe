@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { fetchProjekPlanningList, type ProjekPlanningItem } from "@/lib/api";
-import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
+import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole } from "@/lib/constants";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700 border-slate-300", icon: <FileText className="w-3 h-3" /> },
@@ -61,6 +61,7 @@ export default function ProjekPlanningPage() {
       const isHO = userCabang.toUpperCase() === "HEAD OFFICE";
       const canSeeAllBranches = canViewAllBranches(userRole);
       const { isCoor, isBM, isBMRegional, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
+      const isSuperHuman = hasSuperHumanRole(userRole);
 
       const isOnlyCoor = isCoor && !isBM && !isBMRegional && !isPP && !isPPMgr;
 
@@ -80,14 +81,14 @@ export default function ProjekPlanningPage() {
       let data = res.data || [];
       
       data = data.filter((d: any) => {
-        if (canSeeAllBranches) return true;
+        if (isBMRegional && !isSuperHuman) return d.status === "WAITING_BM_REGIONAL_APPROVAL";
+        if (isSuperHuman) return true;
         if (!isCoor && d.status !== "COMPLETED") return false;
         if (isHO && !isCoor && !isBM && !isBMRegional && !isPP && !isPPMgr) return true; // Admin/Direktur
         
         let visible = false;
         if (isCoor && d.email_pembuat === userEmail) visible = true;
         if (isBM && (d.status !== "DRAFT" || d.bm_alasan_penolakan)) visible = true;
-        if (isBMRegional && (d.status === "WAITING_BM_REGIONAL_APPROVAL" || d.bm_regional_alasan_penolakan || d.bm_regional_approver_email)) visible = true;
         if (isPP && (!["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status) || d.pp1_alasan_penolakan || d.pp2_alasan_penolakan)) visible = true;
         if (isPPMgr && (["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status) || d.pp_manager_alasan_penolakan)) visible = true;
         

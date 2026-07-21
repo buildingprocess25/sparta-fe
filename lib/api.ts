@@ -4973,6 +4973,10 @@ export type ProjekPlanningItem = {
     bm_regional_approver_email?: string | null;
     bm_regional_waktu_persetujuan?: string | null;
     bm_regional_alasan_penolakan?: string | null;
+    bm_regional_rab_status?: string | null;
+    bm_regional_gambar_status?: string | null;
+    bm_regional_rab_rejected_item_ids?: number[] | null;
+    bm_regional_rab_rejected_item_notes?: string | null;
     pp1_approver_email: string | null;
     pp1_waktu_persetujuan: string | null;
     pp1_alasan_penolakan: string | null;
@@ -5414,9 +5418,12 @@ export const processBmApproval = async (id: number, payload: {
 /** Proses approval B&M Regional Manager. */
 export const processBmRegionalApproval = async (id: number, payload: {
     approver_email: string;
-    tindakan: "APPROVE" | "REJECT";
+    rab_tindakan: "APPROVE" | "REJECT";
+    gambar_tindakan: "APPROVE" | "REJECT";
     catatan?: string;
     alasan_penolakan?: string;
+    rab_rejected_item_ids?: number[];
+    rab_rejected_item_notes?: string;
 }) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/bm-regional-approval`, {
         method: "POST",

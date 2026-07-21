@@ -72,6 +72,13 @@ const formatRupiahInput = (value: string | number | null | undefined) => {
   return `Rp ${number.toLocaleString("id-ID")}`;
 };
 
+const toFormText = (value: unknown) => {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+};
+
+const normalizeUlok = (value: unknown) => String(value ?? "").trim().toUpperCase();
+
 function FormProjekPlanningInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,48 +122,98 @@ function FormProjekPlanningInner() {
   const isDarkStoreDesign = jenisSelected.includes(DARK_STORE_OPTION);
 
   const [isRabApproved, setIsRabApproved] = useState<boolean | null>(null);
+  const [rabPrefillStatus, setRabPrefillStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
+  const [rabPrefillMessage, setRabPrefillMessage] = useState("");
 
   useEffect(() => {
-    let finalUlok = "";
-    if (!isManualUlok) {
-       if (manualCabang && manualTanggal && manualUrutan) finalUlok = `${manualCabang}-${manualTanggal}-${manualUrutan}-R`;
-    } else {
-       if (manualCabang && manualTanggal && manualUrutan) finalUlok = `${manualCabang}-${manualTanggal}-${manualUrutan}`;
-    }
+    if (resubmitId) return;
+    const finalUlok = manualCabang && manualTanggal && manualUrutan
+      ? `${manualCabang}-${manualTanggal}-${manualUrutan}${isManualUlok ? "" : "-R"}`
+      : "";
 
     if (finalUlok.length >= 8) {
+       let cancelled = false;
        const timer = setTimeout(() => {
+         setRabPrefillStatus("loading");
+         setRabPrefillMessage(`Mengecek RAB approved untuk ${finalUlok}...`);
          fetchRABList({ nomor_ulok: finalUlok, status: "Disetujui" }, { suppressGlobalError: true })
            .then(async res => {
-             const rows = res.data || [];
+             if (cancelled) return;
+             const rows = (res.data || []).filter((r: any) =>
+               normalizeUlok(r.toko?.nomor_ulok || r.nomor_ulok) === normalizeUlok(finalUlok)
+             );
              const sipilRab = rows.find((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("SIPIL"));
              const meRab = rows.find((r: any) => String(r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase().includes("ME"));
-             setIsRabApproved(!!sipilRab && !!meRab);
+             const sourceRab = sipilRab || meRab || rows[0];
+             setIsRabApproved(rows.length > 0);
 
-             if (sipilRab?.id) {
-               try {
-                 const detail = await fetchRABDetail(Number(sipilRab.id));
-                 const rab = detail.data.rab as any;
-                 setF(prev => ({
-                   ...prev,
-                   luas_bangunan: rab?.luas_bangunan != null ? String(rab.luas_bangunan) : prev.luas_bangunan,
-                   luas_area_terbuka: rab?.luas_area_terbuka != null ? String(rab.luas_area_terbuka) : prev.luas_area_terbuka,
-                   luas_gudang: rab?.luas_gudang != null ? String(rab.luas_gudang) : prev.luas_gudang,
-                   luas_area_parkir: rab?.luas_area_parkir != null ? String(rab.luas_area_parkir) : prev.luas_area_parkir,
-                   luas_area_sales: rab?.luas_area_sales != null ? String(rab.luas_area_sales) : prev.luas_area_sales,
-                 }));
-               } catch {
-                 // Detail RAB hanya dipakai untuk auto-fill luasan; submit tahap 1 tidak diblokir.
-               }
+             if (!sourceRab?.id) {
+               setRabPrefillStatus("not_found");
+               setRabPrefillMessage(`Belum ada RAB approved untuk ULOK ${finalUlok}. Form tetap bisa diisi manual.`);
+               return;
+             }
+             try {
+               const [sourceDetail, sipilDetail, meDetail] = await Promise.all([
+                 fetchRABDetail(Number(sourceRab.id)),
+                 sipilRab?.id && sipilRab.id !== sourceRab.id ? fetchRABDetail(Number(sipilRab.id)) : Promise.resolve(null),
+                 meRab?.id && meRab.id !== sourceRab.id ? fetchRABDetail(Number(meRab.id)) : Promise.resolve(null),
+               ]);
+               if (cancelled) return;
+               const details = [sourceDetail, sipilDetail, meDetail].filter(Boolean) as Awaited<ReturnType<typeof fetchRABDetail>>[];
+               const primary = sourceDetail.data;
+               const rab = primary.rab as any;
+               const toko = primary.toko as any;
+               const lingkupList = Array.from(new Set(details.map(detail => detail.data.toko?.lingkup_pekerjaan).filter(Boolean)));
+               const coordinatorInfo = rab?.coordinator_info_prefill || {};
+               const nextJenisSelected = new Set(jenisSelected);
+               if (rab?.beanspot_type && String(rab.beanspot_type).toUpperCase() !== "TIDAK") nextJenisSelected.add("BEAN SPOT");
+               if (rab?.is_fasade || coordinatorInfo.is_fasade) nextJenisSelected.add("FASADE");
+               setJenisSelected(Array.from(nextJenisSelected));
+               if (rab?.beanspot_type) setBeanspotTipe(String(rab.beanspot_type).toUpperCase() === "RTD_ONLY" ? "RTD ONLY" : String(rab.beanspot_type));
+               if (rab?.is_hth != null || coordinatorInfo.is_hth != null) setIsHeadToHead(Boolean(rab?.is_hth ?? coordinatorInfo.is_hth));
+               if (rab?.hth_meter != null || coordinatorInfo.hth_meter != null) set("jarak_head_to_head", toFormText(rab?.hth_meter ?? coordinatorInfo.hth_meter));
+               if (toko?.nama_toko) setManualNamaToko(toko.nama_toko);
+               if (toko?.kode_toko) setManualKodeToko(toko.kode_toko);
+               if (toko?.alamat) setManualAlamat(toko.alamat);
+               if (toko?.cabang) setManualCabangNama(toko.cabang);
+               setF(prev => ({
+                 ...prev,
+                 nomor_ulok: finalUlok,
+                 nama_lokasi: toFormText(toko?.nama_toko) || prev.nama_lokasi,
+                 lingkup_pekerjaan: lingkupList.join(", ") || toFormText(toko?.lingkup_pekerjaan) || prev.lingkup_pekerjaan,
+                 jenis_proyek: toFormText(toko?.proyek) || prev.jenis_proyek,
+                 luas_bangunan: toFormText(rab?.luas_bangunan) || prev.luas_bangunan,
+                 luas_area_terbuka: toFormText(rab?.luas_area_terbuka) || prev.luas_area_terbuka,
+                 luas_area_terbangun: toFormText(rab?.luas_terbangun) || prev.luas_area_terbangun,
+                 luas_gudang: toFormText(rab?.luas_gudang) || prev.luas_gudang,
+                 luas_area_parkir: toFormText(rab?.luas_area_parkir) || prev.luas_area_parkir,
+                 luas_area_sales: toFormText(rab?.luas_area_sales) || prev.luas_area_sales,
+               }));
+               setRabPrefillStatus("found");
+               setRabPrefillMessage(`RAB approved ditemukan untuk ${finalUlok}. Data dasar FPD otomatis terisi dari RAB.`);
+             } catch {
+               if (cancelled) return;
+               setRabPrefillStatus("error");
+               setRabPrefillMessage("RAB approved ditemukan, tetapi detail RAB belum bisa dimuat. Form tetap bisa diisi manual.");
              }
            })
-           .catch(() => setIsRabApproved(false));
+           .catch(() => {
+             if (cancelled) return;
+             setIsRabApproved(false);
+             setRabPrefillStatus("error");
+             setRabPrefillMessage("Gagal mengecek RAB approved. Form tetap bisa diisi manual.");
+           });
        }, 500);
-       return () => clearTimeout(timer);
+       return () => {
+         cancelled = true;
+         clearTimeout(timer);
+       };
     } else {
        setIsRabApproved(null);
+       setRabPrefillStatus("idle");
+       setRabPrefillMessage("");
     }
-  }, [isManualUlok, manualCabang, manualTanggal, manualUrutan]);
+  }, [isManualUlok, manualCabang, manualTanggal, manualUrutan, resubmitId]);
 
   useEffect(() => {
     if (!isDarkStoreDesign) return;
@@ -645,6 +702,7 @@ function FormProjekPlanningInner() {
                         <Label className="text-sm font-bold text-slate-700">Proyek *</Label>
                         <select value={f.jenis_proyek} onChange={e => set("jenis_proyek", e.target.value)} required className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
                           <option value="">Pilih proyek...</option>
+                          <option value="Renovasi">Renovasi</option>
                           <option value="Perpanjangan">Perpanjangan</option>
                           <option value="Peremajaan/Perbaikan">Peremajaan/Perbaikan</option>
                           <option value="Perluasan">Perluasan</option>
@@ -755,6 +813,37 @@ function FormProjekPlanningInner() {
                   </div>
                 )}
               </div>
+              {rabPrefillStatus !== "idle" && (
+                <div className={`mt-4 rounded-xl border p-3 text-sm flex items-start gap-3 ${
+                  rabPrefillStatus === "found"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : rabPrefillStatus === "loading"
+                      ? "border-blue-200 bg-blue-50 text-blue-800"
+                      : rabPrefillStatus === "not_found"
+                        ? "border-slate-200 bg-slate-50 text-slate-600"
+                        : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}>
+                  {rabPrefillStatus === "loading" ? (
+                    <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                  ) : rabPrefillStatus === "found" ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  )}
+                  <div>
+                    <p className="font-semibold">
+                      {rabPrefillStatus === "found"
+                        ? "RAB approved ditemukan"
+                        : rabPrefillStatus === "loading"
+                          ? "Mengecek RAB approved"
+                          : rabPrefillStatus === "not_found"
+                            ? "RAB approved belum ditemukan"
+                            : "Cek RAB belum berhasil"}
+                    </p>
+                    <p className="text-xs opacity-90">{rabPrefillMessage}</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3">
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">Nama Pengaju *</Label>

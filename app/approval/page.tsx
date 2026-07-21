@@ -49,7 +49,6 @@ import {
     isViewOnlyUser,
     getAccessibleBranchesForUser,
     getSessionBranchCoverage,
-    canAccessBranchForUser,
     getParentBranch,
 } from '@/lib/constants';
 import {
@@ -508,6 +507,7 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     PP_DESIGN_3D_REQUIRED:              'bg-purple-100 text-purple-700 border-purple-200',
     WAITING_RAB_UPLOAD:                 'bg-orange-100 text-orange-700 border-orange-200',
     WAITING_BM_APPROVAL_2:              'bg-yellow-100 text-yellow-700 border-yellow-200',
+    WAITING_BM_REGIONAL_APPROVAL:       'bg-sky-100 text-sky-700 border-sky-200',
     WAITING_PP_APPROVAL_2:              'bg-yellow-100 text-yellow-700 border-yellow-200',
     WAITING_PP_MANAGER_APPROVAL:        'bg-yellow-100 text-yellow-700 border-yellow-200',
     COMPLETED:                          'bg-green-100 text-green-700 border-green-200',
@@ -551,6 +551,7 @@ const STATUS_LABEL: Record<string, string> = {
     PP_DESIGN_3D_REQUIRED:              'Design 3D',
     WAITING_RAB_UPLOAD:                 'Input Tahap 2',
     WAITING_BM_APPROVAL_2:              'Pending B&M (2)',
+    WAITING_BM_REGIONAL_APPROVAL:       'Pending B&M Regional',
     WAITING_PP_APPROVAL_2:              'Pending PP (2)',
     WAITING_PP_MANAGER_APPROVAL:        'Pending PP Mgr',
     COMPLETED:                          'Selesai',
@@ -747,8 +748,10 @@ function ApprovalPageContent() {
         const isHO = cabang?.toUpperCase() === 'HEAD OFFICE';
         const isDirectorHO = isHeadOfficeDirector(cabang, roles);
         const isSuperHuman = user.isSuperHuman ?? false;
-        const isRegionalManager = user.isRegionalManager ?? false;
         const isProjectPlanningApprovalRole = roles.some(r =>
+            r.includes('BUILDING & MAINTENANCE REGIONAL MANAGER') ||
+            r.includes('B&M REGIONAL') ||
+            r.includes('REGIONAL MANAGER') ||
             r.includes('PROJECT PLANNING & DEVELOPMENT SPECIALIST') ||
             r.includes('PROJECT PLANNING & DEVELOPMENT MANAGER') ||
             r.includes('PP SPECIALIST') ||
@@ -765,7 +768,7 @@ function ApprovalPageContent() {
         });
 
         const allAccessibleTypes = new Set<ApprovalType>();
-        if (isRegionalManager || isSuperHuman) {
+        if (isSuperHuman) {
             allAccessibleTypes.add('RAB');
             allAccessibleTypes.add('SPK');
             allAccessibleTypes.add('PERTAMBAHAN_SPK');
@@ -1073,21 +1076,21 @@ function ApprovalPageContent() {
                     .map(r => r.trim().toUpperCase())
                     .filter(Boolean);
                 const isHOUser = upperUserCabang === 'HEAD OFFICE';
-                const isDirectorHOUser = isHeadOfficeDirector(userInfo.cabang, userRoles);
                 const isSuperHumanUser = user?.isSuperHuman ?? false;
-                const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHumanUser);
-                const isRegionalManagerUser = user?.isRegionalManager ?? false;
-                const userBranchCoverage = currentCoverage.length > 0 ? currentCoverage : getSessionBranchCoverage();
 
                 if (type === 'PROJECT_PLANNING') {
-                    if (canSeeAllBranches) return true;
+                    if (isSuperHumanUser) return true;
                     if (!isHOUser) return false;
-                    const projek = item._raw as ProjekPlanningItem;
 
                     const isBmManager = userRoles.some(r =>
                         r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
                         r.includes('MAINTENANCE MANAGER') ||
                         r.includes('BBMM')
+                    );
+                    const isBmRegionalManager = userRoles.some(r =>
+                        r.includes('BUILDING & MAINTENANCE REGIONAL MANAGER') ||
+                        r.includes('B&M REGIONAL') ||
+                        r.includes('REGIONAL MANAGER')
                     );
                     const isPpSpecialist = userRoles.some(r =>
                         r.includes('PROJECT PLANNING & DEVELOPMENT SPECIALIST') ||
@@ -1099,12 +1102,10 @@ function ApprovalPageContent() {
                     );
 
                     const statusMatchesRole =
-                        (isBmManager && !['DRAFT', 'COMPLETED', 'REJECTED'].includes(upper)) ||
-                        (isPpSpecialist && !['DRAFT', 'WAITING_BM_APPROVAL', 'WAITING_BM_APPROVAL_2', 'COMPLETED', 'REJECTED'].includes(upper)) ||
-                        (isPpManager && (
-                            upper === 'WAITING_PP_MANAGER_APPROVAL' ||
-                            (upper === 'WAITING_RAB_UPLOAD' && !!projek.pp_manager_approver_email)
-                        ));
+                        (isBmManager && (upper === 'WAITING_BM_APPROVAL' || upper === 'WAITING_BM_APPROVAL_2')) ||
+                        (isBmRegionalManager && upper === 'WAITING_BM_REGIONAL_APPROVAL') ||
+                        (isPpSpecialist && ['WAITING_PP_APPROVAL_1', 'PP_DESIGN_3D_REQUIRED', 'WAITING_PP_APPROVAL_2'].includes(upper)) ||
+                        (isPpManager && upper === 'WAITING_PP_MANAGER_APPROVAL');
 
                     if (!statusMatchesRole) return false;
                     if (isHOUser) return normalizeBranch(item.cabang) === upperUserCabang;

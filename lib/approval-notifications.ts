@@ -192,7 +192,7 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
         allAccessibleTypes.add("RAB");
     }
     
-    if (user.isRegionalManager || user.isSuperHuman) {
+    if (user.isSuperHuman) {
         (Object.keys(ROLE_ACCESS) as ApprovalType[]).forEach(type => allAccessibleTypes.add(type));
     } else if (isProjectPlanningApprovalRole && isHO) {
         allAccessibleTypes.add("PROJECT_PLANNING");
@@ -274,7 +274,7 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
         role.includes("PP MANAGER")
     );
 
-    if (canSeeAll && !isBmRegionalManager) return true;
+    if (user.isSuperHuman) return true;
 
     const statusMatchesRole =
         (isBmManager && (upper === "WAITING_BM_APPROVAL" || upper === "WAITING_BM_APPROVAL_2")) ||
@@ -286,7 +286,8 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
         ));
 
     if (!statusMatchesRole) return false;
-    if (isHOUser) return normalizeBranch(item.cabang) === userCabang;
+    if (isHOUser) return !item.cabang || normalizeBranch(item.cabang) === userCabang;
+    if (canSeeAll) return true;
     return isSameBranchScope(item.cabang, user);
 };
 
