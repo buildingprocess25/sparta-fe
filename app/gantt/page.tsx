@@ -568,7 +568,7 @@ function GanttBoard() {
             loadDataByToko(parseInt(urlIdToko), urlIdRab ? parseInt(urlIdRab) : undefined);
         } else if (urlIdRab) {
             loadDataByRab(parseInt(urlIdRab));
-        } else {
+        } else if (currentAppMode !== 'pic') {
             const filters = currentAppMode === 'kontraktor'
                 ? { email_pembuat: email || '' }
                 : {};
@@ -611,6 +611,12 @@ function GanttBoard() {
                     setSpkTokoIds(spkIds);
 
                     const data = res.data || [];
+                    const ganttOnlyFiltered = upperCabang ? data.filter(item => {
+                        const normalizedCabang = normalizeBranchValue(item.cabang);
+                        if (canSeeAllBranches) return true;
+                        if (userGroup) return userGroup.includes(normalizedCabang);
+                        return normalizedCabang === upperCabang;
+                    }) : data;
                     const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
                     const merged = mergeProjectOptions(data, ilProjects);
                     const filtered = upperCabang ? merged.filter(item => {
@@ -619,6 +625,7 @@ function GanttBoard() {
                         if (userGroup) return userGroup.includes(normalizedCabang);
                         return normalizedCabang === upperCabang;
                     }) : merged;
+                    setAvailableProjects(ganttOnlyFiltered);
                     setAllTokoList(filtered);
                 })
                 .catch(err => console.error("Gagal memuat semua daftar Gantt:", err));
