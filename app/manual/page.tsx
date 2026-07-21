@@ -275,7 +275,7 @@ export default function UserManualPage() {
                       Akses & Login
                     </h3>
                     <ul className="list-disc list-outside ml-11 text-slate-600 space-y-2">
-                      <li>Buka link aplikasi SPARTA (<a href="https://sparta-alfamart.vercel.app/" target="_blank" className="text-red-600 hover:underline">https://sparta-alfamart.vercel.app/</a>).</li>
+                      <li>Buka link aplikasi SPARTA (<a href="https://building.sparta-alfamart.web.id/" target="_blank" className="text-red-600 hover:underline">https://building.sparta-alfamart.web.id/</a>).</li>
                       <li>Pilih menu <strong>Dashboard</strong>.</li>
                       <li>Login menggunakan email yang pernah didaftarkan.</li>
                       <li>Password default menggunakan nama Cabang lokasi bekerja dengan <strong>huruf kapital</strong> (Contoh: CIKOKOL).</li>

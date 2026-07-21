@@ -1126,7 +1126,7 @@ const normalizeBerkasSerahTerimaDocs = (items: any[]): NormalizedDoc[] => {
             email_pembuat: '-',
             total_nilai:   totalNilai,
             created_at:    primary.created_at,
-            tanggal_serah_terima: primary.tanggal_serah_terima_denda ?? primary.created_at,
+            tanggal_serah_terima: primary.created_at,
             link_pdf:      primary.link_pdf ?? null,
             lingkup_pekerjaan: scopeLabel || (primary.toko?.lingkup_pekerjaan ?? primary.lingkup_pekerjaan),
             nilai_penawaran: primary.nilai_penawaran ?? null,
@@ -3445,7 +3445,7 @@ export default function DaftarDokumenPage() {
                                                             <InfoRow
                                                                 icon={<CalendarDays className="w-4 h-4" />}
                                                                 label="Periode Denda"
-                                                                value={`Akhir SPK: ${formatDateFull(selectedDetail.tanggal_akhir_spk_denda || '')} | ST: ${formatDateFull(selectedDetail.tanggal_serah_terima_denda || selectedDetail.created_at)}`}
+                                                                value={`Akhir SPK: ${formatDateFull(selectedDetail.tanggal_akhir_spk_denda || '')} | ST: ${formatDateFull(selectedDetail.tanggal_serah_terima_denda || selectedDetail.tanggal_serah_terima || selectedDetail.created_at)}`}
                                                             />
                                                         </div>
                                                     )}
