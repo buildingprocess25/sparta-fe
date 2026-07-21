@@ -2147,6 +2147,8 @@ export default function DaftarDokumenPage() {
                 await regenerateAndDownloadRABPdf(selectedDetail.id);
             } else if (selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL') {
                 await regenerateAndDownloadOpnameFinalPdf(selectedDetail.id);
+                showToast('Generate ulang PDF KTK sedang diproses di background. Tunggu sebentar lalu klik download/buka PDF lagi.', 'success');
+                return;
             } else if (selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') {
                 await regenerateAndDownloadInstruksiLapanganPdf(selectedDetail.id);
             } else if (selectedDetail.tipe === 'BERKAS_SERAH_TERIMA') {

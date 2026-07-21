@@ -2680,30 +2680,14 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
 };
 
 export const regenerateAndDownloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
-    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf?regenerate=1`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf/regenerate`, {
+        method: "POST"
+    });
     if (res.status === 404) throw new Error(`Data Opname dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Gagal generate ulang PDF (${res.status}): ${text.substring(0, 100)}`);
     }
-
-    const disposition = res.headers.get("Content-Disposition");
-    let filename = `OPNAME_${id}.pdf`;
-    if (disposition?.includes("filename=")) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match?.[1]) filename = match[1];
-    }
-
-    const blob = await res.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.style.display = "none";
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(blobUrl);
-    document.body.removeChild(a);
     return true;
 };
 
