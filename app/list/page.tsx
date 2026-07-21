@@ -900,8 +900,24 @@ const formatHthInfo = (isHth?: boolean | null, meter?: string | number | null) =
 // =============================================================================
 // NORMALIZE HELPERS
 // =============================================================================
-const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] =>
-    items.map(r => ({
+const getRabDuplicateKey = (item: RABListItem) => [
+    item.id_toko,
+    String(item.nomor_ulok ?? item.toko?.nomor_ulok ?? '').trim().toUpperCase(),
+    String((item as any).lingkup_pekerjaan ?? (item.toko as any)?.lingkup_pekerjaan ?? '').trim().toUpperCase(),
+].join('|');
+
+const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] => {
+    const activeRabKeys = new Set(
+        items
+            .filter((item) => !isRejectedStatus(item.status))
+            .map(getRabDuplicateKey)
+    );
+    const visibleItems = items.filter((item) => {
+        if (!isRejectedStatus(item.status)) return true;
+        return !activeRabKeys.has(getRabDuplicateKey(item));
+    });
+
+    return visibleItems.map(r => ({
         id: r.id,
         tipe: 'RAB' as DokumenKategori,
         nomor_ulok:    r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
@@ -917,6 +933,7 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] =>
         kategori_lokasi: (r as any).kategori_lokasi,
         klasifikasi_bangunan: getBuildingClassification(undefined, (r as any).kategori_lokasi),
     }));
+};
 
 const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
     items.map(s => {
