@@ -2679,6 +2679,34 @@ export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
     return true;
 };
 
+export const regenerateAndDownloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf?regenerate=1`);
+    if (res.status === 404) throw new Error(`Data Opname dengan ID ${id} tidak ditemukan.`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal generate ulang PDF (${res.status}): ${text.substring(0, 100)}`);
+    }
+
+    const disposition = res.headers.get("Content-Disposition");
+    let filename = `OPNAME_${id}.pdf`;
+    if (disposition?.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match?.[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(blobUrl);
+    document.body.removeChild(a);
+    return true;
+};
+
 // =============================================================================
 // 3c. TASK NOTIFICATIONS
 // =============================================================================
@@ -3989,6 +4017,20 @@ export const downloadInstruksiLapanganPdf = async (id: number): Promise<boolean>
     return true;
 };
 
+export const regenerateInstruksiLapanganPdf = async (id: number): Promise<unknown> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/instruksi-lapangan/${id}/pdf/regenerate`, { method: "POST" });
+    const result = await res.json();
+    if (!res.ok || result.status !== "success") {
+        throw new Error(result.message || "Gagal generate ulang PDF Instruksi Lapangan.");
+    }
+    return result;
+};
+
+export const regenerateAndDownloadInstruksiLapanganPdf = async (id: number): Promise<boolean> => {
+    await regenerateInstruksiLapanganPdf(id);
+    return downloadInstruksiLapanganPdf(id);
+};
+
 // =============================================================================
 // 8. BERKAS SERAH TERIMA
 // =============================================================================
@@ -4189,6 +4231,20 @@ export const downloadSerahTerimaPdf = async (id: number): Promise<boolean> => {
     window.URL.revokeObjectURL(blobUrl);
     document.body.removeChild(a);
     return true;
+};
+
+export const regenerateBerkasSerahTerimaPdf = async (id: number): Promise<unknown> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/berkas_serah_terima/${id}/pdf/regenerate`, { method: "POST" });
+    const result = await res.json();
+    if (!res.ok || result.status !== "success") {
+        throw new Error(result.message || "Gagal generate ulang PDF Serah Terima.");
+    }
+    return result;
+};
+
+export const regenerateAndDownloadSerahTerimaPdf = async (id: number): Promise<boolean> => {
+    await regenerateBerkasSerahTerimaPdf(id);
+    return downloadSerahTerimaPdf(id);
 };
 
 export const downloadPengawasanPdf = async (id: number): Promise<boolean> => {

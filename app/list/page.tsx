@@ -22,14 +22,14 @@ import {
     type SPKListItem, type SPKDetailResponse,
     fetchPertambahanSPKList, fetchPertambahanSPKDetail, downloadPertambahanSPKPdf,
     type PertambahanSPKListItem,
-    fetchOpnameFinalList, fetchOpnameFinalDetail, downloadOpnameFinalPdf,
+    fetchOpnameFinalList, fetchOpnameFinalDetail, downloadOpnameFinalPdf, regenerateAndDownloadOpnameFinalPdf,
     fetchPengawasanList, fetchPengawasanDetail, fetchPengawasanPendingPdfs, downloadPengawasanPdf,
     fetchGanttList, fetchGanttDetail,
     updateRABStatus, fetchBerkasSerahTerimaList, interveneSPKStatus,
     fetchActivityLogs, type ActivityLog,
-    fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf,
+    fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf, regenerateAndDownloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
-    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline, createPdfSerahTerimaUnified,
+    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, regenerateAndDownloadSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline,
     fetchUserCabangList,
     type ProjekPlanningItem,
 } from '@/lib/api';
@@ -2121,19 +2121,32 @@ export default function DaftarDokumenPage() {
         }
     }, [selectedDetail, showToast]);
 
-    const handleRegenerateSerahTerimaPdf = useCallback(async () => {
-        if (!selectedDetail || selectedDetail.tipe !== 'BERKAS_SERAH_TERIMA') return;
+    const handleRegenerateStoredPdf = useCallback(async () => {
+        if (!selectedDetail) return;
 
         setDownloadingId(selectedDetail.id);
         try {
-            await createPdfSerahTerimaUnified(selectedDetail.nomor_ulok);
-            await handleDownloadPDF(selectedDetail.id, selectedDetail.tipe);
-        } catch (err: any) {
-            showToast(err.message || 'Gagal generate ulang PDF Serah Terima.', 'error');
+            if (selectedDetail.tipe === 'RAB') {
+                await regenerateAndDownloadRABPdf(selectedDetail.id);
+            } else if (selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL') {
+                await regenerateAndDownloadOpnameFinalPdf(selectedDetail.id);
+            } else if (selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') {
+                await regenerateAndDownloadInstruksiLapanganPdf(selectedDetail.id);
+            } else if (selectedDetail.tipe === 'BERKAS_SERAH_TERIMA') {
+                await regenerateAndDownloadSerahTerimaPdf(selectedDetail.id);
+            } else {
+                showToast('Generate ulang belum tersedia untuk dokumen ini.', 'error');
+                return;
+            }
+
+            showToast('PDF berhasil digenerate ulang dan diunduh.', 'success');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Gagal generate ulang PDF.';
+            showToast(message, 'error');
         } finally {
             setDownloadingId(null);
         }
-    }, [selectedDetail, showToast, handleDownloadPDF]);
+    }, [selectedDetail, showToast]);
 
     const handleDownloadProjectPlanningAttachment = useCallback(async (field: string, itemIndex?: number) => {
         if (!selectedDetail || selectedDetail.tipe !== 'PROJECT_PLANNING') return;
@@ -3943,7 +3956,7 @@ export default function DaftarDokumenPage() {
                                                 ) : (
                                                     <FileSignature className="w-4 h-4 mr-2" />
                                                 )}
-                                                {selectedDetail.link_pdf_materai ? "Generate PDF + Materai" : "Generate PDF RAB"}
+                                                {selectedDetail.link_pdf_materai ? "Generate Ulang PDF + Materai" : "Generate Ulang PDF RAB"}
                                             </Button>
                                         )}
 
@@ -3983,9 +3996,29 @@ export default function DaftarDokumenPage() {
                                         {selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' && (
                                             <Button
                                                 variant="outline"
-                                                className="border-teal-200 text-teal-700 hover:bg-teal-50"
+                                                className="border-slate-300 text-slate-700 hover:bg-slate-50"
                                                 disabled={downloadingId === selectedDetail.id}
-                                                onClick={handleRegenerateSerahTerimaPdf}
+                                                onClick={handleRegenerateStoredPdf}
+                                            >
+                                                {downloadingId === selectedDetail.id ? (
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                                )}
+                                                Generate Ulang PDF
+                                            </Button>
+                                        )}
+
+                                        {(
+                                            selectedDetail.tipe === 'OPNAME' ||
+                                            selectedDetail.tipe === 'OPNAME_FINAL' ||
+                                            selectedDetail.tipe === 'INSTRUKSI_LAPANGAN'
+                                        ) && (
+                                            <Button
+                                                variant="outline"
+                                                className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                                                disabled={downloadingId === selectedDetail.id}
+                                                onClick={handleRegenerateStoredPdf}
                                             >
                                                 {downloadingId === selectedDetail.id ? (
                                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
