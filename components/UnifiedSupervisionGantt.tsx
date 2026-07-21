@@ -83,6 +83,22 @@ type Timeline = {
     dates: Date[];
 };
 
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    concurrency: number,
+    mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = [];
+
+    for (let index = 0; index < items.length; index += concurrency) {
+        const batch = items.slice(index, index + concurrency);
+        const batchResults = await Promise.all(batch.map(mapper));
+        results.push(...batchResults);
+    }
+
+    return results;
+}
+
 function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
@@ -278,10 +294,11 @@ export default function UnifiedSupervisionGantt({
             setError("");
 
             try {
-                const rawScopes = await Promise.all(workspace.scopes
+                const scopesWithGantt = workspace.scopes
                     .filter((scope) => scope.gantt_id)
-                    .sort((left, right) => scopeRank(String(left.lingkup_pekerjaan || "").toUpperCase()) - scopeRank(String(right.lingkup_pekerjaan || "").toUpperCase()))
-                    .map(async (scope) => {
+                    .sort((left, right) => scopeRank(String(left.lingkup_pekerjaan || "").toUpperCase()) - scopeRank(String(right.lingkup_pekerjaan || "").toUpperCase()));
+
+                const rawScopes = await mapWithConcurrency(scopesWithGantt, 2, async (scope) => {
                         const res = await fetchGanttDetailByToko(scope.id_toko);
                         const data = res as any;
                         const gantt = data.gantt_data;
@@ -293,7 +310,7 @@ export default function UnifiedSupervisionGantt({
                         const dayItems = data.day_gantt_data || [];
                         const dependencies = data.dependency_data || [];
                         return { scope, ganttStart, categories, dayItems, dependencies };
-                    }));
+                    });
 
                 const fallbackStarts: Date[] = [];
                 const fallbackEnds: Date[] = [];

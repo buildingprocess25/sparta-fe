@@ -241,8 +241,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    let isRefreshing = false;
 
     const refreshSystemStatus = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      if (isRefreshing) return;
+
+      isRefreshing = true;
       try {
         const [maintenanceResult, scheduleResult] = await Promise.all([
           fetchSystemMaintenanceStatus({ suppressGlobalError: true }),
@@ -254,12 +261,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setIsTimeBlocked(!user.isSuperHuman && !isWithinOperatingHours(user.roles, scheduleResult.data));
       } catch (error) {
         console.warn('Gagal membaca status sistem:', error);
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        refreshSystemStatus();
       }
     };
 
     refreshSystemStatus();
-    const timer = window.setInterval(refreshSystemStatus, 15_000);
-    return () => window.clearInterval(timer);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const timer = window.setInterval(refreshSystemStatus, 60_000);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [user]);
 
   if (!isLoading && isMaintenanceBlocked && user) {

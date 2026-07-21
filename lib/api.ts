@@ -226,10 +226,34 @@ export type SpkBackdatePolicy = {
     can_manage: boolean;
 };
 
+const SYSTEM_STATUS_TIMEOUT_MS = 8_000;
+
+const safeFetchJSONWithTimeout = async (
+    url: string,
+    options?: ApiRequestOptions,
+    timeoutMs = SYSTEM_STATUS_TIMEOUT_MS
+) => {
+    if (options?.signal) {
+        return safeFetchJSON(url, options);
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        return await safeFetchJSON(url, {
+            ...options,
+            signal: controller.signal,
+        });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 export const fetchSystemMaintenanceStatus = async (
     options?: ApiRequestOptions
 ): Promise<{ status: string; data: SystemMaintenanceStatus }> =>
-    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/system-maintenance/status`, options);
+    safeFetchJSONWithTimeout(`${API_URL.replace(/\/$/, "")}/api/system-maintenance/status`, options);
 
 export const updateSystemMaintenanceStatus = async (
     isActive: boolean,
@@ -245,7 +269,7 @@ export const updateSystemMaintenanceStatus = async (
 export const fetchSystemAccessSchedule = async (
     options?: ApiRequestOptions
 ): Promise<{ status: string; data: SystemAccessSchedule }> =>
-    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/system-access-schedule/schedule`, options);
+    safeFetchJSONWithTimeout(`${API_URL.replace(/\/$/, "")}/api/system-access-schedule/schedule`, options);
 
 export const updateSystemAccessSchedule = async (
     payload: Omit<SystemAccessSchedule, "id" | "updated_by_email" | "updated_by_role" | "updated_at" | "can_manage">,
