@@ -15,7 +15,7 @@ import {
 import AppNavbar from '@/components/AppNavbar';
 import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage } from '@/lib/constants';
 import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { downloadDashboardExport, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
+import { downloadDashboardExport, downloadPengawasanPdf, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 import {
     EMPTY_APPROVAL_COUNTS,
     fetchApprovalNotificationCounts,
@@ -2799,7 +2799,14 @@ export default function DashboardPage() {
                                                                                         key={pdf.id}
                                                                                         variant="outline"
                                                                                         className="h-8 rounded-lg border-amber-200 bg-white px-3 text-xs font-black text-amber-800"
-                                                                                        onClick={() => window.open(pdf.link_pdf_pengawasan, '_blank', 'noopener,noreferrer')}
+                                                                                        onClick={async () => {
+                                                                                            if (pdf.id_pengawasan_gantt) {
+                                                                                                await downloadPengawasanPdf(Number(pdf.id_pengawasan_gantt));
+                                                                                                return;
+                                                                                            }
+
+                                                                                            window.open(pdf.link_pdf_pengawasan, '_blank', 'noopener,noreferrer');
+                                                                                        }}
                                                                                     >
                                                                                         <ExternalLink className="mr-1 h-3.5 w-3.5" />
                                                                                         H{pdf.h_day}

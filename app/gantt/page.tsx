@@ -2586,7 +2586,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [nextHandoverDate, setNextHandoverDate] = useState('');
     const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
-    const [currentPengawasanPdfLink, setCurrentPengawasanPdfLink] = useState<string | null>(null);
 
     const getEffectiveWorkStart = useCallback(() => {
         const spkStart = parseDateAny(spkInfo?.startDate || '');
@@ -2669,13 +2668,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const dataLive = resLive.data || [];
                     if (dataLive.length > 0) {
                         setCurrentPengawasanGanttId(dataLive[0].id_pengawasan_gantt);
-                        setCurrentPengawasanPdfLink(
-                            dataLive.find((item: any) => item.berkas_pengawasan?.link_pdf_pengawasan)
-                                ?.berkas_pengawasan?.link_pdf_pengawasan ?? null
-                        );
                     } else {
                         setCurrentPengawasanGanttId(null);
-                        setCurrentPengawasanPdfLink(null);
                     }
                     const dataAll = resAll.data || [];
                     const dataOpname = resOpname.data || [];
@@ -3335,6 +3329,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
     };
 
+    const handleDownloadPengawasanPdf = async () => {
+        if (!currentPengawasanGanttId) return;
+
+        try {
+            const { downloadPengawasanPdf } = await import('@/lib/api');
+            await downloadPengawasanPdf(currentPengawasanGanttId);
+        } catch (error: any) {
+            showAlert({
+                message: `Gagal mengunduh PDF Pengawasan: ${error?.message || 'Terjadi kesalahan.'}`,
+                type: 'error'
+            });
+        }
+    };
+
     return (
         <>
             <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -3368,11 +3376,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         <div className="flex items-center gap-2">
                             {currentPengawasanGanttId && (
                                 <button
-                                    onClick={() => window.open(
-                                        currentPengawasanPdfLink
-                                        || `${API_URL.replace(/\/$/, "")}/api/pengawasan/${currentPengawasanGanttId}/pdf`,
-                                        "_blank"
-                                    )}
+                                    onClick={handleDownloadPengawasanPdf}
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs font-bold border border-red-200 transition-colors shadow-sm"
                                     title="Download PDF Pengawasan"
                                 >
