@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Building2, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, Building2, Loader2 } from "lucide-react";
 import { fetchGanttDetailByToko } from "@/lib/api";
-import type { SupervisionCheckpoint, SupervisionWorkspace, UnifiedSupervisionCheckpoint } from "@/lib/api";
+import type { SupervisionWorkspace, UnifiedSupervisionCheckpoint } from "@/lib/api";
 
-const DAY_WIDTH = 40;
+const DAY_WIDTH = 44;
 const ROW_HEIGHT = 46;
 const GROUP_HEIGHT = 34;
 
@@ -36,6 +36,10 @@ function formatShortDate(date: Date): string {
     return `${dd}/${mm}`;
 }
 
+function formatDayName(date: Date): string {
+    return ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"][date.getDay()];
+}
+
 function diffDays(left: Date, right: Date): number {
     return Math.round((left.getTime() - right.getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -44,6 +48,57 @@ function addDays(date: Date, days: number): Date {
     const next = new Date(date);
     next.setDate(next.getDate() + days);
     return next;
+}
+
+const NATIONAL_HOLIDAYS_2026 = new Set([
+    "2026-01-01", "2026-01-16", "2026-02-17", "2026-03-19",
+    "2026-04-03", "2026-05-01", "2026-05-14", "2026-05-27",
+    "2026-06-01", "2026-06-16", "2026-08-17", "2026-08-25",
+    "2026-12-25",
+]);
+
+function toIsoDateKey(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+function isNonWorkingStDate(date: Date): boolean {
+    const day = date.getDay();
+    return day === 0 || day === 6 || NATIONAL_HOLIDAYS_2026.has(toIsoDateKey(date));
+}
+
+function calculateTargetStFromSpkEnd(spkEndDate: Date) {
+    const normalized = new Date(spkEndDate.getFullYear(), spkEndDate.getMonth(), spkEndDate.getDate());
+    let target = addDays(normalized, 1);
+    let skippedWeekends = 0;
+    let skippedHolidays = 0;
+
+    while (isNonWorkingStDate(target)) {
+        const day = target.getDay();
+        if (day === 0 || day === 6) skippedWeekends += 1;
+        else if (NATIONAL_HOLIDAYS_2026.has(toIsoDateKey(target))) skippedHolidays += 1;
+        target = addDays(target, 1);
+    }
+
+    const offsetDays = Math.max(1, Math.round((target.getTime() - normalized.getTime()) / (24 * 60 * 60 * 1000)));
+    const endIsNonWorking = isNonWorkingStDate(normalized);
+    const showOffsetLabel = endIsNonWorking || skippedWeekends > 0 || skippedHolidays > 0 || offsetDays > 1;
+    const label = `SPK +${offsetDays} hari`;
+    const reasons = [
+        skippedWeekends > 0 ? `${skippedWeekends} weekend` : null,
+        skippedHolidays > 0 ? `${skippedHolidays} libur nasional` : null,
+        endIsNonWorking && skippedWeekends === 0 && skippedHolidays === 0 ? "akhir SPK hari non-kerja" : null,
+    ].filter(Boolean).join(", ");
+
+    return {
+        date: target,
+        offsetDays,
+        label,
+        showOffsetLabel,
+        explanation: reasons ? `${label} (${reasons})` : label,
+    };
 }
 
 function isReasonableSpkStart(date: Date | null): date is Date {
@@ -99,6 +154,8 @@ async function mapWithConcurrency<T, R>(
     return results;
 }
 
+type CheckpointVisualState = "normal" | "today" | "todayCheckpoint" | "needsInput" | "overdue";
+
 function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
@@ -107,13 +164,14 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     workspace.scopes.forEach((scope) => {
         const spkStart = parseDate(scope.spk_start_date);
         const duration = Number(scope.spk_effective_duration || scope.spk_duration || 0);
+        let spkEnd: Date | null = null;
         if (spkStart && duration > 0) {
             starts.push(spkStart);
-            const end = new Date(spkStart);
-            end.setDate(end.getDate() + duration - 1);
-            ends.push(end);
+            spkEnd = new Date(spkStart);
+            spkEnd.setDate(spkEnd.getDate() + duration - 1);
+            ends.push(spkEnd);
         }
-        const stTarget = parseDate(scope.st_target_date);
+        const stTarget = parseDate(scope.st_target_date) || (spkEnd ? calculateTargetStFromSpkEnd(spkEnd).date : null);
         if (stTarget) {
             ends.push(stTarget);
         }
@@ -170,9 +228,11 @@ function buildTimelineFromBounds(starts: Date[], ends: Date[]): Timeline | null 
 export default function UnifiedSupervisionGantt({
     workspace,
     onCheckpointClick,
+    showLegend = true,
 }: {
     workspace: SupervisionWorkspace;
     onCheckpointClick: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
+    showLegend?: boolean;
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
     const [ganttFallbackTimeline, setGanttFallbackTimeline] = useState<Timeline | null>(null);
@@ -182,10 +242,10 @@ export default function UnifiedSupervisionGantt({
     const timeline = workspaceTimeline ?? ganttFallbackTimeline;
     
     // Responsive label width for mobile
-    const [labelWidth, setLabelWidth] = useState(340);
+    const [labelWidth, setLabelWidth] = useState(300);
     useEffect(() => {
         const handleResize = () => {
-            setLabelWidth(window.innerWidth < 640 ? 180 : 340);
+            setLabelWidth(window.innerWidth < 640 ? 176 : 300);
         };
         handleResize(); // Initialize
         window.addEventListener("resize", handleResize);
@@ -234,7 +294,7 @@ export default function UnifiedSupervisionGantt({
     }, [workspace.scopes]);
 
     const stBufferByDate = useMemo(() => {
-        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean }>();
+        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean; showOffsetLabel: boolean }>();
         const unifiedCheckpointDates = (workspace.unified_checkpoints || [])
             .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
             .filter((date): date is Date => Boolean(date));
@@ -242,6 +302,7 @@ export default function UnifiedSupervisionGantt({
         workspace.scopes.forEach((scope) => {
             const spkEnd = getScopeSpkEnd(scope);
             let stTarget = parseDate(scope.st_target_date);
+            let fallbackTarget: ReturnType<typeof calculateTargetStFromSpkEnd> | null = null;
             if (!stTarget && spkEnd) {
                 stTarget = (scope.checkpoints || [])
                     .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
@@ -253,18 +314,24 @@ export default function UnifiedSupervisionGantt({
                     .filter((date) => date > spkEnd)
                     .sort((left, right) => left.getTime() - right.getTime())[0] || null;
             }
+            if (!stTarget && spkEnd) {
+                fallbackTarget = calculateTargetStFromSpkEnd(spkEnd);
+                stTarget = fallbackTarget.date;
+            }
             const offsetDays = Number(scope.st_offset_days || 0);
             const effectiveOffsetDays = offsetDays || (spkEnd && stTarget ? Math.max(0, diffDays(stTarget, spkEnd)) : 0);
             if (!spkEnd || !stTarget || effectiveOffsetDays <= 0 || stTarget <= spkEnd) return;
+            const showOffsetLabel = fallbackTarget?.showOffsetLabel ?? effectiveOffsetDays > 1;
 
             for (let day = 1; day <= effectiveOffsetDays; day += 1) {
                 const date = addDays(spkEnd, day);
                 if (date > stTarget) break;
                 map.set(formatFullDate(date), {
-                    label: scope.st_offset_label || `SPK +${effectiveOffsetDays} hari`,
-                    explanation: scope.st_offset_explanation || `Target ST ${formatFullDate(stTarget)}`,
+                    label: scope.st_offset_label || fallbackTarget?.label || `SPK +${effectiveOffsetDays} hari`,
+                    explanation: scope.st_offset_explanation || fallbackTarget?.explanation || `Target ST ${formatFullDate(stTarget)}`,
                     offsetDays: effectiveOffsetDays,
                     isTarget: formatFullDate(date) === formatFullDate(stTarget),
+                    showOffsetLabel,
                 });
             }
         });
@@ -275,7 +342,7 @@ export default function UnifiedSupervisionGantt({
     const stDelaySummaries = useMemo(() => {
         const summaries = new Map<string, { date: string; label: string }>();
         stBufferByDate.forEach((value, date) => {
-            if (value.isTarget && value.offsetDays > 1) {
+            if (value.isTarget && value.showOffsetLabel) {
                 summaries.set(date, { date, label: value.label });
             }
         });
@@ -480,6 +547,42 @@ export default function UnifiedSupervisionGantt({
         return ranges;
     }, [details, timeline]);
 
+    const checkpointVisualStateByDate = useMemo(() => {
+        const map = new Map<string, CheckpointVisualState>();
+        if (!timeline) return map;
+
+        const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const checkpointEntries = timeline.dates
+            .map((date) => {
+                const fullDate = formatFullDate(date);
+                const checkpoint = checkpointByDate.get(fullDate);
+                if (!checkpoint) return null;
+                const readyCount = Number(checkpoint.ready_opname_items || 0);
+                const opnameCount = Number(checkpoint.opname_items || 0);
+                const totalCount = Number(checkpoint.total_items || 0);
+                const hasActionItems = readyCount > 0;
+                const hasIncompletePastItems = totalCount === 0 || opnameCount < totalCount;
+                return { date, fullDate, hasActionItems, hasIncompletePastItems };
+            })
+            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasIncompletePastItems: boolean } => Boolean(entry));
+
+        checkpointEntries.forEach((entry) => {
+            const isToday = entry.date.getTime() === todayStart.getTime();
+            if (entry.hasActionItems) {
+                map.set(entry.fullDate, "needsInput");
+            } else if (entry.hasIncompletePastItems && entry.date < todayStart) {
+                map.set(entry.fullDate, "overdue");
+            } else if (isToday) {
+                map.set(entry.fullDate, "todayCheckpoint");
+            } else {
+                map.set(entry.fullDate, "normal");
+            }
+        });
+
+        return map;
+    }, [checkpointByDate, timeline]);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center border-y border-slate-200 bg-white py-16 text-slate-500">
@@ -564,58 +667,63 @@ export default function UnifiedSupervisionGantt({
     });
 
     return (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-xs shadow-sm">
-            <div className="border-b bg-slate-100 p-4 text-sm">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h3 className="font-bold text-slate-800">Gantt Chart Terpadu</h3>
-                        <p className="text-xs text-slate-500">
-                            {details.length === 1 
-                                ? `Hanya scope ${details[0].scopeName} yang tersedia untuk ULOK ini.`
-                                : `${details.map(d => d.scopeName).join(' + ')} dalam satu tanggal pengawasan.`
-                            }
-                        </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm bg-slate-800 shadow-[inset_0_3px_0_#f59e0b]" />
-                                Akhir SPK
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm bg-teal-700" />
-                                Target ST
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm border border-teal-200 bg-teal-50" />
-                                Weekend/libur
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                                <span className="h-3 w-3 rounded-sm border border-amber-300 bg-amber-100" />
-                                Pertambahan SPK
-                            </span>
-                        </div>
-                        {stDelaySummaries.length > 0 && (
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-teal-800">
-                                <span className="text-slate-500">ST mundur:</span>
-                                {stDelaySummaries.map((item) => (
-                                    <span key={item.date} className="rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5">
-                                        {item.date.slice(0, 5)} {item.label.replace(" hari", "")}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
+        <div className="overflow-hidden rounded-lg border border-slate-300 bg-white text-xs shadow-sm">
+            {showLegend && <div className="border-b border-slate-300 bg-white">
+                <div className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <span className="text-xs font-black uppercase text-red-700">Status tanggal</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="h-2 w-2 rounded-full bg-sky-600" />
+                            Pengawasan
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400" />
+                            Hari ini
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-400" />
+                            Pengawasan lewat
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="h-3 w-3 rounded bg-red-100 ring-1 ring-red-400" />
+                            Item perlu diisi
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-black text-white">Akhir</span>
+                            Akhir SPK
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded bg-teal-700 px-2 py-0.5 text-[10px] font-black text-white">ST</span>
+                            Target ST
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">SPK +N</span>
+                            Mundur libur
+                        </span>
                     </div>
+                    {stDelaySummaries.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-teal-800">
+                            <span className="text-slate-500">ST mundur:</span>
+                            {stDelaySummaries.map((item) => (
+                                <span key={item.date} className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5">
+                                    {item.date.slice(0, 5)} {item.label.replace(" hari", "")}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                     {details.length === 1 && (
-                        <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
+                        <div className="inline-flex w-fit items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
                             <AlertCircle className="h-4 w-4" />
-                            <span className="font-medium">Scope Tunggal</span>
+                            Scope tunggal
                         </div>
                     )}
                 </div>
-            </div>
+            </div>}
 
             <div className="flex border-b border-slate-300">
-                <div className="flex h-10 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-50 px-4 font-bold text-slate-600 overflow-hidden" style={{ width: labelWidth }}>
-                    Tahapan Pekerjaan
+                <div className="grid h-16 shrink-0 grid-cols-[44px_1fr] items-stretch border-r border-slate-300 bg-slate-50 font-bold text-slate-700 overflow-hidden" style={{ width: labelWidth }}>
+                    <div className="flex items-center justify-center border-r border-slate-300">No.</div>
+                    <div className="flex items-center px-4">Uraian Pekerjaan</div>
                 </div>
                 <div className="min-w-0 flex-1 overflow-x-auto" id="unified-gantt-scroll-top" onScroll={(e) => {
                     const body = document.getElementById("unified-gantt-scroll-body");
@@ -628,6 +736,10 @@ export default function UnifiedSupervisionGantt({
                             const isExtension = extensionDates.has(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
+                            const checkpointState = checkpointVisualStateByDate.get(fullDate);
+                            const today = new Date();
+                            const isToday = fullDate === formatFullDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+                            const visualState = checkpointState || (isToday ? "today" : undefined);
                             const activeScopeIds = activeScopeIdsByDate.get(fullDate) ?? new Set<number>();
                             const actionableCheckpoint = checkpoint && activeScopeIds.size > 0
                                 ? {
@@ -638,29 +750,41 @@ export default function UnifiedSupervisionGantt({
                             const readyCount = Number(checkpoint?.ready_opname_items || 0);
                             const opnameCount = Number(checkpoint?.opname_items || 0);
                             const isReady = readyCount > 0;
-                            const isDone = !isReady && opnameCount > 0;
+                            const dateTextClass = visualState === "needsInput"
+                                ? "text-red-700"
+                                : visualState === "overdue"
+                                    ? "text-amber-800"
+                                    : visualState === "todayCheckpoint"
+                                        ? "text-blue-900 text-[13px]"
+                                    : visualState === "today"
+                                        ? "text-emerald-700 text-[13px]"
+                                        : "";
                             return (
                                 <button
                                     key={fullDate}
                                     type="button"
                                     disabled={!checkpoint}
                                     onClick={() => actionableCheckpoint && onCheckpointClick(actionableCheckpoint, dayIndex)}
-                                    className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${
-                                        isReady
-                                            ? "bg-red-600 text-white ring-2 ring-inset ring-red-200"
-                                            : isExtension
-                                                ? "bg-amber-50 text-amber-950 shadow-[inset_0_3px_0_#f59e0b] hover:bg-amber-100"
-                                                : stBuffer?.isTarget
-                                                    ? "bg-teal-700 text-white shadow-[inset_0_3px_0_#134e4a] hover:bg-teal-600"
-                                                    : spkEnd
-                                                        ? "bg-slate-800 text-white shadow-[inset_0_3px_0_#f59e0b] hover:bg-slate-700"
-                                                        : stBuffer
-                                                            ? "bg-teal-50 text-teal-900 shadow-[inset_0_3px_0_#99f6e4] hover:bg-teal-100"
-                                                            : isDone
-                                                                ? "bg-emerald-500 text-white"
-                                                                : checkpoint
-                                                                    ? "bg-blue-600 text-white hover:bg-blue-500"
-                                                                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                                    className={`relative flex h-16 shrink-0 flex-col items-center justify-end border-r border-slate-200 pb-1 text-[10px] font-bold ${
+                                        spkEnd
+                                            ? "bg-amber-50 text-slate-900 hover:bg-amber-100"
+                                            : stBuffer?.isTarget
+                                                ? "bg-teal-50 text-slate-900 hover:bg-teal-100"
+                                                : stBuffer
+                                                    ? "bg-teal-50 text-teal-900 hover:bg-teal-100"
+                                                    : isExtension
+                                                        ? "bg-amber-50 text-slate-900 hover:bg-amber-100"
+                                                        : visualState === "needsInput"
+                                                            ? "bg-red-50 text-red-800 ring-1 ring-inset ring-red-300 hover:bg-red-100"
+                                                            : visualState === "overdue"
+                                                                ? "bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-300 hover:bg-amber-100"
+                                                                : visualState === "todayCheckpoint"
+                                                                    ? "bg-blue-200 text-blue-950 ring-2 ring-inset ring-blue-500 shadow-[inset_0_3px_0_#1d4ed8] hover:bg-blue-200"
+                                                                    : visualState === "today"
+                                                                        ? "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-300 hover:bg-emerald-100"
+                                                                    : checkpoint
+                                                                        ? "bg-blue-100 text-slate-900 ring-1 ring-inset ring-blue-300 shadow-[inset_0_3px_0_#2563eb] hover:bg-blue-100"
+                                                                : "bg-white text-slate-700 hover:bg-slate-50"
                                     }`}
                                     style={{ width: DAY_WIDTH }}
                                     title={isExtension
@@ -673,23 +797,28 @@ export default function UnifiedSupervisionGantt({
                                                     ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
                                                     : fullDate}
                                 >
-                                    <span className={isExtension || stBuffer || spkEnd ? "leading-3" : undefined}>{formatShortDate(date)}</span>
-                                    {isExtension && !isReady ? (
-                                        <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-black leading-3 text-amber-950">
-                                            {spkEnd ? "Akhir" : "SPK+"}
+                                    {spkEnd ? (
+                                        <span className="absolute top-1 rounded bg-amber-700 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">Akhir</span>
+                                    ) : stBuffer?.isTarget ? (
+                                        <span className="absolute top-1 rounded bg-teal-700 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">
+                                            ST
                                         </span>
+                                    ) : stBuffer ? (
+                                        <span className="absolute top-1 rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">{stBuffer.label.replace(" hari", "")}</span>
+                                    ) : visualState === "needsInput" ? (
+                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-red-600 shadow-[0_0_0_4px_rgba(220,38,38,0.18)]" title="Ada item perlu diisi" />
+                                    ) : visualState === "overdue" ? (
+                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.18)]" title="Tanggal pengawasan lewat dan belum lengkap" />
+                                    ) : visualState === "todayCheckpoint" ? (
+                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-blue-700 shadow-[0_0_0_4px_rgba(37,99,235,0.22)]" title="Pengawasan hari ini" />
+                                    ) : visualState === "today" ? (
+                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.18)]" title="Hari ini" />
+                                    ) : isReady ? (
+                                        <span className="absolute top-1 h-2 w-2 rounded-full bg-red-600 shadow-[0_0_0_3px_rgba(220,38,38,0.16)]" title="Siap opname" />
                                     ) : null}
-                                    {stBuffer && !isExtension && !isReady ? (
-                                        <span className={`mt-0.5 whitespace-nowrap rounded-sm px-1 text-[8px] font-black leading-3 ${stBuffer.isTarget ? "bg-white text-teal-800" : "bg-teal-100 text-teal-800"}`}>
-                                            {stBuffer.isTarget ? (stBuffer.offsetDays > 1 ? stBuffer.label.replace(" hari", "") : "ST") : "libur"}
-                                        </span>
-                                    ) : null}
-                                    {spkEnd && !isExtension && !stBuffer && !isReady ? (
-                                        <span className="mt-0.5 rounded-sm bg-amber-300 px-1 text-[8px] font-black leading-3 text-slate-950">
-                                            Akhir
-                                        </span>
-                                    ) : null}
-                                    {isReady ? <AlertCircle className="mt-1 h-3 w-3" /> : isDone && !isExtension && !stBuffer && !spkEnd ? <CheckCircle2 className="mt-1 h-3 w-3" /> : checkpoint ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${isExtension ? "bg-amber-700" : stBuffer ? "bg-white" : spkEnd ? "bg-amber-300" : "bg-white"}`} /> : null}
+                                    <span className={`text-[11px] leading-4 ${dateTextClass}`}>{formatShortDate(date)}</span>
+                                    <span className="text-[10px] font-medium leading-3">{formatDayName(date)}</span>
+                                    {checkpoint && !stBuffer && !spkEnd && visualState === "normal" ? <span className="absolute top-1 h-2 w-2 rounded-full bg-blue-700 shadow-[0_0_0_3px_rgba(37,99,235,0.18)]" title="Hari pengawasan" /> : null}
                                 </button>
                             );
                         })}
@@ -697,21 +826,26 @@ export default function UnifiedSupervisionGantt({
                 </div>
             </div>
 
-            <div className="flex max-h-[520px] overflow-hidden">
-                <div className="shrink-0 overflow-y-auto overflow-x-hidden border-r-[3px] border-slate-400 bg-white shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)]" id="unified-gantt-labels" style={{ width: labelWidth }} onScroll={(e) => {
+            <div className="flex max-h-[620px] overflow-hidden">
+                <div className="shrink-0 overflow-y-auto overflow-x-hidden border-r border-slate-300 bg-white" id="unified-gantt-labels" style={{ width: labelWidth }} onScroll={(e) => {
                     const body = document.getElementById("unified-gantt-scroll-body");
                     if (body && body.scrollTop !== e.currentTarget.scrollTop) body.scrollTop = e.currentTarget.scrollTop;
                 }}>
                     {details.map((scope) => (
                         <React.Fragment key={scope.id_toko}>
-                            <div className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-2 sm:px-4 text-xs font-black text-slate-800 overflow-hidden" style={{ height: GROUP_HEIGHT }}>
-                                <span className="flex items-center gap-1.5 min-w-0 truncate"><Building2 className={`h-3.5 w-3.5 shrink-0 ${scope.scopeName === "SIPIL" ? "text-red-600" : "text-blue-600"}`} /> {scope.scopeName}</span>
-                                <span className="text-[10px] text-slate-500 shrink-0 hidden sm:inline ml-1">#{scope.ganttId || "-"}</span>
+                            <div className="grid grid-cols-[44px_1fr] items-center border-b border-slate-300 bg-slate-50 text-xs font-black text-slate-900 overflow-hidden" style={{ height: GROUP_HEIGHT }}>
+                                <div className="flex h-full items-center justify-center border-r border-slate-200">
+                                    <Building2 className={`h-3.5 w-3.5 shrink-0 ${scope.scopeName === "SIPIL" ? "text-red-600" : "text-blue-600"}`} />
+                                </div>
+                                <div className="flex min-w-0 items-center justify-between gap-2 px-3">
+                                    <span className={`${scope.scopeName === "SIPIL" ? "text-red-700" : "text-blue-700"}`}>{scope.scopeName}</span>
+                                    <span className="hidden shrink-0 text-[10px] text-slate-500 sm:inline">#{scope.ganttId || "-"}</span>
+                                </div>
                             </div>
                             {scope.rows.map((row, index) => (
-                                <div key={row.id} className="flex items-center border-b border-slate-100 px-2 sm:px-4 text-[11px] font-bold text-slate-700 overflow-hidden" style={{ height: ROW_HEIGHT }}>
-                                    <span className="mr-2 text-slate-400">{index + 1}.</span>
-                                    <span className="truncate" title={row.label}>{row.label}</span>
+                                <div key={row.id} className="grid grid-cols-[44px_1fr] items-center border-b border-slate-100 text-[11px] font-bold text-slate-800 overflow-hidden" style={{ height: ROW_HEIGHT }}>
+                                    <span className="flex h-full items-center justify-center border-r border-slate-100 text-slate-500">{index + 1}</span>
+                                    <span className="truncate px-3" title={row.label}>{row.label}</span>
                                 </div>
                             ))}
                         </React.Fragment>
@@ -731,21 +865,33 @@ export default function UnifiedSupervisionGantt({
                             const isExtension = extensionDates.has(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
+                            const checkpointState = checkpointVisualStateByDate.get(fullDate);
+                            const today = new Date();
+                            const isToday = fullDate === formatFullDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+                            const visualState = checkpointState || (isToday ? "today" : undefined);
                             return (
                                 <div
                                     key={fullDate}
                                     className={`absolute top-0 bottom-0 border-r ${
-                                        isExtension
-                                            ? "bg-amber-50/70 border-amber-200 shadow-[inset_0_3px_0_#f59e0b]"
+                                        spkEnd
+                                            ? "bg-amber-50/80 border-amber-300 shadow-[inset_0_3px_0_#b45309]"
                                             : stBuffer?.isTarget
                                                 ? "bg-teal-100/80 border-teal-300 shadow-[inset_0_3px_0_#0f766e]"
-                                                : spkEnd
-                                                    ? "bg-slate-100/90 border-slate-300 shadow-[inset_0_3px_0_#f59e0b]"
-                                                    : stBuffer
-                                                        ? "bg-teal-50/60 border-teal-100"
-                                                        : checkpoint
-                                                            ? "bg-blue-50/70 border-blue-200"
-                                                            : "border-slate-200"
+                                                : stBuffer
+                                                    ? "bg-teal-50/60 border-teal-100"
+                                                    : isExtension
+                                                        ? "bg-amber-50/60 border-amber-200"
+                                                            : visualState === "needsInput"
+                                                                ? "bg-red-50/80 border-red-300 shadow-[inset_0_3px_0_#dc2626]"
+                                                                : visualState === "overdue"
+                                                                    ? "bg-amber-50/80 border-amber-300 shadow-[inset_0_3px_0_#f59e0b]"
+                                                                    : visualState === "todayCheckpoint"
+                                                                        ? "bg-blue-200/80 border-blue-500 shadow-[inset_0_4px_0_#1d4ed8]"
+                                                                        : visualState === "today"
+                                                                            ? "bg-emerald-50/80 border-emerald-300 shadow-[inset_0_3px_0_#10b981]"
+                                                                        : checkpoint
+                                                                            ? "bg-blue-100/70 border-blue-300 shadow-[inset_0_3px_0_#2563eb]"
+                                                                            : "border-slate-200"
                                     }`}
                                     style={{ left: dayIndex * DAY_WIDTH, width: DAY_WIDTH }}
                                     title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : spkEnd ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}` : undefined}

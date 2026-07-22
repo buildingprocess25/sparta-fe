@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, Suspense, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useMemo, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import AppNavbar from '@/components/AppNavbar';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, MessageSquare, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -215,15 +215,106 @@ function formatDateID(date: Date) {
     return `${d}/${m}/${y}`;
 }
 
+const NATIONAL_HOLIDAYS_2026 = new Set([
+    "2026-01-01", "2026-01-16", "2026-02-17", "2026-03-19",
+    "2026-04-03", "2026-05-01", "2026-05-14", "2026-05-27",
+    "2026-06-01", "2026-06-16", "2026-08-17", "2026-08-25",
+    "2026-12-25",
+]);
+
+function parseLocalDate(value?: string | null): Date | null {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    if (raw.includes("/")) {
+        const [dd, mm, yyyy] = raw.split("/");
+        const parsed = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(raw.split("T")[0] + "T00:00:00");
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function addCalendarDays(date: Date, days: number): Date {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+}
+
+function toIsoDateKey(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+function isNonWorkingStDate(date: Date): boolean {
+    const day = date.getDay();
+    return day === 0 || day === 6 || NATIONAL_HOLIDAYS_2026.has(toIsoDateKey(date));
+}
+
+function calculateTargetStFromSpkEnd(spkEndDate: Date) {
+    const normalized = new Date(spkEndDate.getFullYear(), spkEndDate.getMonth(), spkEndDate.getDate());
+    let target = addCalendarDays(normalized, 1);
+    let skippedWeekends = 0;
+    let skippedHolidays = 0;
+
+    while (isNonWorkingStDate(target)) {
+        const day = target.getDay();
+        if (day === 0 || day === 6) skippedWeekends += 1;
+        else if (NATIONAL_HOLIDAYS_2026.has(toIsoDateKey(target))) skippedHolidays += 1;
+        target = addCalendarDays(target, 1);
+    }
+
+    const offsetDays = Math.max(1, Math.round((target.getTime() - normalized.getTime()) / (24 * 60 * 60 * 1000)));
+    const endIsNonWorking = isNonWorkingStDate(normalized);
+    const showOffsetLabel = endIsNonWorking || skippedWeekends > 0 || skippedHolidays > 0 || offsetDays > 1;
+    const label = `SPK +${offsetDays} hari`;
+    const reasons = [
+        skippedWeekends > 0 ? `${skippedWeekends} weekend` : null,
+        skippedHolidays > 0 ? `${skippedHolidays} libur nasional` : null,
+        endIsNonWorking && skippedWeekends === 0 && skippedHolidays === 0 ? "akhir SPK hari non-kerja" : null,
+    ].filter(Boolean).join(", ");
+
+    return {
+        date: target,
+        offsetDays,
+        label,
+        showOffsetLabel,
+        explanation: reasons ? `${label} (${reasons})` : label,
+    };
+}
+
+function getScopeSpkEndDate(scope: Partial<SupervisionScope>): Date | null {
+    const explicitEnd = parseLocalDate(scope.spk_effective_end_date);
+    if (explicitEnd) return explicitEnd;
+    const start = parseLocalDate(scope.spk_start_date);
+    const duration = Number(scope.spk_effective_duration || scope.spk_duration || 0);
+    return start && duration > 0 ? addCalendarDays(start, duration - 1) : null;
+}
+
+function getWorkspaceScopeLabel(workspace?: SupervisionWorkspace | null): string {
+    const scopes = Array.from(new Set((workspace?.scopes || [])
+        .map(scope => String(scope.lingkup_pekerjaan || "").trim().toUpperCase())
+        .filter(Boolean)));
+    return scopes.sort((a, b) => a === "SIPIL" ? -1 : b === "SIPIL" ? 1 : a.localeCompare(b)).join(" + ");
+}
+
+function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
+    const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+    const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+    return Boolean(scope.gantt_id) && Boolean(scope.opname_final_id) && opnameItems > 0 && readyOpnameItems === 0;
+}
+
 function GanttBoard() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { showAlert } = useGlobalAlert();
+    const searchPanelRef = useRef<HTMLDivElement | null>(null);
 
     const urlUlok = searchParams.get('ulok');
     const urlIdToko = searchParams.get('id_toko');
     const urlIdRab = searchParams.get('id_rab');
-    const urlLocked = searchParams.get('locked');
 
     const [appMode, setAppMode] = useState<'kontraktor' | 'pic' | null>(null);
     const [userRole, setUserRole] = useState('');
@@ -274,15 +365,16 @@ function GanttBoard() {
     const [showProjectInfo, setShowProjectInfo] = useState(true);
     const [showDateLegend, setShowDateLegend] = useState(true);
     const [showHandoverPanel, setShowHandoverPanel] = useState(true);
-    const [showGanttNotes, setShowGanttNotes] = useState(false);
 
     const [projectData, setProjectData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isProjectLocked, setIsProjectLocked] = useState(false);
     const [availableProjects, setAvailableProjects] = useState<GanttListItem[]>([]);
     const [allTokoList, setAllTokoList] = useState<any[]>([]);
-    const [isDirectAccess, setIsDirectAccess] = useState(false);
+    const [isDirectAccess] = useState(true);
     const [searchUlokInput, setSearchUlokInput] = useState("");
+    const [isUlokListOpen, setIsUlokListOpen] = useState(false);
+    const [visibleUlokCount, setVisibleUlokCount] = useState(10);
 
     const filteredTokoList = useMemo(() => {
         let list = allTokoList;
@@ -345,6 +437,20 @@ function GanttBoard() {
             { key: 'no_spk', label: 'Belum SPK', count: countNoSpk },
         ] as Array<{ key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number }>;
     }, [allTokoList, spkTokoIds]);
+
+    useEffect(() => {
+        setVisibleUlokCount(10);
+    }, [searchUlokInput, spkFilter]);
+
+    useEffect(() => {
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (target && searchPanelRef.current?.contains(target)) return;
+            setIsUlokListOpen(false);
+        };
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => document.removeEventListener('pointerdown', handlePointerDown);
+    }, []);
 
     const [tasks, setTasks] = useState<any[]>([]);
     const [isApplying, setIsApplying] = useState(false);
@@ -422,7 +528,7 @@ function GanttBoard() {
             syncGroup: `unified-${supervisionWorkspace.nomor_ulok}`.replace(/[^a-zA-Z0-9_-]/g, '-'),
         };
     }, [supervisionWorkspace]);
-    const canWriteGanttCommunication = !!activeNotesGanttId && !isReadOnly;
+    const canWriteGanttCommunication = !!activeNotesGanttId && !!user;
 
     const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
         if (!nomorUlok) return;
@@ -431,6 +537,15 @@ function GanttBoard() {
             const response = await fetchSupervisionWorkspace(nomorUlok);
             setSupervisionWorkspace(response.data);
             setSelectedUlok(formatUlokWithDash(nomorUlok));
+            setProjectData({
+                ulokClean: response.data.nomor_ulok,
+                store: response.data.nama_toko || "-",
+                branch: response.data.cabang || "-",
+                cabang: response.data.cabang || "-",
+                pic: response.data.pic_bersama || "Belum ditentukan",
+                pic_bersama: response.data.pic_bersama || "Belum ditentukan",
+                work: getWorkspaceScopeLabel(response.data) || "-",
+            });
             const firstGanttId = response.data?.scopes?.find((scope: SupervisionScope) => scope.gantt_id)?.gantt_id;
             if (firstGanttId) {
                 setSelectedGanttId(Number(firstGanttId));
@@ -519,15 +634,12 @@ function GanttBoard() {
         setShowMemoModal(true);
     }, [supervisionWorkspace]);
 
-    const isScopeReadyForSerahTerima = useCallback((scope: SupervisionScope) =>
-        Boolean(scope.gantt_id)
-        && Boolean(scope.opname_final_id)
-        && (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0) > 0
-        && (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0) === 0,
-        []);
+    const isScopeReadyForSerahTerima = useCallback((scope: SupervisionScope) => isScopeReadyForSt(scope), []);
 
     const handleGenerateUnifiedHandover = useCallback(async () => {
-        if (!supervisionWorkspace?.unified_serah_terima_ready) return;
+        const scopes = supervisionWorkspace?.scopes || [];
+        const allReady = scopes.length > 0 && scopes.every(isScopeReadyForSt);
+        if (!supervisionWorkspace || (!supervisionWorkspace.unified_serah_terima_ready && !allReady)) return;
         setIsGeneratingHandover(true);
         try {
             await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok);
@@ -629,14 +741,6 @@ function GanttBoard() {
                 .catch(err => console.error("Gagal memuat list Gantt Chart:", err));
         }
 
-        if (!urlLocked && !urlUlok) {
-            setIsDirectAccess(true);
-        }
-
-        if (urlUlok) {
-            return;
-        }
-
         if (currentAppMode === 'pic') {
             Promise.all([
                 fetchGanttList(),
@@ -700,7 +804,7 @@ function GanttBoard() {
                 .catch(err => console.error("Gagal memuat semua daftar RAB:", err));
         }
 
-    }, [user, urlIdToko, urlIdRab, urlLocked, urlUlok, loadSupervisionWorkspace, router, showAlert]);
+    }, [user, urlIdToko, urlIdRab, urlUlok, loadSupervisionWorkspace, router, showAlert]);
 
     const loadDataByRab = async (idRab: number, fallbackIdToko?: number) => {
         setIsLoading(true);
@@ -1411,6 +1515,248 @@ function GanttBoard() {
         return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex };
     }, [tasks, projectData, spkInfo, pengawasanDates]);
 
+    const targetStInfo = useMemo(() => {
+        const candidates = (supervisionWorkspace?.scopes || []).flatMap((scope) => {
+            const explicitTarget = parseLocalDate(scope.st_target_date);
+            const spkEnd = getScopeSpkEndDate(scope);
+            if (explicitTarget) {
+                const offsetDays = spkEnd
+                    ? Math.max(1, Math.round((explicitTarget.getTime() - spkEnd.getTime()) / (24 * 60 * 60 * 1000)))
+                    : Number(scope.st_offset_days || 0);
+                const showOffsetLabel = Boolean(scope.st_offset_label) && offsetDays > 1;
+                return [{
+                    date: explicitTarget,
+                    scope,
+                    offsetDays,
+                    label: scope.st_offset_label || `SPK +${offsetDays} hari`,
+                    showOffsetLabel,
+                }];
+            }
+            if (!spkEnd) return [];
+            const fallback = calculateTargetStFromSpkEnd(spkEnd);
+            return [{
+                date: fallback.date,
+                scope,
+                offsetDays: fallback.offsetDays,
+                label: fallback.label,
+                showOffsetLabel: fallback.showOffsetLabel,
+            }];
+        });
+        return candidates.sort((a, b) => b.date.getTime() - a.date.getTime())[0] || null;
+    }, [supervisionWorkspace]);
+    const targetStText = targetStInfo?.date
+        ? targetStInfo.date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+        : null;
+    const masterHandoverPdfLink = supervisionWorkspace
+        ? (
+            supervisionWorkspace.scopes.find((s) => Number(s.id_toko) === supervisionWorkspace.master_scope_id_toko)
+            ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima)
+        )?.link_pdf_serah_terima ?? null
+        : null;
+    const handoverReadiness = useMemo(() => {
+        const scopes = supervisionWorkspace?.scopes || [];
+        const scopedWithGantt = scopes.filter(scope => Boolean(scope.gantt_id));
+        const readyScopes = scopedWithGantt.filter(isScopeReadyForSt);
+        const readyOpnameItems = scopes.reduce((sum, scope) => (
+            sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.ready_opname_items || 0), 0)
+        ), 0);
+        const opnameItems = scopes.reduce((sum, scope) => (
+            sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.opname_items || 0), 0)
+        ), 0);
+        const allScopesReady = scopedWithGantt.length > 0 && readyScopes.length === scopedWithGantt.length;
+        const isGenerated = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink);
+        return {
+            isGenerated,
+            isReady: Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady,
+            readyScopeCount: readyScopes.length,
+            totalScopeCount: scopedWithGantt.length,
+            readyOpnameItems,
+            opnameItems,
+        };
+    }, [masterHandoverPdfLink, supervisionWorkspace]);
+    const handoverStatusText = handoverReadiness.isGenerated
+        ? "ST selesai"
+        : handoverReadiness.isReady
+            ? "Syarat ST terpenuhi"
+            : handoverReadiness.readyOpnameItems > 0
+                ? `${handoverReadiness.readyOpnameItems} item menunggu opname`
+                : "Menunggu opname selesai";
+    const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
+    const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
+        (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
+    ));
+    const selectedSpkSummary = useMemo(() => {
+        const selectedUlokValue = supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || selectedUlok;
+        if (!selectedUlokValue) return null;
+
+        const normalizedUlok = formatUlokWithDash(selectedUlokValue);
+        const workspaceScopes = (supervisionWorkspace?.scopes || []).map(scope => ({
+            id: Number(scope.id_toko),
+            scopeName: String(scope.lingkup_pekerjaan || "").trim().toUpperCase(),
+            hasSpk: Boolean(scope.gantt_id),
+        }));
+        const listScopes = allTokoList
+            .filter(toko => formatUlokWithDash(toko.nomor_ulok) === normalizedUlok)
+            .map(toko => ({
+                id: Number(toko.id_toko || toko.id),
+                scopeName: String(toko.lingkup_pekerjaan || "").trim().toUpperCase(),
+                hasSpk: spkTokoIds.has(Number(toko.id_toko || toko.id)),
+            }));
+        const scopes = workspaceScopes.length > 0 ? workspaceScopes : listScopes;
+        if (scopes.length === 0) return null;
+
+        const spkScopes = scopes.filter(scope => scope.hasSpk);
+        const spkCount = spkScopes.length;
+        const totalScopes = scopes.length;
+        const spkScopeLabel = spkScopes.map(scope => scope.scopeName).filter(Boolean).join(" + ");
+
+        if (spkCount > 0 && spkCount === totalScopes) {
+            return {
+                label: totalScopes > 1 ? "Semua SPK Lengkap" : "SPK Tunggal",
+                detail: totalScopes > 1 ? `${totalScopes} lingkup sudah SPK` : "1 lingkup sudah SPK",
+                dotClass: "bg-emerald-500",
+                cardClass: "border-emerald-200 bg-emerald-50 text-emerald-800",
+                countClass: "bg-emerald-600 text-white",
+            };
+        }
+        if (spkCount > 0) {
+            return {
+                label: `Partial SPK${spkScopeLabel ? ` (${spkScopeLabel})` : ""}`,
+                detail: `${spkCount} dari ${totalScopes} lingkup sudah SPK`,
+                dotClass: "bg-amber-500",
+                cardClass: "border-amber-200 bg-amber-50 text-amber-800",
+                countClass: "bg-amber-500 text-white",
+            };
+        }
+        return {
+            label: "Belum SPK",
+            detail: `${totalScopes} lingkup belum SPK`,
+            dotClass: "bg-slate-500",
+            cardClass: "border-slate-200 bg-slate-50 text-slate-700",
+            countClass: "bg-slate-500 text-white",
+        };
+    }, [allTokoList, projectData, selectedUlok, spkTokoIds, supervisionWorkspace]);
+    const ulokListOptions = useMemo(() => {
+        const uniqueMap = new Map<string, any>();
+        filteredTokoList.forEach((toko) => {
+            const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
+            const val = appMode === 'pic'
+                ? `ulok-${encodeURIComponent(toko.nomor_ulok)}`
+                : (() => {
+                    const tID = toko.id_toko || toko.id;
+                    const ganttMatch = availableProjects.find((project: any) => {
+                        if (project.id_toko && tID) return project.id_toko === tID;
+                        const matchUlok = project.nomor_ulok === toko.nomor_ulok;
+                        const matchLingkup = !project.lingkup_pekerjaan || !toko.lingkup_pekerjaan || (project.lingkup_pekerjaan?.toUpperCase() === toko.lingkup_pekerjaan?.toUpperCase());
+                        return matchUlok && matchLingkup;
+                    });
+                    return ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
+                })();
+
+            const existing = uniqueMap.get(val);
+            const scopes = new Set<string>(existing?.scopes || []);
+            if (toko.lingkup_pekerjaan) scopes.add(String(toko.lingkup_pekerjaan).toUpperCase());
+            uniqueMap.set(val, {
+                toko: existing?.toko || toko,
+                val,
+                scopes: Array.from(scopes),
+            });
+        });
+
+        return Array.from(uniqueMap.values()).map(({ toko, val, scopes }) => {
+            const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
+            const ulokScopes = allTokoList.filter(t => formatUlokWithDash(t.nomor_ulok) === nomorUlok);
+            const spkScopes = ulokScopes.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+            const spkCount = spkScopes.length;
+            const totalScopes = Math.max(ulokScopes.length, 1);
+            const scopeLabel = (scopes || [])
+                .sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b))
+                .join(' + ') || toko.lingkup_pekerjaan;
+            const identity = [nomorUlok, toko.nama_toko, toko.cabang, scopeLabel].filter(Boolean).join(' - ');
+
+            if (spkCount > 0 && spkCount === totalScopes) {
+                return {
+                    val,
+                    nomorUlok,
+                    identity,
+                    statusLabel: totalScopes > 1 ? 'Semua SPK' : 'SPK Tunggal',
+                    statusClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                    dotClass: 'bg-emerald-500',
+                };
+            }
+            if (spkCount > 0) {
+                return {
+                    val,
+                    nomorUlok,
+                    identity,
+                    statusLabel: 'Partial SPK',
+                    statusClass: 'border-amber-200 bg-amber-50 text-amber-700',
+                    dotClass: 'bg-amber-500',
+                };
+            }
+            return {
+                val,
+                nomorUlok,
+                identity,
+                statusLabel: 'Belum SPK',
+                statusClass: 'border-slate-200 bg-slate-50 text-slate-600',
+                dotClass: 'bg-slate-500',
+            };
+        });
+    }, [allTokoList, appMode, availableProjects, filteredTokoList, spkTokoIds]);
+    const visibleUlokOptions = ulokListOptions.slice(0, visibleUlokCount);
+    const handleSelectUlokOption = (val: string) => {
+        if (!val) return;
+        if (val.startsWith('ulok-')) {
+            const nomorUlok = decodeURIComponent(val.slice(5));
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.set('ulok', nomorUlok);
+            newUrl.searchParams.delete('id_toko');
+            window.history.pushState({}, '', newUrl.toString());
+            setSearchUlokInput(formatUlokWithDash(nomorUlok));
+            setIsUlokListOpen(false);
+            loadSupervisionWorkspace(nomorUlok);
+        } else if (val.startsWith('gantt-')) {
+            const gId = parseInt(val.replace('gantt-', ''));
+            const proj = availableProjects.find(p => p.id === gId);
+            if (proj?.id_toko) {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('id_toko', proj.id_toko.toString());
+                window.history.pushState({}, '', newUrl.toString());
+                setSearchUlokInput(formatUlokWithDash(proj.nomor_ulok || ''));
+                setIsUlokListOpen(false);
+                loadDataByToko(proj.id_toko);
+            } else {
+                setIsUlokListOpen(false);
+                loadGanttDetail(gId);
+            }
+        } else if (val.startsWith('toko-')) {
+            const tId = parseInt(val.replace('toko-', ''));
+            const toko = allTokoList.find(item => Number(item.id_toko || item.id) === tId);
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.set('id_toko', tId.toString());
+            window.history.pushState({}, '', newUrl.toString());
+            setSearchUlokInput(formatUlokWithDash(toko?.nomor_ulok || ''));
+            setIsUlokListOpen(false);
+            loadDataByToko(tId);
+        }
+    };
+    const handleManualUlokSubmit = () => {
+        const raw = searchUlokInput.trim();
+        if (!raw) return;
+        const firstMatch = ulokListOptions[0];
+        if (firstMatch) {
+            handleSelectUlokOption(firstMatch.val);
+            return;
+        }
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('ulok', raw);
+        newUrl.searchParams.delete('id_toko');
+        window.history.pushState({}, '', newUrl.toString());
+        setIsUlokListOpen(false);
+        loadSupervisionWorkspace(raw);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
 
@@ -1427,19 +1773,19 @@ function GanttBoard() {
                                 const scopeSuffix = supervisionWorkspace
                                     ? supervisionWorkspace.scopes.map(s => String(s.lingkup_pekerjaan || '').toUpperCase()).sort().join(' + ')
                                     : (projectData?.work ? String(projectData.work).toUpperCase() : '');
-                                return scopeSuffix ? ` · ${scopeSuffix}` : '';
+                                return scopeSuffix ? ` - ${scopeSuffix}` : '';
                             })()}
                         </Badge>
                     </div>
                 }
             />
 
-            <main className="p-4 md:p-8 max-w-[1600px] mx-auto mt-2">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6 items-stretch">
-                    <Card className={`col-span-1 lg:col-span-4 ${projectData && selectedGanttId && appMode === 'pic' ? 'xl:col-span-3' : 'xl:col-span-4'} shadow-sm border-slate-200 bg-white`}>
-                        <CardContent className="p-5 flex flex-col justify-center h-full">
-                            <div className="space-y-3">
-                                <label className="text-sm font-bold text-slate-700 uppercase tracking-wide">Pilih / Input No. Ulok</label>
+            <main className="p-4 md:p-6 max-w-none mx-auto mt-2">
+                <div className="mb-6 space-y-4">
+                    <Card ref={searchPanelRef} className="border border-slate-200 bg-white shadow-sm">
+                        <CardContent className="p-4">
+                            <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_220px_190px] lg:items-center">
+                                <label className="sr-only">Pilih / Input No. Ulok</label>
                                 {(urlIdToko || urlUlok) && !isDirectAccess ? (
                                     <div className="p-3 bg-slate-100 border rounded-md font-bold text-slate-600 flex justify-between items-center shadow-inner">
                                         <span>{selectedUlok || projectData?.ulokClean || "Memuat..."}</span><Lock className="w-5 h-5 text-slate-400" />
@@ -1449,45 +1795,53 @@ function GanttBoard() {
                                         {!((urlIdToko || urlUlok) && !isDirectAccess) && (
                                             <>
                                                 {/* Search */}
-                                                <div className="relative">
-                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
-                                                    <Input
-                                                        placeholder="Cari Nomor / Toko / Cabang..."
-                                                        className="pl-9 h-11 text-sm focus-visible:ring-blue-500 bg-white"
-                                                        value={searchUlokInput}
-                                                        onChange={(e) => setSearchUlokInput(e.target.value)}
-                                                    />
-                                                </div>
-                                                <div className="grid gap-3 sm:grid-cols-[1fr_128px]">
-                                                    <Select value={spkFilter} onValueChange={(value) => setSpkFilter(value as typeof spkFilter)}>
-                                                        <SelectTrigger className="h-11 border-slate-300 bg-white text-sm font-semibold text-slate-800 focus:ring-red-500">
-                                                            <SlidersHorizontal className="mr-2 h-4 w-4 text-red-600" />
-                                                            <SelectValue placeholder="Status SPK" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {spkFilterOptions.map((option) => (
-                                                                <SelectItem key={option.key} value={option.key}>
-                                                                    <span className="flex w-full items-center justify-between gap-4">
-                                                                        <span>{option.label}</span>
-                                                                        <span className="text-xs text-slate-500">{option.count}</span>
-                                                                    </span>
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="h-11 justify-center border-slate-300 bg-white font-semibold text-slate-700"
-                                                        onClick={() => {
-                                                            setSearchUlokInput("");
-                                                            setSpkFilter("all");
-                                                        }}
-                                                    >
-                                                        <RefreshCw className="mr-2 h-4 w-4" />
-                                                        Reset
-                                                    </Button>
-                                                </div>
+                                                 <div className="relative min-w-0">
+                                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                                                     <Input
+                                                         placeholder="Cari Nomor / Toko / Cabang..."
+                                                         className="h-12 rounded-lg border-slate-300 bg-white pl-10 text-sm shadow-none focus-visible:ring-red-500"
+                                                         value={searchUlokInput}
+                                                         onPointerDown={() => setIsUlokListOpen(true)}
+                                                         onClick={() => setIsUlokListOpen(true)}
+                                                         onChange={(e) => {
+                                                             setSearchUlokInput(e.target.value);
+                                                         }}
+                                                         onKeyDown={(event) => {
+                                                             if (event.key === 'Enter') handleManualUlokSubmit();
+                                                         }}
+                                                     />
+                                                 </div>
+                                                 <Select value={spkFilter} onValueChange={(value) => setSpkFilter(value as typeof spkFilter)}>
+                                                     <SelectTrigger className="h-12 rounded-lg border-slate-300 bg-white text-sm font-bold text-slate-900 shadow-none focus:ring-red-500">
+                                                         <SlidersHorizontal className="mr-2 h-4 w-4 text-red-600" />
+                                                         <SelectValue placeholder="Status SPK" />
+                                                     </SelectTrigger>
+                                                     <SelectContent>
+                                                         {spkFilterOptions.map((option) => (
+                                                             <SelectItem key={option.key} value={option.key}>
+                                                                 <span className="flex w-full items-center justify-between gap-4">
+                                                                     <span>{option.label}</span>
+                                                                     <span className="text-xs text-slate-500">{option.count}</span>
+                                                                 </span>
+                                                             </SelectItem>
+                                                         ))}
+                                                     </SelectContent>
+                                                 </Select>
+                                                 {selectedSpkSummary ? (
+                                                     <div className={`flex h-12 min-w-0 items-center gap-2 rounded-lg border px-3 ${selectedSpkSummary.cardClass}`}>
+                                                         <span className="flex min-w-0 items-center gap-2">
+                                                             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${selectedSpkSummary.dotClass}`} />
+                                                             <span className="min-w-0">
+                                                                 <span className="block truncate text-[10px] font-black uppercase opacity-70">Status ULOK</span>
+                                                                 <span className="block truncate text-sm font-black">{selectedSpkSummary.label}</span>
+                                                             </span>
+                                                         </span>
+                                                     </div>
+                                                 ) : (
+                                                     <div className="hidden h-12 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-500 lg:flex lg:items-center">
+                                                         Pilih ULOK
+                                                     </div>
+                                                 )}
                                                 {false && <>
                                                 {/* Filter SPK - Always visible */}
                                                 <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
@@ -1558,13 +1912,15 @@ function GanttBoard() {
                                                 </>}
                                             </>
                                         )}
+                                        {false && supervisionWorkspace && <>
                                         {/* Dropdown Pilih Proyek */}
                                         <Select
                                             value={(() => {
-                                                if (appMode === 'pic' && supervisionWorkspace?.nomor_ulok) {
-                                                    return `ulok-${encodeURIComponent(supervisionWorkspace.nomor_ulok)}`;
+                                                const workspaceUlok = supervisionWorkspace?.nomor_ulok;
+                                                if (appMode === 'pic' && workspaceUlok) {
+                                                    return `ulok-${encodeURIComponent(String(workspaceUlok))}`;
                                                 }
-                                                const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko) : null);
+                                                const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko || '') : null);
                                                 if (!targetTokoId) return '';
 
                                                 const ganttMatch = availableProjects.find((p: any) => {
@@ -1572,7 +1928,7 @@ function GanttBoard() {
                                                     if (p.id === selectedGanttId) return true;
                                                     return false;
                                                 });
-                                                return ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${targetTokoId}`;
+                                                return ganttMatch?.id ? `gantt-${ganttMatch?.id}` : `toko-${targetTokoId}`;
                                             })()}
                                             onValueChange={(val) => {
                                                 if (!val) return;
@@ -1604,7 +1960,7 @@ function GanttBoard() {
                                                 }
                                             }}
                                         >
-                                            <SelectTrigger className="h-12 w-full text-base focus:ring-blue-500 font-medium text-slate-700 bg-white">
+                                            <SelectTrigger className="h-12 w-full min-w-0 rounded-lg border-slate-300 bg-white text-base font-medium text-slate-700 shadow-none focus:ring-red-500 [&>span]:truncate">
                                                 <SelectValue placeholder="-- Pilih Proyek / RAB Anda --" />
                                             </SelectTrigger>
                                             <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
@@ -1652,183 +2008,233 @@ function GanttBoard() {
                                                         const scopeLabel = appMode === 'pic'
                                                             ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
                                                             : toko.lingkup_pekerjaan;
-                                                        const allTokoForUlok = appMode === 'pic' 
-                                                            ? filteredTokoList.filter(t => t.nomor_ulok === toko.nomor_ulok)
-                                                            : [toko]; // For non-pic, it's one item per option
-                                                        const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
-                                                        const spkCount = spkScopes.length;
-                                                        const totalScopes = allTokoForUlok.length;
-
-                                                        let spkLabel = '○ Belum SPK';
-                                                        let spkDotClass = 'bg-slate-300';
-                                                        let spkTextClass = 'text-slate-400';
-                                                        
-                                                        if (spkCount > 0 && spkCount === totalScopes) {
-                                                            spkLabel = totalScopes > 1 ? '✓ Semua SPK' : '✓ SPK';
-                                                            spkDotClass = 'bg-emerald-500';
-                                                            spkTextClass = 'text-emerald-600';
-                                                        } else if (spkCount > 0) {
-                                                            const spkLingkup = spkScopes.map(t => t.lingkup_pekerjaan).join(', ');
-                                                            spkLabel = `⚡ Partial SPK (${spkLingkup})`;
-                                                            spkDotClass = 'bg-amber-500';
-                                                            spkTextClass = 'text-amber-600';
-                                                        }
-
-                                                        const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' · Terkunci' : ganttMatch?.status === 'active' ? ' · Aktif' : '';
+                                                        const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' - Terkunci' : ganttMatch?.status === 'active' ? ' - Aktif' : '';
                                                         const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
-                                                            .filter(Boolean).join(' · ');
+                                                            .filter(Boolean).join(' - ');
 
                                                         return (
                                                             <SelectItem key={val} value={val}>
-                                                                <span className="flex items-center gap-1.5">
-                                                                    <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${spkDotClass}`} />
-                                                                    <span>{label || ulok}{ganttStatusLabel}</span>
-                                                                    <span className={`text-[10px] font-bold ${spkTextClass}`}>{spkLabel}</span>
-                                                                </span>
+                                                                <span className="block truncate">{label || ulok}{ganttStatusLabel}</span>
                                                             </SelectItem>
                                                         );
                                                     });
                                                 })()}
                                             </SelectContent>
                                         </Select>
+                                        </>}
                                     </>
                                 )}
                             </div>
+                            {isUlokListOpen ? (
+                                <>
+                                    <div
+                                        className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-inner"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onScroll={(event) => {
+                                            const target = event.currentTarget;
+                                            const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
+                                            if (nearBottom && visibleUlokCount < ulokListOptions.length) {
+                                                setVisibleUlokCount(count => Math.min(count + 10, ulokListOptions.length));
+                                            }
+                                        }}
+                                    >
+                                        {visibleUlokOptions.length === 0 ? (
+                                            <div className="px-4 py-6 text-center text-sm font-semibold text-slate-500">
+                                                ULOK tidak ditemukan
+                                            </div>
+                                        ) : (
+                                            <div className="divide-y divide-slate-100">
+                                                {visibleUlokOptions.map((option) => {
+                                                    const active = formatUlokWithDash(selectedUlok || projectData?.ulokClean || '') === option.nomorUlok;
+                                                    return (
+                                                        <button
+                                                            key={option.val}
+                                                            type="button"
+                                                            onClick={() => handleSelectUlokOption(option.val)}
+                                                            className={`flex w-full flex-col gap-2 px-4 py-3 text-left transition sm:flex-row sm:items-center sm:justify-between ${
+                                                                active ? 'bg-red-600 text-white' : 'bg-white text-slate-900 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <span className="min-w-0 truncate text-sm font-bold">{option.identity}</span>
+                                                            <span className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${
+                                                                active ? 'border-white/25 bg-white/15 text-white' : option.statusClass
+                                                            }`}>
+                                                                <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-white' : option.dotClass}`} />
+                                                                {option.statusLabel}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {visibleUlokCount < ulokListOptions.length ? (
+                                        <div className="mt-2 text-center text-[11px] font-semibold text-slate-500">
+                                            Scroll untuk memuat {Math.min(10, ulokListOptions.length - visibleUlokCount)} ULOK lagi
+                                        </div>
+                                    ) : null}
+                                </>
+                            ) : null}
+                            {false && selectedSpkSummary && (
+                                <div className={`mt-4 flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${selectedSpkSummary!.cardClass}`}>
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${selectedSpkSummary!.dotClass}`} />
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-black uppercase tracking-wide opacity-70">Status ULOK terpilih</p>
+                                            <p className="truncate text-sm font-black">{selectedSpkSummary!.label}</p>
+                                        </div>
+                                    </div>
+                                    <span className={`w-fit rounded px-2.5 py-1 text-xs font-black ${selectedSpkSummary!.countClass}`}>
+                                        {selectedSpkSummary!.detail}
+                                    </span>
+                                </div>
+                            )}
+                            {false && spkFilterOptions.length > 0 && (
+                                <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                                    {spkFilterOptions.map((option) => {
+                                        const active = spkFilter === option.key;
+                                        const tone = option.key === "spk"
+                                            ? "emerald"
+                                            : option.key === "single"
+                                                ? "blue"
+                                                : option.key === "partial"
+                                                    ? "amber"
+                                                    : option.key === "no_spk"
+                                                        ? "slate"
+                                                        : "red";
+                                        const activeClass = tone === "emerald"
+                                            ? "border-emerald-600 bg-emerald-600 text-white"
+                                            : tone === "blue"
+                                                ? "border-blue-600 bg-blue-600 text-white"
+                                                : tone === "amber"
+                                                    ? "border-amber-500 bg-amber-500 text-white"
+                                                    : tone === "slate"
+                                                        ? "border-slate-600 bg-slate-600 text-white"
+                                                        : "border-red-600 bg-red-600 text-white";
+                                        const dotClass = tone === "emerald"
+                                            ? "bg-emerald-500"
+                                            : tone === "blue"
+                                                ? "bg-blue-500"
+                                                : tone === "amber"
+                                                    ? "bg-amber-500"
+                                                    : tone === "slate"
+                                                        ? "bg-slate-500"
+                                                        : "bg-red-500";
+                                        return (
+                                            <button
+                                                key={option.key}
+                                                type="button"
+                                                onClick={() => setSpkFilter(option.key)}
+                                                className={`flex min-h-16 items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+                                                    active
+                                                        ? `${activeClass} shadow-sm`
+                                                        : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${active ? "bg-white" : dotClass}`} />
+                                                    <span className="truncate text-sm font-black">{option.label}</span>
+                                                </span>
+                                                <span className={`ml-3 rounded px-2 py-1 text-xs font-black ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>
+                                                    {option.count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {projectData && showProjectInfo && (
-                        <Card className={`col-span-1 ${appMode === 'pic' && selectedGanttId ? 'lg:col-span-8 xl:col-span-5' : 'lg:col-span-8 xl:col-span-8'} border border-slate-200 bg-white text-slate-900 shadow-sm transition-all`}>
-                            <CardContent className="p-5 flex flex-col justify-center h-full">
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4">
-                                    <div>
-                                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Toko</p>
-                                        <p className="text-sm md:text-base font-extrabold leading-tight text-slate-900">{projectData.store}</p>
+                        <Card className="overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-sm">
+                            <CardContent className="p-0">
+                                <div className="grid divide-y divide-slate-200 md:grid-cols-[1.05fr_1.3fr_1fr_1.15fr_1.45fr_1.05fr_1fr] md:divide-x md:divide-y-0">
+                                    <div className="px-4 py-3">
+                                        <p className="mb-1.5 text-[11px] font-black uppercase text-red-700">ULOK</p>
+                                        <p className="truncate text-base font-black leading-tight text-slate-950">{projectData.ulokClean || selectedUlok || '-'}</p>
                                     </div>
                                     <div>
-                                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Lingkup</p>
-                                        <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${String(projectData.work).toUpperCase() === 'ME'
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : 'bg-red-100 text-red-700'
-                                            }`}>
-                                            {projectData.work}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Status SPK</p>
-                                        {(() => {
-                                            const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
-                                            const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
-                                            const spkCount = spkScopes.length;
-                                            const totalScopes = allTokoForUlok.length;
-
-                                            let spkLabel = 'BELUM SPK';
-                                            let badgeClass = 'border-slate-200 bg-slate-50 text-slate-600';
-                                            let dotClass = 'bg-slate-400';
-
-                                            if (spkCount > 0 && spkCount === totalScopes) {
-                                                spkLabel = totalScopes > 1 ? 'SEMUA SPK' : 'SUDAH SPK';
-                                                badgeClass = 'border-emerald-200 bg-emerald-50 text-emerald-700';
-                                                dotClass = 'bg-emerald-500';
-                                            } else if (spkCount > 0) {
-                                                const spkLingkup = spkScopes.map(t => t.lingkup_pekerjaan).join(', ');
-                                                spkLabel = `PARTIAL SPK (${spkLingkup})`;
-                                                badgeClass = 'border-amber-200 bg-amber-50 text-amber-700';
-                                                dotClass = 'bg-amber-500';
-                                            }
-
-                                            return (
-                                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border ${badgeClass}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
-                                                    {spkLabel}
-                                                </span>
-                                            );
-                                        })()}
-                                    </div>
-                                    {spkInfo && (
-                                        <>
-                                            <div>
-                                                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Durasi (SPK)</p>
-                                                <p className="text-sm md:text-base font-bold text-slate-800">{spkInfo.duration} Hari</p>
-                                            </div>
-                                            <div>
-                                                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Tgl Mulai SPK</p>
-                                                <p className="text-sm md:text-base font-bold text-emerald-600">{new Date(spkInfo.startDate.split('T')[0]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {activeNotesGanttId && showGanttNotes && (
-                        <Card className="col-span-1 lg:col-span-12 xl:col-span-4 border-slate-200 bg-white shadow-sm h-full flex flex-col">
-                            <CardContent className="p-4 flex flex-col h-full">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                                        <MessageSquare className="h-4 w-4" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                            <div>
-                                                <h3 className="text-sm font-bold text-slate-900">Catatan Pengawasan</h3>
-                                                <p className="text-xs text-slate-500">Komunikasi antar role selama mode pengawasan.</p>
-                                            </div>
-                                            <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
+                                        <div className="px-4 py-3">
+                                            <p className="mb-1.5 text-[11px] font-black uppercase text-red-700">Nama Toko</p>
+                                            <p className="truncate text-base font-bold leading-tight text-slate-950" title={projectData.store}>{projectData.store}</p>
                                         </div>
+                                    </div>
+                                    <div>
+                                        <div className="px-4 py-3">
+                                            <p className="mb-1.5 text-[11px] font-black uppercase text-red-700">Branch</p>
+                                            <p className="truncate text-base font-bold leading-tight text-slate-950" title={projectData.branch || projectData.cabang}>{projectData.branch || projectData.cabang || '-'}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="px-4 py-3">
+                                            <p className="mb-1.5 text-[11px] font-black uppercase text-red-700">PIC Proyek</p>
+                                            <p className="truncate text-base font-bold leading-tight text-slate-950" title={projectData.pic || projectData.pic_bersama || ''}>{projectData.pic || projectData.pic_bersama || 'Belum ditentukan'}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="px-4 py-3">
+                                            <p className="mb-1.5 text-[11px] font-black uppercase text-red-700">Ruang Lingkup</p>
+                                            {(() => {
+                                                const scopeLabel = getWorkspaceScopeLabel(supervisionWorkspace) || projectData.work || "-";
+                                                return (
+                                                    <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-950" title={String(scopeLabel)}>{scopeLabel}</p>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="px-4 py-3">
+                                            <p className="mb-1.5 text-[11px] font-black uppercase text-red-700">Status SPK</p>
+                                            {(() => {
+                                                const allTokoForUlok = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
+                                                const spkScopes = allTokoForUlok.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                const spkCount = spkScopes.length;
+                                                const totalScopes = allTokoForUlok.length;
 
-                                        <div className="flex-1 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2.5 min-h-[140px] max-h-64 xl:max-h-full">
-                                            {isGanttNoteLoading ? (
-                                                <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat...
-                                                </div>
-                                            ) : ganttNotes.length === 0 ? (
-                                                <div className="flex h-full items-center justify-center text-sm text-slate-400">Belum ada catatan.</div>
-                                            ) : (
-                                                <div className="space-y-2.5">
-                                                    {ganttNotes.map(note => (
-                                                        <div key={note.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                                                            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                                                <div className="min-w-0">
-                                                                    <p className="truncate text-xs font-bold text-slate-800">{note.author_name}</p>
-                                                                    <p className="truncate text-[10px] text-slate-500">{note.author_role}</p>
-                                                                </div>
-                                                                <span className="text-[10px] text-slate-400">
-                                                                    {new Date(note.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
-                                                                </span>
-                                                            </div>
-                                                            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{note.note}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                let spkLabel = 'BELUM SPK';
+                                                let badgeClass = 'text-slate-600';
+                                                let dotClass = 'bg-slate-400';
+
+                                                if (spkCount > 0 && spkCount === totalScopes) {
+                                                    spkLabel = totalScopes > 1 ? 'SPK Lengkap' : 'Sudah SPK';
+                                                    badgeClass = 'text-emerald-700';
+                                                    dotClass = 'bg-emerald-500';
+                                                } else if (spkCount > 0) {
+                                                    spkLabel = 'SPK Partial';
+                                                    badgeClass = 'text-amber-700';
+                                                    dotClass = 'bg-amber-500';
+                                                }
+
+                                                return (
+                                                    <span className={`inline-flex items-center gap-1.5 text-base font-black ${badgeClass}`}>
+                                                        <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+                                                        {spkLabel}
+                                                    </span>
+                                                );
+                                            })()}
+                                            {spkInfo && <p className="mt-1 text-xs font-medium text-slate-700">Akhir SPK mengikuti timeline</p>}
+                                        </div>
+                                    </div>
+                                    <div className={`px-4 py-3 ${handoverReadiness.isGenerated ? "rounded-md border border-emerald-200 bg-emerald-50" : handoverReadiness.isReady ? "rounded-md border border-teal-200 bg-teal-50" : ""}`}>
+                                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                                            <p className="text-[11px] font-black uppercase text-red-700">Target ST</p>
+                                            {(handoverReadiness.isGenerated || handoverReadiness.isReady) && (
+                                                <span className={`rounded px-2 py-0.5 text-[10px] font-black ${handoverReadiness.isGenerated ? "bg-emerald-600 text-white" : "bg-teal-600 text-white"}`}>
+                                                    {handoverStatusText}
+                                                </span>
                                             )}
                                         </div>
-
-                                        {canWriteGanttCommunication && (
-                                            <div className="mt-3 flex items-end gap-2 shrink-0">
-                                                <textarea
-                                                    value={ganttNoteInput}
-                                                    onChange={(e) => setGanttNoteInput(e.target.value)}
-                                                    rows={1}
-                                                    className="min-h-10 max-h-24 flex-1 resize-y rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                                                    placeholder="Tulis catatan..."
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    className="h-10 bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700 shrink-0"
-                                                    disabled={isGanttNoteSending || !ganttNoteInput.trim()}
-                                                    onClick={handleSendGanttNote}
-                                                >
-                                                    {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                                </Button>
-                                            </div>
-                                        )}
+                                        <p className={`text-xl font-black leading-tight ${handoverReadiness.isGenerated ? "text-emerald-700" : "text-teal-700"}`}>{targetStText || '-'}</p>
+                                        {targetStInfo?.showOffsetLabel ? (
+                                            <p className="mt-1 text-xs font-black text-teal-700">{targetStInfo.label}</p>
+                                        ) : <p className="mt-1 text-xs font-medium text-slate-700">(ST)</p>}
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
                     )}
+
                 </div>
 
                 {appMode === 'pic' && (isWorkspaceLoading || supervisionWorkspace) && (
@@ -1975,6 +2381,7 @@ function GanttBoard() {
                                     );
                                 })()}
 
+                                {hasReadyOpnameCheckpoint && (
                                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
                                     <div className="flex items-start gap-3">
                                         <span className="relative mt-1 flex h-3 w-3 shrink-0">
@@ -1990,6 +2397,7 @@ function GanttBoard() {
                                         </div>
                                     </div>
                                 </div>
+                                )}
 
                                 {supervisionWorkspace.has_date_mismatch && (
                                     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
@@ -2006,109 +2414,160 @@ function GanttBoard() {
                                     </div>
                                 )}
 
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-                                    <h3 className="font-bold text-slate-800 hidden sm:block"></h3>
-                                    <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex gap-2 w-full sm:w-auto font-bold border-slate-300 shadow-sm hover:bg-slate-100 bg-white">
-                                        {isFullscreen ? <><Minimize className="w-4 h-4" /> Keluar Mode Landscape</> : <><Maximize className="w-4 h-4" /> Mode Landscape</>}
+                                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <Button variant="outline" size="sm" onClick={toggleFullscreen} className="flex w-full gap-2 border-slate-300 bg-white font-bold shadow-sm hover:bg-slate-100 sm:w-auto">
+                                        {isFullscreen ? <><Minimize className="h-4 w-4" /> Keluar Mode Landscape</> : <><Maximize className="h-4 w-4" /> Mode Landscape</>}
                                     </Button>
-                                </div>
-                                <div className="overflow-x-auto border border-slate-300 bg-white shadow-sm">
-                                    <UnifiedSupervisionGantt
-                                        workspace={supervisionWorkspace}
-                                        onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}
-                                    />
-                                    <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
-                                        {supervisionWorkspace.scopes.map((scope, index) => {
-                                            const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
-                                            const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
-                                            const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
-                                            return (
-                                                <span key={scope.id_toko} className="inline-flex items-center gap-2">
-                                                    <span className={`h-2.5 w-2.5 rounded-full ${scopeName === 'SIPIL' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                                                    {scopeName}: {readyCount} siap opname, {opnameCount} sudah opname
-                                                </span>
-                                            );
-                                        })}
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        <Button type="button" variant="outline" onClick={() => setShowProjectInfo(value => !value)} className="h-8 gap-1.5 rounded border-slate-300 bg-white px-3 text-xs font-bold">
+                                            {showProjectInfo ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                            {showProjectInfo ? 'Sembunyikan Info' : 'Tampilkan Info'}
+                                        </Button>
+                                        <Button type="button" variant="outline" onClick={() => setShowDateLegend(value => !value)} className="h-8 gap-1.5 rounded border-slate-300 bg-white px-3 text-xs font-bold">
+                                            {showDateLegend ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                            {showDateLegend ? 'Sembunyikan Legend' : 'Tampilkan Legend'}
+                                        </Button>
+                                        {utilityPanelAvailable && (
+                                            <Button type="button" variant="outline" onClick={() => setShowHandoverPanel(value => !value)} className="h-8 gap-1.5 rounded border-slate-300 bg-white px-3 text-xs font-bold">
+                                                {showHandoverPanel ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+                                                {showHandoverPanel ? 'Sembunyikan Panel' : 'Tampilkan Panel'}
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
-
-                                {false && unifiedTimeline && (
-                                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
-                                        <div className="border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
-                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Timeline ULOK Terpadu</p>
-                                                    <h3 className="mt-1 text-lg font-black">SIPIL + ME dalam satu kalender kerja</h3>
-                                                </div>
-                                                <Badge className="border border-white/20 bg-white/10 text-white">
-                                                    {unifiedTimeline!.duration} hari kalender
-                                                </Badge>
-                                            </div>
+                                <div className={`grid gap-4 ${showHandoverPanel && utilityPanelAvailable ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : 'xl:grid-cols-1'}`}>
+                                    <div className="min-w-0 overflow-hidden border border-slate-300 bg-white shadow-sm">
+                                        <UnifiedSupervisionGantt
+                                            workspace={supervisionWorkspace}
+                                            onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}
+                                            showLegend={showDateLegend}
+                                        />
+                                        <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
+                                            {supervisionWorkspace.scopes.map((scope, index) => {
+                                                const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+                                                const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+                                                const scopeName = String(scope.lingkup_pekerjaan || `LINGKUP ${index + 1}`).toUpperCase();
+                                                return (
+                                                    <span key={scope.id_toko} className="inline-flex items-center gap-2">
+                                                        <span className={`h-2.5 w-2.5 rounded-full ${scopeName === 'SIPIL' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                                                        {scopeName}: {readyCount} siap opname, {opnameCount} sudah opname
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
-                                        <div className="flex border-b border-slate-200 bg-slate-100 text-xs font-black uppercase tracking-wide text-slate-500">
-                                            <div className="w-1/3 min-w-50 border-r border-slate-300 px-4 py-3">
-                                                Lingkup / Tahapan
+                                    </div>
+
+                                    {showHandoverPanel && utilityPanelAvailable ? (
+                                        <aside className="flex min-h-[620px] flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
+                                            <div className="flex justify-end border-b border-slate-200 px-3 py-2">
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => setShowHandoverPanel(false)} className="h-8 px-2 text-slate-500">
+                                                    <PanelRightClose className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <div
-                                                className="flex-1 overflow-x-auto"
-                                                data-gantt-sync={unifiedTimeline!.syncGroup}
-                                                onScroll={(e) => {
-                                                    document.querySelectorAll<HTMLElement>(`[data-gantt-sync="${unifiedTimeline!.syncGroup}"]`).forEach((el) => {
-                                                        if (el !== e.currentTarget && el.scrollLeft !== e.currentTarget.scrollLeft) {
-                                                            el.scrollLeft = e.currentTarget.scrollLeft;
-                                                        }
-                                                    });
-                                                }}
-                                            >
-                                                <div className="flex" style={{ minWidth: unifiedTimeline!.duration * DAY_WIDTH }}>
-                                                    {Array.from({ length: unifiedTimeline!.duration }).map((_, dayIndex) => {
-                                                        const current = parseCalendarDate(unifiedTimeline!.startDate) || new Date();
-                                                        current.setDate(current.getDate() + dayIndex);
-                                                        const dd = String(current.getDate()).padStart(2, '0');
-                                                        const mm = String(current.getMonth() + 1).padStart(2, '0');
-                                                        const yyyy = current.getFullYear();
-                                                        const fullDate = `${dd}/${mm}/${yyyy}`;
-                                                        const checkpoint = (supervisionWorkspace!.unified_checkpoints || []).find((item) => item.tanggal_pengawasan === fullDate);
-                                                        const readyCount = Number(checkpoint?.ready_opname_items || 0);
-                                                        const opnameCount = Number(checkpoint?.opname_items || 0);
-                                                        const isReady = readyCount > 0;
-                                                        const isOpname = !isReady && opnameCount > 0;
-                                                        const hasAnyScopeCheckpoint = Boolean(checkpoint?.scopes?.some((entry) => Boolean(entry.checkpoint)));
-                                                        return (
-                                                            <button
-                                                                key={fullDate}
-                                                                type="button"
-                                                                disabled={!hasAnyScopeCheckpoint}
-                                                                onClick={() => checkpoint && openUnifiedCheckpoint(checkpoint as any, dayIndex)}
-                                                                className={`flex h-13 shrink-0 flex-col items-center justify-center border-r border-slate-300 font-bold ${isReady
-                                                                        ? 'bg-red-50 text-red-700 ring-2 ring-inset ring-red-400 hover:bg-red-100'
-                                                                        : isOpname
-                                                                            ? 'bg-emerald-50 text-emerald-700'
-                                                                            : hasAnyScopeCheckpoint
-                                                                                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                                                                : 'bg-white text-slate-400'
-                                                                    }`}
-                                                                style={{ width: DAY_WIDTH, fontSize: '9px' }}
-                                                                title={`${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`}
+
+                                            <div className="flex min-h-0 flex-1 flex-col space-y-4 p-4">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <p className="mt-1 text-sm font-semibold text-slate-950">{handoverStatusText}</p>
+                                                        </div>
+                                                        {supervisionWorkspace.unified_serah_terima_generated
+                                                            ? <CheckCircle className="h-7 w-7 text-emerald-500" />
+                                                            : <ClipboardCheck className="h-7 w-7 text-red-300" />}
+                                                    </div>
+                                                    {supervisionWorkspace.unified_serah_terima_generated ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            <a
+                                                                href={masterHandoverPdfLink ?? '#'}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className={`flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500 ${!masterHandoverPdfLink ? 'pointer-events-none opacity-50' : ''}`}
                                                             >
-                                                                <span>{dd}/{mm}</span>
-                                                                {isReady ? (
-                                                                    <AlertCircle className="mt-0.5 h-3 w-3 text-red-600" />
-                                                                ) : isOpname ? (
-                                                                    <CheckCircle className="mt-0.5 h-3 w-3 text-emerald-600" />
-                                                                ) : hasAnyScopeCheckpoint ? (
-                                                                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
-                                                                ) : null}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                                                <FileText className="mr-2 h-4 w-4" />
+                                                                Buka PDF Serah Terima
+                                                            </a>
+                                                            <Button
+                                                                type="button"
+                                                                onClick={handleGenerateUnifiedHandover}
+                                                                disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                                className="h-9 w-full bg-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-300 disabled:opacity-50"
+                                                            >
+                                                                {isGeneratingHandover
+                                                                    ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                                    : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                                                                Generate Ulang
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handleGenerateUnifiedHandover}
+                                                            disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                            className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
+                                                        >
+                                                            {isGeneratingHandover
+                                                                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                : <FileText className="mr-2 h-4 w-4" />}
+                                                            Generate Serah Terima
+                                                        </Button>
+                                                    )}
 
-                                <div className="hidden">
+                                                    <div className="flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-4">
+                                                        <div className="mb-2 flex justify-end">
+                                                            <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
+                                                        </div>
+                                                        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-100 bg-slate-50/60 p-2.5">
+                                                        {isGanttNoteLoading ? (
+                                                            <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat...
+                                                            </div>
+                                                        ) : ganttNotes.length === 0 ? (
+                                                            <div className="flex h-full min-h-28 items-center justify-center text-center text-sm text-slate-400">Belum ada catatan untuk SPK ini.</div>
+                                                        ) : (
+                                                            <div className="space-y-2.5">
+                                                                {ganttNotes.map(note => (
+                                                                    <div key={note.id} className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                                                                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <p className="truncate text-xs font-bold text-slate-800">{note.author_name}</p>
+                                                                                <p className="truncate text-[10px] text-slate-500">{note.author_role}</p>
+                                                                            </div>
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                {new Date(note.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{note.note}</p>
+                                                                    </div>
+                                                                ))} 
+                                                            </div>
+                                                        )}
+                                                        </div>
+                                                        {canWriteGanttCommunication && (
+                                                            <div className="sticky bottom-0 z-10 mt-3 grid shrink-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 bg-white/95 pb-1 pt-3 backdrop-blur">
+                                                                <textarea
+                                                                    value={ganttNoteInput}
+                                                                    onChange={(e) => setGanttNoteInput(e.target.value)}
+                                                                    rows={2}
+                                                                    className="min-h-12 max-h-28 w-full min-w-0 resize-none rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                                                    placeholder="Tulis catatan..."
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    aria-label="Kirim catatan"
+                                                                    className="h-12 w-11 rounded-full bg-blue-600 p-0 font-semibold text-white hover:bg-blue-700"
+                                                                    disabled={isGanttNoteSending || !ganttNoteInput.trim()}
+                                                                    onClick={handleSendGanttNote}
+                                                                >
+                                                                    {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                        </aside>
+                                    ) : null}
+                                </div>
+
+                                {/*
                                     {supervisionWorkspace.scopes.map((scope, index) => {
                                         const readyCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
                                         const opnameCount = scope.checkpoints.reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
@@ -2174,7 +2633,7 @@ function GanttBoard() {
                                             </div>
                                         );
                                     })}
-                                </div>
+                                */}
                             </>
                         ) : null}
                     </section>
