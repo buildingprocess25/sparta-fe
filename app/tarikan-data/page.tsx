@@ -75,9 +75,14 @@ const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: s
 ];
 
 const normalizeText = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase();
-const isStandaloneIlLabel = (value: unknown) => {
-    const normalized = normalizeText(value);
-    return normalized === "IL" || normalized === "INSTRUKSI LAPANGAN";
+const normalizeWorkItemLabel = (value: unknown) => {
+    const normalized = normalizeText(value)
+        .replace(/^\[\s*IL\s*\]\s*/i, "")
+        .replace(/^IL\s*[-:]\s*/i, "")
+        .replace(/\s*\(\s*IL\s*\)\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    return normalized === "IL" || normalized === "INSTRUKSI LAPANGAN" ? "" : normalized;
 };
 const projectId = (project: any) => Number(project?.toko?.id || 0);
 const projectBranch = (project: any) => normalizeBranchValue(project?.toko?.cabang);
@@ -86,8 +91,8 @@ const hasSpk = (project: any) => Array.isArray(project?.spk) && project.spk.leng
 const collectProjectWorkItems = (project: any): string[] => {
     const values: string[] = [];
     const push = (value: unknown) => {
-        const normalized = normalizeText(value);
-        if (normalized && !isStandaloneIlLabel(normalized)) values.push(normalized);
+        const normalized = normalizeWorkItemLabel(value);
+        if (normalized) values.push(normalized);
     };
 
     // Backend tidak memuat rab_item/instruksi_item di getDashboardAll demi performa,
