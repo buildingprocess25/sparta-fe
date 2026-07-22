@@ -75,6 +75,10 @@ const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: s
 ];
 
 const normalizeText = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase();
+const isStandaloneIlLabel = (value: unknown) => {
+    const normalized = normalizeText(value);
+    return normalized === "IL" || normalized === "INSTRUKSI LAPANGAN";
+};
 const projectId = (project: any) => Number(project?.toko?.id || 0);
 const projectBranch = (project: any) => normalizeBranchValue(project?.toko?.cabang);
 const hasSpk = (project: any) => Array.isArray(project?.spk) && project.spk.length > 0;
@@ -83,7 +87,7 @@ const collectProjectWorkItems = (project: any): string[] => {
     const values: string[] = [];
     const push = (value: unknown) => {
         const normalized = normalizeText(value);
-        if (normalized) values.push(normalized);
+        if (normalized && !isStandaloneIlLabel(normalized)) values.push(normalized);
     };
 
     // Backend tidak memuat rab_item/instruksi_item di getDashboardAll demi performa,
@@ -97,6 +101,12 @@ const collectProjectWorkItems = (project: any): string[] => {
         (gantt?.pengawasan || []).forEach((pengawasan: any) => {
             if (pengawasan?.kategori_pekerjaan) push(pengawasan.kategori_pekerjaan);
         });
+    });
+    (project?.rab || []).forEach((rab: any) => {
+        (rab?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
+    });
+    (project?.instruksi_lapangan || []).forEach((il: any) => {
+        (il?.items || []).forEach((item: any) => push(item?.kategori_pekerjaan || item?.jenis_pekerjaan));
     });
 
     return Array.from(new Set(values));

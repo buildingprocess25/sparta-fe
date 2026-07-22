@@ -532,7 +532,7 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
     if (milestone === "KTK") {
       if (stageIndex < 5) return "pending"; // Before Kerja Tambah Kurang
       if (stage === "Kerja Tambah Kurang") return "active";
-      if (stageIndex > 5) return "completed"; // After KTK
+      if (stageIndex > 5 && opname) return "completed"; // After KTK only when opname/KTK exists
       return "pending";
     }
 
@@ -596,8 +596,8 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
     },
     {
       label: "KTK",
-      value: stage === "Kerja Tambah Kurang" ? "Proses approval" : (stage === "Done" ? "Selesai" : "Belum dimulai"),
-      date: stage === "Kerja Tambah Kurang" || stage === "Done" ? (opname?.created_at || st?.created_at) : undefined,
+      value: stage === "Kerja Tambah Kurang" ? "Proses approval" : (stage === "Done" && opname ? "Selesai" : "Belum dimulai"),
+      date: stage === "Kerja Tambah Kurang" || (stage === "Done" && opname) ? opname?.created_at : undefined,
       milestone: "KTK",
     },
     {

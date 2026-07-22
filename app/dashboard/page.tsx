@@ -117,6 +117,21 @@ const parseDashboardDate = (value: unknown): Date | null => {
     return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
+const dashboardDateKey = (value: unknown) => {
+    const date = parseDashboardDate(value);
+    if (!date) return null;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const isDashboardStoredStDateSynced = (project: any, opname: any) => {
+    const stArr = Array.isArray(project?.berkas_serah_terima)
+        ? project.berkas_serah_terima
+        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const stored = dashboardDateKey(opname?.tanggal_serah_terima_denda);
+    const actual = dashboardDateKey(stArr[0]?.created_at);
+    return !stored || !actual || stored === actual;
+};
+
 const dashboardDayDiff = (from: Date | null, to: Date | null = new Date()) => {
     if (!from || !to) return 0;
     return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
@@ -233,7 +248,9 @@ const calculateProjectLateDays = (project: any, compareFallback = new Date()) =>
     const latestOpnameFinal = opnameFinalArr[0];
     const backendDendaHari = Number(latestOpnameFinal?.hari_denda ?? NaN);
     const backendHasPenaltyDates = Boolean(latestOpnameFinal?.tanggal_akhir_spk_denda || latestOpnameFinal?.tanggal_serah_terima_denda);
-    if (backendHasPenaltyDates && Number.isFinite(backendDendaHari)) return Math.max(0, backendDendaHari);
+    if (backendHasPenaltyDates && Number.isFinite(backendDendaHari) && isDashboardStoredStDateSynced(project, latestOpnameFinal)) {
+        return Math.max(0, backendDendaHari);
+    }
 
     const latestEndDate = getLatestProjectSpkEndDate(project);
     if (!latestEndDate) return 0;
@@ -343,7 +360,9 @@ const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyI
         // If opname_final has tanggal_akhir_spk_denda set, a real denda calculation has been
         // persisted (even if the result is 0 â€“ e.g. ME peer delivered on time â†’ minimum = 0).
         // In that case we MUST use the official stored values and NOT fall through to estimasi.
-        const hasOfficialCalculation = Boolean(latestOpnameFinal.tanggal_akhir_spk_denda);
+        const hasOfficialCalculation =
+            Boolean(latestOpnameFinal.tanggal_akhir_spk_denda)
+            && isDashboardStoredStDateSynced(project, latestOpnameFinal);
 
         if (dbAmount > 0 || dbDays > 0 || hasOfficialCalculation) {
             return {

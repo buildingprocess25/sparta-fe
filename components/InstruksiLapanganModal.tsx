@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Trash2, Save, Loader2, Upload, X, FileText } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { fetchTokoList, fetchTokoDetail, fetchPricesData, submitInstruksiLapangan, fetchInstruksiLapanganList, fetchInstruksiLapanganDetail } from '@/lib/api';
-import { BRANCH_GROUPS, canViewAllBranches } from '@/lib/constants';
+import { BRANCH_GROUPS, canViewAllBranches, normalizeBranchValue } from '@/lib/constants';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -71,7 +71,7 @@ const getPriceItemsForCategory = (priceData: Record<string, any[]>, category: st
     return matchedEntry?.[1] || [];
 };
 const normalizeNoPpnText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
-const normalizeBranch = (value?: string | null) => String(value ?? "").trim().toUpperCase();
+const normalizeBranch = normalizeBranchValue;
 const releaseActiveFocus = () => {
     if (typeof document === "undefined") return;
     const activeElement = document.activeElement;
