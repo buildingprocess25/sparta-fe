@@ -411,6 +411,9 @@ const getProjectStage = (project: any) => {
     const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
     const stArray = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
     const hasST = stArray.some((st: any) => isDashboardDateEffective(st?.created_at, now));
+    const hasSTDocument = stArray.some((st: any) =>
+        String(st?.link_pdf || '').trim() && isDashboardDateEffective(st?.created_at, now)
+    );
     const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
     const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim() && isDashboardDateEffective(o?.created_at, now));
     const hasOpnamePdf = !!opnameData;
@@ -418,6 +421,7 @@ const getProjectStage = (project: any) => {
     const hasDirectorApproval = isDashboardDateEffective(opnameData?.waktu_persetujuan_direktur, now);
 
     if (hasOpnamePdf && isOpnameDisetujui && hasDirectorApproval) return 'Done';
+    if (hasSTDocument) return 'Done';
     if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
     if (hasOpnamePdf && isOpnameDisetujui && !hasDirectorApproval) return 'Kerja Tambah Kurang';
     if (hasST) return 'Kerja Tambah Kurang';

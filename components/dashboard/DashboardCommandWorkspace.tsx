@@ -497,7 +497,7 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
   const rab = firstRab(project);
   const spk = firstSpk(project);
   const opname = firstOpname(project);
-  const st = Array.isArray(project?.berkas_serah_terima) ? project.berkas_serah_terima[0] : project?.berkas_serah_terima;
+  const st = latestSerahTerima(project);
 
   // Helper function to determine milestone status
   const getMilestoneStatus = (milestone: string): "active" | "completed" | "pending" => {
@@ -597,13 +597,13 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
     {
       label: "KTK",
       value: stage === "Kerja Tambah Kurang" ? "Proses approval" : (stage === "Done" ? "Selesai" : "Belum dimulai"),
-      date: stage === "Kerja Tambah Kurang" || stage === "Done" ? opname?.created_at : undefined,
+      date: stage === "Kerja Tambah Kurang" || stage === "Done" ? (opname?.created_at || st?.created_at) : undefined,
       milestone: "KTK",
     },
     {
       label: "Done",
       value: stage === "Done" ? "Proyek selesai" : "Belum selesai",
-      date: stage === "Done" ? opname?.updated_at : undefined,
+      date: stage === "Done" ? (opname?.updated_at || opname?.created_at || st?.created_at) : undefined,
       milestone: "Done",
     },
   ];
