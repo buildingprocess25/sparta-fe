@@ -400,24 +400,13 @@ function RabRejectEditor({
       </div>
 
         <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-start justify-between gap-2">
             <div>
               <Label className="text-xs font-semibold text-slate-700">Item Spesifik</Label>
               <p className="text-[11px] text-slate-500">
                 Pilih item dari RAB asli. Item yang sudah dipilih tidak bisa dipilih lagi.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addRow}
-              disabled={!canAddItem}
-              className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
-            >
-            + Tambah Item
-          </Button>
         </div>
         {rows.length === 0 ? (
             <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
@@ -502,6 +491,19 @@ function RabRejectEditor({
               })()}
           </div>
         ))}
+        <div className="flex justify-end pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addRow}
+            disabled={!canAddItem}
+            className="h-8 text-xs bg-white border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={hasEmptyRow ? "Pilih item pada baris kosong dulu" : selectedIds.size >= rabItems.length ? "Semua item sudah dipilih" : undefined}
+          >
+            + Tambah Item
+          </Button>
+        </div>
         {rabItems.length === 0 && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">
             Item RAB belum berhasil dimuat. Revisi general tetap bisa digunakan.
