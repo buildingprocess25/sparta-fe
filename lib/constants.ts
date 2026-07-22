@@ -445,6 +445,11 @@ export const canViewAllBranches = (
     isSuperHuman = false
 ): boolean => isSuperHuman || hasRegionalManagerRole(role) || normalizeRoles(role).includes("HEAD OFFICE");
 
+export const canApproveAllBranches = (
+    _role: string | string[] | undefined | null,
+    isSuperHuman = false
+): boolean => isSuperHuman;
+
 export const isViewOnlyUser = (
     role: string | string[] | undefined | null,
     isSuperHuman = false

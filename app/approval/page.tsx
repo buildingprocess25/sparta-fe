@@ -45,8 +45,9 @@ import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
 import {
     API_URL,
     BRANCH_TO_ULOK,
-    canViewAllBranches,
+    canApproveAllBranches,
     isViewOnlyUser,
+    canAccessBranchForUser,
     getAccessibleBranchesForUser,
     getSessionBranchCoverage,
     getParentBranch,
@@ -932,7 +933,7 @@ function ApprovalPageContent() {
             const roles = (user.roles && user.roles.length > 0 ? user.roles : userInfo.role.split(','))
                 .map(role => String(role).trim().toUpperCase())
                 .filter(Boolean);
-            const canSeeEverything = canViewAllBranches(roles.join(','), user.isSuperHuman ?? false);
+            const canSeeEverything = canApproveAllBranches(roles.join(','), user.isSuperHuman ?? false);
             if (!canSeeEverything) {
                 await ensureBranchCoverage(roles, userInfo.cabang, userInfo.email);
             }
@@ -961,7 +962,7 @@ function ApprovalPageContent() {
                 .map(r => r.trim().toUpperCase())
                 .filter(Boolean);
             const sessionIsSuperHuman = user?.isSuperHuman ?? false;
-            const sessionCanSeeAllBranches = canViewAllBranches(userInfo.role, sessionIsSuperHuman);
+            const sessionCanSeeAllBranches = canApproveAllBranches(userInfo.role, sessionIsSuperHuman);
             const currentCoverage = sessionCanSeeAllBranches
                 ? []
                 : await ensureBranchCoverage(sessionRoles, userInfo.cabang, userInfo.email);
@@ -1077,6 +1078,9 @@ function ApprovalPageContent() {
                     .filter(Boolean);
                 const isHOUser = upperUserCabang === 'HEAD OFFICE';
                 const isSuperHumanUser = user?.isSuperHuman ?? false;
+                const canApproveAll = canApproveAllBranches(userRoles, isSuperHumanUser);
+                const branchAllowed = !item.cabang || item.cabang === '-'
+                    || canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, currentCoverage);
 
                 if (type === 'PROJECT_PLANNING') {
                     if (isSuperHumanUser) return true;
@@ -1108,18 +1112,12 @@ function ApprovalPageContent() {
                         (isPpManager && upper === 'WAITING_PP_MANAGER_APPROVAL');
 
                     if (!statusMatchesRole) return false;
-                    if (isHOUser) return normalizeBranch(item.cabang) === upperUserCabang;
-                    // REMOVED: Frontend branch filtering - backend already enforces this
-                    // if (!upperUserCabang || !item.cabang || item.cabang === '-') return true;
-                    // return canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage);
-                    return true; // Backend already filtered by branch
+                    return branchAllowed;
                 }
 
-                // 1. FILTER CABANG - REMOVED: Backend already enforces branch filtering
-                // Frontend should trust backend response
-                // if (!canSeeAllBranches && !isRegionalManagerUser && !isDirectorJabatan(jabatan) && upperUserCabang && item.cabang && item.cabang !== '-') {
-                //     if (!canAccessBranchForUser(item.cabang, userRoles, upperUserCabang, userBranchCoverage)) return false;
-                // }
+                if (!canApproveAll && jabatan !== 'DIREKTUR' && jabatan !== 'DIREKTUR_KONTRAKTOR' && !branchAllowed) {
+                    return false;
+                }
                 
                 // 2. FILTER STATUS (Harus pending/menunggu)
                 if (!isPendingApprovalStatus(upper)) return false;
@@ -1431,7 +1429,7 @@ function ApprovalPageContent() {
             }
 
             const detailUserRoles = userInfo.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
-            const detailCanSeeAllBranches = canViewAllBranches(userInfo.role, user?.isSuperHuman ?? false);
+            const detailCanSeeAllBranches = canApproveAllBranches(userInfo.role, user?.isSuperHuman ?? false);
             const isDirectorRole = detailUserRoles.some(r => r.includes('DIREKTUR'));
             const detailCoverage = detailCanSeeAllBranches
                 ? []
@@ -1946,7 +1944,7 @@ function ApprovalPageContent() {
     };
 
     const isSuperHuman = user?.isSuperHuman ?? false;
-    const canSeeAllBranches = canViewAllBranches(userInfo.role, isSuperHuman);
+    const canSeeAllBranches = canApproveAllBranches(userInfo.role, isSuperHuman);
     const accessibleBranches = useMemo(() => {
         if (canSeeAllBranches) {
             // Show only parent (induk) branches in filter dropdown

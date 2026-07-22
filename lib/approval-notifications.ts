@@ -1,7 +1,8 @@
 import type { UserSession } from "@/context/SessionContext";
 import {
+    API_URL,
+    canApproveAllBranches,
     canAccessBranchForUser,
-    canViewAllBranches,
     getSessionBranchCoverage,
     isViewOnlyUser,
 } from "@/lib/constants";
@@ -224,6 +225,11 @@ const isSameBranchScope = (itemCabang: string | null | undefined, user: UserSess
     return canAccessBranchForUser(itemCabang, user.roles, userCabang, getSessionBranchCoverage());
 };
 
+const canAccessApprovalBranch = (itemCabang: string | null | undefined, user: UserSession) => {
+    if (canApproveAllBranches(user.roles, user.isSuperHuman)) return true;
+    return isSameBranchScope(itemCabang, user);
+};
+
 const isPendingProcessStatus = (status: string, tipe: ApprovalType) => {
     const upper = (status ?? "").toUpperCase();
     if (!upper) return false;
@@ -250,7 +256,7 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
     const upper = item.status.toUpperCase();
     const userCabang = normalizeBranch(user.cabang);
     const isHOUser = userCabang === "HEAD OFFICE";
-    const canSeeAll = canViewAllBranches(user.roles, user.isSuperHuman);
+    const canSeeAll = canApproveAllBranches(user.roles, user.isSuperHuman);
     const roles = user.roles;
     const raw = item.raw ?? {};
 
@@ -286,8 +292,8 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
         ));
 
     if (!statusMatchesRole) return false;
-    if (isHOUser) return !item.cabang || normalizeBranch(item.cabang) === userCabang;
     if (canSeeAll) return true;
+    if (isHOUser || user.isRegionalManager) return canAccessApprovalBranch(item.cabang, user);
     return isSameBranchScope(item.cabang, user);
 };
 
@@ -302,12 +308,12 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     const upper = item.status.toUpperCase();
     const userCabang = normalizeBranch(user.cabang);
     const isDirectorHOUser = isHeadOfficeDirector(user);
-    const canSeeAll = canViewAllBranches(user.roles, user.isSuperHuman);
+    const canSeeAll = canApproveAllBranches(user.roles, user.isSuperHuman);
     const isContractorOnly = user.roles.some(role => role.trim().toUpperCase() === 'KONTRAKTOR') 
         && !user.roles.some(role => role.includes('DIREKTUR'));
 
-    if (!canSeeAll && !user.isRegionalManager && jabatan !== "DIREKTUR" && jabatan !== "DIREKTUR_KONTRAKTOR") {
-        if (!isSameBranchScope(item.cabang, user)) return false;
+    if (!canSeeAll && jabatan !== "DIREKTUR" && jabatan !== "DIREKTUR_KONTRAKTOR") {
+        if (!canAccessApprovalBranch(item.cabang, user)) return false;
     }
 
     // RAB: Special logic for KONTRAKTOR to see rejected submissions they need to revise
@@ -333,7 +339,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         if (jabatan === "DIREKTUR") return isDirectorApprovalStatus(upper);
         
         // Fallback for canSeeAll
-        if (canSeeAll || user.isRegionalManager) return true;
+        if (canSeeAll) return true;
         
         return false;
     }
@@ -352,8 +358,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
             if (user.namaPt && !matchesUserCompany(item.raw, user.namaPt)) return false;
         }
         
-        // Super human / Regional Manager bisa lihat semua pending dengan stage yang cocok
-        if (canSeeAll || user.isRegionalManager) return true;
+        if (canSeeAll) return true;
         
         return true; // Stage sudah cocok dan company sudah valid (jika applicable)
     }
@@ -370,7 +375,7 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         return upper === "WAITING_MANAGER";
     }
 
-    if (canSeeAll || user.isRegionalManager) return true;
+    if (canSeeAll) return true;
     if (item.tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
     if (item.tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
 
@@ -385,7 +390,32 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
 const countItems = (items: CountableApprovalItem[], user: UserSession, jabatan: ApprovalJabatan) =>
     items.filter(item => canCountForUser(item, user, jabatan)).length;
 
+const hydrateApprovalBranchCoverage = async (user: UserSession) => {
+    if (typeof window === "undefined" || canApproveAllBranches(user.roles, user.isSuperHuman)) return;
+
+    const token = sessionStorage.getItem("spartaAccessToken");
+    if (!token) return;
+
+    try {
+        const response = await fetch(`${API_URL.replace(/\/$/, "")}/api/user-cabang/my-coverage`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        const coverage = Array.isArray(result.data?.branches)
+            ? result.data.branches.map((branch: unknown) => String(branch).trim().toUpperCase()).filter(Boolean)
+            : [];
+        sessionStorage.setItem("branchCoverage", JSON.stringify(coverage));
+    } catch (error) {
+        console.warn("Gagal memuat coverage approval:", error);
+    }
+};
+
 export const fetchApprovalNotificationCounts = async (user: UserSession): Promise<ApprovalCounts> => {
+    await hydrateApprovalBranchCoverage(user);
     const accessibleTypes = getAccessibleApprovalTypes(user);
     const jabatan = getApprovalJabatan(user);
     const counts = { ...EMPTY_APPROVAL_COUNTS };
@@ -539,6 +569,7 @@ const toApprovalNotificationItem = (item: CountableApprovalItem): ApprovalNotifi
 };
 
 export const fetchApprovalNotificationItems = async (user: UserSession): Promise<ApprovalNotificationItem[]> => {
+    await hydrateApprovalBranchCoverage(user);
     const accessibleTypes = getAccessibleApprovalTypes(user);
     const jabatan = getApprovalJabatan(user);
     const items: ApprovalNotificationItem[] = [];
