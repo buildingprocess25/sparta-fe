@@ -596,8 +596,8 @@ function Timeline({ project, stage }: { project: any; stage: string }) {
     },
     {
       label: "KTK",
-      value: stage === "Kerja Tambah Kurang" ? "Proses approval" : (stage === "Done" && opname ? "Selesai" : "Belum dimulai"),
-      date: stage === "Kerja Tambah Kurang" || (stage === "Done" && opname) ? opname?.created_at : undefined,
+      value: stage === "Kerja Tambah Kurang" ? (opname ? "Proses approval" : "Menunggu KTK") : (stage === "Done" && opname ? "Selesai" : "Belum dimulai"),
+      date: (stage === "Kerja Tambah Kurang" && opname) || (stage === "Done" && opname) ? opname?.created_at : undefined,
       milestone: "KTK",
     },
     {
@@ -1814,7 +1814,7 @@ export default function DashboardCommandWorkspace({
   ];
   const completeMetrics: Array<{ label: string; value: string | number; helper: string; context: string; subContext?: string; icon: typeof HardHat }> = [
     { label: "Ongoing", value: stats.miniStats.Ongoing, helper: "Sudah SPK dan masih berjalan", context: "PROJECT", subContext: "Ongoing", icon: HardHat },
-    { label: "Done / ST", value: stats.miniStats.Done, helper: "Pekerjaan selesai", context: "PROJECT", subContext: "Done", icon: CheckCircle2 },
+    { label: "Done", value: stats.miniStats.Done, helper: "Opname final disetujui lengkap", context: "PROJECT", subContext: "Done", icon: CheckCircle2 },
     { label: "SPK", value: formatRupiah(stats.spk), helper: "Nilai SPK", context: "SPK", icon: DollarSign },
     { label: "Denda", value: formatRupiah(stats.totalDenda), helper: "", context: "DENDA", icon: AlertTriangle },
     { label: "Cost/m² bangunan", value: formatRupiah(stats.avgCostBangunan), helper: "Rata-rata luas bangunan", context: "COST_M2", icon: Ruler },

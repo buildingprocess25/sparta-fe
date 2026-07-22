@@ -440,7 +440,6 @@ const getProjectStage = (project: any) => {
     const hasDirectorApproval = isDashboardDateEffective(opnameData?.waktu_persetujuan_direktur, now);
 
     if (hasOpnamePdf && isOpnameDisetujui && hasDirectorApproval) return 'Done';
-    if (hasSTDocument) return 'Done';
     if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
     if (hasOpnamePdf && isOpnameDisetujui && !hasDirectorApproval) return 'Kerja Tambah Kurang';
     if (hasST) return 'Kerja Tambah Kurang';
@@ -1416,7 +1415,7 @@ export default function DashboardPage() {
         { label: 'Total Toko', value: stats.total, helper: 'Semua toko pada filter aktif', icon: <Store className="w-4 h-4" />, context: 'PROJECT', subContext: '', tone: 'border-slate-200 bg-white text-slate-900' },
         { label: 'Perlu Dicek', value: stats.attention, helper: 'Lewat SLA atau punya risiko denda', icon: <AlertTriangle className="w-4 h-4" />, context: 'ATTENTION', subContext: '', tone: 'border-red-200 bg-red-50 text-red-700' },
         { label: 'Ongoing', value: stats.miniStats.Ongoing, helper: 'Sudah SPK dan masih berjalan', icon: <HardHat className="w-4 h-4" />, context: 'PROJECT', subContext: 'Ongoing', tone: 'border-blue-200 bg-blue-50 text-blue-700' },
-        { label: 'Done / ST', value: stats.miniStats.Done, helper: 'Sudah opname final atau serah terima', icon: <CheckCircle2 className="w-4 h-4" />, context: 'PROJECT', subContext: 'Done', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+        { label: 'Done', value: stats.miniStats.Done, helper: 'Opname final disetujui lengkap', icon: <CheckCircle2 className="w-4 h-4" />, context: 'PROJECT', subContext: 'Done', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
         { label: 'SP Pending', value: approvalCounts.SURAT_PERINGATAN || 0, helper: 'Surat Peringatan Menunggu Approval', icon: <AlertTriangle className="w-4 h-4" />, context: 'APPROVAL', subContext: 'SP', tone: 'border-amber-200 bg-amber-50 text-amber-700' },
     ];
     const secondaryMetrics = [
@@ -2111,7 +2110,7 @@ export default function DashboardPage() {
                                                     { label: 'Toko Aktif', value: stats.total, tone: 'bg-white/10 text-white', context: 'PROJECT' },
                                                     { label: 'Perlu Tindakan', value: stats.attention, tone: 'bg-red-500/20 text-red-100', context: 'ATTENTION' },
                                                     { label: 'Ongoing', value: stats.miniStats.Ongoing, tone: 'bg-blue-500/20 text-blue-100', context: 'PROJECT', subContext: 'Ongoing' },
-                                                    { label: 'Done/ST', value: stats.miniStats.Done, tone: 'bg-emerald-500/20 text-emerald-100', context: 'PROJECT', subContext: 'Done' },
+                                                    { label: 'Done', value: stats.miniStats.Done, tone: 'bg-emerald-500/20 text-emerald-100', context: 'PROJECT', subContext: 'Done' },
                                                 ].map(item => (
                                                     <button
                                                         key={item.label}
