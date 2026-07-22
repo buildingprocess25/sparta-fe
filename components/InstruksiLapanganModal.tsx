@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
 import LoadingOverlay from '@/components/LoadingOverlay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -100,6 +101,7 @@ export default function InstruksiLapanganModal({
     initialTokoId?: number
 }) {
     const router = useRouter();
+    const { user } = useSession();
 
     const [cabang, setCabang] = useState('');
     const [tokoList, setTokoList] = useState<any[]>([]);
@@ -425,7 +427,7 @@ export default function InstruksiLapanganModal({
             id_toko: selectedToko.id,
             nomor_ulok: selectedToko.nomor_ulok,
             lingkup_pekerjaan: selectedToko.lingkup_pekerjaan,
-            email_pembuat: sessionStorage.getItem("loggedInUserEmail") || "",
+            email_pembuat: user?.email || sessionStorage.getItem("loggedInUserEmail") || "",
             tanggal_mulai: tanggalMulai,
             tanggal_selesai: tanggalSelesai,
             id_instruksi_lapangan_revisi: selectedRevisionId !== 'new' ? Number(selectedRevisionId) : undefined,

@@ -392,7 +392,7 @@ export default function InstruksiLapanganPage() {
             id_toko: selectedToko.id,
             nomor_ulok: selectedToko.nomor_ulok,
             lingkup_pekerjaan: selectedToko.lingkup_pekerjaan,
-            email_pembuat: sessionStorage.getItem("loggedInUserEmail") || "",
+            email_pembuat: user?.email || sessionStorage.getItem("loggedInUserEmail") || "",
             tanggal_mulai: tanggalMulai,
             tanggal_selesai: tanggalSelesai,
             id_instruksi_lapangan_revisi: selectedRevisionId !== 'new' ? Number(selectedRevisionId) : undefined,
