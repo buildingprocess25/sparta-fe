@@ -293,6 +293,7 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
 
     if (!statusMatchesRole) return false;
     if (canSeeAll) return true;
+    if (isBmRegionalManager && normalizeBranch(item.cabang) === "HEAD OFFICE") return true;
     if (isHOUser || user.isRegionalManager) return canAccessApprovalBranch(item.cabang, user);
     return isSameBranchScope(item.cabang, user);
 };

@@ -1112,6 +1112,7 @@ function ApprovalPageContent() {
                         (isPpManager && upper === 'WAITING_PP_MANAGER_APPROVAL');
 
                     if (!statusMatchesRole) return false;
+                    if (isBmRegionalManager && normalizeBranch(item.cabang) === 'HEAD OFFICE') return true;
                     return branchAllowed;
                 }
 
