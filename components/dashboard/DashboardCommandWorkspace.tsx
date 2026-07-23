@@ -1459,10 +1459,26 @@ export default function DashboardCommandWorkspace({
         .filter((entry) => entry.penalty.amount > 0)
         .map((entry) => entry.project);
     }
+    if (detail.context === "PROJECT") {
+      const byStore = new Map<string, { project: any; penalty: any }>();
+      projects.forEach((project) => {
+        const stage = getStage(project);
+        if (detail.subContext && stage !== detail.subContext) return;
+        if (detail.subContext && !isStageVisibleInDetail(project, stage)) return;
+        
+        const key = getProjectStorePenaltyKey(project);
+        const penalty = getPenalty(project);
+        const existing = byStore.get(key);
+        
+        if (!existing || penalty.amount < existing.penalty.amount) {
+          byStore.set(key, { project, penalty });
+        }
+      });
+      return Array.from(byStore.values()).map((entry) => entry.project);
+    }
     return projects.filter((project) => {
       const stage = getStage(project);
       if (detail.subContext && stage !== detail.subContext) return false;
-      if (detail.context === "PROJECT" && detail.subContext && !isStageVisibleInDetail(project, stage)) return false;
       if (detail.context === "ATTENTION") {
         return getSlaInfo(project, stage, getLateDays(project)).priority || getPenalty(project).amount > 0;
       }
