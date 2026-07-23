@@ -1,0 +1,165 @@
+
+> sparta-fe@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.16.0.2:3000
+- Environments: .env.local
+
+✓ Starting...
+Creating turbopack project { dir: 'C:\\alfamart\\SPARTA\\sparta-fe', testMode: true }
+✓ Ready in 4.2s
+ GET /auth 200 in 4.5s (compile: 3.1s, render: 1456ms)
+ GET /gantt?ulok=WZ01-2604-0017 200 in 4.5s (compile: 3.4s, render: 1194ms)
+ GET /manifest.webmanifest 200 in 607ms (compile: 564ms, render: 43ms)
+ GET /manifest.webmanifest 200 in 582ms (compile: 569ms, render: 13ms)
+ GET /gantt 200 in 123ms (compile: 14ms, render: 109ms)
+ GET /dashboard 200 in 394ms (compile: 309ms, render: 85ms)
+ GET /manifest.webmanifest 200 in 39ms (compile: 11ms, render: 28ms)
+[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp 0, Estimasi: Rp 0
+[Dashboard] Breakdown: Terlambat=0, Total ULOK=0
+[Dashboard] Cost/m² (GABUNGAN per ULOK): Terbuka=0 ULOK, Bangunan=0 ULOK, Terbangun=0 ULOK
+ GET /dashboard 200 in 1019ms (compile: 30ms, render: 989ms)
+ GET /manifest.webmanifest 200 in 31ms (compile: 19ms, render: 12ms)
+ GET /gantt 200 in 61ms (compile: 17ms, render: 45ms)
+ GET /manifest.webmanifest 200 in 31ms (compile: 12ms, render: 19ms)
+✓ Compiled in 2.5s
+ GET /gantt?ulok=WZ01-2606-0005 200 in 1004ms (compile: 317ms, render: 687ms)
+ GET /manifest.webmanifest 200 in 50ms (compile: 27ms, render: 23ms)
+✓ Compiled in 1007ms
+✓ Compiled in 562ms
+✓ Compiled in 484ms
+✓ Compiled in 1520ms
+✓ Compiled in 701ms
+✓ Compiled in 557ms
+✓ Compiled in 821ms
+✓ Compiled in 789ms
+✓ Compiled in 409ms
+✓ Compiled in 434ms
+✓ Compiled in 632ms
+✓ Compiled in 307ms
+✓ Compiled in 276ms
+✓ Compiled in 481ms
+✓ Compiled in 495ms
+✓ Compiled in 365ms
+✓ Compiled in 400ms
+✓ Compiled in 250ms
+ GET /dashboard 200 in 606ms (compile: 244ms, render: 362ms)
+ GET /manifest.webmanifest 200 in 59ms (compile: 14ms, render: 45ms)
+ GET /gantt 200 in 517ms (compile: 369ms, render: 148ms)
+ GET /manifest.webmanifest 200 in 62ms (compile: 29ms, render: 32ms)
+✓ Compiled in 961ms
+✓ Compiled in 415ms
+✓ Compiled in 513ms
+✓ Compiled in 250ms
+✓ Compiled in 478ms
+✓ Compiled in 456ms
+✓ Compiled in 720ms
+ GET /dashboard 200 in 390ms (compile: 144ms, render: 246ms)
+ GET /manifest.webmanifest 200 in 506ms (compile: 257ms, render: 249ms)
+ GET /gantt 200 in 1867ms (compile: 1553ms, render: 313ms)
+ GET /manifest.webmanifest 200 in 109ms (compile: 38ms, render: 71ms)
+✓ Compiled in 1025ms
+✓ Compiled in 837ms
+✓ Finished filesystem cache database compaction in 11.4s
+✓ Compiled in 815ms
+✓ Compiled in 850ms
+✓ Compiled in 549ms
+✓ Compiled in 548ms
+✓ Compiled in 384ms
+✓ Compiled in 1062ms
+✓ Compiled in 608ms
+✓ Compiled in 672ms
+✓ Compiled in 691ms
+✓ Compiled in 878ms
+✓ Compiled in 468ms
+✓ Compiled in 429ms
+✓ Compiled in 493ms
+✓ Compiled in 489ms
+✓ Compiled in 507ms
+✓ Compiled in 241ms
+✓ Finished filesystem cache database compaction in 13.5s
+✓ Compiled in 303ms
+✓ Compiled in 376ms
+✓ Compiled in 1255ms
+✓ Compiled in 595ms
+✓ Compiled in 431ms
+ GET /gantt?ulok=UZ01-2605-0023 200 in 1814ms (compile: 737ms, render: 1078ms)
+ GET /manifest.webmanifest 200 in 64ms (compile: 29ms, render: 35ms)
+✓ Compiled in 1599ms
+✓ Compiled in 473ms
+✓ Compiled in 801ms
+✓ Compiled in 361ms
+✓ Compiled in 589ms
+✓ Compiled in 606ms
+✓ Compiled in 843ms
+✓ Compiled in 2.2s
+✓ Compiled in 1433ms
+✓ Compiled in 693ms
+✓ Compiled in 751ms
+ GET /dashboard 200 in 380ms (compile: 48ms, render: 332ms)
+ GET /manifest.webmanifest 200 in 359ms (compile: 139ms, render: 221ms)
+ GET /gantt 200 in 5.7s (compile: 3.0s, render: 2.7s)
+ GET /manifest.webmanifest 200 in 562ms (compile: 195ms, render: 367ms)
+ GET /gantt?ulok=UZ01-2605-0023 200 in 661ms (compile: 42ms, render: 619ms)
+ GET /manifest.webmanifest 200 in 28ms (compile: 17ms, render: 10ms)
+ GET /manifest.webmanifest 200 in 30ms (compile: 13ms, render: 16ms)
+ GET /dashboard 200 in 76ms (compile: 17ms, render: 59ms)
+ GET /manifest.webmanifest 200 in 23ms (compile: 9ms, render: 14ms)
+ GET /approval 200 in 683ms (compile: 619ms, render: 63ms)
+ GET /manifest.webmanifest 200 in 42ms (compile: 12ms, render: 31ms)
+ GET /projek-planning/69?from=approval 200 in 1789ms (compile: 1718ms, render: 72ms)
+ GET /manifest.webmanifest 200 in 22ms (compile: 7ms, render: 15ms)
+✓ Compiled in 1162ms
+✓ Compiled in 6.3s
+ GET /auth 200 in 3.9s (compile: 467ms, render: 3.4s)
+ GET /projek-planning/69?from=approval 200 in 3.2s (compile: 2.1s, render: 1110ms)
+ GET /auth 200 in 3.2s (compile: 16ms, render: 3.2s)
+ GET /projek-planning/69?from=approval 200 in 997ms (compile: 20ms, render: 977ms)
+ GET /auth 200 in 550ms (compile: 31ms, render: 518ms)
+ GET /auth 200 in 314ms (compile: 19ms, render: 295ms)
+ GET /projek-planning/69?from=approval 200 in 311ms (compile: 119ms, render: 193ms)
+ GET /manifest.webmanifest 200 in 68ms (compile: 44ms, render: 24ms)
+ GET /manifest.webmanifest 200 in 109ms (compile: 80ms, render: 30ms)
+✓ Compiled in 427ms
+ GET /approval 200 in 299ms (compile: 218ms, render: 82ms)
+ GET /manifest.webmanifest 200 in 25ms (compile: 7ms, render: 18ms)
+ GET /dashboard 200 in 246ms (compile: 166ms, render: 80ms)
+ GET /manifest.webmanifest 200 in 37ms (compile: 9ms, render: 28ms)
+ GET /gantt 200 in 343ms (compile: 224ms, render: 119ms)
+ GET /manifest.webmanifest 200 in 38ms (compile: 17ms, render: 21ms)
+✓ Compiled in 2.3s
+ GET /auth 200 in 3.3s (compile: 1709ms, render: 1636ms)
+ GET /auth 200 in 110ms (compile: 16ms, render: 94ms)
+ GET /manifest.webmanifest 500 in 1518ms (compile: 1032ms, render: 486ms)
+ GET /gantt 500 in 5.1s (compile: 5.0s, render: 106ms)
+ GET /gantt 500 in 2.4s (compile: 1219ms, render: 1229ms)
+ GET /gantt 500 in 1272ms (compile: 1249ms, render: 23ms)
+✓ Compiled in 435ms
+ GET /auth 200 in 1016ms (compile: 25ms, render: 992ms)
+ GET /gantt 200 in 1049ms (compile: 401ms, render: 648ms)
+ GET /manifest.webmanifest 200 in 242ms (compile: 218ms, render: 24ms)
+ GET /manifest.webmanifest 200 in 42ms (compile: 13ms, render: 29ms)
+✓ Compiled in 265ms
+✓ Compiled in 641ms
+ GET /auth 200 in 130ms (compile: 15ms, render: 115ms)
+ GET /gantt 200 in 51ms (compile: 13ms, render: 38ms)
+ GET /manifest.webmanifest 200 in 20ms (compile: 6ms, render: 14ms)
+ GET /manifest.webmanifest 200 in 22ms (compile: 10ms, render: 12ms)
+ GET /manifest.webmanifest 200 in 19ms (compile: 10ms, render: 9ms)
+ GET /gantt 200 in 246ms (compile: 20ms, render: 225ms)
+✓ Compiled in 2.6s
+ GET /gantt 500 in 2.8s (compile: 2.7s, render: 147ms)
+ GET /auth 200 in 2.7s (compile: 1099ms, render: 1583ms)
+ GET /auth 200 in 1112ms (compile: 20ms, render: 1092ms)
+ GET /gantt 500 in 1697ms (compile: 892ms, render: 805ms)
+ GET /gantt 500 in 1065ms (compile: 968ms, render: 97ms)
+ GET /manifest.webmanifest 500 in 1037ms (compile: 957ms, render: 79ms)
+✓ Finished filesystem cache database compaction in 14.1s
+✓ Compiled in 785ms
+ GET /auth 200 in 111ms (compile: 26ms, render: 86ms)
+ GET /manifest.webmanifest 200 in 291ms (compile: 134ms, render: 157ms)
+ GET /gantt 200 in 2.4s (compile: 685ms, render: 1679ms)
+ GET /manifest.webmanifest 200 in 56ms (compile: 43ms, render: 13ms)
+✓ Compiled in 1055ms

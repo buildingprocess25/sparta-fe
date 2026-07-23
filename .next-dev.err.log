@@ -1,0 +1,638 @@
+⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+⚠ Fast Refresh had to perform a full reload when ./lib/constants.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload when ./lib/constants.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload when ./lib/constants.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⨯ ./app/gantt/page.tsx:2177:31
+Parsing ecmascript source code failed
+[0m [90m 2175 |[39m                                     })}
+ [90m 2176 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2177 |[39m                             [33m<[39m[33m/[39m[33m>[39m
+ [90m      |[39m                               [31m[1m^[22m[39m
+ [90m 2178 |[39m                         ) [33m:[39m [36mnull[39m}
+ [90m 2179 |[39m                     [33m<[39m[33m/[39m[33msection[39m[33m>[39m
+ [90m 2180 |[39m                 )}[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:1975:33
+Parsing ecmascript source code failed
+[0m [90m 1973 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m 1974 |[39m                                     )[33m;[39m
+[31m[1m>[22m[39m[90m 1975 |[39m                                 })()}
+ [90m      |[39m                                 [31m[1m^[22m[39m
+ [90m 1976 |[39m
+ [90m 1977 |[39m                                 [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"[39m[33m>[39m
+ [90m 1978 |[39m                                     [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-start gap-3"[39m[33m>[39m[0m
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:1975:37
+Parsing ecmascript source code failed
+[0m [90m 1973 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m 1974 |[39m                                     )[33m;[39m
+[31m[1m>[22m[39m[90m 1975 |[39m                                 })()}
+ [90m      |[39m                                     [31m[1m^[22m[39m
+ [90m 1976 |[39m
+ [90m 1977 |[39m                                 [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"[39m[33m>[39m
+ [90m 1978 |[39m                                     [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-start gap-3"[39m[33m>[39m[0m
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+⨯ ./app/gantt/page.tsx:2177:31
+Parsing ecmascript source code failed
+[0m [90m 2175 |[39m                                     })}
+ [90m 2176 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2177 |[39m                             [33m<[39m[33m/[39m[33m>[39m
+ [90m      |[39m                               [31m[1m^[22m[39m
+ [90m 2178 |[39m                         ) [33m:[39m [36mnull[39m}
+ [90m 2179 |[39m                     [33m<[39m[33m/[39m[33msection[39m[33m>[39m
+ [90m 2180 |[39m                 )}[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:1975:33
+Parsing ecmascript source code failed
+[0m [90m 1973 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m 1974 |[39m                                     )[33m;[39m
+[31m[1m>[22m[39m[90m 1975 |[39m                                 })()}
+ [90m      |[39m                                 [31m[1m^[22m[39m
+ [90m 1976 |[39m
+ [90m 1977 |[39m                                 [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"[39m[33m>[39m
+ [90m 1978 |[39m                                     [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-start gap-3"[39m[33m>[39m[0m
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:1975:37
+Parsing ecmascript source code failed
+[0m [90m 1973 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m 1974 |[39m                                     )[33m;[39m
+[31m[1m>[22m[39m[90m 1975 |[39m                                 })()}
+ [90m      |[39m                                     [31m[1m^[22m[39m
+ [90m 1976 |[39m
+ [90m 1977 |[39m                                 [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"[39m[33m>[39m
+ [90m 1978 |[39m                                     [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-start gap-3"[39m[33m>[39m[0m
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+⨯ ./app/gantt/page.tsx:2177:31
+Parsing ecmascript source code failed
+[0m [90m 2175 |[39m                                     })}
+ [90m 2176 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2177 |[39m                             [33m<[39m[33m/[39m[33m>[39m
+ [90m      |[39m                               [31m[1m^[22m[39m
+ [90m 2178 |[39m                         ) [33m:[39m [36mnull[39m}
+ [90m 2179 |[39m                     [33m<[39m[33m/[39m[33msection[39m[33m>[39m
+ [90m 2180 |[39m                 )}[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:1975:33
+Parsing ecmascript source code failed
+[0m [90m 1973 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m 1974 |[39m                                     )[33m;[39m
+[31m[1m>[22m[39m[90m 1975 |[39m                                 })()}
+ [90m      |[39m                                 [31m[1m^[22m[39m
+ [90m 1976 |[39m
+ [90m 1977 |[39m                                 [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"[39m[33m>[39m
+ [90m 1978 |[39m                                     [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-start gap-3"[39m[33m>[39m[0m
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:1975:37
+Parsing ecmascript source code failed
+[0m [90m 1973 |[39m                                 [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+ [90m 1974 |[39m                                     )[33m;[39m
+[31m[1m>[22m[39m[90m 1975 |[39m                                 })()}
+ [90m      |[39m                                     [31m[1m^[22m[39m
+ [90m 1976 |[39m
+ [90m 1977 |[39m                                 [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm"[39m[33m>[39m
+ [90m 1978 |[39m                                     [33m<[39m[33mdiv[39m className[33m=[39m[32m"flex items-start gap-3"[39m[33m>[39m[0m
+
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+⨯ ./app/gantt/page.tsx:2251:2
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m  [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:2251:4
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m    [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:2251:6
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m      [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:141:1
+Parsing ecmascript source code failed
+[0m [90m 139 |[39m }[33m;[39m
+ [90m 140 |[39m
+[31m[1m>[22m[39m[90m 141 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 142 |[39m [36masync[39m [36mfunction[39m mapWithConcurrency[33m<[39m[33mT[39m[33m,[39m [33mR[39m[33m>[39m(
+ [90m 143 |[39m     items[33m:[39m [33mT[39m[][33m,[39m
+ [90m 144 |[39m     concurrency[33m:[39m number[33m,[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:157:1
+Parsing ecmascript source code failed
+[0m [90m 155 |[39m     [36mreturn[39m results[33m;[39m
+ [90m 156 |[39m }
+[31m[1m>[22m[39m[90m 157 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 158 |[39m type [33mCheckpointVisualState[39m [33m=[39m [32m"normal"[39m [33m|[39m [32m"today"[39m [33m|[39m [32m"todayCheckpoint"[39m [33m|[39m [32m"needsInput"[39m [33m|[39m [32m"overdue"[39m[33m;[39m
+ [90m 159 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m [33mStashed[39m changes
+ [90m 160 |[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:159:1
+Parsing ecmascript source code failed
+[0m [90m 157 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m 158 |[39m type [33mCheckpointVisualState[39m [33m=[39m [32m"normal"[39m [33m|[39m [32m"today"[39m [33m|[39m [32m"todayCheckpoint"[39m [33m|[39m [32m"needsInput"[39m [33m|[39m [32m"overdue"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 159 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m [33mStashed[39m changes
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 160 |[39m
+ [90m 161 |[39m [36mfunction[39m buildTimeline(workspace[33m:[39m [33mSupervisionWorkspace[39m)[33m:[39m [33mTimeline[39m [33m|[39m [36mnull[39m {
+ [90m 162 |[39m     [36mconst[39m starts[33m:[39m [33mDate[39m[] [33m=[39m [][33m;[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+⨯ ./app/gantt/page.tsx:2251:2
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m  [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:2251:4
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m    [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:2251:6
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m      [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:141:1
+Parsing ecmascript source code failed
+[0m [90m 139 |[39m }[33m;[39m
+ [90m 140 |[39m
+[31m[1m>[22m[39m[90m 141 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 142 |[39m [36masync[39m [36mfunction[39m mapWithConcurrency[33m<[39m[33mT[39m[33m,[39m [33mR[39m[33m>[39m(
+ [90m 143 |[39m     items[33m:[39m [33mT[39m[][33m,[39m
+ [90m 144 |[39m     concurrency[33m:[39m number[33m,[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:157:1
+Parsing ecmascript source code failed
+[0m [90m 155 |[39m     [36mreturn[39m results[33m;[39m
+ [90m 156 |[39m }
+[31m[1m>[22m[39m[90m 157 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 158 |[39m type [33mCheckpointVisualState[39m [33m=[39m [32m"normal"[39m [33m|[39m [32m"today"[39m [33m|[39m [32m"todayCheckpoint"[39m [33m|[39m [32m"needsInput"[39m [33m|[39m [32m"overdue"[39m[33m;[39m
+ [90m 159 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m [33mStashed[39m changes
+ [90m 160 |[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:159:1
+Parsing ecmascript source code failed
+[0m [90m 157 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m 158 |[39m type [33mCheckpointVisualState[39m [33m=[39m [32m"normal"[39m [33m|[39m [32m"today"[39m [33m|[39m [32m"todayCheckpoint"[39m [33m|[39m [32m"needsInput"[39m [33m|[39m [32m"overdue"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 159 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m [33mStashed[39m changes
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 160 |[39m
+ [90m 161 |[39m [36mfunction[39m buildTimeline(workspace[33m:[39m [33mSupervisionWorkspace[39m)[33m:[39m [33mTimeline[39m [33m|[39m [36mnull[39m {
+ [90m 162 |[39m     [36mconst[39m starts[33m:[39m [33mDate[39m[] [33m=[39m [][33m;[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+⨯ ./app/gantt/page.tsx:2251:2
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m  [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:2251:4
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m    [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./app/gantt/page.tsx:2251:6
+Parsing ecmascript source code failed
+[0m [90m 2249 |[39m                         ) [33m:[39m supervisionWorkspace [33m?[39m (
+ [90m 2250 |[39m                             [33m<[39m[33m>[39m
+[31m[1m>[22m[39m[90m 2251 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m      |[39m      [31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 2252 |[39m                                 {(() [33m=>[39m {
+ [90m 2253 |[39m                                     [36mconst[39m latestTargetStScope [33m=[39m supervisionWorkspace[33m.[39mscopes
+ [90m 2254 |[39m                                         [33m.[39mfilter(scope [33m=>[39m scope[33m.[39mst_target_date)[0m
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:141:1
+Parsing ecmascript source code failed
+[0m [90m 139 |[39m }[33m;[39m
+ [90m 140 |[39m
+[31m[1m>[22m[39m[90m 141 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mUpdated[39m upstream
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 142 |[39m [36masync[39m [36mfunction[39m mapWithConcurrency[33m<[39m[33mT[39m[33m,[39m [33mR[39m[33m>[39m(
+ [90m 143 |[39m     items[33m:[39m [33mT[39m[][33m,[39m
+ [90m 144 |[39m     concurrency[33m:[39m number[33m,[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:157:1
+Parsing ecmascript source code failed
+[0m [90m 155 |[39m     [36mreturn[39m results[33m;[39m
+ [90m 156 |[39m }
+[31m[1m>[22m[39m[90m 157 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 158 |[39m type [33mCheckpointVisualState[39m [33m=[39m [32m"normal"[39m [33m|[39m [32m"today"[39m [33m|[39m [32m"todayCheckpoint"[39m [33m|[39m [32m"needsInput"[39m [33m|[39m [32m"overdue"[39m[33m;[39m
+ [90m 159 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m [33mStashed[39m changes
+ [90m 160 |[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+
+
+./components/UnifiedSupervisionGantt.tsx:159:1
+Parsing ecmascript source code failed
+[0m [90m 157 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m 158 |[39m type [33mCheckpointVisualState[39m [33m=[39m [32m"normal"[39m [33m|[39m [32m"today"[39m [33m|[39m [32m"todayCheckpoint"[39m [33m|[39m [32m"needsInput"[39m [33m|[39m [32m"overdue"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 159 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m [33mStashed[39m changes
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 160 |[39m
+ [90m 161 |[39m [36mfunction[39m buildTimeline(workspace[33m:[39m [33mSupervisionWorkspace[39m)[33m:[39m [33mTimeline[39m [33m|[39m [36mnull[39m {
+ [90m 162 |[39m     [36mconst[39m starts[33m:[39m [33mDate[39m[] [33m=[39m [][33m;[39m[0m
+
+Merge conflict marker encountered.
+
+Import traces:
+  Client Component Browser:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Client Component Browser]
+    ./app/gantt/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/UnifiedSupervisionGantt.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Client Component SSR]
+    ./app/gantt/page.tsx [Server Component]
+
+

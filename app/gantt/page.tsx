@@ -464,6 +464,7 @@ function GanttBoard() {
     const [rabItems, setRabItems] = useState<any[]>([]);
     const [showMemoModal, setShowMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
+    const [showTargetStModal, setShowTargetStModal] = useState<{ dateString: string; dayIndex: number } | null>(null);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
@@ -2051,11 +2052,13 @@ function GanttBoard() {
                                                             key={option.val}
                                                             type="button"
                                                             onClick={() => handleSelectUlokOption(option.val)}
-                                                            className={`flex w-full flex-col gap-2 px-4 py-3 text-left transition sm:flex-row sm:items-center sm:justify-between ${
-                                                                active ? 'bg-red-600 text-white' : 'bg-white text-slate-900 hover:bg-slate-50'
+                                                            className={`group relative flex w-full flex-col gap-2 px-4 py-3 text-left transition-all duration-150 active:scale-[0.997] sm:flex-row sm:items-center sm:justify-between ${
+                                                                active
+                                                                    ? 'bg-red-600 text-white shadow-[inset_4px_0_0_rgba(255,255,255,0.75)]'
+                                                                    : 'bg-white text-slate-900 hover:bg-red-50 hover:text-red-900 hover:shadow-[inset_4px_0_0_#dc2626] focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400'
                                                             }`}
                                                         >
-                                                            <span className="min-w-0 truncate text-sm font-bold">{option.identity}</span>
+                                                            <span className="min-w-0 truncate text-sm font-bold transition-transform duration-150 group-hover:translate-x-0.5">{option.identity}</span>
                                                             <span className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${
                                                                 active ? 'border-white/25 bg-white/15 text-white' : option.statusClass
                                                             }`}>
@@ -2307,6 +2310,9 @@ function GanttBoard() {
                                         <UnifiedSupervisionGantt
                                             workspace={supervisionWorkspace}
                                             onCheckpointClick={(checkpoint, dayIndex) => openUnifiedCheckpoint(checkpoint as any, dayIndex)}
+                                            onTargetStClick={(dateString, dayIndex) => {
+                                                setShowTargetStModal({ dateString, dayIndex });
+                                            }}
                                             showLegend={showDateLegend}
                                         />
                                         <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
@@ -2794,6 +2800,92 @@ function GanttBoard() {
                     </div>
                 )}
             </main>
+
+            {showTargetStModal && (
+                <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+                    <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+                                    <ClipboardCheck className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black leading-tight text-slate-900">Serah Terima</h2>
+                                    <p className="mt-0.5 text-sm font-semibold text-slate-500">{showTargetStModal.dateString}</p>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <Badge className="border border-teal-200 bg-teal-50 text-teal-700">Target ST</Badge>
+                                        <Badge className={handoverReadiness.isReady ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "border border-slate-200 bg-slate-50 text-slate-600"}>
+                                            {handoverStatusText}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowTargetStModal(null)}
+                                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                aria-label="Tutup"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 bg-slate-50 px-5 py-6">
+                            <div className={`rounded-lg border px-4 py-4 ${handoverReadiness.isGenerated ? "border-emerald-200 bg-emerald-50" : handoverReadiness.isReady ? "border-teal-200 bg-teal-50" : "border-slate-200 bg-white"}`}>
+                                <p className="text-xs font-black uppercase text-slate-500">Target ST</p>
+                                <p className={`mt-1 text-2xl font-black ${handoverReadiness.isGenerated ? "text-emerald-700" : "text-teal-700"}`}>{targetStText || showTargetStModal.dateString}</p>
+                                <p className="mt-1 text-sm font-semibold text-slate-600">
+                                    {handoverReadiness.isGenerated
+                                        ? "PDF Serah Terima sudah tersedia."
+                                        : handoverReadiness.isReady
+                                            ? "Semua syarat utama sudah terpenuhi. Serah Terima bisa digenerate."
+                                            : "Serah Terima belum bisa digenerate karena opname belum selesai."}
+                                </p>
+                            </div>
+
+                            {!handoverReadiness.isReady && !handoverReadiness.isGenerated && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    <p className="font-bold">Masih menunggu kelengkapan opname</p>
+                                    <p className="mt-1 text-xs leading-relaxed">
+                                        {handoverReadiness.readyOpnameItems > 0
+                                            ? `${handoverReadiness.readyOpnameItems} item masih perlu masuk/selesai opname sebelum Generate Serah Terima aktif.`
+                                            : "Belum ada item yang siap untuk Serah Terima pada lingkup aktif."}
+                                    </p>
+                                </div>
+                            )}
+
+                            {handoverReadiness.isGenerated && masterHandoverPdfLink && (
+                                <a
+                                    href={masterHandoverPdfLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition hover:bg-emerald-500"
+                                >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Buka PDF Serah Terima
+                                </a>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+                            <Button type="button" variant="outline" className="font-semibold" onClick={() => setShowTargetStModal(null)}>
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleGenerateUnifiedHandover}
+                                disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                className="bg-teal-700 font-bold text-white hover:bg-teal-600 disabled:bg-slate-200 disabled:text-slate-400"
+                            >
+                                {isGeneratingHandover
+                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    : <FileText className="mr-2 h-4 w-4" />}
+                                {handoverReadiness.isGenerated ? "Generate Ulang Serah Terima" : "Generate Serah Terima"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL 2: Memo Pengawasan Detail */}
             {showMemoModal && (

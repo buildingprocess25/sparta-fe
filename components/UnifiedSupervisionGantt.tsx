@@ -154,7 +154,7 @@ async function mapWithConcurrency<T, R>(
     return results;
 }
 
-type CheckpointVisualState = "normal" | "today" | "todayCheckpoint" | "needsInput" | "overdue";
+type CheckpointVisualState = "normal" | "today" | "todayCheckpoint" | "needsInput" | "filled";
 
 function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
@@ -228,10 +228,12 @@ function buildTimelineFromBounds(starts: Date[], ends: Date[]): Timeline | null 
 export default function UnifiedSupervisionGantt({
     workspace,
     onCheckpointClick,
+    onTargetStClick,
     showLegend = true,
 }: {
     workspace: SupervisionWorkspace;
     onCheckpointClick: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
+    onTargetStClick?: (date: string, dayIndex: number) => void;
     showLegend?: boolean;
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
@@ -559,22 +561,25 @@ export default function UnifiedSupervisionGantt({
                 const checkpoint = checkpointByDate.get(fullDate);
                 if (!checkpoint) return null;
                 const readyCount = Number(checkpoint.ready_opname_items || 0);
+                const selesaiCount = Number(checkpoint.selesai_items || 0);
                 const opnameCount = Number(checkpoint.opname_items || 0);
                 const totalCount = Number(checkpoint.total_items || 0);
                 const hasActionItems = readyCount > 0;
-                const hasIncompletePastItems = totalCount === 0 || opnameCount < totalCount;
-                return { date, fullDate, hasActionItems, hasIncompletePastItems };
+                const hasAnyFilledItem = totalCount > 0 || selesaiCount > 0 || opnameCount > 0;
+                return { date, fullDate, hasActionItems, hasAnyFilledItem };
             })
-            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasIncompletePastItems: boolean } => Boolean(entry));
+            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasAnyFilledItem: boolean } => Boolean(entry));
 
         checkpointEntries.forEach((entry) => {
             const isToday = entry.date.getTime() === todayStart.getTime();
-            if (entry.hasActionItems) {
-                map.set(entry.fullDate, "needsInput");
-            } else if (entry.hasIncompletePastItems && entry.date < todayStart) {
-                map.set(entry.fullDate, "overdue");
-            } else if (isToday) {
+            if (isToday) {
                 map.set(entry.fullDate, "todayCheckpoint");
+            } else if (entry.date < todayStart && (entry.hasActionItems || !entry.hasAnyFilledItem)) {
+                map.set(entry.fullDate, "needsInput");
+            } else if (entry.date < todayStart && entry.hasAnyFilledItem) {
+                map.set(entry.fullDate, "filled");
+            } else if (entry.hasActionItems) {
+                map.set(entry.fullDate, "needsInput");
             } else {
                 map.set(entry.fullDate, "normal");
             }
@@ -681,12 +686,16 @@ export default function UnifiedSupervisionGantt({
                             Hari ini
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
-                            <span className="h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-400" />
-                            Pengawasan lewat
+                            <span className="h-3 w-3 animate-pulse rounded bg-yellow-100 ring-1 ring-yellow-400" />
+                            Pengawasan hari ini
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
-                            <span className="h-3 w-3 rounded bg-red-100 ring-1 ring-red-400" />
-                            Item perlu diisi
+                            <span className="h-3 w-3 rounded bg-teal-100 ring-1 ring-teal-400" />
+                            Pengawasan terisi
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="h-3 w-3 animate-pulse rounded bg-red-100 ring-1 ring-red-500" />
+                            Terlewat belum diisi
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
                             <span className="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-black text-white">Akhir</span>
@@ -752,19 +761,26 @@ export default function UnifiedSupervisionGantt({
                             const isReady = readyCount > 0;
                             const dateTextClass = visualState === "needsInput"
                                 ? "text-red-700"
-                                : visualState === "overdue"
-                                    ? "text-amber-800"
+                                : visualState === "filled"
+                                    ? "text-teal-800"
                                     : visualState === "todayCheckpoint"
-                                        ? "text-blue-900 text-[13px]"
+                                        ? "text-yellow-900 text-[13px]"
                                     : visualState === "today"
                                         ? "text-emerald-700 text-[13px]"
                                         : "";
+                            const isTargetStDate = Boolean(stBuffer?.isTarget);
                             return (
                                 <button
                                     key={fullDate}
                                     type="button"
-                                    disabled={!checkpoint}
-                                    onClick={() => actionableCheckpoint && onCheckpointClick(actionableCheckpoint, dayIndex)}
+                                    disabled={!checkpoint && !isTargetStDate}
+                                    onClick={() => {
+                                        if (isTargetStDate && onTargetStClick) {
+                                            onTargetStClick(fullDate, dayIndex);
+                                            return;
+                                        }
+                                        if (actionableCheckpoint) onCheckpointClick(actionableCheckpoint, dayIndex);
+                                    }}
                                     className={`relative flex h-16 shrink-0 flex-col items-center justify-end border-r border-slate-200 pb-1 text-[10px] font-bold ${
                                         spkEnd
                                             ? "bg-amber-50 text-slate-900 hover:bg-amber-100"
@@ -775,11 +791,11 @@ export default function UnifiedSupervisionGantt({
                                                     : isExtension
                                                         ? "bg-amber-50 text-slate-900 hover:bg-amber-100"
                                                         : visualState === "needsInput"
-                                                            ? "bg-red-50 text-red-800 ring-1 ring-inset ring-red-300 hover:bg-red-100"
-                                                            : visualState === "overdue"
-                                                                ? "bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-300 hover:bg-amber-100"
+                                                            ? "animate-pulse bg-red-50 text-red-800 ring-2 ring-inset ring-red-400 shadow-[inset_0_4px_0_#dc2626] hover:bg-red-100"
+                                                            : visualState === "filled"
+                                                                ? "bg-teal-50 text-teal-900 ring-1 ring-inset ring-teal-300 shadow-[inset_0_3px_0_#0d9488] hover:bg-teal-100"
                                                                 : visualState === "todayCheckpoint"
-                                                                    ? "bg-blue-200 text-blue-950 ring-2 ring-inset ring-blue-500 shadow-[inset_0_3px_0_#1d4ed8] hover:bg-blue-200"
+                                                                    ? "animate-pulse bg-yellow-100 text-yellow-950 ring-2 ring-inset ring-yellow-500 shadow-[inset_0_4px_0_#f59e0b] hover:bg-yellow-100"
                                                                     : visualState === "today"
                                                                         ? "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-300 hover:bg-emerald-100"
                                                                     : checkpoint
@@ -807,10 +823,10 @@ export default function UnifiedSupervisionGantt({
                                         <span className="absolute top-1 rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">{stBuffer.label.replace(" hari", "")}</span>
                                     ) : visualState === "needsInput" ? (
                                         <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-red-600 shadow-[0_0_0_4px_rgba(220,38,38,0.18)]" title="Ada item perlu diisi" />
-                                    ) : visualState === "overdue" ? (
-                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.18)]" title="Tanggal pengawasan lewat dan belum lengkap" />
+                                    ) : visualState === "filled" ? (
+                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-teal-600 shadow-[0_0_0_4px_rgba(13,148,136,0.16)]" title="Pengawasan sudah terisi" />
                                     ) : visualState === "todayCheckpoint" ? (
-                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-blue-700 shadow-[0_0_0_4px_rgba(37,99,235,0.22)]" title="Pengawasan hari ini" />
+                                        <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-yellow-500 shadow-[0_0_0_4px_rgba(245,158,11,0.26)]" title="Pengawasan hari ini" />
                                     ) : visualState === "today" ? (
                                         <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.18)]" title="Hari ini" />
                                     ) : isReady ? (
@@ -882,11 +898,11 @@ export default function UnifiedSupervisionGantt({
                                                     : isExtension
                                                         ? "bg-amber-50/60 border-amber-200"
                                                             : visualState === "needsInput"
-                                                                ? "bg-red-50/80 border-red-300 shadow-[inset_0_3px_0_#dc2626]"
-                                                                : visualState === "overdue"
-                                                                    ? "bg-amber-50/80 border-amber-300 shadow-[inset_0_3px_0_#f59e0b]"
+                                                                ? "animate-pulse bg-red-50/80 border-red-300 shadow-[inset_0_4px_0_#dc2626]"
+                                                                : visualState === "filled"
+                                                                    ? "bg-teal-50/75 border-teal-300 shadow-[inset_0_3px_0_#0d9488]"
                                                                     : visualState === "todayCheckpoint"
-                                                                        ? "bg-blue-200/80 border-blue-500 shadow-[inset_0_4px_0_#1d4ed8]"
+                                                                        ? "animate-pulse bg-yellow-100/85 border-yellow-500 shadow-[inset_0_4px_0_#f59e0b]"
                                                                         : visualState === "today"
                                                                             ? "bg-emerald-50/80 border-emerald-300 shadow-[inset_0_3px_0_#10b981]"
                                                                         : checkpoint
