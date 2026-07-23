@@ -435,15 +435,33 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Handle input change
     const handleSetInput = async (itemId: number, field: string, value: any) => {
-        let finalValue = value;
+        // FIX: Untuk field 'file', set state DULU dengan file asli agar tombol Submit Item
+        // langsung aktif, baru lakukan kompresi di background. Ini mencegah race condition
+        // di mana compressImage() hang/lambat dan tombol tetap disabled meski foto sudah dipilih.
         if (field === 'file' && value instanceof File) {
-            const { compressImage } = await import('@/lib/utils');
-            finalValue = await compressImage(value);
+            // Step 1: Set state langsung dengan file asli → tombol aktif
+            setOpnameInputs(prev => ({
+                ...prev,
+                [itemId]: { ...prev[itemId], file: value }
+            }));
+            // Step 2: Compress di background, update lagi jika berhasil
+            try {
+                const { compressImage } = await import('@/lib/utils');
+                const compressed = await compressImage(value);
+                setOpnameInputs(prev => ({
+                    ...prev,
+                    [itemId]: { ...prev[itemId], file: compressed }
+                }));
+            } catch (err) {
+                // Jika gagal compress, file asli tetap tersimpan di state (sudah diset di step 1)
+                console.warn('compressImage gagal, menggunakan file asli:', err);
+            }
+            return;
         }
 
         setOpnameInputs(prev => ({
             ...prev,
-            [itemId]: { ...prev[itemId], [field]: finalValue }
+            [itemId]: { ...prev[itemId], [field]: value }
         }));
     };
 
@@ -1108,7 +1126,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                 <div className="p-4 space-y-4">
                                                                     {group.items.map((item, j) => {
                                                                         const isIlItem = item.source_type === 'IL';
-                                                                        const input = opnameInputs[item.id] || { volume_akhir: String(item.volume), desain: '', kualitas: '', spesifikasi: '', catatan: '', file: null };
+                                                                        // FIX: Pastikan fallback object juga memiliki existing_foto agar kondisi disabled
+                                                                        // (!input.file && !input.existing_foto) tidak salah evaluasi
+                                                                        const input = opnameInputs[item.id] || { volume_akhir: String(item.volume), desain: '', kualitas: '', spesifikasi: '', catatan: '', file: null, existing_foto: null };
                                                                         const isItemSubmitting = submittingItemId === item.id;
                                                                         const volAkhir = parseDecimalInput(input.volume_akhir);
                                                                         const hMaterial = Number(item.harga_material) || 0;

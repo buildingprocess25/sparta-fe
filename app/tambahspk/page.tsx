@@ -23,7 +23,7 @@ import {
     updatePertambahanSPK,
     downloadPertambahanSPKLampiran,
 } from '@/lib/api';
-import { canViewAllBranches, isViewOnlyUser, BRANCH_GROUPS } from '@/lib/constants';
+import { canViewAllBranches, isViewOnlyUser, BRANCH_GROUPS, normalizeBranchValue } from '@/lib/constants';
 import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
 
 // ---------------------------------------------------------------------------
@@ -285,11 +285,12 @@ export default function TambahSPKPage() {
             const res = await fetchSPKList({ status: 'SPK_APPROVED' });
             const allSpks = res.data || [];
 
-            const upperCabang = cabang.toUpperCase();
+            // Normalize: underscore → spasi agar match BRANCH_GROUPS (e.g. "SIDOARJO BPN_SMD" → "SIDOARJO BPN SMD")
+            const upperCabang = normalizeBranchValue(cabang);
             let userGroup: string[] | null = null;
             for (const grp of Object.values(BRANCH_GROUPS)) {
-                if (grp.includes(upperCabang)) {
-                    userGroup = grp;
+                if (grp.map(normalizeBranchValue).includes(upperCabang)) {
+                    userGroup = grp.map(normalizeBranchValue);
                     break;
                 }
             }
@@ -297,7 +298,7 @@ export default function TambahSPKPage() {
             const visibleSpks = canSeeAllBranches
                 ? allSpks
                 : allSpks.filter((spk: SPKListItem) => {
-                    const spkCabang = (spk.toko?.cabang || '').toUpperCase();
+                    const spkCabang = normalizeBranchValue(spk.toko?.cabang);
                     if (userGroup) {
                         return userGroup.includes(spkCabang);
                     }
