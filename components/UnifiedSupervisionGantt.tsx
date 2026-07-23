@@ -286,23 +286,28 @@ export default function UnifiedSupervisionGantt({
         workspace.scopes.forEach((scope) => {
             const spkEnd = getScopeSpkEnd(scope);
             if (!spkEnd) return;
-            const fullDate = formatFullDate(spkEnd);
-            const current = map.get(fullDate) || { label: "Akhir SPK", scopes: [] };
-            current.scopes.push(String(scope.lingkup_pekerjaan || "SPK"));
-            map.set(fullDate, current);
+
+            const dateStr = formatFullDate(spkEnd);
+            const current = map.get(dateStr) || { label: "Akhir SPK", scopes: [] };
+            if (!current.scopes.includes(String(scope.lingkup_pekerjaan || "SPK"))) {
+                current.scopes.push(String(scope.lingkup_pekerjaan || "SPK"));
+            }
+            map.set(dateStr, current);
         });
 
         return map;
     }, [workspace.scopes]);
 
     const stBufferByDate = useMemo(() => {
-        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean; showOffsetLabel: boolean }>();
+        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean; showOffsetLabel: boolean; scopes: string[]; targetLabel?: string }>();
         const unifiedCheckpointDates = (workspace.unified_checkpoints || [])
             .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
             .filter((date): date is Date => Boolean(date));
-
+        
         workspace.scopes.forEach((scope) => {
+            const scopeName = String(scope.lingkup_pekerjaan || "SPK").toUpperCase();
             const spkEnd = getScopeSpkEnd(scope);
+            
             let stTarget = parseDate(scope.st_target_date);
             let fallbackTarget: ReturnType<typeof calculateTargetStFromSpkEnd> | null = null;
             if (!stTarget && spkEnd) {
@@ -320,21 +325,38 @@ export default function UnifiedSupervisionGantt({
                 fallbackTarget = calculateTargetStFromSpkEnd(spkEnd);
                 stTarget = fallbackTarget.date;
             }
+
             const offsetDays = Number(scope.st_offset_days || 0);
             const effectiveOffsetDays = offsetDays || (spkEnd && stTarget ? Math.max(0, diffDays(stTarget, spkEnd)) : 0);
+            
             if (!spkEnd || !stTarget || effectiveOffsetDays <= 0 || stTarget <= spkEnd) return;
             const showOffsetLabel = fallbackTarget?.showOffsetLabel ?? effectiveOffsetDays > 1;
 
             for (let day = 1; day <= effectiveOffsetDays; day += 1) {
                 const date = addDays(spkEnd, day);
                 if (date > stTarget) break;
-                map.set(formatFullDate(date), {
-                    label: scope.st_offset_label || fallbackTarget?.label || `SPK +${effectiveOffsetDays} hari`,
-                    explanation: scope.st_offset_explanation || fallbackTarget?.explanation || `Target ST ${formatFullDate(stTarget)}`,
-                    offsetDays: effectiveOffsetDays,
-                    isTarget: formatFullDate(date) === formatFullDate(stTarget),
-                    showOffsetLabel,
-                });
+                
+                const dateStr = formatFullDate(date);
+                const existing = map.get(dateStr);
+                const isTarget = dateStr === formatFullDate(stTarget);
+                
+                if (existing) {
+                    if (!existing.scopes.includes(scopeName)) {
+                        existing.scopes.push(scopeName);
+                    }
+                    if (isTarget) {
+                        existing.isTarget = true;
+                    }
+                } else {
+                    map.set(dateStr, {
+                        label: scope.st_offset_label || fallbackTarget?.label || `SPK +${effectiveOffsetDays} hari`,
+                        explanation: scope.st_offset_explanation || fallbackTarget?.explanation || `Target ST ${formatFullDate(stTarget)}`,
+                        offsetDays: effectiveOffsetDays,
+                        isTarget,
+                        showOffsetLabel,
+                        scopes: [scopeName]
+                    });
+                }
             }
         });
 
@@ -342,10 +364,10 @@ export default function UnifiedSupervisionGantt({
     }, [workspace.scopes, workspace.unified_checkpoints]);
 
     const stDelaySummaries = useMemo(() => {
-        const summaries = new Map<string, { date: string; label: string }>();
+        const summaries = new Map<string, { date: string; label: string; scopes: string[] }>();
         stBufferByDate.forEach((value, date) => {
             if (value.isTarget && value.showOffsetLabel) {
-                summaries.set(date, { date, label: value.label });
+                summaries.set(date, { date, label: value.label, scopes: value.scopes });
             }
         });
         return Array.from(summaries.values()).sort((left, right) => {
@@ -715,7 +737,7 @@ export default function UnifiedSupervisionGantt({
                             <span className="text-slate-500">ST mundur:</span>
                             {stDelaySummaries.map((item) => (
                                 <span key={item.date} className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5">
-                                    {item.date.slice(0, 5)} {item.label.replace(" hari", "")}
+                                    {item.label.includes('Lama') || item.label.includes('Baru') ? '' : item.scopes.length === 1 ? `${item.scopes[0]}: ` : ''}{item.date.slice(0, 5)} {item.label.replace(" hari", "")}
                                 </span>
                             ))}
                         </div>
@@ -814,13 +836,15 @@ export default function UnifiedSupervisionGantt({
                                                     : fullDate}
                                 >
                                     {spkEnd ? (
-                                        <span className="absolute top-1 rounded bg-amber-700 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">Akhir</span>
+                                        <span className="absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded bg-amber-700 px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white shadow-sm">
+                                            {spkEnd.label}
+                                        </span>
                                     ) : stBuffer?.isTarget ? (
-                                        <span className="absolute top-1 rounded bg-teal-700 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">
-                                            ST
+                                        <span className="absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded bg-teal-700 px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white shadow-sm">
+                                            {stBuffer.targetLabel || 'ST'}
                                         </span>
                                     ) : stBuffer ? (
-                                        <span className="absolute top-1 rounded bg-orange-500 px-1.5 py-0.5 text-[9px] font-black leading-3 text-white">{stBuffer.label.replace(" hari", "")}</span>
+                                        <span className="absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded bg-orange-500 px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white">{stBuffer.label.replace(" hari", "")}</span>
                                     ) : visualState === "needsInput" ? (
                                         <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-red-600 shadow-[0_0_0_4px_rgba(220,38,38,0.18)]" title="Ada item perlu diisi" />
                                     ) : visualState === "filled" ? (

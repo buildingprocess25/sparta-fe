@@ -17,7 +17,7 @@ import {
     updateGanttDelay, updateGanttSpeed, fetchGanttDetailByToko,
     fetchRABList, fetchRABDetail, fetchSPKList,
     fetchGanttNotes, createGanttNote, fetchInstruksiLapanganList,
-    fetchSupervisionWorkspace, createPdfSerahTerimaUnified
+    fetchSupervisionWorkspace, createPdfSerahTerimaUnified, createPdfSerahTerima, downloadSerahTerimaPdf
 } from '@/lib/api';
 import type { SupervisionCheckpoint, SupervisionScope, SupervisionWorkspace } from '@/lib/api';
 import GanttViewer from '@/components/GanttViewer';
@@ -301,9 +301,18 @@ function getWorkspaceScopeLabel(workspace?: SupervisionWorkspace | null): string
 }
 
 function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
+    if (!scope.gantt_id || !scope.opname_final_id) return false;
+    
+    // Jika KTK final sudah APPROVED (biasanya hasil migrasi), bisa ST meskipun pengawasan belum selesai semua
+    if (scope.status_opname_final === "APPROVED") {
+        return true;
+    }
+
     const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
-    return Boolean(scope.gantt_id) && Boolean(scope.opname_final_id) && opnameItems > 0 && readyOpnameItems === 0;
+    const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
+    
+    return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0;
 }
 
 function GanttBoard() {
@@ -365,6 +374,19 @@ function GanttBoard() {
     const [showProjectInfo, setShowProjectInfo] = useState(true);
     const [showDateLegend, setShowDateLegend] = useState(true);
     const [showHandoverPanel, setShowHandoverPanel] = useState(true);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState<Record<number, boolean>>({});
+
+    const handleDownloadPdf = async (id: number | null) => {
+        if (!id) return;
+        setIsDownloadingPdf(prev => ({ ...prev, [id]: true }));
+        try {
+            await downloadSerahTerimaPdf(id);
+        } catch (error: any) {
+            showAlert({ message: error.message || "Gagal mengunduh PDF.", type: "error" });
+        } finally {
+            setIsDownloadingPdf(prev => ({ ...prev, [id]: false }));
+        }
+    };
 
     const [projectData, setProjectData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -469,6 +491,7 @@ function GanttBoard() {
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
     const [isGeneratingHandover, setIsGeneratingHandover] = useState(false);
+    const [generatingScopes, setGeneratingScopes] = useState<Record<number, boolean>>({});
     const [unifiedMemoFlow, setUnifiedMemoFlow] = useState<{
         scopes: Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
         index: number;
@@ -650,6 +673,21 @@ function GanttBoard() {
             showAlert({ message: error?.message || "Gagal generate Serah Terima.", type: "error" });
         } finally {
             setIsGeneratingHandover(false);
+        }
+    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
+
+    const handleGenerateIndividualHandover = useCallback(async (idToko: number) => {
+        setGeneratingScopes(prev => ({ ...prev, [idToko]: true }));
+        try {
+            await createPdfSerahTerima(idToko);
+            if (supervisionWorkspace) {
+                await loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+            }
+            showAlert({ message: "PDF Serah Terima lingkup berhasil diproses.", type: "success" });
+        } catch (error: any) {
+            showAlert({ message: error?.message || "Gagal generate Serah Terima.", type: "error" });
+        } finally {
+            setGeneratingScopes(prev => ({ ...prev, [idToko]: false }));
         }
     }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
 
@@ -1554,12 +1592,21 @@ function GanttBoard() {
             ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima)
         )?.link_pdf_serah_terima ?? null
         : null;
+    const masterHandoverId = supervisionWorkspace
+        ? (
+            supervisionWorkspace.scopes.find((s) => Number(s.id_toko) === supervisionWorkspace.master_scope_id_toko)
+            ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima)
+        )?.berkas_serah_terima_id ?? null
+        : null;
     const handoverReadiness = useMemo(() => {
         const scopes = supervisionWorkspace?.scopes || [];
         const scopedWithGantt = scopes.filter(scope => Boolean(scope.gantt_id));
         const readyScopes = scopedWithGantt.filter(isScopeReadyForSt);
         const readyOpnameItems = scopes.reduce((sum, scope) => (
             sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.ready_opname_items || 0), 0)
+        ), 0);
+        const missingPengawasan = scopes.reduce((sum, scope) => (
+            sum + Number(scope.missing_pengawasan_checkpoints || 0)
         ), 0);
         const opnameItems = scopes.reduce((sum, scope) => (
             sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.opname_items || 0), 0)
@@ -1572,6 +1619,7 @@ function GanttBoard() {
             readyScopeCount: readyScopes.length,
             totalScopeCount: scopedWithGantt.length,
             readyOpnameItems,
+            missingPengawasan,
             opnameItems,
         };
     }, [masterHandoverPdfLink, supervisionWorkspace]);
@@ -1579,9 +1627,11 @@ function GanttBoard() {
         ? "ST selesai"
         : handoverReadiness.isReady
             ? "Syarat ST terpenuhi"
-            : handoverReadiness.readyOpnameItems > 0
-                ? `${handoverReadiness.readyOpnameItems} item menunggu opname`
-                : "Menunggu opname selesai";
+            : handoverReadiness.missingPengawasan > 0
+                ? `${handoverReadiness.missingPengawasan} pengawasan belum selesai`
+                : handoverReadiness.readyOpnameItems > 0
+                    ? `${handoverReadiness.readyOpnameItems} item menunggu opname`
+                    : "Menunggu opname selesai";
     const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
@@ -1603,7 +1653,7 @@ function GanttBoard() {
                 scopeName: String(toko.lingkup_pekerjaan || "").trim().toUpperCase(),
                 hasSpk: spkTokoIds.has(Number(toko.id_toko || toko.id)),
             }));
-        const scopes = workspaceScopes.length > 0 ? workspaceScopes : listScopes;
+        const scopes = listScopes;
         if (scopes.length === 0) return null;
 
         const spkScopes = scopes.filter(scope => scope.hasSpk);
@@ -2078,20 +2128,6 @@ function GanttBoard() {
                                     ) : null}
                                 </>
                             ) : null}
-                            {false && selectedSpkSummary && (
-                                <div className={`mt-4 flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${selectedSpkSummary!.cardClass}`}>
-                                    <div className="flex min-w-0 items-center gap-3">
-                                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${selectedSpkSummary!.dotClass}`} />
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-black uppercase tracking-wide opacity-70">Status ULOK terpilih</p>
-                                            <p className="truncate text-sm font-black">{selectedSpkSummary!.label}</p>
-                                        </div>
-                                    </div>
-                                    <span className={`w-fit rounded px-2.5 py-1 text-xs font-black ${selectedSpkSummary!.countClass}`}>
-                                        {selectedSpkSummary!.detail}
-                                    </span>
-                                </div>
-                            )}
                             {false && spkFilterOptions.length > 0 && (
                                 <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                                     {spkFilterOptions.map((option) => {
@@ -2223,7 +2259,11 @@ function GanttBoard() {
                                         <div className="mb-1.5 flex items-center justify-between gap-2">
                                             <p className="text-[11px] font-black uppercase text-red-700">Target ST</p>
                                             {(handoverReadiness.isGenerated || handoverReadiness.isReady) && (
-                                                <span className={`rounded px-2 py-0.5 text-[10px] font-black ${handoverReadiness.isGenerated ? "bg-emerald-600 text-white" : "bg-teal-600 text-white"}`}>
+                                                <span className={`rounded px-2 py-0.5 text-[10px] font-black ${
+                                                    handoverReadiness.isGenerated 
+                                                        ? "bg-emerald-600 text-white" 
+                                                        : "bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.6)] animate-pulse"
+                                                }`}>
                                                     {handoverStatusText}
                                                 </span>
                                             )}
@@ -2331,7 +2371,7 @@ function GanttBoard() {
                                     </div>
 
                                     {showHandoverPanel && utilityPanelAvailable ? (
-                                        <aside className="flex min-h-[620px] flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
+                                        <aside className="sticky top-4 flex h-[calc(100vh-2rem)] min-h-[620px] flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
                                             <div className="flex justify-end border-b border-slate-200 px-3 py-2">
                                                 <Button type="button" variant="ghost" size="sm" onClick={() => setShowHandoverPanel(false)} className="h-8 px-2 text-slate-500">
                                                     <PanelRightClose className="h-4 w-4" />
@@ -2349,15 +2389,15 @@ function GanttBoard() {
                                                     </div>
                                                     {supervisionWorkspace.unified_serah_terima_generated ? (
                                                         <div className="flex flex-col gap-2">
-                                                            <a
-                                                                href={masterHandoverPdfLink ?? '#'}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className={`flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500 ${!masterHandoverPdfLink ? 'pointer-events-none opacity-50' : ''}`}
+                                                            <Button
+                                                                type="button"
+                                                                onClick={() => handleDownloadPdf(masterHandoverId)}
+                                                                disabled={!masterHandoverId || isDownloadingPdf[masterHandoverId]}
+                                                                className={`flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500 ${!masterHandoverId ? 'pointer-events-none opacity-50' : ''}`}
                                                             >
-                                                                <FileText className="mr-2 h-4 w-4" />
-                                                                Buka PDF Serah Terima
-                                                            </a>
+                                                                {masterHandoverId && isDownloadingPdf[masterHandoverId] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                                                Unduh Serah Terima (SIPIL+ME)
+                                                            </Button>
                                                             <Button
                                                                 type="button"
                                                                 onClick={handleGenerateUnifiedHandover}
@@ -2371,17 +2411,60 @@ function GanttBoard() {
                                                             </Button>
                                                         </div>
                                                     ) : (
-                                                        <Button
-                                                            type="button"
-                                                            onClick={handleGenerateUnifiedHandover}
-                                                            disabled={!handoverReadiness.isReady || isGeneratingHandover}
-                                                            className="h-11 w-full bg-red-600 font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400"
-                                                        >
-                                                            {isGeneratingHandover
-                                                                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                : <FileText className="mr-2 h-4 w-4" />}
-                                                            Generate Serah Terima
-                                                        </Button>
+                                                        <div className="flex flex-col gap-2">
+                                                            {(() => {
+                                                                const anyScopeGenerated = supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
+                                                                return supervisionWorkspace.scopes.map(scope => {
+                                                                    if (!scope.gantt_id) return null;
+                                                                    const scopeName = String(scope.lingkup_pekerjaan || "Lingkup").toUpperCase();
+                                                                    if (scope.link_pdf_serah_terima) {
+                                                                        return (
+                                                                        <Button
+                                                                            key={scope.id_toko}
+                                                                            type="button"
+                                                                            onClick={() => handleDownloadPdf(scope.berkas_serah_terima_id || null)}
+                                                                            disabled={!scope.berkas_serah_terima_id || isDownloadingPdf[scope.berkas_serah_terima_id]}
+                                                                            className="flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500"
+                                                                        >
+                                                                            {scope.berkas_serah_terima_id && isDownloadingPdf[scope.berkas_serah_terima_id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                                                            Unduh Serah Terima {scopeName}
+                                                                        </Button>
+                                                                        );
+                                                                    }
+                                                                    
+                                                                    if (anyScopeGenerated) return null;
+                                                                    
+                                                                    const isScopeReady = isScopeReadyForSt(scope);
+                                                                    const isGenerating = generatingScopes[Number(scope.id_toko)];
+                                                                    return (
+                                                                        <Button
+                                                                            key={scope.id_toko}
+                                                                            type="button"
+                                                                            onClick={() => handleGenerateIndividualHandover(Number(scope.id_toko))}
+                                                                            disabled={!isScopeReady || isGenerating}
+                                                                            className={`h-11 w-full font-bold text-white disabled:bg-slate-200 disabled:text-slate-400 ${scopeName === 'SIPIL' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
+                                                                        >
+                                                                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                                                                            Generate Serah Terima {scopeName}
+                                                                        </Button>
+                                                                    );
+                                                                });
+                                                            })()}
+                                                            
+                                                            {supervisionWorkspace.scopes.filter(s => s.gantt_id).length > 1 && (
+                                                                <Button
+                                                                    type="button"
+                                                                    onClick={handleGenerateUnifiedHandover}
+                                                                    disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                                    className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                                                                >
+                                                                    {isGeneratingHandover
+                                                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                        : <FileText className="mr-2 h-4 w-4" />}
+                                                                    Generate Serah Terima (SIPIL+ME)
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     )}
 
                                                     <div className="flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-4">
@@ -3396,11 +3479,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }] : []);
 
             const filteredItems = effectiveItems.filter((item: any) => {
-                if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY' && blockedOpnameItemKeys.has(getWorkItemKey(item))) return false;
-
                 const key = `${task.name.toUpperCase()}|${(item.jenis_pekerjaan || task.name).toUpperCase()}`;
                 const latestStatus = latestStatusMapState.get(key);
                 const latestStatusLower = String(latestStatus || '').toLowerCase();
+
+                // Jangan sembunyikan item dari Gantt jika belum "Selesai", meskipun sudah masuk Opname (hindari deadlock)
+                const isBlockedByOpname = blockedOpnameItemKeys.has(getWorkItemKey(item));
+                const isSelesai = latestStatusLower === 'selesai';
+                
+                if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY') {
+                    if (isBlockedByOpname && isSelesai) {
+                        return false;
+                    }
+                }
+
                 const memoInput = memoInputs[key] as any;
                 
                 let isUnfinishedFromPreviousPengawasan = false;
