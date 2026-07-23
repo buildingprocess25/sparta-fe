@@ -2676,7 +2676,7 @@ export const approveOpnameFinal = async (id: number, payload: {
 
 /** Download PDF Opname */
 export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
-    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf`);
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf?t=${Date.now()}`);
     if (res.status === 404) throw new Error(`Data Opname dengan ID ${id} tidak ditemukan.`);
     if (!res.ok) {
         const text = await res.text();
