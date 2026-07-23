@@ -269,7 +269,7 @@ function getContextCells(
   }
   const sla = getSlaInfo(project, stage, lateDays);
   return [
-    { value: stage, helper: project?.toko?.lingkup_pekerjaan || "-" },
+    { value: stage, helper: project?.toko?._aggregated_lingkup || project?.toko?.lingkup_pekerjaan || "-" },
     { value: sla.label, helper: sla.helper, danger: sla.priority },
     { value: formatRupiah(latestValue), helper: penalty.amount > 0 ? `Denda ${formatRupiah(penalty.amount)}` : "Nilai terakhir" },
   ];
@@ -1460,7 +1460,7 @@ export default function DashboardCommandWorkspace({
         .map((entry) => entry.project);
     }
     if (detail.context === "PROJECT") {
-      const byStore = new Map<string, { project: any; penalty: any }>();
+      const byStore = new Map<string, { project: any; penalty: any; allLingkup: Set<string> }>();
       projects.forEach((project) => {
         const stage = getStage(project);
         if (detail.subContext && stage !== detail.subContext) return;
@@ -1470,11 +1470,29 @@ export default function DashboardCommandWorkspace({
         const penalty = getPenalty(project);
         const existing = byStore.get(key);
         
+        const currentLingkup = project?.toko?.lingkup_pekerjaan || "";
+        const allLingkup = existing ? existing.allLingkup : new Set<string>();
+        if (currentLingkup) allLingkup.add(currentLingkup.toUpperCase());
+        
         if (!existing || penalty.amount < existing.penalty.amount) {
-          byStore.set(key, { project, penalty });
+          byStore.set(key, { project, penalty, allLingkup });
+        } else {
+          existing.allLingkup = allLingkup;
         }
       });
-      return Array.from(byStore.values()).map((entry) => entry.project);
+      return Array.from(byStore.values()).map((entry) => {
+        if (entry.allLingkup.size > 0) {
+          const sortedLingkup = Array.from(entry.allLingkup).sort().reverse();
+          return {
+            ...entry.project,
+            toko: {
+              ...entry.project.toko,
+              _aggregated_lingkup: sortedLingkup.join(" + ")
+            }
+          };
+        }
+        return entry.project;
+      });
     }
     return projects.filter((project) => {
       const stage = getStage(project);
