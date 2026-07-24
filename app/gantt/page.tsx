@@ -3732,14 +3732,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
     const isSubmitValid = useMemo(() => {
-        // Kasus khusus: semua pekerjaan sudah Selesai (memoConfig kosong), 
-        // tapi ada item terlambat yang perlu dijadwalkan ulang.
-        // User hanya perlu mengisi tanggal serah terima berikutnya lalu Simpan.
-        if (memoConfig.length === 0 && isLastSupervisionDay && hasLateItems) {
-            return !!nextHandoverDate;
+        // Jika tidak ada item yang aktif (misal karena jadwal lingkup tidak bersinggungan dengan tanggal pengawasan)
+        if (memoConfig.length === 0) {
+            // Khusus jika ini hari terakhir DAN ada item terlambat dari pengawasan sebelumnya, wajib isi tanggal ST mundur
+            if (isLastSupervisionDay && hasLateItems) {
+                return !!nextHandoverDate;
+            }
+            // Selain itu, selalu izinkan submit untuk sekadar mencatatkan kehadiran/kunjungan pada tanggal ini
+            return true;
         }
 
-        if (memoConfig.length === 0) return false;
         if (!isDirty) return false;
 
         let editableItemCount = 0;
@@ -3879,9 +3881,22 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             });
 
             if (itemsArrayInsert.length === 0 && itemsArrayUpdate.length === 0 && !hasNextHandoverAction) {
-                throw new Error(
-                    "Tidak ada perubahan pengawasan yang dikirim. Ubah minimal satu status/catatan/foto lalu coba lagi."
-                );
+                if (memoConfig.length === 0) {
+                    // Cukup catatkan tanggal pengawasan kosong di backend agar terhitung "sudah dikunjungi"
+                    const { submitGanttPengawasan } = await import('@/lib/api');
+                    await submitGanttPengawasan(Number(selectedGanttId), [formattedDate]);
+                    showAlert({
+                        message: 'Tidak ada item aktif, tetapi kehadiran pengawasan berhasil dicatat.',
+                        type: 'success',
+                        onConfirm: () => onSuccess({ openOpname: false })
+                    });
+                    setIsSubmitting(false);
+                    return;
+                } else {
+                    throw new Error(
+                        "Tidak ada perubahan pengawasan yang dikirim. Ubah minimal satu status/catatan/foto lalu coba lagi."
+                    );
+                }
             }
 
             const { submitPengawasanBulk, updatePengawasanBulk } = await import('@/lib/api');
