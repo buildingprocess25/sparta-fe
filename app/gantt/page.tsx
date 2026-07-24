@@ -1637,8 +1637,8 @@ function GanttBoard() {
                 if (!entry.gantt_id) return;
                 const cp = entry.checkpoint;
                 const scopeName = String(entry.lingkup_pekerjaan || '').toUpperCase();
-                // Jika tidak ada checkpoint, atau ada tapi belum selesai
-                const isMissing = !cp || (Number(cp.selesai_items || 0) === 0 && Number(cp.total_items || 0) > 0);
+                // Jika ada checkpoint tapi belum selesai (hanya progress/terlambat)
+                const isMissing = cp && Number(cp.selesai_items || 0) === 0 && Number(cp.total_items || 0) > 0;
                 if (isMissing) {
                     const str = `${ucp.tanggal_pengawasan} ${scopeName}`;
                     if (!missingDates.includes(str)) missingDates.push(str);

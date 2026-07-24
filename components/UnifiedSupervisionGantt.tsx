@@ -622,18 +622,16 @@ export default function UnifiedSupervisionGantt({
                     const allScopesOpnameDone = activeScopes.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
-                    const anyScopeMissingPengawasan = activeScopes.some(entry =>
-                        Number(entry.checkpoint?.total_items || 0) === 0
-                    );
+                    // Kita tidak lagi mewarnai merah untuk total_items === 0 (karena bisa jadi memang tidak ada pekerjaan)
+                    // const anyScopeMissingPengawasan = activeScopes.some(entry =>
+                    //     Number(entry.checkpoint?.total_items || 0) === 0
+                    // );
                     const anyScopeMissingOpname = activeScopes.some(entry =>
                         Number(entry.checkpoint?.selesai_items || 0) > 0 &&
                         Number(entry.checkpoint?.opname_items || 0) === 0
                     );
 
-                    if (anyScopeMissingPengawasan) {
-                        // Salah satu scope belum isi pengawasan → merah
-                        map.set(fullDate, "needsInput");
-                    } else if (anyScopeMissingOpname) {
+                    if (anyScopeMissingOpname) {
                         // Pengawasan ada tapi ada scope yang belum opname → merah
                         map.set(fullDate, "needsInput");
                     } else if (allScopesOpnameDone) {
@@ -647,8 +645,9 @@ export default function UnifiedSupervisionGantt({
                     }
                 } else {
                     // Fallback ke unified logic jika tidak ada per-scope data
-                    if (unifiedTotal > unifiedSelesai + unifiedOpname) {
-                        map.set(fullDate, "needsInput");
+                    // Kita tidak mewarnai merah jika tidak ada data (unifiedTotal === 0)
+                    if (unifiedTotal > 0 && unifiedTotal > unifiedSelesai + unifiedOpname) {
+                        map.set(fullDate, "normal"); // Progress/Terlambat, bisa tetap biru/normal
                     } else if (unifiedSelesai > 0 && unifiedOpname === 0) {
                         map.set(fullDate, "needsInput");
                     } else if (unifiedOpname > 0) {
@@ -903,8 +902,10 @@ export default function UnifiedSupervisionGantt({
                                                         parts.push(`✓ ${scopeName}: Pengawasan + Opname selesai`);
                                                     } else if (selesai > 0 && opname === 0) {
                                                         parts.push(`⚡ ${scopeName}: Pengawasan ✓ — Opname belum diisi`);
+                                                    } else if (Number(cp?.total_items || 0) > 0) {
+                                                        parts.push(`⏳ ${scopeName}: Progress / Terlambat`);
                                                     } else {
-                                                        parts.push(`✗ ${scopeName}: Belum isi pengawasan`);
+                                                        parts.push(`- ${scopeName}: Tidak ada data pengawasan`);
                                                     }
                                                 });
                                             } else {
@@ -912,10 +913,12 @@ export default function UnifiedSupervisionGantt({
                                                 const cpSelesai = Number(checkpoint.selesai_items || 0);
                                                 const cpOpname = Number(checkpoint.opname_items || 0);
                                                 const cpReady = Number(checkpoint.ready_opname_items || 0);
+                                                const cpTotal = Number(checkpoint.total_items || 0);
                                                 if (cpReady > 0) parts.push(`⚠ ${cpReady} item siap opname`);
                                                 else if (cpSelesai > 0 && cpOpname === 0) parts.push(`⚡ Pengawasan ✓ — Opname belum diisi`);
                                                 else if (cpOpname > 0) parts.push(`✓ Pengawasan + Opname selesai`);
-                                                else parts.push(`✗ Belum isi pengawasan`);
+                                                else if (cpTotal > 0) parts.push(`⏳ Progress / Terlambat`);
+                                                else parts.push(`- Tidak ada data pengawasan`);
                                             }
                                             return parts.join('\n');
                                         }
