@@ -1097,7 +1097,8 @@ function GanttBoard() {
             const duration = rabDurationFallback > 0 ? rabDurationFallback : ganttComputedDuration;
 
             setSelectedUlok(formatUlokWithDash(toko.nomor_ulok));
-            setProjectData({
+            setProjectData((prev: any) => ({
+                ...(prev || {}),
                 ganttId: gantt.id,
                 id_toko: toko.id,
                 ulokClean: formatUlokWithDash(toko.nomor_ulok),
@@ -1108,9 +1109,10 @@ function GanttBoard() {
                 kontraktor: toko.nama_kontraktor || "-",
                 duration,
                 startDate: projectStart.toISOString().split('T')[0],
-                pic: toko.pic_proyek || toko.pic_bersama || "Belum ditentukan",
-                pic_bersama: toko.pic_bersama || toko.pic_proyek || "Belum ditentukan",
-            });
+                // Preserve pic dari workspace/scope sebelumnya jika toko ini tidak punya pic_proyek sendiri
+                pic: toko.pic_proyek || toko.pic_bersama || prev?.pic || "Belum ditentukan",
+                pic_bersama: toko.pic_bersama || toko.pic_proyek || prev?.pic_bersama || "Belum ditentukan",
+            }));
 
             const pDates = (pengawasan || [])
                 .map((p: any) => p.tanggal_pengawasan)
@@ -1626,6 +1628,35 @@ function GanttBoard() {
             return scopeOpname > 0 && scopeMissing === 0;
         });
         const isGenerated = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink) && allOpnameDone;
+
+        // Kumpulkan tanggal pengawasan yang belum selesai per scope
+        const missingDates: string[] = [];
+        const parsingCheckpoints = supervisionWorkspace?.unified_checkpoints || [];
+        parsingCheckpoints.forEach((ucp) => {
+            const hasAnyMissing = ucp.scopes.some(entry => {
+                const cp = entry.checkpoint;
+                if (!cp) return Number(ucp.total_items || 0) > 0; // tidak ada checkpoint → belum isi
+                return Number(cp.selesai_items || 0) === 0 && Number(cp.total_items || 0) > 0;
+            });
+            if (hasAnyMissing && !missingDates.includes(ucp.tanggal_pengawasan)) {
+                missingDates.push(ucp.tanggal_pengawasan);
+            }
+        });
+
+        // Scope yang punya pengawasan tapi belum opname (opname parsial)
+        const pendingOpnameDates: string[] = [];
+        parsingCheckpoints.forEach((ucp) => {
+            const hasFilledPengawasan = ucp.scopes.some(entry => Number(entry.checkpoint?.selesai_items || 0) > 0);
+            const hasMissingOpname = ucp.scopes.some(entry => {
+                const cp = entry.checkpoint;
+                if (!cp) return false;
+                return Number(cp.selesai_items || 0) > 0 && Number(cp.opname_items || 0) === 0;
+            });
+            if (hasFilledPengawasan && hasMissingOpname && !pendingOpnameDates.includes(ucp.tanggal_pengawasan)) {
+                pendingOpnameDates.push(ucp.tanggal_pengawasan);
+            }
+        });
+
         return {
             isGenerated,
             isReady: Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady,
@@ -1635,6 +1666,8 @@ function GanttBoard() {
             missingPengawasan,
             opnameItems,
             allOpnameDone,
+            missingDates,
+            pendingOpnameDates,
         };
     }, [masterHandoverPdfLink, supervisionWorkspace]);
     const handoverStatusText = handoverReadiness.isGenerated
@@ -1642,10 +1675,20 @@ function GanttBoard() {
         : handoverReadiness.isReady
             ? "Syarat ST terpenuhi"
             : handoverReadiness.missingPengawasan > 0
-                ? `${handoverReadiness.missingPengawasan} pengawasan belum selesai`
-                : handoverReadiness.readyOpnameItems > 0
-                    ? `${handoverReadiness.readyOpnameItems} item menunggu opname`
-                    : "Menunggu opname selesai";
+                ? (() => {
+                    const datesStr = handoverReadiness.missingDates.length > 0
+                        ? ` (${handoverReadiness.missingDates.slice(0, 3).join(', ')}${handoverReadiness.missingDates.length > 3 ? `, +${handoverReadiness.missingDates.length - 3} lagi` : ''})`
+                        : '';
+                    return `${handoverReadiness.missingPengawasan} pengawasan belum selesai${datesStr}`;
+                })()
+                : handoverReadiness.pendingOpnameDates.length > 0
+                    ? (() => {
+                        const datesStr = handoverReadiness.pendingOpnameDates.slice(0, 2).join(', ');
+                        return `Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`;
+                    })()
+                    : handoverReadiness.readyOpnameItems > 0
+                        ? `${handoverReadiness.readyOpnameItems} item menunggu opname`
+                        : "Menunggu opname selesai";
     const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
@@ -3549,7 +3592,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 let isPastDueAndUnfinished = false;
-                if (!isSelesai) {
+                // Hanya muncul otomatis karena past-due JIKA belum pernah diisi sama sekali (status kosong).
+                // Jika sudah pernah diisi (misal Progress), kemunculannya diatur oleh rule isUnfinishedFromPreviousPengawasan
+                if (!latestStatusLower) {
                     task.ranges?.forEach((r: any) => {
                         if (!r.start || !r.end) return;
                         const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);

@@ -576,54 +576,86 @@ export default function UnifiedSupervisionGantt({
 
         const today = new Date();
         const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const checkpointEntries = timeline.dates
-            .map((date) => {
-                const fullDate = formatFullDate(date);
-                const checkpoint = checkpointByDate.get(fullDate);
-                if (!checkpoint) return null;
-                const readyCount = Number(checkpoint.ready_opname_items || 0);
-                const selesaiCount = Number(checkpoint.selesai_items || 0);
-                const opnameCount = Number(checkpoint.opname_items || 0);
-                const totalCount = Number(checkpoint.total_items || 0);
-                const hasActionItems = readyCount > 0;
-                const hasPengawasan = selesaiCount > 0;
-                const hasOpname = opnameCount > 0;
-                return { date, fullDate, hasActionItems, hasPengawasan, hasOpname, totalCount, selesaiCount, opnameCount, readyCount };
-            })
-            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasPengawasan: boolean; hasOpname: boolean; totalCount: number; selesaiCount: number; opnameCount: number; readyCount: number } => Boolean(entry));
 
-        checkpointEntries.forEach((entry) => {
-            const isToday = entry.date.getTime() === todayStart.getTime();
-            const isPast = entry.date < todayStart;
+        timeline.dates.forEach((date) => {
+            const fullDate = formatFullDate(date);
+            const checkpoint = checkpointByDate.get(fullDate);
+            if (!checkpoint) return;
+
+            const isToday = date.getTime() === todayStart.getTime();
+            const isPast = date < todayStart;
+
+            // Cek per-scope untuk akurasi: jangan hijau kalau salah satu scope belum selesai
+            const activeScopes = (checkpoint.scopes || []).filter(entry => {
+                const cp = entry.checkpoint;
+                // Scope "aktif" di tanggal ini jika ada total_items > 0 atau selesai_items > 0
+                return Number(cp?.total_items || 0) > 0 || Number(cp?.selesai_items || 0) > 0;
+            });
+
+            // Fallback ke unified data jika tidak ada per-scope data
+            const unifiedReady = Number(checkpoint.ready_opname_items || 0);
+            const unifiedSelesai = Number(checkpoint.selesai_items || 0);
+            const unifiedOpname = Number(checkpoint.opname_items || 0);
+            const unifiedTotal = Number(checkpoint.total_items || 0);
+
             if (isToday) {
-                map.set(entry.fullDate, "todayCheckpoint");
-            } else if (entry.hasActionItems) {
-                // Ada item yang siap opname → merah (perlu tindakan)
-                map.set(entry.fullDate, "needsInput");
-            } else if (isPast) {
-                if (entry.totalCount > entry.selesaiCount + entry.opnameCount) {
-                    // Ada item belum selesai sama sekali → merah
-                    map.set(entry.fullDate, "needsInput");
-                } else if (entry.hasPengawasan && !entry.hasOpname) {
-                    // Pengawasan sudah ada TAPI belum opname sama sekali → merah (lewat hari ini)
-                    map.set(entry.fullDate, "needsInput");
-                } else if (entry.hasOpname) {
-                    // Sudah ada opname → hijau/teal (selesai)
-                    map.set(entry.fullDate, "filled");
-                } else if (entry.hasPengawasan) {
-                    // Ada pengawasan tapi belum opname (future case)
-                    map.set(entry.fullDate, "filled");
+                map.set(fullDate, "todayCheckpoint");
+                return;
+            }
+
+            // Ada item siap opname → selalu merah (perlu tindakan segera)
+            if (unifiedReady > 0) {
+                map.set(fullDate, "needsInput");
+                return;
+            }
+
+            if (isPast) {
+                if (activeScopes.length > 0) {
+                    // Logic per-scope: cek apakah SEMUA scope aktif sudah selesai pengawasan DAN opname
+                    const allScopesPengawasanDone = activeScopes.every(entry =>
+                        Number(entry.checkpoint?.selesai_items || 0) > 0
+                    );
+                    const allScopesOpnameDone = activeScopes.every(entry =>
+                        Number(entry.checkpoint?.opname_items || 0) > 0
+                    );
+                    const anyScopeMissingPengawasan = activeScopes.some(entry =>
+                        Number(entry.checkpoint?.selesai_items || 0) === 0
+                    );
+                    const anyScopeMissingOpname = activeScopes.some(entry =>
+                        Number(entry.checkpoint?.selesai_items || 0) > 0 &&
+                        Number(entry.checkpoint?.opname_items || 0) === 0
+                    );
+
+                    if (anyScopeMissingPengawasan) {
+                        // Salah satu scope belum isi pengawasan → merah
+                        map.set(fullDate, "needsInput");
+                    } else if (anyScopeMissingOpname) {
+                        // Pengawasan ada tapi ada scope yang belum opname → merah
+                        map.set(fullDate, "needsInput");
+                    } else if (allScopesOpnameDone) {
+                        // Semua scope sudah opname → hijau
+                        map.set(fullDate, "filled");
+                    } else if (allScopesPengawasanDone) {
+                        // Semua pengawasan done tapi tidak semua opname → merah (masih perlu opname)
+                        map.set(fullDate, "needsInput");
+                    } else {
+                        map.set(fullDate, "normal");
+                    }
                 } else {
-                    map.set(entry.fullDate, "normal");
+                    // Fallback ke unified logic jika tidak ada per-scope data
+                    if (unifiedTotal > unifiedSelesai + unifiedOpname) {
+                        map.set(fullDate, "needsInput");
+                    } else if (unifiedSelesai > 0 && unifiedOpname === 0) {
+                        map.set(fullDate, "needsInput");
+                    } else if (unifiedOpname > 0) {
+                        map.set(fullDate, "filled");
+                    } else {
+                        map.set(fullDate, "normal");
+                    }
                 }
             } else {
-                // Tanggal masa depan
-                if (entry.hasPengawasan && !entry.hasOpname) {
-                    // Pengawasan sudah ada tapi belum opname, belum lewat → biru normal
-                    map.set(entry.fullDate, "normal");
-                } else {
-                    map.set(entry.fullDate, "normal");
-                }
+                // Tanggal masa depan → selalu biru/normal
+                map.set(fullDate, "normal");
             }
         });
 
@@ -851,24 +883,40 @@ export default function UnifiedSupervisionGantt({
                                         if (stBuffer) return `${fullDate} - ${stBuffer.explanation}`;
                                         if (spkEnd) return `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}`;
                                         if (checkpoint) {
-                                            const cpSelesai = Number(checkpoint.selesai_items || 0);
-                                            const cpOpname = Number(checkpoint.opname_items || 0);
-                                            const cpReady = Number(checkpoint.ready_opname_items || 0);
-                                            const cpTotal = Number(checkpoint.total_items || 0);
-                                            const parts: string[] = [];
-                                            if (cpTotal > 0) parts.push(`${cpTotal} item pekerjaan`);
-                                            if (cpSelesai > 0 && cpOpname === 0 && cpReady === 0) {
-                                                parts.push(`✓ Pengawasan terisi (${cpSelesai} selesai)`);
-                                                parts.push(`✗ Belum opname — segera lakukan opname`);
-                                            } else if (cpOpname > 0) {
-                                                parts.push(`✓ Pengawasan terisi (${cpSelesai} selesai)`);
-                                                parts.push(`✓ Sudah opname (${cpOpname} item)`);
-                                            } else if (cpReady > 0) {
-                                                parts.push(`⚠ ${cpReady} item siap opname — perlu tindakan`);
-                                            } else if (cpSelesai === 0) {
-                                                parts.push(`✗ Belum isi pengawasan di tgl ${fullDate}`);
+                                            const parts: string[] = [fullDate];
+                                            const activeScopes = (checkpoint.scopes || []).filter(entry => {
+                                                const cp = entry.checkpoint;
+                                                return Number(cp?.total_items || 0) > 0 || Number(cp?.selesai_items || 0) > 0;
+                                            });
+                                            if (activeScopes.length > 0) {
+                                                // Tampilkan status per scope
+                                                activeScopes.forEach(entry => {
+                                                    const cp = entry.checkpoint;
+                                                    const scopeName = String(entry.lingkup_pekerjaan || '').toUpperCase();
+                                                    const selesai = Number(cp?.selesai_items || 0);
+                                                    const opname = Number(cp?.opname_items || 0);
+                                                    const ready = Number(cp?.ready_opname_items || 0);
+                                                    if (ready > 0) {
+                                                        parts.push(`⚠ ${scopeName}: ${ready} item siap opname`);
+                                                    } else if (selesai > 0 && opname > 0) {
+                                                        parts.push(`✓ ${scopeName}: Pengawasan + Opname selesai`);
+                                                    } else if (selesai > 0 && opname === 0) {
+                                                        parts.push(`⚡ ${scopeName}: Pengawasan ✓ — Opname belum diisi`);
+                                                    } else {
+                                                        parts.push(`✗ ${scopeName}: Belum isi pengawasan`);
+                                                    }
+                                                });
+                                            } else {
+                                                // Fallback unified
+                                                const cpSelesai = Number(checkpoint.selesai_items || 0);
+                                                const cpOpname = Number(checkpoint.opname_items || 0);
+                                                const cpReady = Number(checkpoint.ready_opname_items || 0);
+                                                if (cpReady > 0) parts.push(`⚠ ${cpReady} item siap opname`);
+                                                else if (cpSelesai > 0 && cpOpname === 0) parts.push(`⚡ Pengawasan ✓ — Opname belum diisi`);
+                                                else if (cpOpname > 0) parts.push(`✓ Pengawasan + Opname selesai`);
+                                                else parts.push(`✗ Belum isi pengawasan`);
                                             }
-                                            return parts.length > 0 ? `${fullDate}\n${parts.join('\n')}` : fullDate;
+                                            return parts.join('\n');
                                         }
                                         return fullDate;
                                     })()}
