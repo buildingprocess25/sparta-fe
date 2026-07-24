@@ -585,12 +585,8 @@ export default function UnifiedSupervisionGantt({
             const isToday = date.getTime() === todayStart.getTime();
             const isPast = date < todayStart;
 
-            // Cek per-scope untuk akurasi: jangan hijau kalau salah satu scope belum selesai
-            const activeScopes = (checkpoint.scopes || []).filter(entry => {
-                const cp = entry.checkpoint;
-                // Scope "aktif" di tanggal ini jika ada total_items > 0 atau selesai_items > 0
-                return Number(cp?.total_items || 0) > 0 || Number(cp?.selesai_items || 0) > 0;
-            });
+            // Cek per-scope untuk akurasi: jangan hijau kalau salah satu scope (yang punya gantt) belum selesai
+            const activeScopes = (checkpoint.scopes || []).filter(entry => entry.gantt_id !== null);
 
             // Fallback ke unified data jika tidak ada per-scope data
             const unifiedReady = Number(checkpoint.ready_opname_items || 0);
@@ -884,10 +880,7 @@ export default function UnifiedSupervisionGantt({
                                         if (spkEnd) return `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}`;
                                         if (checkpoint) {
                                             const parts: string[] = [fullDate];
-                                            const activeScopes = (checkpoint.scopes || []).filter(entry => {
-                                                const cp = entry.checkpoint;
-                                                return Number(cp?.total_items || 0) > 0 || Number(cp?.selesai_items || 0) > 0;
-                                            });
+                                            const activeScopes = (checkpoint.scopes || []).filter(entry => entry.gantt_id !== null);
                                             if (activeScopes.length > 0) {
                                                 // Tampilkan status per scope
                                                 activeScopes.forEach(entry => {

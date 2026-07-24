@@ -1633,28 +1633,32 @@ function GanttBoard() {
         const missingDates: string[] = [];
         const parsingCheckpoints = supervisionWorkspace?.unified_checkpoints || [];
         parsingCheckpoints.forEach((ucp) => {
-            const hasAnyMissing = ucp.scopes.some(entry => {
+            ucp.scopes.forEach(entry => {
+                if (!entry.gantt_id) return;
                 const cp = entry.checkpoint;
-                if (!cp) return Number(ucp.total_items || 0) > 0; // tidak ada checkpoint → belum isi
-                return Number(cp.selesai_items || 0) === 0 && Number(cp.total_items || 0) > 0;
+                const scopeName = String(entry.lingkup_pekerjaan || '').toUpperCase();
+                // Jika tidak ada checkpoint, atau ada tapi belum selesai
+                const isMissing = !cp || (Number(cp.selesai_items || 0) === 0 && Number(cp.total_items || 0) > 0);
+                if (isMissing) {
+                    const str = `${ucp.tanggal_pengawasan} ${scopeName}`;
+                    if (!missingDates.includes(str)) missingDates.push(str);
+                }
             });
-            if (hasAnyMissing && !missingDates.includes(ucp.tanggal_pengawasan)) {
-                missingDates.push(ucp.tanggal_pengawasan);
-            }
         });
 
         // Scope yang punya pengawasan tapi belum opname (opname parsial)
         const pendingOpnameDates: string[] = [];
         parsingCheckpoints.forEach((ucp) => {
-            const hasFilledPengawasan = ucp.scopes.some(entry => Number(entry.checkpoint?.selesai_items || 0) > 0);
-            const hasMissingOpname = ucp.scopes.some(entry => {
+            ucp.scopes.forEach(entry => {
+                if (!entry.gantt_id) return;
                 const cp = entry.checkpoint;
-                if (!cp) return false;
-                return Number(cp.selesai_items || 0) > 0 && Number(cp.opname_items || 0) === 0;
+                const scopeName = String(entry.lingkup_pekerjaan || '').toUpperCase();
+                if (!cp) return;
+                if (Number(cp.selesai_items || 0) > 0 && Number(cp.opname_items || 0) === 0) {
+                    const str = `${ucp.tanggal_pengawasan} ${scopeName}`;
+                    if (!pendingOpnameDates.includes(str)) pendingOpnameDates.push(str);
+                }
             });
-            if (hasFilledPengawasan && hasMissingOpname && !pendingOpnameDates.includes(ucp.tanggal_pengawasan)) {
-                pendingOpnameDates.push(ucp.tanggal_pengawasan);
-            }
         });
 
         return {
@@ -4363,8 +4367,14 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
             fetchPengawasanList({ id_gantt: selectedGanttId })
                 .then(async res => {
                     const allData = res.data || [];
-                    // Case-insensitive filtering in frontend to bypass strict backend endpoints
-                    const data = allData.filter((p: any) => p.status?.toLowerCase() === 'selesai');
+                    // Tampilkan hanya pengawasan selesai pada tanggal yang dipilih (jika modal dibuka dari suatu tanggal)
+                    const data = allData.filter((p: any) => {
+                        if (p.status?.toLowerCase() !== 'selesai') return false;
+                        if (activeHeaderClick?.dateString) {
+                            return p.tanggal_pengawasan === activeHeaderClick.dateString;
+                        }
+                        return true;
+                    });
                     setCompletedPengawasanCount(data.length);
 
                     let latestRabItems = rabItems;
