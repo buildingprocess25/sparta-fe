@@ -615,18 +615,26 @@ export default function UnifiedSupervisionGantt({
 
             if (isPast) {
                 if (activeScopes.length > 0) {
-                    // Logic per-scope: cek apakah SEMUA scope aktif sudah selesai pengawasan DAN opname
-                    const allScopesPengawasanDone = activeScopes.every(entry =>
+                    // Hanya perhitungkan scope yang memang memiliki pekerjaan pada tanggal ini
+                    const scopesWithItems = activeScopes.filter(entry =>
                         Number(entry.checkpoint?.total_items || 0) > 0
                     );
-                    const allScopesOpnameDone = activeScopes.every(entry =>
+
+                    if (scopesWithItems.length === 0) {
+                        // Jika tidak ada data pekerjaan sama sekali di tanggal ini, tampilkan biru/normal
+                        map.set(fullDate, "normal");
+                        return;
+                    }
+
+                    // Logic per-scope: cek apakah SEMUA scope AKTIF (yang ada items) sudah selesai pengawasan DAN opname
+                    const allScopesPengawasanDone = scopesWithItems.every(entry =>
+                        Number(entry.checkpoint?.total_items || 0) > 0
+                    );
+                    const allScopesOpnameDone = scopesWithItems.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
-                    // Kita tidak lagi mewarnai merah untuk total_items === 0 (karena bisa jadi memang tidak ada pekerjaan)
-                    // const anyScopeMissingPengawasan = activeScopes.some(entry =>
-                    //     Number(entry.checkpoint?.total_items || 0) === 0
-                    // );
-                    const anyScopeMissingOpname = activeScopes.some(entry =>
+                    
+                    const anyScopeMissingOpname = scopesWithItems.some(entry =>
                         Number(entry.checkpoint?.selesai_items || 0) > 0 &&
                         Number(entry.checkpoint?.opname_items || 0) === 0
                     );
