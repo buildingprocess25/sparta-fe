@@ -971,7 +971,8 @@ function GanttBoard() {
                     }
                 }
 
-                setProjectData({
+                setProjectData((prev: any) => ({
+                    ...(prev || {}),
                     ganttId: null,
                     id_toko: toko.id,
                     ulokClean: formatUlokWithDash(toko.nomor_ulok),
@@ -982,7 +983,10 @@ function GanttBoard() {
                     kontraktor: toko.nama_kontraktor || "-",
                     duration: rDuration,
                     startDate: new Date().toISOString().split('T')[0],
-                });
+                    // Pertahankan pic dari data toko, jangan hapus jika sudah ada dari scope lain
+                    pic: toko.pic_proyek || toko.pic_bersama || prev?.pic || "Belum ditentukan",
+                    pic_bersama: toko.pic_bersama || toko.pic_proyek || prev?.pic_bersama || "Belum ditentukan",
+                }));
 
                 if (!validRabId) {
                     setRabItems(instruksiItems);
@@ -1615,7 +1619,13 @@ function GanttBoard() {
             sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.opname_items || 0), 0)
         ), 0);
         const allScopesReady = scopedWithGantt.length > 0 && readyScopes.length === scopedWithGantt.length;
-        const isGenerated = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink);
+        // ST selesai hanya jika semua scope (SIPIL+ME) sudah selesai pengawasan DAN opname
+        const allOpnameDone = scopedWithGantt.length > 0 && scopedWithGantt.every(scope => {
+            const scopeOpname = (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0);
+            const scopeMissing = Number(scope.missing_pengawasan_checkpoints || 0);
+            return scopeOpname > 0 && scopeMissing === 0;
+        });
+        const isGenerated = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink) && allOpnameDone;
         return {
             isGenerated,
             isReady: Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady,
@@ -1624,6 +1634,7 @@ function GanttBoard() {
             readyOpnameItems,
             missingPengawasan,
             opnameItems,
+            allOpnameDone,
         };
     }, [masterHandoverPdfLink, supervisionWorkspace]);
     const handoverStatusText = handoverReadiness.isGenerated
@@ -1641,7 +1652,7 @@ function GanttBoard() {
     ));
     const missingInOtherScopes = useMemo(() => {
         if (!activeHeaderClick || !supervisionWorkspace) return false;
-        const cp = supervisionWorkspace.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === activeHeaderClick.fullDate);
+        const cp = supervisionWorkspace.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === activeHeaderClick.dateString);
         if (!cp) return false;
         let otherMissing = false;
         cp.scopes?.forEach((s: any) => {
@@ -2954,16 +2965,18 @@ function GanttBoard() {
                                 </div>
                             )}
 
-                            {handoverReadiness.isGenerated && masterHandoverPdfLink && (
-                                <a
-                                    href={masterHandoverPdfLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition hover:bg-emerald-500"
+                            {handoverReadiness.isGenerated && masterHandoverId && (
+                                <Button
+                                    type="button"
+                                    onClick={() => handleDownloadPdf(masterHandoverId)}
+                                    disabled={isDownloadingPdf[masterHandoverId]}
+                                    className="flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition hover:bg-emerald-500 disabled:opacity-70"
                                 >
-                                    <FileText className="mr-2 h-4 w-4" />
+                                    {isDownloadingPdf[masterHandoverId]
+                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        : <Download className="mr-2 h-4 w-4" />}
                                     Buka PDF Serah Terima
-                                </a>
+                                </Button>
                             )}
                         </div>
 
@@ -3006,6 +3019,7 @@ function GanttBoard() {
                     nextScopeLabel={unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length ? unifiedMemoFlow.scopes[unifiedMemoFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
                     flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
                     draft={selectedGanttId && activeHeaderClick ? unifiedMemoDrafts[`${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
+                    missingInOtherScopes={missingInOtherScopes}
                     onDraftChange={(draft: any) => {
                         if (!selectedGanttId || !activeHeaderClick) return;
                         const key = `${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
@@ -3172,7 +3186,7 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange }: any) {
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
     const { user } = useSession();

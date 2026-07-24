@@ -243,6 +243,14 @@ export default function UnifiedSupervisionGantt({
     const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
     const timeline = workspaceTimeline ?? ganttFallbackTimeline;
     
+    // Hanya tampilkan tombol ST jika workspace memiliki lingkup SIPIL DAN ME
+    const hasSipilAndMe = useMemo(() => {
+        const scopeNames = workspace.scopes
+            .filter(s => Boolean(s.gantt_id))
+            .map(s => String(s.lingkup_pekerjaan || '').trim().toUpperCase());
+        return scopeNames.includes('SIPIL') && scopeNames.includes('ME');
+    }, [workspace.scopes]);
+    
     // Responsive label width for mobile
     const [labelWidth, setLabelWidth] = useState(300);
     useEffect(() => {
@@ -578,27 +586,44 @@ export default function UnifiedSupervisionGantt({
                 const opnameCount = Number(checkpoint.opname_items || 0);
                 const totalCount = Number(checkpoint.total_items || 0);
                 const hasActionItems = readyCount > 0;
-                const hasAnyFilledItem = selesaiCount > 0 || opnameCount > 0;
-                return { date, fullDate, hasActionItems, hasAnyFilledItem, totalCount, selesaiCount, opnameCount };
+                const hasPengawasan = selesaiCount > 0;
+                const hasOpname = opnameCount > 0;
+                return { date, fullDate, hasActionItems, hasPengawasan, hasOpname, totalCount, selesaiCount, opnameCount, readyCount };
             })
-            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasAnyFilledItem: boolean; totalCount: number; selesaiCount: number; opnameCount: number } => Boolean(entry));
+            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasPengawasan: boolean; hasOpname: boolean; totalCount: number; selesaiCount: number; opnameCount: number; readyCount: number } => Boolean(entry));
 
         checkpointEntries.forEach((entry) => {
             const isToday = entry.date.getTime() === todayStart.getTime();
+            const isPast = entry.date < todayStart;
             if (isToday) {
                 map.set(entry.fullDate, "todayCheckpoint");
             } else if (entry.hasActionItems) {
+                // Ada item yang siap opname → merah (perlu tindakan)
                 map.set(entry.fullDate, "needsInput");
-            } else if (entry.date < todayStart) {
+            } else if (isPast) {
                 if (entry.totalCount > entry.selesaiCount + entry.opnameCount) {
+                    // Ada item belum selesai sama sekali → merah
                     map.set(entry.fullDate, "needsInput");
-                } else if (entry.hasAnyFilledItem) {
+                } else if (entry.hasPengawasan && !entry.hasOpname) {
+                    // Pengawasan sudah ada TAPI belum opname sama sekali → merah (lewat hari ini)
+                    map.set(entry.fullDate, "needsInput");
+                } else if (entry.hasOpname) {
+                    // Sudah ada opname → hijau/teal (selesai)
+                    map.set(entry.fullDate, "filled");
+                } else if (entry.hasPengawasan) {
+                    // Ada pengawasan tapi belum opname (future case)
                     map.set(entry.fullDate, "filled");
                 } else {
                     map.set(entry.fullDate, "normal");
                 }
             } else {
-                map.set(entry.fullDate, "normal");
+                // Tanggal masa depan
+                if (entry.hasPengawasan && !entry.hasOpname) {
+                    // Pengawasan sudah ada tapi belum opname, belum lewat → biru normal
+                    map.set(entry.fullDate, "normal");
+                } else {
+                    map.set(entry.fullDate, "normal");
+                }
             }
         });
 
@@ -785,7 +810,8 @@ export default function UnifiedSupervisionGantt({
                                     : visualState === "today"
                                         ? "text-emerald-700 text-[13px]"
                                         : "";
-                            const isTargetStDate = Boolean(stBuffer?.isTarget);
+                            // Tombol ST hanya aktif jika workspace memiliki SIPIL + ME
+                            const isTargetStDate = Boolean(stBuffer?.isTarget) && hasSipilAndMe;
                             return (
                                 <button
                                     key={fullDate}
@@ -820,15 +846,32 @@ export default function UnifiedSupervisionGantt({
                                                                 : "bg-white text-slate-700 hover:bg-slate-50"
                                     }`}
                                     style={{ width: DAY_WIDTH }}
-                                    title={isExtension
-                                        ? `${fullDate} - ${spkEnd ? `Akhir SPK ${spkEnd.scopes.join(" + ")}` : "tanggal pertambahan SPK"}`
-                                        : stBuffer
-                                            ? `${fullDate} - ${stBuffer.explanation}`
-                                            : spkEnd
-                                                ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}`
-                                                : checkpoint
-                                                    ? `${fullDate} - ${readyCount} siap opname, ${opnameCount} sudah opname`
-                                                    : fullDate}
+                                    title={(() => {
+                                        if (isExtension) return `${fullDate} - ${spkEnd ? `Akhir SPK ${spkEnd.scopes.join(" + ")}` : "tanggal pertambahan SPK"}`;
+                                        if (stBuffer) return `${fullDate} - ${stBuffer.explanation}`;
+                                        if (spkEnd) return `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}`;
+                                        if (checkpoint) {
+                                            const cpSelesai = Number(checkpoint.selesai_items || 0);
+                                            const cpOpname = Number(checkpoint.opname_items || 0);
+                                            const cpReady = Number(checkpoint.ready_opname_items || 0);
+                                            const cpTotal = Number(checkpoint.total_items || 0);
+                                            const parts: string[] = [];
+                                            if (cpTotal > 0) parts.push(`${cpTotal} item pekerjaan`);
+                                            if (cpSelesai > 0 && cpOpname === 0 && cpReady === 0) {
+                                                parts.push(`✓ Pengawasan terisi (${cpSelesai} selesai)`);
+                                                parts.push(`✗ Belum opname — segera lakukan opname`);
+                                            } else if (cpOpname > 0) {
+                                                parts.push(`✓ Pengawasan terisi (${cpSelesai} selesai)`);
+                                                parts.push(`✓ Sudah opname (${cpOpname} item)`);
+                                            } else if (cpReady > 0) {
+                                                parts.push(`⚠ ${cpReady} item siap opname — perlu tindakan`);
+                                            } else if (cpSelesai === 0) {
+                                                parts.push(`✗ Belum isi pengawasan di tgl ${fullDate}`);
+                                            }
+                                            return parts.length > 0 ? `${fullDate}\n${parts.join('\n')}` : fullDate;
+                                        }
+                                        return fullDate;
+                                    })()}
                                 >
                                     {spkEnd ? (
                                         <span className="absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded bg-amber-700 px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white shadow-sm">
