@@ -1810,6 +1810,8 @@ export type GanttDetailToko = {
     cabang:           string;
     alamat:           string;
     nama_kontraktor:  string;
+    pic_proyek?:      string | null;
+    pic_bersama?:     string | null;
 };
 
 export type GanttDetailKategori = {
