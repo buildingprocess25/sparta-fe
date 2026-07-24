@@ -617,13 +617,13 @@ export default function UnifiedSupervisionGantt({
                 if (activeScopes.length > 0) {
                     // Logic per-scope: cek apakah SEMUA scope aktif sudah selesai pengawasan DAN opname
                     const allScopesPengawasanDone = activeScopes.every(entry =>
-                        Number(entry.checkpoint?.selesai_items || 0) > 0
+                        Number(entry.checkpoint?.total_items || 0) > 0
                     );
                     const allScopesOpnameDone = activeScopes.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
                     const anyScopeMissingPengawasan = activeScopes.some(entry =>
-                        Number(entry.checkpoint?.selesai_items || 0) === 0
+                        Number(entry.checkpoint?.total_items || 0) === 0
                     );
                     const anyScopeMissingOpname = activeScopes.some(entry =>
                         Number(entry.checkpoint?.selesai_items || 0) > 0 &&
