@@ -3479,6 +3479,31 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                 if (s <= day && day <= e) isScheduledToday = true;
 
+                // [ORPHAN PREVENTION] Tarik item ke tanggal ini JIKA item tersebut 
+                // akan dimulai di masa depan (s > day) TETAPI berakhir sebelum checkpoint berikutnya.
+                // Jika tidak ditarik, item akan kelewatan dan baru muncul sebagai Past-Due di checkpoint berikutnya.
+                if (s > day) {
+                    let nextPengawasanDay = -1;
+                    if (chartData?.supervisionDays) {
+                        const sortedDays = Array.from(chartData.supervisionDays as Set<number>).sort((a, b) => a - b);
+                        for (const sd of sortedDays) {
+                            if (sd > day) {
+                                nextPengawasanDay = sd;
+                                break;
+                            }
+                        }
+                    }
+                    if (nextPengawasanDay !== -1) {
+                        if (e < nextPengawasanDay) {
+                            isScheduledToday = true;
+                        }
+                    } else {
+                        // Jika tidak ada checkpoint berikutnya (ini adalah checkpoint terakhir),
+                        // maka tarik semua item masa depan yang tersisa.
+                        isScheduledToday = true;
+                    }
+                }
+
                 if (e < day) {
                     let hitDuringActive = false;
                     let hitAfterActiveButBeforeToday = false;
