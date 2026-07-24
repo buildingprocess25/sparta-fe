@@ -184,6 +184,14 @@ function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
         });
     });
 
+    (workspace.unified_dates || []).forEach((dateStr) => {
+        const d = parseDate(dateStr);
+        if (d) {
+            starts.push(d);
+            ends.push(d);
+        }
+    });
+
     // Fallback: use checkpoints as start/end if no SPK start dates are available.
     if (starts.length === 0) {
         workspace.scopes.forEach((scope) => {

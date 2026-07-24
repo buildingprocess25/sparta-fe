@@ -3485,7 +3485,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (s > day) {
                     let nextPengawasanDay = -1;
                     if (chartData?.supervisionDays) {
-                        const sortedDays = Array.from(chartData.supervisionDays as Set<number>).sort((a, b) => a - b);
+                        const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
                         for (const sd of sortedDays) {
                             if (sd > day) {
                                 nextPengawasanDay = sd;
