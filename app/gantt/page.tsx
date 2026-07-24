@@ -4597,8 +4597,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         setIsSubmitting(true);
         try {
             const emailPembuat = sessionStorage.getItem('loggedInUserEmail') || '';
-            if (!id_toko || !emailPembuat) {
-                showAlert({ message: "Data toko atau email user tidak ditemukan. Silakan login ulang lalu coba lagi.", type: "error" });
+            if (!id_toko || !emailPembuat || emailPembuat === 'undefined' || emailPembuat === 'null') {
+                showAlert({ message: `Data tidak lengkap (ID Toko: ${id_toko || 'Kosong'}, Email: ${emailPembuat || 'Kosong'}). Silakan login ulang atau muat ulang halaman.`, type: "error" });
                 setIsSubmitting(false);
                 return;
             }
