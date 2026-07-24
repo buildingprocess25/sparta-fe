@@ -85,7 +85,7 @@ function calculateTargetStFromSpkEnd(spkEndDate: Date) {
     const offsetDays = Math.max(1, Math.round((target.getTime() - normalized.getTime()) / (24 * 60 * 60 * 1000)));
     const endIsNonWorking = isNonWorkingStDate(normalized);
     const showOffsetLabel = endIsNonWorking || skippedWeekends > 0 || skippedHolidays > 0 || offsetDays > 1;
-    const label = `SPK +${offsetDays} hari`;
+    const label = offsetDays > 1 ? `SPK +${offsetDays - 1} hari` : `ST`;
     const reasons = [
         skippedWeekends > 0 ? `${skippedWeekends} weekend` : null,
         skippedHolidays > 0 ? `${skippedHolidays} libur nasional` : null,
@@ -280,88 +280,79 @@ export default function UnifiedSupervisionGantt({
         return dates;
     }, [workspace.scopes]);
 
-    const spkEndByDate = useMemo(() => {
-        const map = new Map<string, { label: string; scopes: string[] }>();
-
+    const maxSpkEnd = useMemo(() => {
+        let maxEnd: Date | null = null;
         workspace.scopes.forEach((scope) => {
             const spkEnd = getScopeSpkEnd(scope);
-            if (!spkEnd) return;
-
-            const dateStr = formatFullDate(spkEnd);
-            const current = map.get(dateStr) || { label: "Akhir SPK", scopes: [] };
-            if (!current.scopes.includes(String(scope.lingkup_pekerjaan || "SPK"))) {
-                current.scopes.push(String(scope.lingkup_pekerjaan || "SPK"));
+            if (spkEnd && (!maxEnd || spkEnd > maxEnd)) {
+                maxEnd = spkEnd;
             }
-            map.set(dateStr, current);
         });
-
-        return map;
+        return maxEnd;
     }, [workspace.scopes]);
+
+    const spkEndByDate = useMemo(() => {
+        const map = new Map<string, { label: string; scopes: string[] }>();
+        if (!maxSpkEnd) return map;
+
+        const dateStr = formatFullDate(maxSpkEnd);
+        const current = { label: "Akhir SPK", scopes: [] as string[] };
+        
+        workspace.scopes.forEach((scope) => {
+            const scopeName = String(scope.lingkup_pekerjaan || "SPK");
+            if (!current.scopes.includes(scopeName)) {
+                current.scopes.push(scopeName);
+            }
+        });
+        
+        map.set(dateStr, current);
+        return map;
+    }, [workspace.scopes, maxSpkEnd]);
 
     const stBufferByDate = useMemo(() => {
         const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean; showOffsetLabel: boolean; scopes: string[]; targetLabel?: string }>();
-        const unifiedCheckpointDates = (workspace.unified_checkpoints || [])
-            .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
-            .filter((date): date is Date => Boolean(date));
+        if (!maxSpkEnd) return map;
         
+        let stTarget: Date | null = null;
+        const allScopeNames: string[] = [];
         workspace.scopes.forEach((scope) => {
             const scopeName = String(scope.lingkup_pekerjaan || "SPK").toUpperCase();
-            const spkEnd = getScopeSpkEnd(scope);
+            if (!allScopeNames.includes(scopeName)) allScopeNames.push(scopeName);
             
-            let stTarget = parseDate(scope.st_target_date);
-            let fallbackTarget: ReturnType<typeof calculateTargetStFromSpkEnd> | null = null;
-            if (!stTarget && spkEnd) {
-                stTarget = (scope.checkpoints || [])
-                    .map((checkpoint) => parseDate(checkpoint.tanggal_pengawasan))
-                    .filter((date): date is Date => Boolean(date && date > spkEnd))
-                    .sort((left, right) => left.getTime() - right.getTime())[0] || null;
-            }
-            if (!stTarget && spkEnd) {
-                stTarget = unifiedCheckpointDates
-                    .filter((date) => date > spkEnd)
-                    .sort((left, right) => left.getTime() - right.getTime())[0] || null;
-            }
-            if (!stTarget && spkEnd) {
-                fallbackTarget = calculateTargetStFromSpkEnd(spkEnd);
-                stTarget = fallbackTarget.date;
-            }
-
-            const offsetDays = Number(scope.st_offset_days || 0);
-            const effectiveOffsetDays = offsetDays || (spkEnd && stTarget ? Math.max(0, diffDays(stTarget, spkEnd)) : 0);
-            
-            if (!spkEnd || !stTarget || effectiveOffsetDays <= 0 || stTarget <= spkEnd) return;
-            const showOffsetLabel = fallbackTarget?.showOffsetLabel ?? effectiveOffsetDays > 1;
-
-            for (let day = 1; day <= effectiveOffsetDays; day += 1) {
-                const date = addDays(spkEnd, day);
-                if (date > stTarget) break;
-                
-                const dateStr = formatFullDate(date);
-                const existing = map.get(dateStr);
-                const isTarget = dateStr === formatFullDate(stTarget);
-                
-                if (existing) {
-                    if (!existing.scopes.includes(scopeName)) {
-                        existing.scopes.push(scopeName);
-                    }
-                    if (isTarget) {
-                        existing.isTarget = true;
-                    }
-                } else {
-                    map.set(dateStr, {
-                        label: scope.st_offset_label || fallbackTarget?.label || `SPK +${effectiveOffsetDays} hari`,
-                        explanation: scope.st_offset_explanation || fallbackTarget?.explanation || `Target ST ${formatFullDate(stTarget)}`,
-                        offsetDays: effectiveOffsetDays,
-                        isTarget,
-                        showOffsetLabel,
-                        scopes: [scopeName]
-                    });
-                }
-            }
+            const explicit = parseDate(scope.st_target_date);
+            if (explicit && (!stTarget || explicit > stTarget)) stTarget = explicit;
         });
 
+        const fallbackTarget = calculateTargetStFromSpkEnd(maxSpkEnd);
+        if (!stTarget) {
+            stTarget = fallbackTarget.date;
+        }
+
+        const effectiveOffsetDays = Math.max(0, diffDays(stTarget, maxSpkEnd));
+        if (effectiveOffsetDays <= 0) return map;
+
+        const showOffsetLabel = fallbackTarget.showOffsetLabel ?? effectiveOffsetDays > 1;
+
+        for (let day = 1; day <= effectiveOffsetDays; day += 1) {
+            const date = addDays(maxSpkEnd, day);
+            if (date > stTarget) break;
+            
+            const dateStr = formatFullDate(date);
+            const isTarget = dateStr === formatFullDate(stTarget);
+            
+            map.set(dateStr, {
+                label: isTarget ? "ST" : `SPK +${day}`,
+                explanation: isTarget ? (fallbackTarget.explanation || `Target ST ${formatFullDate(stTarget)}`) : `Jeda ke ST: SPK +${day}`,
+                offsetDays: effectiveOffsetDays,
+                isTarget,
+                showOffsetLabel,
+                scopes: allScopeNames,
+                targetLabel: 'ST'
+            });
+        }
+
         return map;
-    }, [workspace.scopes, workspace.unified_checkpoints]);
+    }, [workspace.scopes, maxSpkEnd]);
 
     const stDelaySummaries = useMemo(() => {
         const summaries = new Map<string, { date: string; label: string; scopes: string[] }>();
@@ -587,21 +578,25 @@ export default function UnifiedSupervisionGantt({
                 const opnameCount = Number(checkpoint.opname_items || 0);
                 const totalCount = Number(checkpoint.total_items || 0);
                 const hasActionItems = readyCount > 0;
-                const hasAnyFilledItem = totalCount > 0 || selesaiCount > 0 || opnameCount > 0;
-                return { date, fullDate, hasActionItems, hasAnyFilledItem };
+                const hasAnyFilledItem = selesaiCount > 0 || opnameCount > 0;
+                return { date, fullDate, hasActionItems, hasAnyFilledItem, totalCount, selesaiCount, opnameCount };
             })
-            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasAnyFilledItem: boolean } => Boolean(entry));
+            .filter((entry): entry is { date: Date; fullDate: string; hasActionItems: boolean; hasAnyFilledItem: boolean; totalCount: number; selesaiCount: number; opnameCount: number } => Boolean(entry));
 
         checkpointEntries.forEach((entry) => {
             const isToday = entry.date.getTime() === todayStart.getTime();
             if (isToday) {
                 map.set(entry.fullDate, "todayCheckpoint");
-            } else if (entry.date < todayStart && (entry.hasActionItems || !entry.hasAnyFilledItem)) {
-                map.set(entry.fullDate, "needsInput");
-            } else if (entry.date < todayStart && entry.hasAnyFilledItem) {
-                map.set(entry.fullDate, "filled");
             } else if (entry.hasActionItems) {
                 map.set(entry.fullDate, "needsInput");
+            } else if (entry.date < todayStart) {
+                if (entry.totalCount > entry.selesaiCount + entry.opnameCount) {
+                    map.set(entry.fullDate, "needsInput");
+                } else if (entry.hasAnyFilledItem) {
+                    map.set(entry.fullDate, "filled");
+                } else {
+                    map.set(entry.fullDate, "normal");
+                }
             } else {
                 map.set(entry.fullDate, "normal");
             }
@@ -717,7 +712,7 @@ export default function UnifiedSupervisionGantt({
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
                             <span className="h-3 w-3 animate-pulse rounded bg-red-100 ring-1 ring-red-500" />
-                            Terlewat belum diisi
+                            Belum selesai / diisi
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
                             <span className="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-black text-white">Akhir</span>

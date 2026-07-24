@@ -548,7 +548,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                         <span className={`mt-0.5 whitespace-nowrap rounded-sm px-1 text-[8px] font-extrabold leading-3 ${(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1 ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'}`}>
                                             {(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1
                                                 ? (Number(projectData.stBufferOffsetDays || 0) > 1 ? String(projectData.stBufferLabel || '').replace(' hari', '') : 'ST')
-                                                : 'libur'}
+                                                : `SPK +${(i + 1) - projectData.stBufferStartDay + 1}`}
                                         </span>
                                     )}
                                     {isSpkEndDay && !isExtensionDay && (

@@ -269,7 +269,7 @@ function calculateTargetStFromSpkEnd(spkEndDate: Date) {
     const offsetDays = Math.max(1, Math.round((target.getTime() - normalized.getTime()) / (24 * 60 * 60 * 1000)));
     const endIsNonWorking = isNonWorkingStDate(normalized);
     const showOffsetLabel = endIsNonWorking || skippedWeekends > 0 || skippedHolidays > 0 || offsetDays > 1;
-    const label = `SPK +${offsetDays} hari`;
+    const label = offsetDays > 1 ? `SPK +${offsetDays - 1} hari` : `ST`;
     const reasons = [
         skippedWeekends > 0 ? `${skippedWeekends} weekend` : null,
         skippedHolidays > 0 ? `${skippedHolidays} libur nasional` : null,
@@ -561,15 +561,16 @@ function GanttBoard() {
             const response = await fetchSupervisionWorkspace(nomorUlok);
             setSupervisionWorkspace(response.data);
             setSelectedUlok(formatUlokWithDash(nomorUlok));
-            setProjectData({
+            setProjectData((prev: any) => ({
+                ...(prev || {}),
                 ulokClean: response.data.nomor_ulok,
-                store: response.data.nama_toko || "-",
-                branch: response.data.cabang || "-",
-                cabang: response.data.cabang || "-",
-                pic: response.data.pic_bersama || "Belum ditentukan",
-                pic_bersama: response.data.pic_bersama || "Belum ditentukan",
-                work: getWorkspaceScopeLabel(response.data) || "-",
-            });
+                store: response.data.nama_toko || prev?.store || "-",
+                branch: response.data.cabang || prev?.branch || "-",
+                cabang: response.data.cabang || prev?.cabang || "-",
+                pic: (prev?.pic && prev.pic !== "Belum ditentukan") ? prev.pic : (response.data.pic_bersama || "Belum ditentukan"),
+                pic_bersama: (prev?.pic_bersama && prev.pic_bersama !== "Belum ditentukan") ? prev.pic_bersama : (response.data.pic_bersama || "Belum ditentukan"),
+                work: getWorkspaceScopeLabel(response.data) || prev?.work || "-",
+            }));
             const firstGanttId = response.data?.scopes?.find((scope: SupervisionScope) => scope.gantt_id)?.gantt_id;
             if (firstGanttId) {
                 setSelectedGanttId(Number(firstGanttId));
@@ -1103,6 +1104,8 @@ function GanttBoard() {
                 kontraktor: toko.nama_kontraktor || "-",
                 duration,
                 startDate: projectStart.toISOString().split('T')[0],
+                pic: toko.pic_proyek || toko.pic_bersama || "Belum ditentukan",
+                pic_bersama: toko.pic_bersama || toko.pic_proyek || "Belum ditentukan",
             });
 
             const pDates = (pengawasan || [])
@@ -1567,7 +1570,7 @@ function GanttBoard() {
                     date: explicitTarget,
                     scope,
                     offsetDays,
-                    label: scope.st_offset_label || `SPK +${offsetDays} hari`,
+                    label: scope.st_offset_label || `ST`,
                     showOffsetLabel,
                 }];
             }
@@ -1636,6 +1639,20 @@ function GanttBoard() {
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
     ));
+    const missingInOtherScopes = useMemo(() => {
+        if (!activeHeaderClick || !supervisionWorkspace) return false;
+        const cp = supervisionWorkspace.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === activeHeaderClick.fullDate);
+        if (!cp) return false;
+        let otherMissing = false;
+        cp.scopes?.forEach((s: any) => {
+            if (String(s.id_toko) !== String(projectData?.id_toko)) {
+                const missing = (Number(s.checkpoint?.total_items) || 0) - (Number(s.checkpoint?.selesai_items) || 0);
+                if (missing > 0) otherMissing = true;
+            }
+        });
+        return otherMissing;
+    }, [activeHeaderClick, supervisionWorkspace, projectData?.id_toko]);
+
     const selectedSpkSummary = useMemo(() => {
         const selectedUlokValue = supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || selectedUlok;
         if (!selectedUlokValue) return null;
@@ -3238,7 +3255,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
         const getPengawasanDateById = (idPengawasanGantt: any): any => {
             if (!idPengawasanGantt) return null;
-            const matched = (pengawasanHistory || []).find((p: any) => Number(p.id) === Number(idPengawasanGantt));
+            const matched = (pengawasanHistory || []).find((p: any) => {
+                if (p.scopes && Array.isArray(p.scopes)) {
+                    return p.scopes.some((s: any) => s.checkpoint && Number(s.checkpoint.id_pengawasan_gantt) === Number(idPengawasanGantt));
+                }
+                return Number(p.id) === Number(idPengawasanGantt) || Number(p.id_pengawasan_gantt) === Number(idPengawasanGantt);
+            });
             return matched?.tanggal_pengawasan ?? null;
         };
 
@@ -3512,10 +3534,22 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
+                let isPastDueAndUnfinished = false;
+                if (!isSelesai) {
+                    task.ranges?.forEach((r: any) => {
+                        if (!r.start || !r.end) return;
+                        const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
+                        if (day > e) {
+                            isPastDueAndUnfinished = true;
+                        }
+                    });
+                }
+
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
-                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya.
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan) return false;
+                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
+                // sudah lewat batas waktu (akhir schedule) tapi belum diselesaikan
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !isPastDueAndUnfinished) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
@@ -4007,6 +4041,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     <Button onClick={() => onSuccess({ openOpname: true })} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2 h-auto text-sm shadow-md transition-transform hover:scale-105">
                                         Lanjut ke Form Opname &rarr;
                                     </Button>
+                                </div>
+                            ) : missingInOtherScopes ? (
+                                <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                                    <Info className="w-12 h-12 mb-3 text-amber-500" />
+                                    <p className="font-medium text-slate-600">Terdapat item pengawasan yang belum selesai pada lingkup pekerjaan lain.</p>
+                                    <p className="text-sm mt-1">Silakan ubah lingkup pekerjaan di kiri atas untuk melihat dan mengisi item tersebut.</p>
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
