@@ -585,7 +585,8 @@ export default function UnifiedSupervisionGantt({
         const today = new Date();
         const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-        timeline.dates.forEach((date) => {
+        timeline.dates.forEach((date, index) => {
+            const dayIndex = index + 1; // 1-based day index used in Gantt bars
             const fullDate = formatFullDate(date);
             const checkpoint = checkpointByDate.get(fullDate);
             if (!checkpoint) return;
@@ -616,39 +617,54 @@ export default function UnifiedSupervisionGantt({
             if (isPast) {
                 if (activeScopes.length > 0) {
                     // Hanya perhitungkan scope yang memang memiliki pekerjaan pada tanggal ini
-                    const scopesWithItems = activeScopes.filter(entry =>
-                        Number(entry.checkpoint?.total_items || 0) > 0
-                    );
+                    const scopesWithExpectedWork = activeScopes.filter(entry => {
+                        const scopeDetail = details.find(d => d.id_toko === entry.id_toko);
+                        if (!scopeDetail) return false;
+                        
+                        return scopeDetail.rows.some(row => 
+                            row.bars.some(bar => {
+                                const start = Math.max(1, bar.start);
+                                const end = bar.end + Math.max(0, bar.delay);
+                                return dayIndex >= start && dayIndex <= end;
+                            })
+                        );
+                    });
 
-                    if (scopesWithItems.length === 0) {
-                        // Jika tidak ada data pekerjaan sama sekali di tanggal ini, tampilkan biru/normal
-                        map.set(fullDate, "normal");
+                    if (scopesWithExpectedWork.length === 0) {
+                        // Jika tidak ada data pekerjaan sama sekali di tanggal ini (tidak hit sipil/me)
+                        // maka langsung hijau
+                        map.set(fullDate, "filled");
                         return;
                     }
 
-                    // Logic per-scope: cek apakah SEMUA scope AKTIF (yang ada items) sudah selesai pengawasan DAN opname
-                    const allScopesPengawasanDone = scopesWithItems.every(entry =>
-                        Number(entry.checkpoint?.total_items || 0) > 0
+                    // Logic per-scope: cek apakah ada scope yang belum diisi sama sekali
+                    const anyScopeMissingPengawasan = scopesWithExpectedWork.some(entry =>
+                        Number(entry.checkpoint?.total_items || 0) === 0
                     );
-                    const allScopesOpnameDone = scopesWithItems.every(entry =>
+
+                    if (anyScopeMissingPengawasan) {
+                        // Jika ada scope yang punya pekerjaan tapi belum isi sama sekali padahal sudah lewat
+                        map.set(fullDate, "needsInput");
+                        return;
+                    }
+
+                    const allScopesOpnameDone = scopesWithExpectedWork.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
                     
-                    const anyScopeMissingOpname = scopesWithItems.some(entry =>
+                    const anyScopeMissingOpname = scopesWithExpectedWork.some(entry =>
                         Number(entry.checkpoint?.selesai_items || 0) > 0 &&
                         Number(entry.checkpoint?.opname_items || 0) === 0
                     );
 
                     if (anyScopeMissingOpname) {
-                        // Pengawasan ada tapi ada scope yang belum opname → merah
+                        // Pengawasan ada (status selesai) tapi ada scope yang belum opname → merah
                         map.set(fullDate, "needsInput");
                     } else if (allScopesOpnameDone) {
                         // Semua scope sudah opname → hijau
                         map.set(fullDate, "filled");
-                    } else if (allScopesPengawasanDone) {
-                        // Semua pengawasan done tapi tidak semua opname → merah (masih perlu opname)
-                        map.set(fullDate, "needsInput");
                     } else {
+                        // Sudah isi pengawasan (mungkin baru progress) → biru
                         map.set(fullDate, "normal");
                     }
                 } else {
