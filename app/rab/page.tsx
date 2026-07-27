@@ -1183,7 +1183,12 @@ function RABPageContent() {
             const errMsg: string = err.message || '';
             // Reset mode revisi jika RAB revisi sudah tidak dalam status rejected
             // (bisa terjadi jika RAB di-approve/diproses pihak lain saat user sedang mengisi form)
-            if (errMsg.includes('bukan status ditolak') || errMsg.includes('tidak ditemukan') || errMsg.includes('sudah ada')) {
+            if (
+                errMsg.includes('bukan status ditolak') ||
+                errMsg.includes('tidak dalam status reject') ||
+                errMsg.includes('sudah dalam proses approval') ||
+                errMsg.includes('tidak ditemukan')
+            ) {
                 setCurrentRabId(null);
                 setRevisionItemNotes({});
                 setRevisionItemOriginals({});
