@@ -162,6 +162,7 @@ type CheckpointScopeSummary = {
     filledItems: number;
     missingItems: number;
     hasCheckpointData: boolean;
+    coveredByLaterCheckpoint: boolean;
 };
 
 function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
@@ -600,9 +601,25 @@ export default function UnifiedSupervisionGantt({
         }, 0);
     };
 
+    const scopeHasFilledCheckpointOnOrAfter = (scopeId: number, fullDate: string) => {
+        const date = parseDate(fullDate);
+        if (!date) return false;
+
+        const scope = workspace.scopes.find((item) => Number(item.id_toko) === Number(scopeId));
+        return Boolean(scope?.checkpoints?.some((checkpoint) => {
+            const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
+            return Boolean(
+                checkpointDate &&
+                checkpointDate >= date &&
+                Number(checkpoint.total_items || 0) > 0
+            );
+        }));
+    };
+
     const summarizeCheckpointScopes = (
         checkpoint: UnifiedSupervisionCheckpoint | undefined,
-        absoluteDay: number
+        absoluteDay: number,
+        fullDate: string
     ): CheckpointScopeSummary[] => {
         if (!checkpoint) return [];
 
@@ -613,14 +630,18 @@ export default function UnifiedSupervisionGantt({
                 const expectedItems = getExpectedItemCountForScope(Number(entry.id_toko), absoluteDay);
                 const filledItems = Number(entry.checkpoint?.total_items || 0);
                 const hasCheckpointData = filledItems > 0;
-                const missingItems = Math.max(0, expectedItems - filledItems);
+                const coveredByLaterCheckpoint = !hasCheckpointData &&
+                    expectedItems > 0 &&
+                    scopeHasFilledCheckpointOnOrAfter(Number(entry.id_toko), fullDate);
+                const missingItems = coveredByLaterCheckpoint ? 0 : Math.max(0, expectedItems - filledItems);
 
                 return {
                     scopeName,
                     expectedItems,
                     filledItems,
-                    missingItems: expectedItems > 0 && !hasCheckpointData ? expectedItems : missingItems,
+                    missingItems,
                     hasCheckpointData,
+                    coveredByLaterCheckpoint,
                 };
             })
             .filter((summary) => summary.expectedItems > 0 || summary.hasCheckpointData);
@@ -632,10 +653,14 @@ export default function UnifiedSupervisionGantt({
         absoluteDay: number
     ) => {
         const parts: string[] = [fullDate];
-        const summaries = summarizeCheckpointScopes(checkpoint, absoluteDay);
+        const summaries = summarizeCheckpointScopes(checkpoint, absoluteDay, fullDate);
 
         if (summaries.length > 0) {
             summaries.forEach((summary) => {
+                if (summary.coveredByLaterCheckpoint) {
+                    parts.push(`${summary.scopeName}: sudah diisi di checkpoint berikutnya`);
+                    return;
+                }
                 if (!summary.hasCheckpointData && summary.expectedItems > 0) {
                     parts.push(`${summary.scopeName}: ${summary.expectedItems} item belum diisi`);
                     return;
@@ -779,13 +804,13 @@ export default function UnifiedSupervisionGantt({
         if (parsedDate && parsedDate.getTime() === todayStart.getTime()) return "todayCheckpoint";
         if (!parsedDate || parsedDate > todayStart) return "normal";
 
-        const summaries = summarizeCheckpointScopes(checkpoint, absoluteDay);
+        const summaries = summarizeCheckpointScopes(checkpoint, absoluteDay, fullDate);
         if (summaries.length === 0) {
             return Number(checkpoint.total_items || 0) > 0 ? "filled" : "normal";
         }
 
         const hasMissingInput = summaries.some((summary) =>
-            summary.expectedItems > 0 && !summary.hasCheckpointData
+            summary.expectedItems > 0 && !summary.hasCheckpointData && !summary.coveredByLaterCheckpoint
         );
         return hasMissingInput ? "needsInput" : "filled";
     };
