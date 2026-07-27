@@ -29,6 +29,7 @@ import {
     fetchOpnameFinalList, fetchOpnameFinalDetail, approveOpnameFinal, downloadOpnameFinalPdf,
     sendEmailNotification,
     fetchProjekPlanningList,
+    downloadSerahTerimaPdf,
     type ProjekPlanningItem,
 } from '@/lib/api';
 import {
@@ -39,6 +40,15 @@ import {
     fetchDendaActions, approveDendaAction, rejectDendaAction,
     type DendaAction,
 } from '@/lib/denda-actions-api';
+import {
+    downloadRequestIntervensiPdf,
+    downloadRequestIntervensiLampiran,
+    fetchRequestIntervensiDetail,
+    fetchRequestIntervensiList,
+    processRequestIntervensiApproval,
+    REQUEST_INTERVENSI_LABELS,
+    type RequestIntervensi,
+} from '@/lib/request-intervensi-api';
 
 import { parseCurrency } from '@/lib/utils';
 import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
@@ -62,7 +72,7 @@ import {
 // =============================================
 // TYPES INTERNAL
 // =============================================
-type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'SURAT_PERINGATAN';
+type ApprovalType = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'SURAT_PERINGATAN' | 'INTERVENSI';
 type ActiveView = 'menu' | 'list' | 'detail';
 type RabBeanspotType = '' | 'TIDAK' | 'ADVANCE' | 'MEDIUM' | 'RTD_ONLY';
 type YesNoValue = '' | 'YA' | 'TIDAK';
@@ -277,6 +287,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     INSTRUKSI_LAPANGAN: ['BRANCH BUILDING COORDINATOR', 'BRANCH BUILDING & MAINTENANCE MANAGER', 'COORDINATOR', 'MANAGER'],
     PROJECT_PLANNING: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'BUILDING & MAINTENANCE REGIONAL MANAGER', 'PROJECT PLANNING & DEVELOPMENT SPECIALIST', 'PROJECT PLANNING & DEVELOPMENT MANAGER'],
     SURAT_PERINGATAN: ['BRANCH BUILDING & MAINTENANCE MANAGER'],
+    INTERVENSI: ['BRANCH BUILDING & MAINTENANCE MANAGER', 'STORE & BRANCH CONTROLLING SPECIALIST', 'BUILDING & MAINTENANCE REGIONAL MANAGER', 'MANAGER'],
 };
 
 type ApprovalJabatan = 'KOORDINATOR' | 'MANAGER' | 'DIREKTUR' | 'DIREKTUR_KONTRAKTOR' | 'KONTRAKTOR';
@@ -469,6 +480,15 @@ const APPROVAL_CONFIG: Record<ApprovalType, {
         description: 'Surat Peringatan yang menunggu persetujuan manager.',
         emptyMsg: 'Tidak ada Surat Peringatan yang menunggu persetujuan.',
     },
+    INTERVENSI: {
+        label: 'Approval Intervensi',
+        icon: <AlertTriangle className="w-10 h-10" />,
+        color: 'text-red-700',
+        hoverBorder: 'hover:border-red-500',
+        badgeColor: 'bg-red-100 text-red-700 border-red-200',
+        description: 'Request intervensi dokumen yang menunggu persetujuan.',
+        emptyMsg: 'Tidak ada request intervensi yang menunggu persetujuan.',
+    },
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
@@ -509,6 +529,11 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     WAITING_RAB_UPLOAD:                 'bg-orange-100 text-orange-700 border-orange-200',
     WAITING_BM_APPROVAL_2:              'bg-yellow-100 text-yellow-700 border-yellow-200',
     WAITING_BM_REGIONAL_APPROVAL:       'bg-sky-100 text-sky-700 border-sky-200',
+    WAITING_SBCS_APPROVAL:              'bg-orange-100 text-orange-700 border-orange-200',
+    WAITING_REGIONAL_MANAGER_APPROVAL:  'bg-sky-100 text-sky-700 border-sky-200',
+    REVISION_REQUESTED:                 'bg-amber-100 text-amber-700 border-amber-200',
+    FINAL_REJECTED:                     'bg-red-100 text-red-700 border-red-200',
+    EXECUTED:                           'bg-green-100 text-green-700 border-green-200',
     WAITING_PP_APPROVAL_2:              'bg-yellow-100 text-yellow-700 border-yellow-200',
     WAITING_PP_MANAGER_APPROVAL:        'bg-yellow-100 text-yellow-700 border-yellow-200',
     COMPLETED:                          'bg-green-100 text-green-700 border-green-200',
@@ -553,6 +578,11 @@ const STATUS_LABEL: Record<string, string> = {
     WAITING_RAB_UPLOAD:                 'Input Tahap 2',
     WAITING_BM_APPROVAL_2:              'Pending B&M (2)',
     WAITING_BM_REGIONAL_APPROVAL:       'Pending B&M Regional',
+    WAITING_SBCS_APPROVAL:              'Pending SBCS',
+    WAITING_REGIONAL_MANAGER_APPROVAL:  'Pending Regional',
+    REVISION_REQUESTED:                 'Revisi',
+    FINAL_REJECTED:                     'Ditolak Final',
+    EXECUTED:                           'Selesai',
     WAITING_PP_APPROVAL_2:              'Pending PP (2)',
     WAITING_PP_MANAGER_APPROVAL:        'Pending PP Mgr',
     COMPLETED:                          'Selesai',
@@ -659,6 +689,21 @@ const normalizeProjekPlanningList = (items: ProjekPlanningItem[]): NormalizedLis
         _raw: p,
     }));
 
+const normalizeIntervensiList = (items: RequestIntervensi[]): NormalizedListItem[] =>
+    items.map(r => ({
+        id: r.id,
+        id_toko: r.id_toko ?? undefined,
+        tipe: 'INTERVENSI' as ApprovalType,
+        nomor_ulok: r.nomor_ulok || '-',
+        nama_toko: r.nama_toko || REQUEST_INTERVENSI_LABELS[r.jenis_intervensi] || 'Request Intervensi',
+        cabang: r.cabang || '-',
+        status: r.status_request,
+        total_nilai: 0,
+        email_pembuat: r.submitted_by,
+        created_at: r.created_at,
+        _raw: r,
+    }));
+
 // =============================================
 // SUB-COMPONENTS
 // =============================================
@@ -726,6 +771,7 @@ function ApprovalPageContent() {
     const [processingId, setProcessingId]     = useState<number | string | null>(null);
     const [rejectModal, setRejectModal]       = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [rejectNote, setRejectNote]         = useState('');
+    const [rejectDisposition, setRejectDisposition] = useState<'REVISION' | 'FINAL'>('REVISION');
     const [rejectRabRevisionItems, setRejectRabRevisionItems] = useState<Array<{ id: number | null; note: string }>>([]);
     const [approveModal, setApproveModal]     = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [approveNote, setApproveNote]       = useState('');
@@ -777,6 +823,7 @@ function ApprovalPageContent() {
             allAccessibleTypes.add('INSTRUKSI_LAPANGAN');
             allAccessibleTypes.add('PROJECT_PLANNING');
             allAccessibleTypes.add('SURAT_PERINGATAN');
+            allAccessibleTypes.add('INTERVENSI');
         } else if (isProjectPlanningApprovalRole && isHO) {
             allAccessibleTypes.add('PROJECT_PLANNING');
         } else if (isDirectorHO) {
@@ -791,6 +838,16 @@ function ApprovalPageContent() {
                         allAccessibleTypes.add(type);
                     }
                 });
+                if (
+                    r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
+                    r.includes('B&M MANAGER') ||
+                    r.includes('STORE & BRANCH CONTROLLING') ||
+                    r.includes('BUILDING & MAINTENANCE REGIONAL MANAGER') ||
+                    r.includes('B&M REGIONAL') ||
+                    r.includes('REGIONAL MANAGER')
+                ) {
+                    allAccessibleTypes.add('INTERVENSI');
+                }
             });
         }
         if (isHO && approvalRoles.some(r => ROLE_ACCESS.PROJECT_PLANNING.some(allowedRole => allowedRole.toUpperCase() === r))) {
@@ -1066,6 +1123,9 @@ function ApprovalPageContent() {
                         created_at: action.created_at,
                         _raw: action,
                     }));
+            } else if (type === 'INTERVENSI') {
+                const res = await fetchRequestIntervensiList();
+                normalized = normalizeIntervensiList(res.data ?? []);
             }
 
             // Filter Berdasarkan Role & Jabatan & Cabang
@@ -1113,6 +1173,30 @@ function ApprovalPageContent() {
 
                     if (!statusMatchesRole) return false;
                     return branchAllowed;
+                }
+
+                if (type === 'INTERVENSI') {
+                    if (!branchAllowed && !canApproveAll) return false;
+
+                    const isBmManager = userRoles.some(r =>
+                        r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
+                        r.includes('B&M MANAGER') ||
+                        r === 'MANAGER'
+                    );
+                    const isSbcs = userRoles.some(r => r.includes('STORE & BRANCH CONTROLLING'));
+                    const isRegionalManager = userRoles.some(r =>
+                        r.includes('BUILDING & MAINTENANCE REGIONAL MANAGER') ||
+                        r.includes('B&M REGIONAL') ||
+                        r.includes('REGIONAL MANAGER')
+                    );
+
+                    if (isSuperHumanUser) {
+                        return ['WAITING_BM_APPROVAL', 'WAITING_SBCS_APPROVAL', 'WAITING_REGIONAL_MANAGER_APPROVAL'].includes(upper);
+                    }
+
+                    return (isBmManager && upper === 'WAITING_BM_APPROVAL')
+                        || (isSbcs && upper === 'WAITING_SBCS_APPROVAL')
+                        || (isRegionalManager && upper === 'WAITING_REGIONAL_MANAGER_APPROVAL');
                 }
 
                 if (!canApproveAll && jabatan !== 'DIREKTUR' && jabatan !== 'DIREKTUR_KONTRAKTOR' && !branchAllowed) {
@@ -1214,7 +1298,28 @@ function ApprovalPageContent() {
         try {
             let detail: NormalizedDetail | null = null;
 
-            if (item.tipe === 'RAB') {
+            if (item.tipe === 'INTERVENSI') {
+                const res = await fetchRequestIntervensiDetail(item.id);
+                const r = res.data.request;
+                detail = {
+                    id: r.id,
+                    tipe: 'INTERVENSI',
+                    nomor_ulok: r.nomor_ulok || '-',
+                    id_toko: r.id_toko ?? undefined,
+                    nama_toko: r.nama_toko || REQUEST_INTERVENSI_LABELS[r.jenis_intervensi] || '-',
+                    cabang: r.cabang || '-',
+                    lingkup_pekerjaan: r.lingkup_pekerjaan || undefined,
+                    status: r.status_request,
+                    total_nilai: 0,
+                    email_pembuat: r.submitted_by,
+                    created_at: r.created_at,
+                    alasan_penolakan: r.rejection_reason,
+                    link_pdf_gabungan: r.link_pdf_ba,
+                    link_lampiran_pendukung: r.link_lampiran,
+                    items: [],
+                    _raw: { ...r, logs: res.data.logs },
+                };
+            } else if (item.tipe === 'RAB') {
                 const res = await fetchRABDetail(item.id);
                 const d = res.data;
                 detail = {
@@ -1663,6 +1768,12 @@ function ApprovalPageContent() {
                 });
             } else if (item.tipe === 'SURAT_PERINGATAN') {
                 await approveDendaAction(item.id);
+            } else if (item.tipe === 'INTERVENSI') {
+                await processRequestIntervensiApproval(item.id as number, {
+                    approver_email: userInfo.email,
+                    tindakan: 'APPROVE',
+                    catatan_approval: catatanApproval ?? undefined,
+                });
             }
             // Hapus item dari list karena sudah bukan giliran role ini lagi
             setListData(prev => prev.filter(d => d.id !== item.id));
@@ -1684,6 +1795,7 @@ function ApprovalPageContent() {
     // ==========================================
     const openRejectModal = (item: NormalizedListItem | NormalizedDetail) => {
         setRejectNote('');
+        setRejectDisposition('REVISION');
         setRejectRabRevisionItems([]);
         setRejectModal(item);
     };
@@ -1769,6 +1881,14 @@ function ApprovalPageContent() {
                 });
             } else if (item.tipe === 'SURAT_PERINGATAN') {
                 await rejectDendaAction(item.id, rejectNote);
+            } else if (item.tipe === 'INTERVENSI') {
+                await processRequestIntervensiApproval(item.id as number, {
+                    approver_email: userInfo.email,
+                    tindakan: 'REJECT',
+                    alasan_penolakan: rejectNote,
+                    catatan_approval: rejectNote,
+                    reject_disposition: rejectDisposition,
+                });
             }
             // API succeeded — now dismiss modal and clean up
             setRejectModal(null);
@@ -1804,10 +1924,35 @@ function ApprovalPageContent() {
                 await downloadOpnameFinalPdf(id);
             } else if (type === 'INSTRUKSI_LAPANGAN') {
                 await downloadInstruksiLapanganPdf(id);
+            } else if (type === 'INTERVENSI') {
+                await downloadRequestIntervensiPdf(id);
             }
             showToast('PDF berhasil dibuka.', 'success');
         } catch (err: any) {
             showToast(err.message || 'Gagal mengunduh PDF.', 'error');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleDownloadIntervensiSource = async (detail: NormalizedDetail) => {
+        const raw = detail._raw as RequestIntervensi | undefined;
+        if (!raw?.dokumen_sumber_id) {
+            showToast('Dokumen sumber belum tersedia untuk diunduh.', 'error');
+            return;
+        }
+        setProcessingId(`source-${detail.id}`);
+        try {
+            const sourceId = Number(raw.dokumen_sumber_id);
+            if (raw?.jenis_intervensi === 'RAB') await downloadRABPdf(sourceId);
+            else if (raw?.jenis_intervensi === 'INSTRUKSI_LAPANGAN') await downloadInstruksiLapanganPdf(sourceId);
+            else if (raw?.jenis_intervensi === 'SPK') await downloadSPKPdf(sourceId);
+            else if (raw?.jenis_intervensi === 'PERTAMBAHAN_SPK') await downloadPertambahanSPKPdf(sourceId);
+            else if (raw?.jenis_intervensi === 'KTK') await downloadOpnameFinalPdf(sourceId);
+            else if (raw?.jenis_intervensi === 'SERAH_TERIMA') await downloadSerahTerimaPdf(sourceId);
+            showToast('Dokumen sumber berhasil diunduh.', 'success');
+        } catch (err: any) {
+            showToast(err.message || 'Gagal mengunduh dokumen sumber.', 'error');
         } finally {
             setProcessingId(null);
         }
@@ -1924,6 +2069,31 @@ function ApprovalPageContent() {
         }
 
         // OPNAME (Final) — multi-level mirip RAB tapi status dalam Bahasa Indonesia
+        if (tipe === 'INTERVENSI') {
+            const userRoles = userInfo.role
+                .split(',')
+                .map(r => r.trim().toUpperCase())
+                .filter(Boolean);
+            if (isSuperHumanUser) {
+                return ['WAITING_BM_APPROVAL', 'WAITING_SBCS_APPROVAL', 'WAITING_REGIONAL_MANAGER_APPROVAL'].includes(upper);
+            }
+            const isBmManager = userRoles.some(r =>
+                r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
+                r.includes('B&M MANAGER') ||
+                r === 'MANAGER'
+            );
+            const isSbcs = userRoles.some(r => r.includes('STORE & BRANCH CONTROLLING'));
+            const isRegionalManager = userRoles.some(r =>
+                r.includes('BUILDING & MAINTENANCE REGIONAL MANAGER') ||
+                r.includes('B&M REGIONAL') ||
+                r.includes('REGIONAL MANAGER')
+            );
+
+            return (isBmManager && upper === 'WAITING_BM_APPROVAL')
+                || (isSbcs && upper === 'WAITING_SBCS_APPROVAL')
+                || (isRegionalManager && upper === 'WAITING_REGIONAL_MANAGER_APPROVAL');
+        }
+
         if (tipe === 'OPNAME') {
             if (!isPendingApprovalStatus(upper) && !upper.includes('MENUNGGU')) return false;
             return matchesApprovalStage(jabatan, upper);
@@ -2159,6 +2329,24 @@ function ApprovalPageContent() {
                             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                 Alasan penolakan wajib diisi dan akan dikirim ke pengaju sebagai arahan revisi.
                             </div>
+                            {rejectModal.tipe === 'INTERVENSI' && (
+                                <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                                    <button
+                                        type="button"
+                                        className={`rounded-lg px-3 py-2 text-xs font-bold transition ${rejectDisposition === 'REVISION' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                        onClick={() => setRejectDisposition('REVISION')}
+                                    >
+                                        Revisi
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`rounded-lg px-3 py-2 text-xs font-bold transition ${rejectDisposition === 'FINAL' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                                        onClick={() => setRejectDisposition('FINAL')}
+                                    >
+                                        Tolak Final
+                                    </button>
+                                </div>
+                            )}
                             <textarea
                                 className="w-full border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
                                 rows={4}
@@ -2518,6 +2706,34 @@ function ApprovalPageContent() {
                                         {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download Instruksi Lapangan'}
                                     </Button>
                                 )}
+                                {selectedDetail?.tipe === 'INTERVENSI' && selectedDetail.link_pdf_gabungan && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-red-600 text-red-700 hover:bg-red-50 font-bold"
+                                        disabled={processingId === `pdf-${selectedDetail.id}`}
+                                        onClick={() => handleDownloadPDF(selectedDetail.id as number, 'INTERVENSI')}
+                                    >
+                                        {processingId === `pdf-${selectedDetail.id}`
+                                            ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            : <FileDown className="w-4 h-4 mr-2" />
+                                        }
+                                        {processingId === `pdf-${selectedDetail.id}` ? 'Menyiapkan PDF...' : 'Download BA Intervensi'}
+                                    </Button>
+                                )}
+                                {selectedDetail?.tipe === 'INTERVENSI' && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-slate-300 text-slate-700 hover:bg-slate-50 font-bold"
+                                        disabled={processingId === `source-${selectedDetail.id}`}
+                                        onClick={() => handleDownloadIntervensiSource(selectedDetail)}
+                                    >
+                                        {processingId === `source-${selectedDetail.id}`
+                                            ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            : <FileDown className="w-4 h-4 mr-2" />
+                                        }
+                                        Unduh Dokumen
+                                    </Button>
+                                )}
                                 {selectedDetail?.tipe === 'SURAT_PERINGATAN' && selectedDetail.link_pdf_gabungan && (
                                     <a
                                         href={selectedDetail.link_pdf_gabungan}
@@ -2647,6 +2863,14 @@ function ApprovalPageContent() {
                                                             Durasi Denda: {selectedDetail.hari_denda ?? 0} hari
                                                         </p>
                                                     </>
+                                                ) : selectedDetail.tipe === 'INTERVENSI' ? (
+                                                    <>
+                                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Request</p>
+                                                        <p className="text-2xl font-extrabold text-red-700">Intervensi</p>
+                                                        <p className="text-xs font-semibold text-slate-500 mt-1">
+                                                            {REQUEST_INTERVENSI_LABELS[selectedDetail._raw?.jenis_intervensi as keyof typeof REQUEST_INTERVENSI_LABELS] || '-'}
+                                                        </p>
+                                                    </>
                                                 ) : selectedDetail.tipe !== 'PROJECT_PLANNING' ? (
                                                     <>
                                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Nilai</p>
@@ -2704,6 +2928,55 @@ function ApprovalPageContent() {
                                                     </p>
                                                 </div>
                                             </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {selectedDetail.tipe === 'INTERVENSI' && (
+                                    <Card className="mb-6 shadow-sm border-red-200 bg-white">
+                                        <CardContent className="p-6">
+                                            <h3 className="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                                                Detail Request Intervensi
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Jenis Intervensi</p>
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {REQUEST_INTERVENSI_LABELS[selectedDetail._raw?.jenis_intervensi as keyof typeof REQUEST_INTERVENSI_LABELS] || '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai Saat Ini</p>
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {selectedDetail._raw?.tanggal_sebelum || selectedDetail._raw?.status_sumber_sebelum || '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tujuan</p>
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {selectedDetail._raw?.target_tanggal || selectedDetail._raw?.target_status || '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor Request</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail._raw?.nomor_request || '-'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Alasan</p>
+                                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedDetail._raw?.alasan || '-'}</p>
+                                            </div>
+                                            {selectedDetail.link_lampiran_pendukung && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => downloadRequestIntervensiLampiran(Number(selectedDetail.id)).catch((error) => showToast(error.message || 'Gagal mengunduh lampiran.', 'error'))}
+                                                    className="mt-4 inline-flex items-center text-sm font-bold text-red-700 hover:text-red-800"
+                                                >
+                                                    <FileDown className="w-4 h-4 mr-2" />
+                                                    Lampiran Pendukung
+                                                </button>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 )}

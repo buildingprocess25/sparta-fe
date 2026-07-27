@@ -34,6 +34,14 @@ import {
     type ProjekPlanningItem,
 } from '@/lib/api';
 import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
+import {
+    downloadRequestIntervensiLampiran,
+    downloadRequestIntervensiPdf,
+    fetchRequestIntervensiDetail,
+    fetchRequestIntervensiList,
+    REQUEST_INTERVENSI_LABELS,
+    type RequestIntervensi,
+} from '@/lib/request-intervensi-api';
 import { parseCurrency, formatRupiah } from '@/lib/utils';
 import { calculateEffectiveStDate, toIsoDate } from '@/lib/gantt-calculator';
 import {
@@ -55,7 +63,7 @@ import {
 // =============================================================================
 // TYPES
 // =============================================================================
-type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN' | 'SURAT_PERINGATAN';
+type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FINAL' | 'PENGAWASAN' | 'BERKAS_SERAH_TERIMA' | 'INSTRUKSI_LAPANGAN' | 'PROJECT_PLANNING' | 'DOKUMENTASI_BANGUNAN' | 'SURAT_PERINGATAN' | 'INTERVENSI';
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
@@ -115,6 +123,7 @@ interface NormalizedDoc {
     nomor_spk_st?: string | null;
     serah_terima_scopes?: any[];
     rawDendaAction?: any;
+    rawRequestIntervensi?: RequestIntervensi;
 }
 
 interface PengawasanDocGroup {
@@ -283,6 +292,7 @@ interface NormalizedDetail {
     activity_logs?: ActivityLog[];
     // Surat Peringatan specific
     rawDendaAction?: DendaAction;
+    rawRequestIntervensi?: RequestIntervensi & { logs?: any[] };
 }
 
 const buildStTargetDisplay = (endDate?: string | null) => {
@@ -436,6 +446,17 @@ const KATEGORI_CONFIG: Record<DokumenKategori, {
         badgeColor: 'bg-red-100 text-red-700 border-red-200',
         description: 'Daftar dokumen Surat Peringatan & Takeover.',
     },
+    INTERVENSI: {
+        label: 'Intervensi',
+        fullLabel: 'Intervensi',
+        icon: <AlertTriangle className="w-10 h-10" />,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-200',
+        hoverBorder: 'hover:border-red-400',
+        badgeColor: 'bg-red-100 text-red-700 border-red-200',
+        description: 'Daftar BA dan request intervensi dokumen.',
+    },
     PROJECT_PLANNING: {
         label: 'Project Planning',
         fullLabel: 'Project Planning',
@@ -495,6 +516,11 @@ const STATUS_BADGE: Record<string, string> = {
     'WAITING_PP_APPROVAL_1':             'bg-blue-100 text-blue-700 border-blue-200',
     'PP_DESIGN_3D_REQUIRED':             'bg-purple-100 text-purple-700 border-purple-200',
     'WAITING_RAB_UPLOAD':                'bg-orange-100 text-orange-700 border-orange-200',
+    'WAITING_SBCS_APPROVAL':             'bg-orange-100 text-orange-700 border-orange-200',
+    'WAITING_REGIONAL_MANAGER_APPROVAL': 'bg-sky-100 text-sky-700 border-sky-200',
+    'REVISION_REQUESTED':                'bg-amber-100 text-amber-700 border-amber-200',
+    'FINAL_REJECTED':                    'bg-red-100 text-red-700 border-red-200',
+    'EXECUTED':                          'bg-green-100 text-green-700 border-green-200',
     'WAITING_PP_APPROVAL_2':             'bg-cyan-100 text-cyan-700 border-cyan-200',
     'WAITING_PP_MANAGER_APPROVAL':       'bg-indigo-100 text-indigo-700 border-indigo-200',
     'COMPLETED':                         'bg-green-100 text-green-700 border-green-200',
@@ -579,6 +605,11 @@ const getStatusLabel = (status: string) => {
     if (upper === 'WAITING_PP_APPROVAL_1') return 'Pending PP (1)';
     if (upper === 'PP_DESIGN_3D_REQUIRED') return 'Design 3D';
     if (upper === 'WAITING_RAB_UPLOAD') return 'Upload RAB';
+    if (upper === 'WAITING_SBCS_APPROVAL') return 'Pending SBCS';
+    if (upper === 'WAITING_REGIONAL_MANAGER_APPROVAL') return 'Pending Regional';
+    if (upper === 'REVISION_REQUESTED') return 'Revisi';
+    if (upper === 'FINAL_REJECTED') return 'Ditolak Final';
+    if (upper === 'EXECUTED') return 'Selesai';
     if (upper === 'WAITING_PP_MANAGER_APPROVAL') return 'Pending PP Mgr';
     if (upper === 'WAITING_PP_APPROVAL_2') return 'Pending PP (2)';
     if (upper === 'COMPLETED') return 'Selesai';
@@ -1211,6 +1242,23 @@ const normalizeDokumentasiBangunanDocs = (items: any[]): NormalizedDoc[] =>
         link_pdf:        d.link_pdf ?? null,
     }));
 
+const normalizeIntervensiDocs = (items: RequestIntervensi[]): NormalizedDoc[] =>
+    items.map(r => ({
+        id: r.id,
+        tipe: 'INTERVENSI' as DokumenKategori,
+        nomor_ulok: r.nomor_ulok || '-',
+        nama_toko: r.nama_toko || REQUEST_INTERVENSI_LABELS[r.jenis_intervensi] || '-',
+        cabang: r.cabang || '-',
+        proyek: r.proyek || REQUEST_INTERVENSI_LABELS[r.jenis_intervensi] || '-',
+        status: r.status_request,
+        email_pembuat: r.submitted_by,
+        total_nilai: 0,
+        created_at: r.created_at,
+        link_pdf: r.link_pdf_ba ?? null,
+        lingkup_pekerjaan: r.lingkup_pekerjaan || undefined,
+        rawRequestIntervensi: r,
+    }));
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -1575,9 +1623,12 @@ export default function DaftarDokumenPage() {
             } else if (kategori === 'DOKUMENTASI_BANGUNAN') {
                 const res = await fetchDokumentasiBangunanList();
                 docs = normalizeDokumentasiBangunanDocs(res.data ?? []);
+            } else if (kategori === 'INTERVENSI') {
+                const res = await fetchRequestIntervensiList();
+                docs = normalizeIntervensiDocs(res.data ?? []);
             }
 
-            if (docs.length > 0 && kategori !== 'PROJECT_PLANNING' && kategori !== 'PENGAWASAN') {
+            if (docs.length > 0 && kategori !== 'PROJECT_PLANNING' && kategori !== 'PENGAWASAN' && kategori !== 'INTERVENSI') {
                 try {
                     const projekContext = await fetchProjekPlanningList();
                     docs = applyProjectPlanningContext(docs, projekContext.data ?? []);
@@ -1640,7 +1691,28 @@ export default function DaftarDokumenPage() {
         try {
             let detail: NormalizedDetail | null = null;
 
-            if (doc.tipe === 'RAB') {
+            if (doc.tipe === 'INTERVENSI') {
+                const res = await fetchRequestIntervensiDetail(doc.id);
+                const r = res.data.request;
+                detail = {
+                    id: r.id,
+                    tipe: 'INTERVENSI',
+                    id_toko: r.id_toko ?? undefined,
+                    nomor_ulok: r.nomor_ulok || '-',
+                    nama_toko: r.nama_toko || REQUEST_INTERVENSI_LABELS[r.jenis_intervensi] || '-',
+                    cabang: r.cabang || '-',
+                    proyek: r.proyek || REQUEST_INTERVENSI_LABELS[r.jenis_intervensi] || '-',
+                    lingkup_pekerjaan: r.lingkup_pekerjaan || undefined,
+                    status: r.status_request,
+                    email_pembuat: r.submitted_by,
+                    total_nilai: 0,
+                    created_at: r.created_at,
+                    link_pdf: r.link_pdf_ba,
+                    link_lampiran_pendukung: r.link_lampiran,
+                    alasan_penolakan: r.rejection_reason,
+                    rawRequestIntervensi: { ...r, logs: res.data.logs },
+                };
+            } else if (doc.tipe === 'RAB') {
                 const res = await fetchRABDetail(doc.id);
                 const d = res.data;
                 detail = {
@@ -2065,6 +2137,8 @@ export default function DaftarDokumenPage() {
                 await downloadSerahTerimaPdf(id);
             } else if (tipe === 'DOKUMENTASI_BANGUNAN') {
                 await downloadDokumentasiBangunanPdf(id);
+            } else if (tipe === 'INTERVENSI') {
+                await downloadRequestIntervensiPdf(id);
             } else if (tipe === 'SURAT_PERINGATAN') {
                 const spDetail = await fetchDendaActions({ action_type: "SP" });
                 const action = spDetail.data.find((a) => a.id === id);
@@ -2104,10 +2178,10 @@ export default function DaftarDokumenPage() {
                 detail.tipe === 'OPNAME_FINAL' ||
                 detail.tipe === 'INSTRUKSI_LAPANGAN' ||
                 detail.tipe === 'PROJECT_PLANNING' ||
-                detail.tipe === 'BERKAS_SERAH_TERIMA' ||
-                detail.tipe === 'DOKUMENTASI_BANGUNAN' ||
-                detail.tipe === 'PENGAWASAN' ||
-                detail.tipe === 'PERTAMBAHAN_SPK'
+                                            detail.tipe === 'BERKAS_SERAH_TERIMA' ||
+                                            detail.tipe === 'DOKUMENTASI_BANGUNAN' ||
+                                            detail.tipe === 'PENGAWASAN' ||
+                                            detail.tipe === 'PERTAMBAHAN_SPK'
             ) {
                 await viewGeneratedPdfOnline(detail.id, detail.tipe);
                 return;
@@ -3211,6 +3285,7 @@ export default function DaftarDokumenPage() {
                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'bg-linear-to-r from-teal-50 to-teal-100/50 border-b border-teal-100'
                                         : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-linear-to-r from-pink-50 to-pink-100/50 border-b border-pink-100'
                                         : selectedDetail.tipe === 'PROJECT_PLANNING' ? 'bg-linear-to-r from-cyan-50 to-cyan-100/50 border-b border-cyan-100'
+                                        : selectedDetail.tipe === 'INTERVENSI' ? 'bg-linear-to-r from-red-50 to-red-100/50 border-b border-red-100'
                                         : 'bg-linear-to-r from-purple-50 to-purple-100/50 border-b border-purple-100'
                                     }`}>
                                         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -3224,6 +3299,7 @@ export default function DaftarDokumenPage() {
                                                     : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'bg-teal-100'
                                                     : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'bg-pink-100'
                                                     : selectedDetail.tipe === 'PROJECT_PLANNING' ? 'bg-cyan-100'
+                                                    : selectedDetail.tipe === 'INTERVENSI' ? 'bg-red-100'
                                                     : 'bg-purple-100'
                                                 } flex items-center justify-center`}>
                                                     {selectedDetail.tipe === 'RAB'
@@ -3242,6 +3318,8 @@ export default function DaftarDokumenPage() {
                                                         ? <ClipboardList className="w-5 h-5 text-pink-600" />
                                                         : selectedDetail.tipe === 'PROJECT_PLANNING'
                                                         ? <ClipboardList className="w-5 h-5 text-cyan-600" />
+                                                        : selectedDetail.tipe === 'INTERVENSI'
+                                                        ? <AlertTriangle className="w-5 h-5 text-red-600" />
                                                         : <FileSignature className="w-5 h-5 text-purple-600" />
                                                     }
                                                 </div>
@@ -3256,6 +3334,7 @@ export default function DaftarDokumenPage() {
                                                         : selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ? 'Detail Serah Terima'
                                                         : selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ? 'Detail Instruksi Lapangan'
                                                         : selectedDetail.tipe === 'PROJECT_PLANNING' ? 'Detail Project Planning'
+                                                        : selectedDetail.tipe === 'INTERVENSI' ? 'Detail Intervensi'
                                                         : 'Detail Dokumen'}
                                                     </h3>
                                                     <p className="text-sm text-slate-500">ID: {selectedDetail.id}</p>
@@ -3332,6 +3411,18 @@ export default function DaftarDokumenPage() {
                                             )}
                                             {(selectedDetail.luas_area_terbangun || selectedDetail.luas_area_terbangun_pp) && (
                                                 <InfoRow icon={<Building2 className="w-4 h-4" />} label="Luas Area Terbangun" value={`${selectedDetail.luas_area_terbangun || selectedDetail.luas_area_terbangun_pp} m2`} />
+                                            )}
+
+                                            {selectedDetail.tipe === 'INTERVENSI' && selectedDetail.rawRequestIntervensi && (
+                                                <>
+                                                    <InfoRow icon={<FileText className="w-4 h-4" />} label="Jenis Intervensi" value={REQUEST_INTERVENSI_LABELS[selectedDetail.rawRequestIntervensi.jenis_intervensi] || '-'} />
+                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor Request" value={selectedDetail.rawRequestIntervensi.nomor_request} />
+                                                    <InfoRow icon={<Clock className="w-4 h-4" />} label="Nilai Saat Ini" value={selectedDetail.rawRequestIntervensi.tanggal_sebelum || selectedDetail.rawRequestIntervensi.status_sumber_sebelum || '-'} />
+                                                    <InfoRow icon={<CheckCircle className="w-4 h-4" />} label="Tujuan" value={selectedDetail.rawRequestIntervensi.target_tanggal || selectedDetail.rawRequestIntervensi.target_status || '-'} />
+                                                    <div className="col-span-1 sm:col-span-2">
+                                                        <InfoRow icon={<FileText className="w-4 h-4" />} label="Alasan" value={selectedDetail.rawRequestIntervensi.alasan || '-'} />
+                                                    </div>
+                                                </>
                                             )}
 
                                             {/* RAB-specific fields */}
@@ -3990,7 +4081,8 @@ export default function DaftarDokumenPage() {
                                             selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' ||
                                             (selectedDetail.tipe === 'PROJECT_PLANNING') ||
                                             selectedDetail.tipe === 'BERKAS_SERAH_TERIMA' ||
-                                            selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN'
+                                            selectedDetail.tipe === 'DOKUMENTASI_BANGUNAN' ||
+                                            selectedDetail.tipe === 'INTERVENSI'
                                         ) && (
                                             <Button
                                                 className="bg-red-600 hover:bg-red-700 text-white"
@@ -4103,6 +4195,16 @@ export default function DaftarDokumenPage() {
                                                     Unduh PDF
                                                 </Button>
                                             </div>
+                                        )}
+
+                                        {selectedDetail.tipe === 'INTERVENSI' && selectedDetail.link_lampiran_pendukung && (
+                                            <Button
+                                                variant="outline"
+                                                className="border-red-200 text-red-700 hover:bg-red-50"
+                                                onClick={() => downloadRequestIntervensiLampiran(selectedDetail.id).catch((error) => showToast(error.message || 'Gagal mengunduh lampiran.', 'error'))}
+                                            >
+                                                <FileDown className="w-4 h-4 mr-2" /> Lampiran Pendukung
+                                            </Button>
                                         )}
 
                                         {/* Pertambahan SPK Attachment */}

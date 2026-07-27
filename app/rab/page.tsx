@@ -735,15 +735,19 @@ function RABPageContent() {
 
           // Normalisasi Dropdown
           let finalProyek = tokoRef.proyek || data["Proyek"] || formData.proyek;
-          const upperProyek = finalProyek?.toUpperCase();
+          const upperProyek = finalProyek?.toUpperCase() || '';
           
-          if (isRenovasi) finalProyek = 'Renovasi';
-          else if (upperProyek === 'REGULER') finalProyek = 'Reguler';
-          else if (upperProyek === 'RENOVASI') finalProyek = 'Renovasi';
-          else if (upperProyek === 'PERPANJANGAN') { finalProyek = 'Perpanjangan'; isRenovasi = true; }
-          else if (upperProyek === 'TOKO TUTUP') { finalProyek = 'Toko Tutup'; isRenovasi = true; }
-          else if (upperProyek === 'PEREMAJAAN/PERBAIKAN' || upperProyek === 'PEREMAJAAN PERBAIKAN') { finalProyek = 'Peremajaan/Perbaikan'; isRenovasi = true; }
-          else if (upperProyek === 'PERLUASAN') { finalProyek = 'Perluasan'; isRenovasi = true; }
+          if (upperProyek.includes('PERLUASAN')) { finalProyek = 'Renovasi Perluasan'; isRenovasi = true; }
+          else if (upperProyek.includes('PERPANJANGAN')) { finalProyek = 'Renovasi Perpanjangan'; isRenovasi = true; }
+          else if (upperProyek.includes('TUTUP')) { finalProyek = 'Renovasi Toko Tutup'; isRenovasi = true; }
+          else if (upperProyek.includes('PEREMAJAAN') || upperProyek.includes('PERBAIKAN')) { finalProyek = 'Renovasi Peremajaan'; isRenovasi = true; }
+          else if (upperProyek === 'RENOVASI') { finalProyek = 'Renovasi'; isRenovasi = true; }
+          else if (upperProyek === 'REGULER') { finalProyek = 'Reguler'; isRenovasi = false; }
+          else if (isRenovasi) {
+              if (finalProyek !== 'Renovasi' && !finalProyek.toLowerCase().startsWith('renovasi')) {
+                  finalProyek = 'Renovasi'; 
+              }
+          }
 
           let finalKategori = rabRef.kategori_lokasi || data["Kategori_Lokasi"] || formData.kategoriLokasi;
           if (finalKategori?.toUpperCase() === 'RUKO') finalKategori = 'Ruko';

@@ -15,6 +15,7 @@ import {
     fetchSPKList,
 } from "@/lib/api";
 import { fetchDendaActions } from "@/lib/denda-actions-api";
+import { fetchRequestIntervensiList } from "@/lib/request-intervensi-api";
 
 export type ApprovalType =
     | "RAB"
@@ -23,7 +24,8 @@ export type ApprovalType =
     | "OPNAME"
     | "INSTRUKSI_LAPANGAN"
     | "PROJECT_PLANNING"
-    | "SURAT_PERINGATAN";
+    | "SURAT_PERINGATAN"
+    | "INTERVENSI";
 
 export type ApprovalCounts = Record<ApprovalType, number>;
 
@@ -68,6 +70,7 @@ export const EMPTY_APPROVAL_COUNTS: ApprovalCounts = {
     INSTRUKSI_LAPANGAN: 0,
     PROJECT_PLANNING: 0,
     SURAT_PERINGATAN: 0,
+    INTERVENSI: 0,
 };
 
 const ROLE_ACCESS: Record<ApprovalType, string[]> = {
@@ -78,6 +81,7 @@ const ROLE_ACCESS: Record<ApprovalType, string[]> = {
     INSTRUKSI_LAPANGAN: ["BRANCH BUILDING COORDINATOR", "BRANCH BUILDING & MAINTENANCE MANAGER", "COORDINATOR", "MANAGER"],
     PROJECT_PLANNING: ["BRANCH BUILDING & MAINTENANCE MANAGER", "BUILDING & MAINTENANCE REGIONAL MANAGER", "PROJECT PLANNING & DEVELOPMENT SPECIALIST", "PROJECT PLANNING & DEVELOPMENT MANAGER"],
     SURAT_PERINGATAN: ["BRANCH BUILDING & MAINTENANCE MANAGER"],
+    INTERVENSI: ["BRANCH BUILDING & MAINTENANCE MANAGER", "STORE & BRANCH CONTROLLING SPECIALIST", "BUILDING & MAINTENANCE REGIONAL MANAGER", "MANAGER"],
 };
 
 const normalizeBranch = (branch?: string | null) => (branch ?? "").trim().toUpperCase();
@@ -209,6 +213,16 @@ export const getAccessibleApprovalTypes = (user: UserSession): ApprovalType[] =>
                     allAccessibleTypes.add(type);
                 }
             });
+            if (
+                role.includes("BRANCH BUILDING & MAINTENANCE MANAGER") ||
+                role.includes("B&M MANAGER") ||
+                role.includes("STORE & BRANCH CONTROLLING") ||
+                role.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") ||
+                role.includes("B&M REGIONAL") ||
+                role.includes("REGIONAL MANAGER")
+            ) {
+                allAccessibleTypes.add("INTERVENSI");
+            }
         });
     }
 
@@ -249,7 +263,35 @@ const isPendingProcessStatus = (status: string, tipe: ApprovalType) => {
     if (tipe === "SPK") return upper === "WAITING_FOR_BM_APPROVAL";
     if (tipe === "PERTAMBAHAN_SPK") return upper === "MENUNGGU PERSETUJUAN";
     if (tipe === "PROJECT_PLANNING") return upper.startsWith("WAITING_") || upper === "PP_DESIGN_3D_REQUIRED";
+    if (tipe === "INTERVENSI") {
+        return ["WAITING_BM_APPROVAL", "WAITING_SBCS_APPROVAL", "WAITING_REGIONAL_MANAGER_APPROVAL"].includes(upper);
+    }
     return isPendingApprovalStatus(upper);
+};
+
+const canCountIntervensiForUser = (item: CountableApprovalItem, user: UserSession) => {
+    const upper = item.status.toUpperCase();
+    const roles = user.roles;
+    const canSeeAll = canApproveAllBranches(roles, user.isSuperHuman);
+
+    if (!canSeeAll && !canAccessApprovalBranch(item.cabang, user)) return false;
+    if (user.isSuperHuman) return true;
+
+    const isBmManager = roles.some(role =>
+        role.includes("BRANCH BUILDING & MAINTENANCE MANAGER") ||
+        role.includes("B&M MANAGER") ||
+        role === "MANAGER"
+    );
+    const isSbcs = roles.some(role => role.includes("STORE & BRANCH CONTROLLING"));
+    const isRegionalManager = roles.some(role =>
+        role.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") ||
+        role.includes("B&M REGIONAL") ||
+        role.includes("REGIONAL MANAGER")
+    );
+
+    return (isBmManager && upper === "WAITING_BM_APPROVAL")
+        || (isSbcs && upper === "WAITING_SBCS_APPROVAL")
+        || (isRegionalManager && upper === "WAITING_REGIONAL_MANAGER_APPROVAL");
 };
 
 const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserSession) => {
@@ -301,6 +343,10 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
     if (!isPendingProcessStatus(item.status, item.tipe)) return false;
     if (item.tipe === "PROJECT_PLANNING") {
         return canCountProjectPlanningForUser(item, user);
+    }
+
+    if (item.tipe === "INTERVENSI") {
+        return canCountIntervensiForUser(item, user);
     }
 
     if (isViewOnlyUser(user.roles, user.isSuperHuman)) return false;
@@ -502,6 +548,14 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                     cabang: item.cabang,
                     raw: item,
                 })), user, jabatan);
+            } else if (type === "INTERVENSI") {
+                const res = await fetchRequestIntervensiList(undefined, { suppressGlobalError: true });
+                counts.INTERVENSI = countItems((res.data ?? []).map((item) => ({
+                    tipe: "INTERVENSI" as const,
+                    status: item.status_request,
+                    cabang: item.cabang,
+                    raw: item,
+                })), user, jabatan);
             }
         } catch (error) {
             console.error(`[${type}] Error fetching approval notifications:`, error);
@@ -643,6 +697,14 @@ export const fetchApprovalNotificationItems = async (user: UserSession): Promise
                     raw: item,
                 }));
                 }
+            } else if (type === "INTERVENSI") {
+                const res = await fetchRequestIntervensiList(undefined, { suppressGlobalError: true });
+                countableItems = (res.data ?? []).map((item) => ({
+                    tipe: "INTERVENSI" as const,
+                    status: item.status_request,
+                    cabang: item.cabang,
+                    raw: item,
+                }));
             }
 
             items.push(...countableItems.filter(item => canCountForUser(item, user, jabatan)).map(toApprovalNotificationItem));

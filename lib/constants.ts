@@ -188,6 +188,13 @@ export const ALL_MENUS = [
         icon: FileStack,
     },
     {
+        id: "menu-request-intervensi",
+        title: "Request Intervensi",
+        desc: "Ajukan intervensi dokumen untuk approval bertingkat.",
+        href: "/request-intervensi",
+        icon: ShieldAlert,
+    },
+    {
         id: "menu-intervensi",
         title: "Intervensi",
         desc: "Pusat perubahan status khusus Super Human.",
@@ -264,7 +271,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "BRANCH BUILDING COORDINATOR": [
         "menu-dokumentasi", "menu-svdokumen", "menu-gantt",
         "menu-opname", "menu-sp", "menu-approval", "menu-daftardokumen", "menu-inputpic",
-        "menu-projek-planning", "menu-tarikan-data",
+        "menu-request-intervensi", "menu-projek-planning", "menu-tarikan-data",
     ],
 
     "BRANCH BUILDING SUPPORT": [
