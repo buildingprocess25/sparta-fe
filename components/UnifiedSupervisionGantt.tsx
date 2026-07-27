@@ -156,6 +156,14 @@ async function mapWithConcurrency<T, R>(
 
 type CheckpointVisualState = "normal" | "today" | "todayCheckpoint" | "needsInput" | "filled";
 
+type CheckpointScopeSummary = {
+    scopeName: string;
+    expectedItems: number;
+    filledItems: number;
+    missingItems: number;
+    hasCheckpointData: boolean;
+};
+
 function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
@@ -578,6 +586,74 @@ export default function UnifiedSupervisionGantt({
         return ranges;
     }, [details, timeline]);
 
+    const getExpectedItemCountForScope = (scopeId: number, absoluteDay: number) => {
+        const scopeDetail = details.find((detail) => Number(detail.id_toko) === Number(scopeId));
+        if (!scopeDetail) return 0;
+
+        return scopeDetail.rows.reduce((count, row) => {
+            const rowIsActive = row.bars.some((bar) => {
+                const start = Math.max(1, bar.start);
+                const end = bar.end + Math.max(0, bar.delay);
+                return start <= absoluteDay && absoluteDay <= end;
+            });
+            return count + (rowIsActive ? 1 : 0);
+        }, 0);
+    };
+
+    const summarizeCheckpointScopes = (
+        checkpoint: UnifiedSupervisionCheckpoint | undefined,
+        absoluteDay: number
+    ): CheckpointScopeSummary[] => {
+        if (!checkpoint) return [];
+
+        return (checkpoint.scopes || [])
+            .filter((entry) => entry.gantt_id !== null)
+            .map((entry) => {
+                const scopeName = String(entry.lingkup_pekerjaan || "").trim().toUpperCase() || "LINGKUP";
+                const expectedItems = getExpectedItemCountForScope(Number(entry.id_toko), absoluteDay);
+                const filledItems = Number(entry.checkpoint?.total_items || 0);
+                const hasCheckpointData = filledItems > 0;
+                const missingItems = Math.max(0, expectedItems - filledItems);
+
+                return {
+                    scopeName,
+                    expectedItems,
+                    filledItems,
+                    missingItems: expectedItems > 0 && !hasCheckpointData ? expectedItems : missingItems,
+                    hasCheckpointData,
+                };
+            })
+            .filter((summary) => summary.expectedItems > 0 || summary.hasCheckpointData);
+    };
+
+    const buildCheckpointTitle = (
+        fullDate: string,
+        checkpoint: UnifiedSupervisionCheckpoint,
+        absoluteDay: number
+    ) => {
+        const parts: string[] = [fullDate];
+        const summaries = summarizeCheckpointScopes(checkpoint, absoluteDay);
+
+        if (summaries.length > 0) {
+            summaries.forEach((summary) => {
+                if (!summary.hasCheckpointData && summary.expectedItems > 0) {
+                    parts.push(`${summary.scopeName}: ${summary.expectedItems} item belum diisi`);
+                    return;
+                }
+                if (summary.missingItems > 0) {
+                    parts.push(`${summary.scopeName}: ${summary.missingItems} item belum diisi, ${summary.filledItems} item sudah diisi`);
+                    return;
+                }
+                parts.push(`${summary.scopeName}: ${summary.filledItems} item sudah diisi`);
+            });
+            return parts.join("\n");
+        }
+
+        const total = Number(checkpoint.total_items || 0);
+        parts.push(total > 0 ? `${total} item sudah diisi` : "Tidak ada data pengawasan");
+        return parts.join("\n");
+    };
+
     const checkpointVisualStateByDate = useMemo(() => {
         const map = new Map<string, CheckpointVisualState>();
         if (!timeline) return map;
@@ -687,7 +763,32 @@ export default function UnifiedSupervisionGantt({
         });
 
         return map;
-    }, [checkpointByDate, timeline]);
+    }, [checkpointByDate, details, timeline]);
+
+    const resolveCheckpointVisualState = (
+        fullDate: string,
+        checkpoint: UnifiedSupervisionCheckpoint | undefined,
+        absoluteDay: number,
+        fallbackState?: CheckpointVisualState
+    ): CheckpointVisualState | undefined => {
+        if (!checkpoint) return fallbackState;
+
+        const parsedDate = parseDate(fullDate);
+        const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        if (parsedDate && parsedDate.getTime() === todayStart.getTime()) return "todayCheckpoint";
+        if (!parsedDate || parsedDate > todayStart) return "normal";
+
+        const summaries = summarizeCheckpointScopes(checkpoint, absoluteDay);
+        if (summaries.length === 0) {
+            return Number(checkpoint.total_items || 0) > 0 ? "filled" : "normal";
+        }
+
+        const hasMissingInput = summaries.some((summary) =>
+            summary.expectedItems > 0 && !summary.hasCheckpointData
+        );
+        return hasMissingInput ? "needsInput" : "filled";
+    };
 
     if (isLoading) {
         return (
@@ -846,7 +947,12 @@ export default function UnifiedSupervisionGantt({
                             const isExtension = extensionDates.has(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
-                            const checkpointState = checkpointVisualStateByDate.get(fullDate);
+                            const checkpointState = resolveCheckpointVisualState(
+                                fullDate,
+                                checkpoint,
+                                dayIndex + 1,
+                                checkpointVisualStateByDate.get(fullDate)
+                            );
                             const today = new Date();
                             const isToday = fullDate === formatFullDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
                             const visualState = checkpointState || (isToday ? "today" : undefined);
@@ -858,7 +964,6 @@ export default function UnifiedSupervisionGantt({
                                 }
                                 : checkpoint;
                             const readyCount = Number(checkpoint?.ready_opname_items || 0);
-                            const opnameCount = Number(checkpoint?.opname_items || 0);
                             const isReady = readyCount > 0;
                             const dateTextClass = visualState === "needsInput"
                                 ? "text-red-700"
@@ -910,8 +1015,9 @@ export default function UnifiedSupervisionGantt({
                                         if (stBuffer) return `${fullDate} - ${stBuffer.explanation}`;
                                         if (spkEnd) return `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}`;
                                         if (checkpoint) {
+                                            return buildCheckpointTitle(fullDate, checkpoint, dayIndex + 1);
                                             const parts: string[] = [fullDate];
-                                            const activeScopes = (checkpoint.scopes || []).filter(entry => entry.gantt_id !== null);
+                                            const activeScopes = ((checkpoint as UnifiedSupervisionCheckpoint).scopes || []).filter(entry => entry.gantt_id !== null);
                                             if (activeScopes.length > 0) {
                                                 // Tampilkan status per scope
                                                 activeScopes.forEach(entry => {
@@ -934,10 +1040,10 @@ export default function UnifiedSupervisionGantt({
                                                 });
                                             } else {
                                                 // Fallback unified
-                                                const cpSelesai = Number(checkpoint.selesai_items || 0);
-                                                const cpOpname = Number(checkpoint.opname_items || 0);
-                                                const cpReady = Number(checkpoint.ready_opname_items || 0);
-                                                const cpTotal = Number(checkpoint.total_items || 0);
+                                                const cpSelesai = Number((checkpoint as UnifiedSupervisionCheckpoint).selesai_items || 0);
+                                                const cpOpname = Number((checkpoint as UnifiedSupervisionCheckpoint).opname_items || 0);
+                                                const cpReady = Number((checkpoint as UnifiedSupervisionCheckpoint).ready_opname_items || 0);
+                                                const cpTotal = Number((checkpoint as UnifiedSupervisionCheckpoint).total_items || 0);
                                                 if (cpReady > 0) parts.push(`⚠ ${cpReady} item siap opname`);
                                                 else if (cpSelesai > 0 && cpOpname === 0) parts.push(`⚡ Pengawasan ✓ — Opname belum diisi`);
                                                 else if (cpOpname > 0) parts.push(`✓ Pengawasan + Opname selesai`);
@@ -1019,7 +1125,12 @@ export default function UnifiedSupervisionGantt({
                             const isExtension = extensionDates.has(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
-                            const checkpointState = checkpointVisualStateByDate.get(fullDate);
+                            const checkpointState = resolveCheckpointVisualState(
+                                fullDate,
+                                checkpoint,
+                                dayIndex + 1,
+                                checkpointVisualStateByDate.get(fullDate)
+                            );
                             const today = new Date();
                             const isToday = fullDate === formatFullDate(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
                             const visualState = checkpointState || (isToday ? "today" : undefined);
