@@ -1394,7 +1394,22 @@ function RABPageContent() {
                 <div className="space-y-2">
                   <Label>Proyek <span className="text-red-500">*</span></Label>
                   {formData.isRenovasi ? (
-                    <Input value="Renovasi" readOnly className="bg-slate-100 text-slate-700 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
+                    <Select 
+                      disabled={isReadOnly || hasProjectPlanningRequest}
+                      value={formData.proyek || 'Renovasi'} 
+                      onValueChange={(val) => setFormData(prev => ({...prev, proyek: val}))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Pilih Jenis Renovasi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Renovasi">Renovasi (Umum)</SelectItem>
+                        <SelectItem value="Renovasi Perluasan">Renovasi Perluasan</SelectItem>
+                        <SelectItem value="Renovasi Perpanjangan">Renovasi Perpanjangan</SelectItem>
+                        <SelectItem value="Renovasi Toko Tutup">Renovasi Toko Tutup</SelectItem>
+                        <SelectItem value="Renovasi Peremajaan">Renovasi Peremajaan</SelectItem>
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <Input value="Reguler" readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                   )}
