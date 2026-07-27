@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Download, Plus, Save, Trash2, Upload, Info, FileSpreadsheet, Search } from "lucide-react";
 import { useSession } from "@/context/SessionContext";
-import { BRANCH_GROUPS, ME_CATEGORIES, SIPIL_CATEGORIES, BRANCH_TO_ULOK, canViewAllBranches, isViewOnlyUser } from "@/lib/constants";
+import { BRANCH_GROUPS, ME_CATEGORIES, SIPIL_CATEGORIES, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser } from "@/lib/constants";
 import {
   fetchPricesData,
   fetchRABDetail,
@@ -287,7 +287,7 @@ export default function UbahRabItemPage() {
         const scope = rawScope.toUpperCase() === "SIPIL" ? "Sipil" : (rawScope.toUpperCase() === "ME" ? "ME" : rawScope);
         let loadedPrices: Record<string, any[]> = {};
         if (detailRes.data?.toko?.cabang && scope) {
-          const priceData = await fetchPricesData(detailRes.data.toko.cabang, scope);
+          const priceData = await fetchPricesData(getRabPriceBranch(detailRes.data.toko.cabang), scope);
           loadedPrices = priceData || {};
           setPrices(loadedPrices);
         } else {
@@ -609,10 +609,10 @@ export default function UbahRabItemPage() {
           <CardContent className="pt-5">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
               <div className="md:col-span-4 space-y-1.5">
-                <Label className="text-sm font-medium text-slate-700">Cabang</Label>
+                <Label className="text-sm font-medium text-slate-700">Wilayah</Label>
                 <Select value={selectedCabang} onValueChange={setSelectedCabang}>
                   <SelectTrigger className="h-10 focus:ring-red-500">
-                    <SelectValue placeholder="Pilih Cabang" />
+                    <SelectValue placeholder="Pilih Wilayah" />
                   </SelectTrigger>
                   <SelectContent>
                     {cabangOptions.map(c => (
@@ -666,7 +666,7 @@ export default function UbahRabItemPage() {
                   <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5 md:mt-0" />
                   <div className="flex flex-wrap gap-x-6 gap-y-1">
                     <p><span className="text-slate-500">Toko:</span> <span className="font-medium text-slate-900">{rabDetail.toko.nama_toko || "-"}</span></p>
-                    <p><span className="text-slate-500">Cabang:</span> <span className="font-medium text-slate-900">{rabDetail.toko.cabang || "-"}</span></p>
+                    <p><span className="text-slate-500">Wilayah:</span> <span className="font-medium text-slate-900">{rabDetail.toko.cabang || "-"}</span></p>
                     <p><span className="text-slate-500">Lingkup:</span> <span className="font-medium text-slate-900">{rabDetail.toko.lingkup_pekerjaan || "-"}</span></p>
                   </div>
                 </div>

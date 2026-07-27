@@ -21,7 +21,7 @@ import {
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download, ClipboardList, ArrowRight } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
-import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser } from '@/lib/constants';
 import {
   checkRevisionStatus,
   fetchPricesData,
@@ -41,9 +41,9 @@ const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id
 const normalizeBranchName = (value?: string | null) =>
   String(value ?? '').trim().toUpperCase().replace(/^CAB(?:ANG)?\.?\s+/, '').replace(/^CABANG\s+/, '').trim();
 
-const isCikokolBranchGroup = (branch?: string | null) => {
-  const normalized = normalizeBranchName(branch);
-  return normalized === 'CIKOKOL' || (BRANCH_GROUPS.CIKOKOL || []).map(normalizeBranchName).includes(normalized);
+const usesRabParentPrice = (branch?: string | null) => {
+  const priceBranch = getRabPriceBranch(branch);
+  return priceBranch === 'CIKOKOL' || priceBranch === 'CILEUNGSI';
 };
 
 const normalizeJobName = (value?: string | null) =>
@@ -640,7 +640,7 @@ function RABPageContent() {
   // --- 2. FETCH HARGA OTOMATIS ---
   useEffect(() => {
     if (formData.cabang && formData.lingkupPekerjaan) {
-        const activeCabang = normalizeBranchName(formData.cabang);
+        const activeCabang = getRabPriceBranch(formData.cabang);
         fetchPricesData(activeCabang, formData.lingkupPekerjaan)
             .then(data => {
                 setPrices(data);
@@ -729,8 +729,8 @@ function RABPageContent() {
               fetchedTokoDetail?.cabang || tokoRef.cabang || data.cabang || data["Cabang"] || formData.cabang
           );
 
-          // 2. Fetch harga master sesuai cabang dan lingkup pekerjaan dokumen
-          const fetchedPrices = await fetchPricesData(resolvedCabang, resolvedScope);
+          // 2. Fetch harga master sesuai wilayah harga induk dan lingkup pekerjaan dokumen
+          const fetchedPrices = await fetchPricesData(getRabPriceBranch(resolvedCabang), resolvedScope);
           setPrices(fetchedPrices);
 
           // Normalisasi Dropdown
@@ -843,7 +843,7 @@ function RABPageContent() {
               }
           }
           const revisionOriginalRows = newRows;
-          const rowsToDisplay = isCikokolBranchGroup(resolvedCabang)
+          const rowsToDisplay = usesRabParentPrice(resolvedCabang)
               ? refreshRevisionRowsWithMasterPrices(newRows, fetchedPrices)
               : newRows;
 
@@ -1299,7 +1299,7 @@ function RABPageContent() {
             <div>
               <p className="font-bold">Form berasal dari Permintaan RAB Project Planning</p>
               <p className="mt-1 text-blue-700">
-                ULOK, cabang, dan lingkup dikunci. Lengkapi item pekerjaan, volume, durasi, kategori lokasi, serta data asuransi.
+                ULOK, wilayah, dan lingkup dikunci. Lengkapi item pekerjaan, volume, durasi, kategori lokasi, serta data asuransi.
               </p>
             </div>
           </div>
@@ -1395,11 +1395,11 @@ function RABPageContent() {
                   )}
                 </div>
                 <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" readOnly={isReadOnly} value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
-                <div className="space-y-2 lg:col-span-3"><Label>Alamat Cabang / Office <span className="text-xs text-slate-400 font-normal">(Otomatis dari data cabang)</span></Label><Input name="alamatCabang" value={formData.alamatCabang || ''} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} placeholder="-" /></div>
+                <div className="space-y-2 lg:col-span-3"><Label>Alamat Wilayah / Office <span className="text-xs text-slate-400 font-normal">(Otomatis dari data wilayah)</span></Label><Input name="alamatCabang" value={formData.alamatCabang || ''} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} placeholder="-" /></div>
                 
                 <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="space-y-2">
-                    <Label>Cabang <span className="text-red-500">*</span></Label>
+                    <Label>Wilayah <span className="text-red-500">*</span></Label>
                     {availableCabang.length > 1 ? (
                       <Select 
                         disabled={isReadOnly || hasProjectPlanningRequest}
@@ -1425,7 +1425,7 @@ function RABPageContent() {
                         }}
                       >
                         <SelectTrigger className="bg-white">
-                          <SelectValue placeholder="-- Pilih Cabang --" />
+                          <SelectValue placeholder="-- Pilih Wilayah --" />
                         </SelectTrigger>
                         <SelectContent>
                           {availableCabang.map((c) => (
@@ -1707,7 +1707,7 @@ function RABPageContent() {
 
           {planningRequestsLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Memuat permintaan cabang...
+              <Loader2 className="h-4 w-4 animate-spin" /> Memuat permintaan wilayah...
             </div>
           ) : planningRequests.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 py-10 text-center text-sm text-slate-500">
@@ -1735,7 +1735,7 @@ function RABPageContent() {
                       {request.lingkup_pekerjaan}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Cabang {request.cabang || '-'}</p>
+                  <p className="mt-2 text-xs text-slate-500">Wilayah {request.cabang || '-'}</p>
                   <Button
                     type="button"
                     className="mt-4 w-full bg-blue-600 hover:bg-blue-700"

@@ -545,6 +545,16 @@ export const getParentBranch = (branch?: string | null): string => {
     return group ? group.name : normalizeBranchValue(branch);
 };
 
+export const getRabPriceBranch = (branch?: string | null): string => {
+    const normalized = normalizeBranchValue(branch);
+    if (!normalized) return "";
+
+    if ((BRANCH_GROUPS.CIKOKOL || []).map(normalizeBranchValue).includes(normalized)) return "CIKOKOL";
+    if ((BRANCH_GROUPS.CILEUNGSI || []).map(normalizeBranchValue).includes(normalized)) return "CILEUNGSI";
+
+    return normalized;
+};
+
 /**
  * Expand a parent branch name to all sub-branches.
  * E.g. "CIKOKOL" → ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"]
