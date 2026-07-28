@@ -65,7 +65,8 @@ const dataTypeOptions: DataTypeOption[] = [
     { id: "instruksi_lapangan", label: "Instruksi Lapangan", desc: "Detail item pekerjaan, status, dan tanggal instruksi lapangan." },
     { id: "serah_terima", label: "Serah Terima", desc: "Tanggal serah terima dan link dokumen BAST." },
     { id: "ktk_opname_final", label: "KTK (Opname Final)", desc: "Opname final, denda, serah terima, dan grand total nilai toko." },
-    { id: "project_planning", label: "Project Planning", desc: "Informasi estimasi biaya, luasan, jenis pengajuan, dan status approval PP." }
+    { id: "project_planning", label: "Project Planning", desc: "Informasi estimasi biaya, luasan, jenis pengajuan, dan status approval PP." },
+    { id: "user", label: "Data User", desc: "Nama, email, role, cabang, dan login terakhir user." }
 ];
 
 const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: string }> = [
@@ -144,7 +145,7 @@ export default function TarikanDataPage() {
     const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set([new Date().getMonth() + 1]));
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [periodMode, setPeriodMode] = useState<PeriodMode>("ytd");
-    const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(dataTypeOptions.map((item) => item.id)));
+    const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(dataTypeOptions.filter((item) => item.id !== "user").map((item) => item.id)));
     const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
     const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
@@ -264,6 +265,8 @@ export default function TarikanDataPage() {
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
     const selectedProjects = useMemo(() => projects.filter((project) => selectedIds.has(projectId(project))), [projects, selectedIds]);
+    const isUserOnlyExport = selectedDataTypes.size === 1 && selectedDataTypes.has("user") && selectedJobTypes.size === 0;
+    const canExport = (isUserOnlyExport || selectedIds.size > 0) && (selectedDataTypes.size > 0 || selectedJobTypes.size > 0) && !exporting;
 
     const toggleSetValue = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
         setter((current) => {
@@ -277,7 +280,7 @@ export default function TarikanDataPage() {
     const clearSelection = () => setSelectedIds(new Set());
 
     const handleExport = useCallback(async (format: DashboardExportFormat) => {
-        if (!user || selectedIds.size === 0 || (selectedDataTypes.size === 0 && selectedJobTypes.size === 0) || exporting) return;
+        if (!user || !canExport) return;
         setExporting(format);
         setNotice("");
         try {
@@ -305,7 +308,7 @@ export default function TarikanDataPage() {
                 format,
                 actorRole: roles.join(", ") || "UNKNOWN",
                 actorCabang: normalizeBranchValue(user.cabang),
-                tokoIds: Array.from(selectedIds),
+                tokoIds: isUserOnlyExport ? [] : Array.from(selectedIds),
                 months: Array.from(selectedMonths),
                 year: selectedYear,
                 periodMode,
@@ -320,7 +323,7 @@ export default function TarikanDataPage() {
         } finally {
             setExporting(null);
         }
-    }, [allowedBranches, exporting, isHOUser, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
+    }, [allowedBranches, canExport, isHOUser, isUserOnlyExport, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
 
     const monthLabel = periodMode === "ytd"
         ? `YTD ${selectedYear}`
@@ -538,7 +541,7 @@ export default function TarikanDataPage() {
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-2">
                                 {formatOptions.map((format) => (
-                                    <Button key={format.id} variant="outline" className="h-16 flex-col gap-1 rounded-lg" disabled={selectedIds.size === 0 || (selectedDataTypes.size === 0 && selectedJobTypes.size === 0) || Boolean(exporting)} onClick={() => handleExport(format.id)}>
+                                    <Button key={format.id} variant="outline" className="h-16 flex-col gap-1 rounded-lg" disabled={!canExport} onClick={() => handleExport(format.id)}>
                                         {exporting === format.id ? <Loader2 className="h-4 w-4 animate-spin" /> : format.id === "pdf" ? <FileText className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}
                                         <span className="text-xs font-bold">{format.label}</span>
                                         <span className="text-xs font-medium text-slate-400">{format.helper}</span>
