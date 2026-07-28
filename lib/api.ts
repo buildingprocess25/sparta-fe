@@ -2471,6 +2471,87 @@ export const submitOpnameSingle = async (payload: FormData | Record<string, any>
     return result;
 };
 
+type OpnameRecoveryItem = {
+    id_rab_item?: unknown;
+    id_instruksi_lapangan_item?: unknown;
+};
+
+const getOpnameRecoverySourceKey = (item: OpnameRecoveryItem | null | undefined): string | null => {
+    const rabId = Number(item?.id_rab_item);
+    if (Number.isFinite(rabId) && rabId > 0) return `rab:${rabId}`;
+
+    const ilId = Number(item?.id_instruksi_lapangan_item);
+    if (Number.isFinite(ilId) && ilId > 0) return `il:${ilId}`;
+
+    return null;
+};
+
+const parseSubmittedOpnameBulkPayload = (
+    payload: FormData | { id_toko: number; items: unknown[] }
+): { id_toko: number; sourceKeys: Set<string> } | null => {
+    let idToko: number;
+    let items: unknown[];
+
+    if (payload instanceof FormData) {
+        idToko = Number(payload.get("id_toko"));
+        const rawItems = payload.get("items");
+        if (typeof rawItems !== "string") return null;
+
+        try {
+            items = JSON.parse(rawItems);
+        } catch {
+            return null;
+        }
+    } else {
+        idToko = Number(payload.id_toko);
+        items = Array.isArray(payload.items) ? payload.items : [];
+    }
+
+    if (!Number.isFinite(idToko) || idToko <= 0 || !Array.isArray(items) || items.length === 0) {
+        return null;
+    }
+
+    const sourceKeys = new Set(
+        items
+            .map(getOpnameRecoverySourceKey)
+            .filter((key): key is string => Boolean(key))
+    );
+
+    return sourceKeys.size > 0 ? { id_toko: idToko, sourceKeys } : null;
+};
+
+const recoverSubmittedOpnameBulk = async (
+    payload: FormData | { id_toko: number; items: unknown[] }
+) => {
+    const submitted = parseSubmittedOpnameBulkPayload(payload);
+    if (!submitted) return null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        try {
+            const existing = await fetchOpnameList({ id_toko: submitted.id_toko, tipe_opname: "OPNAME" });
+            const existingKeys = new Set((existing.data || []).map(getOpnameRecoverySourceKey).filter(Boolean));
+            const allSubmittedItemsSaved = Array.from(submitted.sourceKeys).every((key) => existingKeys.has(key));
+
+            if (allSubmittedItemsSaved) {
+                return {
+                    status: "success",
+                    message: "Data opname berhasil disimpan",
+                    recovered_after_network_error: true,
+                    data: existing.data
+                };
+            }
+        } catch {
+            // Pertahankan error request awal jika pengecekan hasil juga gagal.
+        }
+    }
+
+    return null;
+};
+
 /** Bulk Submit Opname */
 export const submitOpnameBulk = async (
     payload: FormData | {
@@ -2483,14 +2564,28 @@ export const submitOpnameBulk = async (
     }
 ) => {
     const isFormData = payload instanceof FormData;
-    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/bulk`, {
-        method: "POST",
-        headers: isFormData ? {} : { "Content-Type": "application/json" },
-        body: isFormData ? payload : JSON.stringify(payload),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan opname bulk."));
-    return result;
+    try {
+        const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/bulk`, {
+            method: "POST",
+            headers: isFormData ? {} : { "Content-Type": "application/json" },
+            body: isFormData ? payload : JSON.stringify(payload),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan opname bulk."));
+        return result;
+    } catch (error) {
+        const isNetworkFailure = error instanceof TypeError
+            || (error instanceof Error && /failed to fetch|networkerror|network request failed/i.test(error.message));
+
+        if (!isNetworkFailure) {
+            throw error;
+        }
+
+        const recovered = await recoverSubmittedOpnameBulk(payload);
+        if (recovered) return recovered;
+
+        throw new Error("Koneksi terputus saat menyimpan. Silakan refresh dan cek data opname sebelum submit ulang.");
+    }
 };
 
 /** Ambil daftar Opname dengan filter opsional. */
