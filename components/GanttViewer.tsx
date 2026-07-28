@@ -37,7 +37,7 @@ function formatFullDate(date: Date): string {
     return `${d}/${m}/${y}`;
 }
 
-export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup }: {
+export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false }: {
     nomorUlok: string;
     idToko?: number;
     spkStartDate?: string;          // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
@@ -52,6 +52,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
     timelineStartDate?: string;
     timelineDuration?: number;
     syncScrollGroup?: string;
+    isBelumSpk?: boolean;
 }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
@@ -466,7 +467,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             if (projectData?.spkStartDateObj) {
                                 const d = new Date(projectData.spkStartDateObj);
                                 d.setDate(d.getDate() + i);
-                                label = formatHeaderDate(d);
+                                label = isBelumSpk ? String(i + 1) : formatHeaderDate(d);
                                 
                                 const dd = String(d.getDate()).padStart(2, '0');
                                 const mm = String(d.getMonth() + 1).padStart(2, '0');

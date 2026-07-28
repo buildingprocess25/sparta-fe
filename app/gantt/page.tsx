@@ -2429,6 +2429,10 @@ function GanttBoard() {
                                                 setShowTargetStModal({ dateString, dayIndex });
                                             }}
                                             showLegend={showDateLegend}
+                                            isBelumSpk={(() => {
+                                                const all = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
+                                                return all.length > 0 && all.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length === 0;
+                                            })()}
                                         />
                                         <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">
                                             {supervisionWorkspace.scopes.map((scope, index) => {
@@ -2647,6 +2651,7 @@ function GanttBoard() {
                                                             title={`Timeline ${scopeName}`}
                                                             checkpoints={scope.checkpoints}
                                                             onCheckpointClick={(checkpoint, dayIndex) => openScopeCheckpoint(scope, checkpoint, dayIndex)}
+                                                            isBelumSpk={!spkTokoIds.has(Number(scope.id_toko || scope.id))}
                                                             hideChartTitle
                                                             hideDateHeader
                                                             timelineStartDate={unifiedTimeline?.startDate}

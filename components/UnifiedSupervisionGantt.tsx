@@ -247,11 +247,13 @@ export default function UnifiedSupervisionGantt({
     onCheckpointClick,
     onTargetStClick,
     showLegend = true,
+    isBelumSpk = false,
 }: {
     workspace: SupervisionWorkspace;
-    onCheckpointClick: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
-    onTargetStClick?: (date: string, dayIndex: number) => void;
+    onCheckpointClick?: (checkpoint: SupervisionCheckpoint, dayIndex: number) => void;
+    onTargetStClick?: (dateString: string, dayIndex: number) => void;
     showLegend?: boolean;
+    isBelumSpk?: boolean;
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
     const [ganttFallbackTimeline, setGanttFallbackTimeline] = useState<Timeline | null>(null);
@@ -1101,8 +1103,8 @@ export default function UnifiedSupervisionGantt({
                                     ) : isReady ? (
                                         <span className="absolute top-1 h-2 w-2 rounded-full bg-red-600 shadow-[0_0_0_3px_rgba(220,38,38,0.16)]" title="Siap opname" />
                                     ) : null}
-                                    <span className={`text-[11px] leading-4 ${dateTextClass}`}>{formatShortDate(date)}</span>
-                                    <span className="text-[10px] font-medium leading-3">{formatDayName(date)}</span>
+                                    <span className={`text-[11px] leading-4 ${dateTextClass}`}>{isBelumSpk ? String(dayIndex + 1) : formatShortDate(date)}</span>
+                                    <span className="text-[10px] font-medium leading-3">{isBelumSpk ? "Hari" : formatDayName(date)}</span>
                                     {checkpoint && !stBuffer && !spkEnd && visualState === "normal" ? <span className="absolute top-1 h-2 w-2 rounded-full bg-blue-700 shadow-[0_0_0_3px_rgba(37,99,235,0.18)]" title="Hari pengawasan" /> : null}
                                 </button>
                             );
