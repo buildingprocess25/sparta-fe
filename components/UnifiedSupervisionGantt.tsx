@@ -250,7 +250,7 @@ export default function UnifiedSupervisionGantt({
     isBelumSpk = false,
 }: {
     workspace: SupervisionWorkspace;
-    onCheckpointClick?: (checkpoint: SupervisionCheckpoint, dayIndex: number) => void;
+    onCheckpointClick?: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
     onTargetStClick?: (dateString: string, dayIndex: number) => void;
     showLegend?: boolean;
     isBelumSpk?: boolean;
