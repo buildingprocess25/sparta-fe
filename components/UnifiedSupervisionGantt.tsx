@@ -160,6 +160,7 @@ type CheckpointScopeSummary = {
     scopeName: string;
     expectedItems: number;
     filledItems: number;
+    readyOpnameItems: number;
     missingItems: number;
     hasCheckpointData: boolean;
     coveredByLaterCheckpoint: boolean;
@@ -631,6 +632,7 @@ export default function UnifiedSupervisionGantt({
                 const scopeName = String(entry.lingkup_pekerjaan || "").trim().toUpperCase() || "LINGKUP";
                 const expectedItems = getExpectedItemCountForScope(Number(entry.id_toko), absoluteDay);
                 const filledItems = Number(entry.checkpoint?.total_items || 0);
+                const readyOpnameItems = Number(entry.checkpoint?.ready_opname_items || 0);
                 const hasCheckpointData = filledItems > 0;
                 const coveredByLaterCheckpoint = !hasCheckpointData &&
                     expectedItems > 0 &&
@@ -641,6 +643,7 @@ export default function UnifiedSupervisionGantt({
                     scopeName,
                     expectedItems,
                     filledItems,
+                    readyOpnameItems,
                     missingItems,
                     hasCheckpointData,
                     coveredByLaterCheckpoint,
@@ -659,6 +662,10 @@ export default function UnifiedSupervisionGantt({
 
         if (summaries.length > 0) {
             summaries.forEach((summary) => {
+                if (summary.readyOpnameItems > 0) {
+                    parts.push(`${summary.scopeName}: ${summary.readyOpnameItems} item belum masuk opname`);
+                    return;
+                }
                 if (summary.coveredByLaterCheckpoint) {
                     parts.push(`${summary.scopeName}: sudah diisi di checkpoint berikutnya`);
                     return;
@@ -810,6 +817,10 @@ export default function UnifiedSupervisionGantt({
         if (summaries.length === 0) {
             return Number(checkpoint.total_items || 0) > 0 ? "filled" : "normal";
         }
+
+        const hasReadyOpnameItems = summaries.some((summary) => summary.readyOpnameItems > 0)
+            || Number(checkpoint.ready_opname_items || 0) > 0;
+        if (hasReadyOpnameItems) return "needsInput";
 
         const hasMissingInput = summaries.some((summary) =>
             summary.expectedItems > 0 && !summary.hasCheckpointData && !summary.coveredByLaterCheckpoint
