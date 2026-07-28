@@ -1013,7 +1013,7 @@ export default function UnifiedSupervisionGantt({
                                             onTargetStClick(fullDate, dayIndex);
                                             return;
                                         }
-                                        if (actionableCheckpoint) onCheckpointClick(actionableCheckpoint, dayIndex);
+                                        if (actionableCheckpoint && onCheckpointClick) onCheckpointClick(actionableCheckpoint, dayIndex);
                                     }}
                                     className={`relative flex h-16 shrink-0 flex-col items-center justify-end border-r border-slate-200 pb-1 text-[10px] font-bold ${
                                         spkEnd
