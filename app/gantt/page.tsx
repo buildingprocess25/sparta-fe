@@ -1654,7 +1654,7 @@ function GanttBoard() {
                 const cp = entry.checkpoint;
                 const scopeName = String(entry.lingkup_pekerjaan || '').toUpperCase();
                 if (!cp) return;
-                if (Number(cp.selesai_items || 0) > 0 && Number(cp.opname_items || 0) === 0) {
+                if (Number(cp.ready_opname_items || 0) > 0) {
                     const str = `${ucp.tanggal_pengawasan} ${scopeName}`;
                     if (!pendingOpnameDates.includes(str)) pendingOpnameDates.push(str);
                 }
