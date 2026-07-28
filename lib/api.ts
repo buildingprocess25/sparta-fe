@@ -2513,7 +2513,7 @@ const parseSubmittedOpnameBulkPayload = (
 
     const sourceKeys = new Set(
         items
-            .map(getOpnameRecoverySourceKey)
+            .map((item) => getOpnameRecoverySourceKey(item as OpnameRecoveryItem))
             .filter((key): key is string => Boolean(key))
     );
 
