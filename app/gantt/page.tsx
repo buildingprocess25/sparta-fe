@@ -305,6 +305,11 @@ function getWorkspaceScopeLabel(workspace?: SupervisionWorkspace | null): string
 
 function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     if (!scope.gantt_id || !scope.opname_final_id) return false;
+
+    // Escape hatch untuk data migrasi V1: opname_final APPROVED dianggap sudah final.
+    if (scope.status_opname_final === "APPROVED") {
+        return true;
+    }
     
     const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
