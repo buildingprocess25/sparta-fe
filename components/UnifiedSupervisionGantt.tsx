@@ -276,7 +276,27 @@ export default function UnifiedSupervisionGantt({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
     const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
-    const timeline = workspaceTimeline ?? ganttFallbackTimeline;
+    const baseTimeline = workspaceTimeline ?? ganttFallbackTimeline;
+    const timeline = useMemo(() => {
+        if (!baseTimeline) return null;
+
+        let maxDay = baseTimeline.days;
+        details.forEach((scope) => {
+            scope.rows.forEach((row) => {
+                row.bars.forEach((bar) => {
+                    maxDay = Math.max(maxDay, bar.end + Math.max(0, Number(bar.delay || 0)));
+                });
+            });
+        });
+
+        if (maxDay <= baseTimeline.days) return baseTimeline;
+
+        return {
+            start: baseTimeline.start,
+            days: maxDay,
+            dates: Array.from({ length: maxDay }, (_, index) => addDays(baseTimeline.start, index)),
+        };
+    }, [baseTimeline, details]);
     
     // Hanya tampilkan tombol ST jika workspace memiliki lingkup SIPIL DAN ME
     const hasSipilAndMe = useMemo(() => {
@@ -982,6 +1002,10 @@ export default function UnifiedSupervisionGantt({
                             <span className="rounded bg-rose-600 px-2 py-0.5 text-[10px] font-black text-white">Denda</span>
                             Akhir SPK ke ST baru
                         </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded border border-rose-500 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-800">+N</span>
+                            Item terlambat
+                        </span>
                     </div>
                     {stDelaySummaries.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-teal-800">
@@ -1329,6 +1353,7 @@ export default function UnifiedSupervisionGantt({
                                 );
                                 row.bars.forEach((bar, index) => {
                                     const start = Math.max(1, bar.start);
+                                    const delay = Math.max(0, Number(bar.delay || 0));
                                     const end = Math.min(timeline.days, bar.end);
                                     if (end < 1 || start > timeline.days) return;
                                     const left = (start - 1) * DAY_WIDTH;
@@ -1343,6 +1368,20 @@ export default function UnifiedSupervisionGantt({
                                                 <div className="absolute inset-0 bg-blue-600 opacity-20" />
                                                 <span className="relative z-10 truncate">{bar.duration} Hari</span>
                                             </div>
+                                            {delay > 0 && Math.max(0, timeline.days - bar.end) > 0 && (
+                                                <div
+                                                    className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-rose-500 bg-rose-50 px-2 text-[10px] font-black text-rose-800 shadow-sm"
+                                                    style={{
+                                                        top: rowTop + 8,
+                                                        left: bar.end * DAY_WIDTH,
+                                                        width: Math.max(DAY_WIDTH * 0.65, Math.min(delay, Math.max(0, timeline.days - bar.end)) * DAY_WIDTH - 6),
+                                                        height: ROW_HEIGHT - 16,
+                                                    }}
+                                                    title={`${scope.scopeName} - ${row.label}: +${delay} hari terlambat`}
+                                                >
+                                                    <span className="relative z-10 truncate">+{delay} hari terlambat</span>
+                                                </div>
+                                            )}
                                         </React.Fragment>
                                     );
                                 });
