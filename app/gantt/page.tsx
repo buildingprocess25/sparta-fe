@@ -38,6 +38,9 @@ const mapInstruksiLapanganToWorkItems = (items: any[] = []) =>
         total_material: Number(item.total_material) || 0,
         total_upah: Number(item.total_upah) || 0,
         total_harga: Number(item.total_harga) || 0,
+        il_tanggal_mulai: item.il_tanggal_mulai || item.tanggal_mulai || null,
+        il_tanggal_selesai: item.il_tanggal_selesai || item.tanggal_selesai || null,
+        il_created_at: item.il_created_at || item.created_at || null,
     }));
 
 const getWorkItemKey = (item: any) =>
@@ -1082,6 +1085,12 @@ function GanttBoard() {
                 }
                 return parseInt(cleanVal);
             };
+            const toDayNumberFromDateValue = (value: any): number => {
+                const parsed = parseDateAny(String(value || ''));
+                if (!parsed || Number.isNaN(parsed.getTime())) return NaN;
+                const diff = Math.round((parsed.getTime() - projectStart.getTime()) / msPerDay);
+                return diff + 1;
+            };
 
             const startDaysRaw = day_items
                 .map(entry => toDayNumber(entry.h_awal))
@@ -1174,6 +1183,31 @@ function GanttBoard() {
                         keterlambatan: parseInt(String(entry.keterlambatan || 0)),
                     });
                 }
+            });
+
+            const ilRangeKeys = new Set<string>();
+            instruksiItems.forEach((item: any) => {
+                const key = String(item.kategori_pekerjaan || '').toLowerCase().trim();
+                if (!key) return;
+
+                const startDay = toDayNumberFromDateValue(item.il_tanggal_mulai || item.il_created_at);
+                const endDayRaw = toDayNumberFromDateValue(item.il_tanggal_selesai || item.il_tanggal_mulai || item.il_created_at);
+                if (Number.isNaN(startDay) || Number.isNaN(endDayRaw)) return;
+
+                const endDay = Math.max(startDay, endDayRaw);
+                const rangeKey = `${key}|${startDay}|${endDay}`;
+                if (ilRangeKeys.has(rangeKey)) return;
+                ilRangeKeys.add(rangeKey);
+
+                if (!categoryRangesMap[key]) categoryRangesMap[key] = [];
+                categoryRangesMap[key].push({
+                    start: startDay,
+                    end: endDay,
+                    duration: endDay - startDay + 1,
+                    keterlambatan: 0,
+                    source_type: 'IL',
+                    is_virtual_il: true,
+                });
             });
 
             // depMap: child → daftar nama parent-nya
@@ -3455,6 +3489,26 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
     const hasCurrentDateSelesaiItems = liveHistory.some((p: any) => String(p.status || '').toLowerCase() === 'selesai');
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
+    const maxLateDays = useMemo(() => {
+        return Object.values(memoInputs).reduce((max, val: any) => {
+            if (val?.status !== 'Terlambat') return max;
+            return Math.max(max, Number(val.lateDays) || 0);
+        }, 0);
+    }, [memoInputs]);
+    const minNextHandoverDate = useMemo(() => {
+        if (!activeHeaderClick || maxLateDays <= 0) return '';
+
+        const clickedDate = parseDateAny(activeHeaderClick.dateString || '');
+        const effectiveStart = getEffectiveWorkStart();
+        const fallbackDate = new Date(effectiveStart.split('T')[0] + 'T00:00:00');
+        fallbackDate.setDate(fallbackDate.getDate() + (activeHeaderClick?.dayIndex || 0));
+
+        const baseDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackDate;
+        const nextDate = new Date(baseDate);
+        nextDate.setDate(nextDate.getDate() + maxLateDays);
+        return formatDateForInput(nextDate);
+    }, [activeHeaderClick, getEffectiveWorkStart, maxLateDays]);
+
     const memoConfig = useMemo(() => {
         if (!chartData || !activeHeaderClick) return [];
         const effectiveStart = getEffectiveWorkStart();
@@ -3769,12 +3823,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         return maxDate === currentNumeric;
     }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
+    useEffect(() => {
+        if (!isLastSupervisionDay || !hasLateItems || !minNextHandoverDate) return;
+        if (!nextHandoverDate || nextHandoverDate < minNextHandoverDate) {
+            setNextHandoverDate(minNextHandoverDate);
+        }
+    }, [hasLateItems, isLastSupervisionDay, minNextHandoverDate, nextHandoverDate]);
+
     const isSubmitValid = useMemo(() => {
         // Jika tidak ada item yang aktif (misal karena jadwal lingkup tidak bersinggungan dengan tanggal pengawasan)
         if (memoConfig.length === 0) {
             // Khusus jika ini hari terakhir DAN ada item terlambat dari pengawasan sebelumnya, wajib isi tanggal ST mundur
             if (isLastSupervisionDay && hasLateItems) {
-                return !!nextHandoverDate;
+                return !!nextHandoverDate && (!minNextHandoverDate || nextHandoverDate >= minNextHandoverDate);
             }
             // Selain itu, selalu izinkan submit untuk sekadar mencatatkan kehadiran/kunjungan pada tanggal ini
             return true;
@@ -3824,9 +3885,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (isLastSupervisionDay && hasLateItems && !nextHandoverDate) {
             return false;
         }
+        if (isLastSupervisionDay && hasLateItems && minNextHandoverDate && nextHandoverDate < minNextHandoverDate) {
+            return false;
+        }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isDirty, isLastSupervisionDay, hasLateItems, nextHandoverDate]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isDirty, isLastSupervisionDay, hasLateItems, nextHandoverDate, minNextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -4334,12 +4398,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     <input
                                         type="date"
                                         value={nextHandoverDate}
+                                        min={minNextHandoverDate || undefined}
                                         onChange={(e) => {
-                                            setNextHandoverDate(e.target.value);
+                                            const selectedDate = e.target.value;
+                                            setNextHandoverDate(
+                                                minNextHandoverDate && selectedDate < minNextHandoverDate
+                                                    ? minNextHandoverDate
+                                                    : selectedDate
+                                            );
                                             setIsDirty(true);
                                         }}
                                         className="block w-full max-w-xs p-2 mt-1 border border-orange-300 rounded focus:ring-orange-500 focus:border-orange-500 text-sm text-slate-800 outline-none"
                                     />
+                                    {minNextHandoverDate && (
+                                        <p className="mt-1 text-[11px] font-semibold text-orange-700">
+                                            Minimal {formatDateForPengawasan(parseDateAny(minNextHandoverDate) || new Date())} sesuai keterlambatan {maxLateDays} hari.
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
