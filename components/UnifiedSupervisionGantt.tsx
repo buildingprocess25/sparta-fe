@@ -1277,19 +1277,22 @@ export default function UnifiedSupervisionGantt({
                                 );
                                 row.bars.forEach((bar, index) => {
                                     const start = Math.max(1, bar.start);
-                                    const end = Math.min(timeline.days, bar.end + Math.max(0, bar.delay));
+                                    const delay = Math.max(0, Number(bar.delay || 0));
+                                    const end = Math.min(timeline.days, bar.end + delay);
                                     if (end < 1 || start > timeline.days) return;
                                     const left = (start - 1) * DAY_WIDTH;
                                     const width = Math.max(DAY_WIDTH * 0.65, (end - start + 1) * DAY_WIDTH - 6);
                                     acc.nodes.push(
                                         <div
                                             key={`${row.id}-bar-${index}`}
-                                            className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-blue-500 bg-blue-100 px-2 text-[10px] font-black text-blue-800 shadow-sm"
+                                            className={`absolute z-30 flex items-center justify-center overflow-hidden rounded-md border px-2 text-[10px] font-black shadow-sm ${delay > 0 ? 'border-red-500 bg-red-100 text-red-800' : 'border-blue-500 bg-blue-100 text-blue-800'}`}
                                             style={{ top: rowTop + 8, left, width, height: ROW_HEIGHT - 16 }}
-                                            title={`${scope.scopeName} - ${row.label}: ${bar.duration} hari`}
+                                            title={`${scope.scopeName} - ${row.label}: ${bar.duration} hari${delay > 0 ? `, +${delay} hari terlambat` : ''}`}
                                         >
-                                            <div className="absolute inset-0 bg-blue-600 opacity-20" />
-                                            <span className="relative z-10">{bar.duration} Hari</span>
+                                            <div className={`absolute inset-0 opacity-20 ${delay > 0 ? 'bg-red-600' : 'bg-blue-600'}`} />
+                                            <span className="relative z-10 truncate">
+                                                {bar.duration} Hari{delay > 0 ? ` +${delay} hari terlambat` : ''}
+                                            </span>
                                         </div>
                                     );
                                 });

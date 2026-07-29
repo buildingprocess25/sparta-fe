@@ -2987,6 +2987,8 @@ function ApprovalPageContent() {
                                         <GanttViewer
                                             nomorUlok={selectedDetail.nomor_ulok}
                                             idToko={selectedDetail.id_toko}
+                                            title={selectedDetail.tipe === 'RAB' ? 'Visualisasi Gantt RAB' : 'Visualisasi Gantt SPK'}
+                                            isBelumSpk={selectedDetail.tipe === 'RAB'}
                                             spkStartDate={selectedDetail.tipe === 'SPK' ? selectedDetail.waktu_mulai : undefined}
                                             spkDuration={selectedDetail.tipe === 'SPK' ? selectedDetail.durasi : undefined}
                                         />

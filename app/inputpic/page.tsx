@@ -27,6 +27,7 @@ import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } fr
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const GANTT_GROUP_HEIGHT = 34;
+const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 // =============================================================================
 // HELPERS
@@ -1363,19 +1364,54 @@ function UnifiedPicGanttChart({
         if (axis === 'top' && target.scrollTop !== value) target.scrollTop = value;
     };
 
+    const todayLabel = formatDateDDMMYYYY(new Date());
+
     return (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-xs shadow-sm">
-            <div className="border-b bg-slate-100 p-4 text-sm">
-                <h3 className="flex items-center gap-2 font-bold text-slate-800">
-                    <BarChartHorizontal className="h-4 w-4 text-blue-600" />
-                    Gantt Chart Terpadu
-                </h3>
-                <p className="text-xs text-slate-500">Klik tanggal di header untuk jadwal pengawasan bersama SIPIL + ME.</p>
+        <div className="overflow-hidden rounded-lg border border-slate-300 bg-white text-xs shadow-sm">
+            <div className="border-b border-slate-200 bg-slate-100 p-4 text-sm">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h3 className="flex items-center gap-2 font-bold text-slate-800">
+                            <BarChartHorizontal className="h-4 w-4 text-blue-600" />
+                            Gantt Chart Pengawasan
+                        </h3>
+                        <p className="text-xs text-slate-500">Klik tanggal di header untuk jadwal pengawasan bersama SIPIL + ME.</p>
+                    </div>
+                    <span className="inline-flex w-fit items-center gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-800">
+                        {selectedDays.length} hari dipilih
+                    </span>
+                </div>
+            </div>
+
+            <div className="border-b border-slate-200 bg-white px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <span className="text-xs font-black uppercase text-red-700">Status tanggal</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                        <span className="h-2 w-2 rounded-full bg-sky-600" />
+                        Pengawasan
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                        <span className="h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400" />
+                        Hari ini
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                        <span className="h-3 w-3 animate-pulse rounded bg-yellow-100 ring-1 ring-yellow-400" />
+                        Pengawasan hari ini
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                        <span className="h-2 w-2 rounded-full bg-red-500" />
+                        SIPIL
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        ME
+                    </span>
+                </div>
             </div>
 
             <div className="flex border-b border-slate-300">
                 <div className="flex h-10 shrink-0 items-center border-r-[3px] border-slate-400 bg-slate-50 px-4 font-bold text-slate-600" style={{ width: labelWidth }}>
-                    Tahapan Pekerjaan
+                    No. / Uraian Pekerjaan
                 </div>
                 <div
                     id="pic-unified-gantt-top"
@@ -1388,19 +1424,30 @@ function UnifiedPicGanttChart({
                             date.setDate(date.getDate() + index);
                             const day = index + 1;
                             const selected = selectedDays.includes(day);
+                            const dateLabel = formatDateDDMMYYYY(date);
+                            const isToday = dateLabel === todayLabel;
+                            const isSelectedToday = selected && isToday;
+                            const colClass = isSelectedToday
+                                ? 'bg-yellow-50 text-yellow-800 ring-2 ring-inset ring-yellow-400 hover:bg-yellow-100'
+                                : selected
+                                    ? 'bg-blue-50 text-blue-800 ring-2 ring-inset ring-blue-400 hover:bg-blue-100'
+                                    : isToday
+                                        ? 'bg-emerald-50 text-emerald-800 ring-2 ring-inset ring-emerald-400 hover:bg-emerald-100'
+                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100';
                             return (
                                 <button
                                     key={day}
                                     type="button"
                                     disabled={readonlyDays}
                                     onClick={() => onToggleDay(day)}
-                                    className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${
-                                        selected ? 'bg-blue-600 text-white ring-2 ring-inset ring-blue-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                                    }`}
+                                    className={`flex h-10 shrink-0 flex-col items-center justify-center border-r border-slate-300 text-[9px] font-black ${colClass} ${readonlyDays ? 'cursor-default' : 'cursor-pointer'}`}
                                     style={{ width: DAY_WIDTH }}
+                                    title={selected ? `${dateLabel} - Pengawasan` : isToday ? `${dateLabel} - Hari ini` : dateLabel}
                                 >
-                                    {formatDateDDMMYYYY(date).slice(0, 5)}
-                                    {selected && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white" />}
+                                    <span>{dateLabel.slice(0, 5)}</span>
+                                    <span className="font-bold leading-3 text-[8px]">{DAY_NAMES[date.getDay()]}</span>
+                                    {selected && <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${isSelectedToday ? 'animate-pulse bg-yellow-600' : 'bg-blue-600'}`} />}
+                                    {isToday && !selected && <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-emerald-600" />}
                                 </button>
                             );
                         })}
@@ -1451,13 +1498,28 @@ function UnifiedPicGanttChart({
                     }}
                 >
                     <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
-                        {Array.from({ length: timelineDuration }).map((_, index) => (
-                            <div
-                                key={index}
-                                className={`absolute top-0 bottom-0 border-r ${selectedDays.includes(index + 1) ? 'border-blue-200 bg-blue-50/70' : 'border-slate-200'}`}
-                                style={{ left: index * DAY_WIDTH, width: DAY_WIDTH }}
-                            />
-                        ))}
+                        {Array.from({ length: timelineDuration }).map((_, index) => {
+                            const date = new Date(startDate);
+                            date.setDate(date.getDate() + index);
+                            const dateLabel = formatDateDDMMYYYY(date);
+                            const selected = selectedDays.includes(index + 1);
+                            const isToday = dateLabel === todayLabel;
+                            return (
+                                <div
+                                    key={index}
+                                    className={`absolute top-0 bottom-0 border-r ${
+                                        selected && isToday
+                                            ? 'border-yellow-200 bg-yellow-50/70'
+                                            : selected
+                                                ? 'border-blue-200 bg-blue-50/70'
+                                                : isToday
+                                                    ? 'border-emerald-200 bg-emerald-50/60'
+                                                    : 'border-slate-200'
+                                    }`}
+                                    style={{ left: index * DAY_WIDTH, width: DAY_WIDTH }}
+                                />
+                            );
+                        })}
                         {connectorNodes.length > 0 && (
                             <svg className="pointer-events-none absolute left-0 top-0 z-20 overflow-visible" style={{ width: totalWidth, height: totalHeight }}>
                                 <defs>
@@ -1510,10 +1572,18 @@ function UnifiedPicGanttChart({
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-4 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-bold text-slate-600">
-                <span className="rounded-full bg-white px-3 py-1 text-red-700">{selectedDays.length} hari dipilih</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> SIPIL</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> ME</span>
+            <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-bold text-slate-600">
+                <span className="rounded border border-blue-200 bg-white px-3 py-1 text-blue-700">{selectedDays.length} hari dipilih</span>
+                {[...selectedDays].sort((a, b) => a - b).slice(0, 8).map(day => {
+                    const date = new Date(startDate);
+                    date.setDate(date.getDate() + day - 1);
+                    return (
+                        <span key={day} className="rounded border border-slate-200 bg-white px-2 py-1 text-slate-700">
+                            H{day}: {formatDateDDMMYYYY(date).slice(0, 5)}
+                        </span>
+                    );
+                })}
+                {selectedDays.length > 8 && <span className="text-slate-500">+{selectedDays.length - 8} lagi</span>}
             </div>
         </div>
     );

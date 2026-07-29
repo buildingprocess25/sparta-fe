@@ -2178,7 +2178,9 @@ export const addGanttDayItems = async (id: number, dayItems: GanttDayItem[]) => 
 /** Update data keterlambatan pada periode tertentu. */
 export const updateGanttDelay = async (
     id: number,
-    payload: { kategori_pekerjaan: string; keterlambatan: string } | { updates: { kategori_pekerjaan: string; keterlambatan: string }[] }
+    payload:
+        | { kategori_pekerjaan: string; keterlambatan: string; next_tanggal_pengawasan?: string }
+        | { updates: { kategori_pekerjaan: string; keterlambatan: string }[]; next_tanggal_pengawasan?: string }
 ) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/gantt/${id}/day/keterlambatan`, {
         method:  "POST",

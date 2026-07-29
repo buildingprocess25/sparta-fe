@@ -2911,8 +2911,9 @@ function GanttBoard() {
                                                                         <div
                                                                             className="absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
                                                                             style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
+                                                                            title={`${delay} hari terlambat`}
                                                                         >
-                                                                            +{delay}
+                                                                            +{delay} hari terlambat
                                                                         </div>
                                                                     )}
                                                                 </React.Fragment>
@@ -4018,23 +4019,28 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     kategori_pekerjaan: catName.toUpperCase(),
                     keterlambatan: String(totalLate)
                 }));
+                const nextTanggalPengawasan = hasNextHandoverAction && nextHandoverDate
+                    ? (() => {
+                        const parts = nextHandoverDate.split('-');
+                        return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : nextHandoverDate;
+                    })()
+                    : undefined;
 
-                try {
-                    await updateGanttDelay(selectedGanttId, { updates });
-                } catch (e: any) {
-                    console.warn("Update delay bulk error:", e);
-                }
+                await updateGanttDelay(selectedGanttId, {
+                    updates,
+                    next_tanggal_pengawasan: nextTanggalPengawasan
+                });
             }
 
-            // 3. Tambahkan Tanggal Serah Terima Berikutnya jika ada item terlambat di hari terakhir
-            if (hasNextHandoverAction) {
+            // 3. Fallback untuk kunjungan lanjutan tanpa item terlambat baru pada tanggal ini.
+            if (hasNextHandoverAction && catsLate.size === 0) {
                 try {
                     // Convert YYYY-MM-DD to DD/MM/YYYY
                     const parts = nextHandoverDate.split('-');
                     const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : nextHandoverDate;
                     await submitGanttPengawasan(Number(selectedGanttId), [formattedDate]);
                 } catch (e: any) {
-                    console.warn("Update next handover date error:", e);
+                    throw new Error(`Gagal membuat checkpoint ST lanjutan: ${e?.message || 'Update tanggal gagal'}`);
                 }
             }
 

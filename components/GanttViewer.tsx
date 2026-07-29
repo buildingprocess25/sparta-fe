@@ -37,6 +37,57 @@ function formatFullDate(date: Date): string {
     return `${d}/${m}/${y}`;
 }
 
+function GanttStatusLegend({ isBelumSpk, hasExtension, stLabel }: { isBelumSpk: boolean; hasExtension?: boolean; stLabel?: string }) {
+    return (
+        <div className="border-b border-slate-200 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="text-xs font-black uppercase text-red-700">Status tanggal</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                    <span className="h-2 w-2 rounded-full bg-sky-600" />
+                    Pengawasan
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                    <span className="h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-400" />
+                    Hari ini
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                    <span className="h-3 w-3 animate-pulse rounded bg-yellow-100 ring-1 ring-yellow-400" />
+                    Pengawasan hari ini
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                    <span className="h-3 w-3 rounded bg-teal-100 ring-1 ring-teal-400" />
+                    Pengawasan terisi
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                    <span className="h-3 w-3 animate-pulse rounded bg-red-100 ring-1 ring-red-500" />
+                    Belum selesai / diisi
+                </span>
+                {!isBelumSpk && (
+                    <>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-black text-white">Akhir</span>
+                            Akhir SPK
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded bg-teal-700 px-2 py-0.5 text-[10px] font-black text-white">ST</span>
+                            Target ST{stLabel ? ` ${stLabel.replace(" hari", "")}` : ''}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span className="rounded bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">SPK +N</span>
+                            {hasExtension ? 'Pertambahan SPK' : 'Mundur libur'}
+                        </span>
+                    </>
+                )}
+                {isBelumSpk && (
+                    <span className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">
+                        Belum SPK: kolom memakai urutan hari 1, 2, 3
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false }: {
     nomorUlok: string;
     idToko?: number;
@@ -398,14 +449,25 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
     const { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, svgLines, liveDayIndex } = chartData;
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden text-xs">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-300 overflow-hidden text-xs">
             {!hideChartTitle && (
-                <div className="p-4 bg-slate-100 border-b flex justify-between items-center text-sm">
+                <div className="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center text-sm">
                     <div>
                         <h3 className="font-bold text-slate-800">{title || 'Visualisasi Gantt Chart'}</h3>
-                        <p className="text-xs text-slate-500">Jadwal yang telah direncanakan oleh Kontraktor.</p>
+                        <p className="text-xs text-slate-500">
+                            {isBelumSpk
+                                ? 'Rencana pekerjaan sebelum SPK memakai urutan hari pekerjaan.'
+                                : 'Jadwal yang telah direncanakan oleh Kontraktor.'}
+                        </p>
                     </div>
                 </div>
+            )}
+            {!hideDateHeader && (
+                <GanttStatusLegend
+                    isBelumSpk={isBelumSpk}
+                    hasExtension={projectData?.hasExtension}
+                    stLabel={projectData?.stBufferLabel}
+                />
             )}
             <div className="flex border-b overflow-hidden relative" style={{ maxHeight: "400px" }}>
                 <div className="w-1/3 min-w-50 border-r-[3px] border-slate-400 bg-white z-40 sticky left-0 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)] flex flex-col">
@@ -682,19 +744,21 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                         const rStart = parseInt(r.start);
                                         const rEnd = parseInt(r.end);
                                         const bStart = rStart + shift;
-                                        const bEnd = rEnd + shift + parseInt(r.keterlambatan || 0);
+                                        const delay = parseInt(r.keterlambatan || 0);
+                                        const bEnd = rEnd + shift + delay;
                                         const leftPos = (bStart - 1) * DAY_WIDTH;
                                         const blockWidth = (bEnd - bStart + 1) * DAY_WIDTH;
 
                                         return (
                                             <div
                                                 key={`block-${task.id}-${rIdx}`}
-                                                className="absolute border border-blue-500 rounded-md shadow-sm transition-all group overflow-hidden bg-blue-100 flex items-center justify-center cursor-default"
+                                                className={`absolute rounded-md shadow-sm transition-all group overflow-hidden flex items-center justify-center cursor-default ${delay > 0 ? 'border border-red-500 bg-red-100' : 'border border-blue-500 bg-blue-100'}`}
                                                 style={{ left: leftPos, width: blockWidth, top: 8, height: ROW_HEIGHT - 16 }}
+                                                title={delay > 0 ? `${bEnd - bStart + 1} hari termasuk +${delay} hari terlambat` : `${bEnd - bStart + 1} hari`}
                                             >
-                                                <div className="absolute inset-0 bg-blue-600 opacity-20"></div>
-                                                <div className="relative z-10 font-bold text-[10px] text-blue-800 tracking-wider">
-                                                    {bEnd - bStart + 1} Hari
+                                                <div className={`absolute inset-0 opacity-20 ${delay > 0 ? 'bg-red-600' : 'bg-blue-600'}`}></div>
+                                                <div className={`relative z-10 font-bold text-[10px] tracking-wider ${delay > 0 ? 'text-red-800' : 'text-blue-800'}`}>
+                                                    {bEnd - bStart + 1} Hari{delay > 0 ? ` +${delay} hari terlambat` : ''}
                                                 </div>
                                             </div>
                                         );
