@@ -2898,7 +2898,6 @@ function GanttBoard() {
                                                             const s = parseInt(r.start) + shift;
                                                             const e = parseInt(r.end) + shift;
                                                             const dur = e - s + 1;
-                                                            const delay = parseInt(r.keterlambatan) || 0;
                                                             return (
                                                                 <React.Fragment key={rIdx}>
                                                                     <div
@@ -2907,19 +2906,6 @@ function GanttBoard() {
                                                                     >
                                                                         {dur} Hari
                                                                     </div>
-                                                                    {delay > 0 && (
-                                                                        <div
-                                                                            className="absolute top-3.25 h-6 rounded border border-rose-500 flex items-center justify-center text-[11px] font-bold text-rose-800 shadow-sm z-10"
-                                                                            style={{
-                                                                                left: e * DAY_WIDTH,
-                                                                                width: delay * DAY_WIDTH - 1,
-                                                                                backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 8px, #fecdd3 8px 16px)"
-                                                                            }}
-                                                                            title={`${delay} hari terlambat`}
-                                                                        >
-                                                                            +{delay} hari terlambat
-                                                                        </div>
-                                                                    )}
                                                                 </React.Fragment>
                                                             )
                                                         })}

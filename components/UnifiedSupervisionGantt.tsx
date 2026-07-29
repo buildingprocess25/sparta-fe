@@ -323,34 +323,6 @@ export default function UnifiedSupervisionGantt({
         return dates;
     }, [workspace.scopes]);
 
-    const delayDateInfo = useMemo(() => {
-        const map = new Map<string, { scopes: string[]; maxDelay: number }>();
-        if (!timeline) return map;
-
-        details.forEach((scope) => {
-            scope.rows.forEach((row) => {
-                row.bars.forEach((bar) => {
-                    const delay = Math.max(0, Number(bar.delay || 0));
-                    if (delay <= 0) return;
-
-                    for (let day = bar.end + 1; day <= bar.end + delay; day += 1) {
-                        const date = timeline.dates[day - 1];
-                        if (!date) continue;
-                        const dateKey = formatFullDate(date);
-                        const current = map.get(dateKey) || { scopes: [], maxDelay: 0 };
-                        if (!current.scopes.includes(scope.scopeName)) {
-                            current.scopes.push(scope.scopeName);
-                        }
-                        current.maxDelay = Math.max(current.maxDelay, delay);
-                        map.set(dateKey, current);
-                    }
-                });
-            });
-        });
-
-        return map;
-    }, [details, timeline]);
-
     const maxSpkEnd = useMemo(() => {
         let maxEnd: Date | null = null;
         workspace.scopes.forEach((scope) => {
@@ -381,17 +353,21 @@ export default function UnifiedSupervisionGantt({
     }, [workspace.scopes, maxSpkEnd]);
 
     const stBufferByDate = useMemo(() => {
-        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean; showOffsetLabel: boolean; scopes: string[]; targetLabel?: string }>();
+        const map = new Map<string, { label: string; explanation: string; offsetDays: number; isTarget: boolean; showOffsetLabel: boolean; scopes: string[]; targetLabel?: string; isPenalty: boolean }>();
         if (!maxSpkEnd) return map;
         
         let stTarget: Date | null = null;
+        let explicitStTarget: Date | null = null;
         const allScopeNames: string[] = [];
         workspace.scopes.forEach((scope) => {
             const scopeName = String(scope.lingkup_pekerjaan || "SPK").toUpperCase();
             if (!allScopeNames.includes(scopeName)) allScopeNames.push(scopeName);
             
             const explicit = parseDate(scope.st_target_date);
-            if (explicit && (!stTarget || explicit > stTarget)) stTarget = explicit;
+            if (explicit && (!stTarget || explicit > stTarget)) {
+                stTarget = explicit;
+                explicitStTarget = explicit;
+            }
         });
 
         const fallbackTarget = calculateTargetStFromSpkEnd(maxSpkEnd);
@@ -403,6 +379,7 @@ export default function UnifiedSupervisionGantt({
         if (effectiveOffsetDays <= 0) return map;
 
         const showOffsetLabel = fallbackTarget.showOffsetLabel ?? effectiveOffsetDays > 1;
+        const isPenalty = Boolean(explicitStTarget && diffDays(stTarget, fallbackTarget.date) > 0);
 
         for (let day = 1; day <= effectiveOffsetDays; day += 1) {
             const date = addDays(maxSpkEnd, day);
@@ -412,13 +389,16 @@ export default function UnifiedSupervisionGantt({
             const isTarget = dateStr === formatFullDate(stTarget);
             
             map.set(dateStr, {
-                label: isTarget ? "ST" : `SPK +${day}`,
-                explanation: isTarget ? (fallbackTarget.explanation || `Target ST ${formatFullDate(stTarget)}`) : `Jeda ke ST: SPK +${day}`,
+                label: isTarget ? "ST" : isPenalty ? `Denda +${day}` : `SPK +${day}`,
+                explanation: isPenalty
+                    ? (isTarget ? `ST baru ${formatFullDate(stTarget)} - denda ${effectiveOffsetDays} hari dari Akhir SPK` : `Hari denda ke-${day} menuju ST baru`)
+                    : isTarget ? (fallbackTarget.explanation || `Target ST ${formatFullDate(stTarget)}`) : `Jeda ke ST: SPK +${day}`,
                 offsetDays: effectiveOffsetDays,
                 isTarget,
                 showOffsetLabel,
                 scopes: allScopeNames,
-                targetLabel: 'ST'
+                targetLabel: 'ST',
+                isPenalty
             });
         }
 
@@ -999,13 +979,8 @@ export default function UnifiedSupervisionGantt({
                             Mundur libur
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
-                            <span
-                                className="rounded border border-rose-500 px-2 py-0.5 text-[10px] font-black text-rose-800"
-                                style={{ backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 5px, #fecdd3 5px 10px)" }}
-                            >
-                                TL +N
-                            </span>
-                            Keterlambatan
+                            <span className="rounded bg-rose-600 px-2 py-0.5 text-[10px] font-black text-white">Denda</span>
+                            Akhir SPK ke ST baru
                         </span>
                     </div>
                     {stDelaySummaries.length > 0 && (
@@ -1041,7 +1016,6 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
-                            const delayInfo = delayDateInfo.get(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
                             const checkpointState = resolveCheckpointVisualState(
@@ -1088,10 +1062,14 @@ export default function UnifiedSupervisionGantt({
                                     className={`relative flex h-16 shrink-0 flex-col items-center justify-end border-r border-slate-200 pb-1 text-[10px] font-bold ${
                                         spkEnd
                                             ? "bg-amber-50 text-slate-900 hover:bg-amber-100"
-                                            : stBuffer?.isTarget
-                                                ? "bg-teal-50 text-slate-900 hover:bg-teal-100"
+                                        : stBuffer?.isTarget
+                                                ? stBuffer.isPenalty
+                                                    ? "bg-rose-50 text-slate-900 ring-1 ring-inset ring-rose-300 hover:bg-rose-100"
+                                                    : "bg-teal-50 text-slate-900 hover:bg-teal-100"
                                                 : stBuffer
-                                                    ? "bg-teal-50 text-teal-900 hover:bg-teal-100"
+                                                    ? stBuffer.isPenalty
+                                                        ? "bg-rose-50 text-rose-900 ring-1 ring-inset ring-rose-200 hover:bg-rose-100"
+                                                        : "bg-teal-50 text-teal-900 hover:bg-teal-100"
                                                     : isExtension
                                                         ? "bg-amber-50 text-slate-900 hover:bg-amber-100"
                                                         : visualState === "needsInput"
@@ -1157,11 +1135,11 @@ export default function UnifiedSupervisionGantt({
                                             {spkEnd.label}
                                         </span>
                                     ) : stBuffer?.isTarget ? (
-                                        <span className="absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded bg-teal-700 px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white shadow-sm">
+                                        <span className={`absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white shadow-sm ${stBuffer.isPenalty ? "bg-rose-700" : "bg-teal-700"}`}>
                                             {stBuffer.targetLabel || 'ST'}
                                         </span>
                                     ) : stBuffer ? (
-                                        <span className="absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded bg-orange-500 px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white">{stBuffer.label.replace(" hari", "")}</span>
+                                        <span className={`absolute top-1 left-1/2 -translate-x-1/2 z-20 w-[40px] whitespace-normal break-words rounded px-0.5 py-0.5 text-center text-[8px] font-black leading-[9px] text-white ${stBuffer.isPenalty ? "bg-rose-600" : "bg-orange-500"}`}>{stBuffer.label.replace(" hari", "")}</span>
                                     ) : visualState === "needsInput" ? (
                                         <span className="absolute top-1 h-2.5 w-2.5 rounded-full bg-red-600 shadow-[0_0_0_4px_rgba(220,38,38,0.18)]" title="Ada item perlu diisi" />
                                     ) : visualState === "filled" ? (
@@ -1225,7 +1203,6 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
-                            const delayInfo = delayDateInfo.get(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
                             const checkpointState = resolveCheckpointVisualState(
@@ -1244,11 +1221,13 @@ export default function UnifiedSupervisionGantt({
                                         spkEnd
                                             ? "bg-amber-50/80 border-amber-300 shadow-[inset_0_3px_0_#b45309]"
                                             : stBuffer?.isTarget
-                                                ? "bg-teal-100/80 border-teal-300 shadow-[inset_0_3px_0_#0f766e]"
+                                                ? stBuffer.isPenalty
+                                                    ? "border-rose-300 shadow-[inset_0_3px_0_#e11d48]"
+                                                    : "bg-teal-100/80 border-teal-300 shadow-[inset_0_3px_0_#0f766e]"
                                                 : stBuffer
-                                                    ? "bg-teal-50/60 border-teal-100"
-                                                    : delayInfo
-                                                        ? "border-rose-300 shadow-[inset_0_3px_0_#e11d48]"
+                                                    ? stBuffer.isPenalty
+                                                        ? "border-rose-200 shadow-[inset_0_3px_0_#fb7185]"
+                                                        : "bg-teal-50/60 border-teal-100"
                                                     : isExtension
                                                         ? "bg-amber-50/60 border-amber-200"
                                                             : visualState === "needsInput"
@@ -1266,13 +1245,11 @@ export default function UnifiedSupervisionGantt({
                                     style={{
                                         left: dayIndex * DAY_WIDTH,
                                         width: DAY_WIDTH,
-                                        ...(delayInfo && !spkEnd && !stBuffer
+                                        ...(stBuffer?.isPenalty && !spkEnd
                                             ? { backgroundImage: "repeating-linear-gradient(135deg, rgba(255,228,230,0.72) 0 8px, rgba(254,205,211,0.72) 8px 16px)" }
                                             : {})
                                     }}
-                                    title={delayInfo
-                                        ? `${fullDate} - Keterlambatan ${delayInfo.scopes.join(" + ")} (+${delayInfo.maxDelay} hari)${isExtension ? "; tanggal juga berada dalam area SPK +N" : ""}`
-                                        : isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : spkEnd ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}` : undefined}
+                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : spkEnd ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}` : undefined}
                                 />
                             );
                         })}
@@ -1352,7 +1329,6 @@ export default function UnifiedSupervisionGantt({
                                 );
                                 row.bars.forEach((bar, index) => {
                                     const start = Math.max(1, bar.start);
-                                    const delay = Math.max(0, Number(bar.delay || 0));
                                     const end = Math.min(timeline.days, bar.end);
                                     if (end < 1 || start > timeline.days) return;
                                     const left = (start - 1) * DAY_WIDTH;
@@ -1367,21 +1343,6 @@ export default function UnifiedSupervisionGantt({
                                                 <div className="absolute inset-0 bg-blue-600 opacity-20" />
                                                 <span className="relative z-10 truncate">{bar.duration} Hari</span>
                                             </div>
-                                            {delay > 0 && Math.max(0, timeline.days - bar.end) > 0 && (
-                                                <div
-                                                    className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-rose-500 px-2 text-[10px] font-black text-rose-800 shadow-sm"
-                                                    style={{
-                                                        top: rowTop + 8,
-                                                        left: bar.end * DAY_WIDTH,
-                                                        width: Math.max(DAY_WIDTH * 0.65, Math.min(delay, Math.max(0, timeline.days - bar.end)) * DAY_WIDTH - 6),
-                                                        height: ROW_HEIGHT - 16,
-                                                        backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 8px, #fecdd3 8px 16px)"
-                                                    }}
-                                                    title={`${scope.scopeName} - ${row.label}: +${delay} hari terlambat`}
-                                                >
-                                                    <span className="relative z-10 truncate">+{delay} hari terlambat</span>
-                                                </div>
-                                            )}
                                         </React.Fragment>
                                     );
                                 });

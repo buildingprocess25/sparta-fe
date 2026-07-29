@@ -77,13 +77,8 @@ function GanttStatusLegend({ isBelumSpk, hasExtension, stLabel }: { isBelumSpk: 
                             {hasExtension ? 'Pertambahan SPK' : 'Mundur libur'}
                         </span>
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
-                            <span
-                                className="rounded border border-rose-500 px-2 py-0.5 text-[10px] font-black text-rose-800"
-                                style={{ backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 5px, #fecdd3 5px 10px)" }}
-                            >
-                                TL +N
-                            </span>
-                            Keterlambatan
+                            <span className="rounded bg-rose-600 px-2 py-0.5 text-[10px] font-black text-white">Denda</span>
+                            Akhir SPK ke ST baru
                         </span>
                     </>
                 )}
@@ -783,7 +778,6 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                         const rStart = parseInt(r.start);
                                         const rEnd = parseInt(r.end);
                                         const bStart = rStart + shift;
-                                        const delay = parseInt(r.keterlambatan || 0);
                                         const leftPos = (bStart - 1) * DAY_WIDTH;
                                         const blockWidth = (rEnd + shift - bStart + 1) * DAY_WIDTH;
 
@@ -799,23 +793,6 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                                         {rEnd + shift - bStart + 1} Hari
                                                     </div>
                                                 </div>
-                                                {delay > 0 && (
-                                                    <div
-                                                        className="absolute border border-rose-500 rounded-md shadow-sm transition-all group overflow-hidden flex items-center justify-center cursor-default"
-                                                        style={{
-                                                            left: (rEnd + shift) * DAY_WIDTH,
-                                                            width: delay * DAY_WIDTH,
-                                                            top: 8,
-                                                            height: ROW_HEIGHT - 16,
-                                                            backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 8px, #fecdd3 8px 16px)"
-                                                        }}
-                                                        title={`+${delay} hari terlambat`}
-                                                    >
-                                                        <div className="relative z-10 font-bold text-[10px] text-rose-800 tracking-wider">
-                                                            +{delay} hari terlambat
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </React.Fragment>
                                         );
                                     })}
