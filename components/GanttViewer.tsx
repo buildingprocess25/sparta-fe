@@ -775,22 +775,39 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                         const rEnd = parseInt(r.end);
                                         const bStart = rStart + shift;
                                         const delay = parseInt(r.keterlambatan || 0);
-                                        const bEnd = rEnd + shift + delay;
                                         const leftPos = (bStart - 1) * DAY_WIDTH;
-                                        const blockWidth = (bEnd - bStart + 1) * DAY_WIDTH;
+                                        const blockWidth = (rEnd + shift - bStart + 1) * DAY_WIDTH;
 
                                         return (
-                                            <div
-                                                key={`block-${task.id}-${rIdx}`}
-                                                className={`absolute rounded-md shadow-sm transition-all group overflow-hidden flex items-center justify-center cursor-default ${delay > 0 ? 'border border-red-500 bg-red-100' : 'border border-blue-500 bg-blue-100'}`}
-                                                style={{ left: leftPos, width: blockWidth, top: 8, height: ROW_HEIGHT - 16 }}
-                                                title={delay > 0 ? `${bEnd - bStart + 1} hari termasuk +${delay} hari terlambat` : `${bEnd - bStart + 1} hari`}
-                                            >
-                                                <div className={`absolute inset-0 opacity-20 ${delay > 0 ? 'bg-red-600' : 'bg-blue-600'}`}></div>
-                                                <div className={`relative z-10 font-bold text-[10px] tracking-wider ${delay > 0 ? 'text-red-800' : 'text-blue-800'}`}>
-                                                    {bEnd - bStart + 1} Hari{delay > 0 ? ` +${delay} hari terlambat` : ''}
+                                            <React.Fragment key={`block-${task.id}-${rIdx}`}>
+                                                <div
+                                                    className="absolute border border-blue-500 rounded-md shadow-sm transition-all group overflow-hidden bg-blue-100 flex items-center justify-center cursor-default"
+                                                    style={{ left: leftPos, width: blockWidth, top: 8, height: ROW_HEIGHT - 16 }}
+                                                    title={`${rEnd + shift - bStart + 1} hari`}
+                                                >
+                                                    <div className="absolute inset-0 bg-blue-600 opacity-20"></div>
+                                                    <div className="relative z-10 font-bold text-[10px] text-blue-800 tracking-wider">
+                                                        {rEnd + shift - bStart + 1} Hari
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                {delay > 0 && (
+                                                    <div
+                                                        className="absolute border border-red-500 rounded-md shadow-sm transition-all group overflow-hidden bg-red-100 flex items-center justify-center cursor-default"
+                                                        style={{
+                                                            left: (rEnd + shift) * DAY_WIDTH,
+                                                            width: delay * DAY_WIDTH,
+                                                            top: 8,
+                                                            height: ROW_HEIGHT - 16
+                                                        }}
+                                                        title={`+${delay} hari terlambat`}
+                                                    >
+                                                        <div className="absolute inset-0 bg-red-600 opacity-20"></div>
+                                                        <div className="relative z-10 font-bold text-[10px] text-red-800 tracking-wider">
+                                                            +{delay} hari terlambat
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </React.Fragment>
                                         );
                                     })}
                                 </div>
