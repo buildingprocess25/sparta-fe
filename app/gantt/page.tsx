@@ -3823,18 +3823,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         return maxDate === currentNumeric;
     }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
+    const canCreateNextHandover = isLastSupervisionDay && hasLateItems;
+
     useEffect(() => {
-        if (!isLastSupervisionDay || !hasLateItems || !minNextHandoverDate) return;
+        if (!canCreateNextHandover || !minNextHandoverDate) return;
         if (!nextHandoverDate || nextHandoverDate < minNextHandoverDate) {
             setNextHandoverDate(minNextHandoverDate);
         }
-    }, [hasLateItems, isLastSupervisionDay, minNextHandoverDate, nextHandoverDate]);
+    }, [canCreateNextHandover, minNextHandoverDate, nextHandoverDate]);
 
     const isSubmitValid = useMemo(() => {
         // Jika tidak ada item yang aktif (misal karena jadwal lingkup tidak bersinggungan dengan tanggal pengawasan)
         if (memoConfig.length === 0) {
             // Khusus jika ini hari terakhir DAN ada item terlambat dari pengawasan sebelumnya, wajib isi tanggal ST mundur
-            if (isLastSupervisionDay && hasLateItems) {
+            if (canCreateNextHandover) {
                 return !!nextHandoverDate && (!minNextHandoverDate || nextHandoverDate >= minNextHandoverDate);
             }
             // Selain itu, selalu izinkan submit untuk sekadar mencatatkan kehadiran/kunjungan pada tanggal ini
@@ -3882,15 +3884,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         if (editableItemCount === 0) return false;
 
         // Wajib mengisi tanggal serah terima berikutnya jika ini hari terakhir dan ada yg terlambat
-        if (isLastSupervisionDay && hasLateItems && !nextHandoverDate) {
+        if (canCreateNextHandover && !nextHandoverDate) {
             return false;
         }
-        if (isLastSupervisionDay && hasLateItems && minNextHandoverDate && nextHandoverDate < minNextHandoverDate) {
+        if (canCreateNextHandover && minNextHandoverDate && nextHandoverDate < minNextHandoverDate) {
             return false;
         }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isDirty, isLastSupervisionDay, hasLateItems, nextHandoverDate, minNextHandoverDate]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -3926,7 +3928,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const shouldOpenOpname = entriesToSubmit.some(([, val]) =>
                 String(val.status || '').toLowerCase() === 'selesai'
             );
-            const hasNextHandoverAction = isLastSupervisionDay && hasLateItems && !!nextHandoverDate;
+            const hasNextHandoverAction = canCreateNextHandover && !!nextHandoverDate;
 
             const clickedDate = parseDateAny(activeHeaderClick?.dateString || '');
             const effectiveStartForSubmit = getEffectiveWorkStart();
@@ -4383,7 +4385,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         )}
                     </div>
 
-                    {isLastSupervisionDay && hasLateItems && (
+                    {canCreateNextHandover && (
                         <div className="px-6 pb-4">
                             <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
                                 <h4 className="font-bold text-orange-800 text-sm mb-2 flex items-center gap-2">
@@ -4440,7 +4442,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
                                 </Button>
                             )}
-                            <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && isLastSupervisionDay && hasLateItems && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                            <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && canCreateNextHandover && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
                                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                                 Simpan
                             </Button>
