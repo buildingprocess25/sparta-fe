@@ -1627,7 +1627,7 @@ function GanttBoard() {
             const scopeMissing = Number(scope.missing_pengawasan_checkpoints || 0);
             return scopeOpname > 0 && scopeMissing === 0;
         });
-        const isGenerated = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink) && allOpnameDone;
+        const hasGeneratedPdf = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink);
 
         // Kumpulkan tanggal pengawasan yang belum selesai per scope
         const missingDates: string[] = [];
@@ -1661,9 +1661,16 @@ function GanttBoard() {
             });
         });
 
+        const hasPendingFollowup = missingPengawasan > 0
+            || readyOpnameItems > 0
+            || missingDates.length > 0
+            || pendingOpnameDates.length > 0;
+        const isReady = !hasPendingFollowup && (Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady);
+        const isGenerated = hasGeneratedPdf && allOpnameDone && !hasPendingFollowup;
+
         return {
             isGenerated,
-            isReady: Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady,
+            isReady,
             readyScopeCount: readyScopes.length,
             totalScopeCount: scopedWithGantt.length,
             readyOpnameItems,
@@ -2462,11 +2469,11 @@ function GanttBoard() {
                                                         <div>
                                                             <p className="mt-1 text-sm font-semibold text-slate-950">{handoverStatusText}</p>
                                                         </div>
-                                                        {supervisionWorkspace.unified_serah_terima_generated
+                                                        {handoverReadiness.isGenerated
                                                             ? <CheckCircle className="h-7 w-7 text-emerald-500" />
                                                             : <ClipboardCheck className="h-7 w-7 text-red-300" />}
                                                     </div>
-                                                    {supervisionWorkspace.unified_serah_terima_generated ? (
+                                                    {handoverReadiness.isGenerated ? (
                                                         <div className="flex flex-col gap-2">
                                                             <Button
                                                                 type="button"
@@ -2492,11 +2499,11 @@ function GanttBoard() {
                                                     ) : (
                                                         <div className="flex flex-col gap-2">
                                                             {(() => {
-                                                                const anyScopeGenerated = supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
+                                                                const anyScopeGenerated = handoverReadiness.isGenerated && supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
                                                                 return supervisionWorkspace.scopes.map(scope => {
                                                                     if (!scope.gantt_id) return null;
                                                                     const scopeName = String(scope.lingkup_pekerjaan || "Lingkup").toUpperCase();
-                                                                    if (scope.link_pdf_serah_terima) {
+                                                                    if (handoverReadiness.isGenerated && scope.link_pdf_serah_terima) {
                                                                         return (
                                                                         <Button
                                                                             key={scope.id_toko}
