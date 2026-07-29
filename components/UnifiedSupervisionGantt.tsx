@@ -234,6 +234,21 @@ function scopeRank(scopeName: string) {
     return 2;
 }
 
+function mapIlCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: string }> {
+    const seen = new Set<string>();
+    return (items || [])
+        .map((item) => String(item?.kategori_pekerjaan || "").trim())
+        .filter(Boolean)
+        .map((category) => `[IL] ${category.toUpperCase()}`)
+        .filter((category) => {
+            const key = category.toUpperCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .map((kategori_pekerjaan) => ({ kategori_pekerjaan }));
+}
+
 function buildTimelineFromBounds(starts: Date[], ends: Date[]): Timeline | null {
     if (starts.length === 0 || ends.length === 0) return null;
     const start = new Date(Math.min(...starts.map((date) => date.getTime())));
@@ -416,7 +431,13 @@ export default function UnifiedSupervisionGantt({
                         const ganttStart = isReasonableSpkStart(spkStart)
                             ? spkStart
                             : parseDate(gantt?.timestamp) || null;
-                        const categories = data.kategori_pekerjaan || [];
+                        const categories = [...(data.kategori_pekerjaan || [])];
+                        mapIlCategories(data.instruksi_lapangan_items).forEach((category) => {
+                            const exists = categories.some((item: any) =>
+                                String(item.kategori_pekerjaan || "").trim().toUpperCase() === category.kategori_pekerjaan.toUpperCase()
+                            );
+                            if (!exists) categories.push(category);
+                        });
                         const dayItems = data.day_gantt_data || [];
                         const dependencies = data.dependency_data || [];
                         return { scope, ganttStart, categories, dayItems, dependencies };
@@ -1143,7 +1164,12 @@ export default function UnifiedSupervisionGantt({
                             {scope.rows.map((row, index) => (
                                 <div key={row.id} className="grid grid-cols-[44px_1fr] items-center border-b border-slate-100 text-[11px] font-bold text-slate-800 overflow-hidden" style={{ height: ROW_HEIGHT }}>
                                     <span className="flex h-full items-center justify-center border-r border-slate-100 text-slate-500">{index + 1}</span>
-                                    <span className="truncate px-3" title={row.label}>{row.label}</span>
+                                    <span className="flex min-w-0 items-center gap-1.5 px-3" title={row.label}>
+                                        {String(row.label || "").startsWith("[IL]") && (
+                                            <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
+                                        )}
+                                        <span className="truncate">{String(row.label || "").replace(/^\[IL\]\s*/i, "")}</span>
+                                    </span>
                                 </div>
                             ))}
                         </React.Fragment>

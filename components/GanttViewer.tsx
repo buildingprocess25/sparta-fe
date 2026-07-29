@@ -88,6 +88,21 @@ function GanttStatusLegend({ isBelumSpk, hasExtension, stLabel }: { isBelumSpk: 
     );
 }
 
+function mapIlCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: string }> {
+    const seen = new Set<string>();
+    return (items || [])
+        .map((item) => String(item?.kategori_pekerjaan || '').trim())
+        .filter(Boolean)
+        .map((category) => `[IL] ${category.toUpperCase()}`)
+        .filter((category) => {
+            const key = category.toUpperCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .map((kategori_pekerjaan) => ({ kategori_pekerjaan }));
+}
+
 export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false }: {
     nomorUlok: string;
     idToko?: number;
@@ -131,7 +146,8 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                         kategori_pekerjaan: res.kategori_pekerjaan,
                         day_items: res.day_gantt_data,
                         dependencies: res.dependency_data || [],
-                        pengawasan: res.pengawasan_data || []
+                        pengawasan: res.pengawasan_data || [],
+                        instruksi_lapangan_items: res.instruksi_lapangan_items || []
                     }
                 };
             })
@@ -148,7 +164,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
         fetchPromise
             .then(detailRes => {
                 if (!detailRes) return;
-                const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan } = detailRes.data;
+                const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan, instruksi_lapangan_items } = detailRes.data;
 
                 // Determine project start date
                 let projectStart = new Date();
@@ -266,7 +282,15 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     stBufferExplanation: stInfo.explanation,
                 });
 
-                let generatedTasks: any[] = kategori_pekerjaan.map((k: any, idx: number) => ({
+                const mergedCategories = [...(kategori_pekerjaan || [])];
+                mapIlCategories(instruksi_lapangan_items).forEach((category) => {
+                    const exists = mergedCategories.some((item: any) =>
+                        String(item.kategori_pekerjaan || '').trim().toUpperCase() === category.kategori_pekerjaan.toUpperCase()
+                    );
+                    if (!exists) mergedCategories.push(category);
+                });
+
+                let generatedTasks: any[] = mergedCategories.map((k: any, idx: number) => ({
                     id: idx + 1, name: k.kategori_pekerjaan, dependencies: [], ranges: [], keterlambatan: 0
                 }));
 
@@ -482,7 +506,13 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     }}>
                         {processedTasks.map((task) => (
                             <div key={task.id} className="border-b border-slate-100 flex flex-col justify-center px-4" style={{ height: ROW_HEIGHT }}>
-                                <div className="font-semibold text-slate-800 truncate" title={task.name}>{task.id}. {task.name}</div>
+                                <div className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800" title={task.name}>
+                                    <span className="shrink-0">{task.id}.</span>
+                                    {String(task.name || '').startsWith('[IL]') && (
+                                        <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
+                                    )}
+                                    <span className="truncate">{String(task.name || '').replace(/^\[IL\]\s*/i, '')}</span>
+                                </div>
                             </div>
                         ))}
                     </div>

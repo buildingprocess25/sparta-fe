@@ -126,6 +126,21 @@ function getGanttDurationFromDayItems(dayItems: Array<{ h_awal?: number | string
     return Math.max(0, maxEnd - minStart + 1);
 }
 
+function mapInstruksiLapanganCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: string }> {
+    const seen = new Set<string>();
+    return (items || [])
+        .map((item) => String(item?.kategori_pekerjaan || '').trim())
+        .filter(Boolean)
+        .map((category) => `[IL] ${category.toUpperCase()}`)
+        .filter((category) => {
+            const key = category.toUpperCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .map((kategori_pekerjaan) => ({ kategori_pekerjaan }));
+}
+
 function getProjectGroupKey(item: Pick<PicScopeGroup, 'nomor_ulok' | 'kode_toko' | 'toko'>): string {
     const storeKey = String(item.kode_toko || item.toko?.kode_toko || item.toko?.nama_toko || '').trim().toUpperCase();
     return `${normalizeUlok(item.nomor_ulok)}::${storeKey}`;
@@ -1225,7 +1240,13 @@ function UnifiedPicGanttChart({
             const ganttStart = parseDateOnly(data?.gantt?.timestamp) || startDate;
             const rangesByCategory = new Map<string, Array<{ start: number; end: number; duration: number }>>();
             const depMap = new Map<string, string[]>();
-            const categories = data?.kategori_pekerjaan || [];
+            const categories: any[] = [...(data?.kategori_pekerjaan || [])];
+            mapInstruksiLapanganCategories((data as any)?.instruksi_lapangan_items).forEach((category) => {
+                const exists = categories.some((item: any) =>
+                    String(item.kategori_pekerjaan || '').trim().toUpperCase() === category.kategori_pekerjaan.toUpperCase()
+                );
+                if (!exists) categories.push(category);
+            });
             const toSharedDay = (value: unknown) => {
                 const raw = String(value ?? '').trim();
                 if (!raw) return NaN;
@@ -1483,7 +1504,12 @@ function UnifiedPicGanttChart({
                         return (
                             <div key={`${row.scope}-${row.label}-${index}`} className="flex items-center border-b border-slate-100 px-4" style={{ height: ROW_HEIGHT }}>
                                 <span className="mr-2 text-slate-400">{rowNumber}.</span>
-                                <span className="truncate font-semibold text-slate-800" title={`${row.scope} - ${row.label}`}>{row.label}</span>
+                                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800" title={`${row.scope} - ${row.label}`}>
+                                    {String(row.label || '').startsWith('[IL]') && (
+                                        <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
+                                    )}
+                                    <span className="truncate">{String(row.label || '').replace(/^\[IL\]\s*/i, '')}</span>
+                                </span>
                             </div>
                         );
                     })}
