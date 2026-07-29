@@ -306,11 +306,6 @@ function getWorkspaceScopeLabel(workspace?: SupervisionWorkspace | null): string
 function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     if (!scope.gantt_id || !scope.opname_final_id) return false;
     
-    // Jika KTK final sudah APPROVED (biasanya hasil migrasi), bisa ST meskipun pengawasan belum selesai semua
-    if (scope.status_opname_final === "APPROVED") {
-        return true;
-    }
-
     const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
     const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
