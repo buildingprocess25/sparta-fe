@@ -2909,8 +2909,12 @@ function GanttBoard() {
                                                                     </div>
                                                                     {delay > 0 && (
                                                                         <div
-                                                                            className="absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm z-10 opacity-90"
-                                                                            style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
+                                                                            className="absolute top-3.25 h-6 rounded border border-rose-500 flex items-center justify-center text-[11px] font-bold text-rose-800 shadow-sm z-10"
+                                                                            style={{
+                                                                                left: e * DAY_WIDTH,
+                                                                                width: delay * DAY_WIDTH - 1,
+                                                                                backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 8px, #fecdd3 8px 16px)"
+                                                                            }}
                                                                             title={`${delay} hari terlambat`}
                                                                         >
                                                                             +{delay} hari terlambat

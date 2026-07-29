@@ -76,6 +76,15 @@ function GanttStatusLegend({ isBelumSpk, hasExtension, stLabel }: { isBelumSpk: 
                             <span className="rounded bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">SPK +N</span>
                             {hasExtension ? 'Pertambahan SPK' : 'Mundur libur'}
                         </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span
+                                className="rounded border border-rose-500 px-2 py-0.5 text-[10px] font-black text-rose-800"
+                                style={{ backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 5px, #fecdd3 5px 10px)" }}
+                            >
+                                TL +N
+                            </span>
+                            Keterlambatan
+                        </span>
                     </>
                 )}
                 {isBelumSpk && (
@@ -792,17 +801,17 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                                                 </div>
                                                 {delay > 0 && (
                                                     <div
-                                                        className="absolute border border-red-500 rounded-md shadow-sm transition-all group overflow-hidden bg-red-100 flex items-center justify-center cursor-default"
+                                                        className="absolute border border-rose-500 rounded-md shadow-sm transition-all group overflow-hidden flex items-center justify-center cursor-default"
                                                         style={{
                                                             left: (rEnd + shift) * DAY_WIDTH,
                                                             width: delay * DAY_WIDTH,
                                                             top: 8,
-                                                            height: ROW_HEIGHT - 16
+                                                            height: ROW_HEIGHT - 16,
+                                                            backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 8px, #fecdd3 8px 16px)"
                                                         }}
                                                         title={`+${delay} hari terlambat`}
                                                     >
-                                                        <div className="absolute inset-0 bg-red-600 opacity-20"></div>
-                                                        <div className="relative z-10 font-bold text-[10px] text-red-800 tracking-wider">
+                                                        <div className="relative z-10 font-bold text-[10px] text-rose-800 tracking-wider">
                                                             +{delay} hari terlambat
                                                         </div>
                                                     </div>

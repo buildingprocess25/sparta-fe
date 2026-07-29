@@ -323,6 +323,34 @@ export default function UnifiedSupervisionGantt({
         return dates;
     }, [workspace.scopes]);
 
+    const delayDateInfo = useMemo(() => {
+        const map = new Map<string, { scopes: string[]; maxDelay: number }>();
+        if (!timeline) return map;
+
+        details.forEach((scope) => {
+            scope.rows.forEach((row) => {
+                row.bars.forEach((bar) => {
+                    const delay = Math.max(0, Number(bar.delay || 0));
+                    if (delay <= 0) return;
+
+                    for (let day = bar.end + 1; day <= bar.end + delay; day += 1) {
+                        const date = timeline.dates[day - 1];
+                        if (!date) continue;
+                        const dateKey = formatFullDate(date);
+                        const current = map.get(dateKey) || { scopes: [], maxDelay: 0 };
+                        if (!current.scopes.includes(scope.scopeName)) {
+                            current.scopes.push(scope.scopeName);
+                        }
+                        current.maxDelay = Math.max(current.maxDelay, delay);
+                        map.set(dateKey, current);
+                    }
+                });
+            });
+        });
+
+        return map;
+    }, [details, timeline]);
+
     const maxSpkEnd = useMemo(() => {
         let maxEnd: Date | null = null;
         workspace.scopes.forEach((scope) => {
@@ -970,6 +998,15 @@ export default function UnifiedSupervisionGantt({
                             <span className="rounded bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white">SPK +N</span>
                             Mundur libur
                         </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                            <span
+                                className="rounded border border-rose-500 px-2 py-0.5 text-[10px] font-black text-rose-800"
+                                style={{ backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 5px, #fecdd3 5px 10px)" }}
+                            >
+                                TL +N
+                            </span>
+                            Keterlambatan
+                        </span>
                     </div>
                     {stDelaySummaries.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-teal-800">
@@ -1004,6 +1041,7 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
+                            const delayInfo = delayDateInfo.get(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
                             const checkpointState = resolveCheckpointVisualState(
@@ -1187,6 +1225,7 @@ export default function UnifiedSupervisionGantt({
                             const fullDate = formatFullDate(date);
                             const checkpoint = checkpointByDate.get(fullDate);
                             const isExtension = extensionDates.has(fullDate);
+                            const delayInfo = delayDateInfo.get(fullDate);
                             const spkEnd = spkEndByDate.get(fullDate);
                             const stBuffer = stBufferByDate.get(fullDate);
                             const checkpointState = resolveCheckpointVisualState(
@@ -1208,6 +1247,8 @@ export default function UnifiedSupervisionGantt({
                                                 ? "bg-teal-100/80 border-teal-300 shadow-[inset_0_3px_0_#0f766e]"
                                                 : stBuffer
                                                     ? "bg-teal-50/60 border-teal-100"
+                                                    : delayInfo
+                                                        ? "border-rose-300 shadow-[inset_0_3px_0_#e11d48]"
                                                     : isExtension
                                                         ? "bg-amber-50/60 border-amber-200"
                                                             : visualState === "needsInput"
@@ -1222,8 +1263,16 @@ export default function UnifiedSupervisionGantt({
                                                                             ? "bg-blue-100/70 border-blue-300 shadow-[inset_0_3px_0_#2563eb]"
                                                                             : "border-slate-200"
                                     }`}
-                                    style={{ left: dayIndex * DAY_WIDTH, width: DAY_WIDTH }}
-                                    title={isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : spkEnd ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}` : undefined}
+                                    style={{
+                                        left: dayIndex * DAY_WIDTH,
+                                        width: DAY_WIDTH,
+                                        ...(delayInfo && !spkEnd && !stBuffer
+                                            ? { backgroundImage: "repeating-linear-gradient(135deg, rgba(255,228,230,0.72) 0 8px, rgba(254,205,211,0.72) 8px 16px)" }
+                                            : {})
+                                    }}
+                                    title={delayInfo
+                                        ? `${fullDate} - Keterlambatan ${delayInfo.scopes.join(" + ")} (+${delayInfo.maxDelay} hari)${isExtension ? "; tanggal juga berada dalam area SPK +N" : ""}`
+                                        : isExtension ? `${fullDate} - tanggal pertambahan SPK` : stBuffer ? `${fullDate} - ${stBuffer.explanation}` : spkEnd ? `${fullDate} - Akhir SPK ${spkEnd.scopes.join(" + ")}` : undefined}
                                 />
                             );
                         })}
@@ -1320,16 +1369,16 @@ export default function UnifiedSupervisionGantt({
                                             </div>
                                             {delay > 0 && Math.max(0, timeline.days - bar.end) > 0 && (
                                                 <div
-                                                    className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-red-500 bg-red-100 px-2 text-[10px] font-black text-red-800 shadow-sm"
+                                                    className="absolute z-30 flex items-center justify-center overflow-hidden rounded-md border border-rose-500 px-2 text-[10px] font-black text-rose-800 shadow-sm"
                                                     style={{
                                                         top: rowTop + 8,
                                                         left: bar.end * DAY_WIDTH,
                                                         width: Math.max(DAY_WIDTH * 0.65, Math.min(delay, Math.max(0, timeline.days - bar.end)) * DAY_WIDTH - 6),
-                                                        height: ROW_HEIGHT - 16
+                                                        height: ROW_HEIGHT - 16,
+                                                        backgroundImage: "repeating-linear-gradient(135deg, #ffe4e6 0 8px, #fecdd3 8px 16px)"
                                                     }}
                                                     title={`${scope.scopeName} - ${row.label}: +${delay} hari terlambat`}
                                                 >
-                                                    <div className="absolute inset-0 bg-red-600 opacity-20" />
                                                     <span className="relative z-10 truncate">+{delay} hari terlambat</span>
                                                 </div>
                                             )}
