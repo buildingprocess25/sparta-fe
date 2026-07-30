@@ -26,6 +26,7 @@ import {
   checkRevisionStatus,
   fetchPricesData,
   submitRABData,
+  fetchRABList,
   fetchRABDetail,
   fetchTokoDetail,
   getRABLogoDownloadUrl,
@@ -249,6 +250,38 @@ const isRevisionRowChanged = (current: Partial<RabTableRow>, initial?: RevisionC
   return JSON.stringify(toComparableRevisionRow(current)) !== JSON.stringify(initial);
 };
 
+const normalizeRabScope = (value?: string | null) => {
+  const upper = String(value ?? '').trim().toUpperCase();
+  if (upper === 'SIPIL') return 'Sipil';
+  if (upper === 'ME') return 'ME';
+  return upper;
+};
+
+const resolveProjectFromSource = (project?: string | null, nomorUlok?: string | null) => {
+  const rawProject = String(project || '').trim();
+  const upperProject = rawProject.toUpperCase();
+  const isRenovasiUlok = String(nomorUlok || '').trim().toUpperCase().endsWith('-R');
+  let isRenovasi = isRenovasiUlok;
+  let proyek = rawProject;
+
+  if (upperProject.includes('PERLUASAN')) { proyek = 'Renovasi Perluasan'; isRenovasi = true; }
+  else if (upperProject.includes('PERPANJANGAN')) { proyek = 'Renovasi Perpanjangan'; isRenovasi = true; }
+  else if (upperProject.includes('TUTUP')) { proyek = 'Renovasi Toko Tutup'; isRenovasi = true; }
+  else if (upperProject.includes('PEREMAJAAN') || upperProject.includes('PERBAIKAN')) { proyek = 'Renovasi Peremajaan'; isRenovasi = true; }
+  else if (upperProject === 'RENOVASI') { proyek = 'Renovasi'; isRenovasi = true; }
+  else if (upperProject === 'REGULER') { proyek = 'Reguler'; isRenovasi = false; }
+  else if (isRenovasi && (!proyek || !proyek.toLowerCase().startsWith('renovasi'))) { proyek = 'Renovasi'; }
+
+  return { proyek: proyek || (isRenovasi ? 'Renovasi' : 'Reguler'), isRenovasi };
+};
+
+const normalizeKategoriLokasi = (value?: string | null) => {
+  const upper = String(value ?? '').trim().toUpperCase();
+  if (upper === 'RUKO') return 'Ruko';
+  if (upper === 'NON RUKO' || upper === 'NON_RUKO') return 'Non Ruko';
+  return String(value ?? '').trim();
+};
+
 const priceValueToNumber = (value: unknown, fallback: number) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -424,6 +457,7 @@ function RABPageContent() {
   
   // State untuk melacak perubahan pada form revisi
   const [initialFormState, setInitialFormState] = useState<string | null>(null);
+  const crossScopePrefillKeyRef = useRef<string | null>(null);
 
   // --- 1a. DRAFT (AUTO-SAVE) ---
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
@@ -681,6 +715,122 @@ function RABPageContent() {
 
   // --- 3. DETEKSI OTOMATIS DATA REVISI ---
   const getUlokString = () => `${formData.lokasiCabang.toUpperCase()}-${formData.lokasiTanggal.toUpperCase()}-${formData.lokasiManual.toUpperCase()}${formData.isRenovasi ? '-R' : ''}`;
+
+  useEffect(() => {
+    if (
+      isReadOnly ||
+      !isContractor ||
+      hasProjectPlanningRequest ||
+      currentRabId ||
+      formData.lokasiCabang.length < 4 ||
+      formData.lokasiTanggal.length !== 4 ||
+      formData.lokasiManual.length !== 4 ||
+      !formData.lingkupPekerjaan
+    ) {
+      return;
+    }
+
+    const currentScope = normalizeRabScope(formData.lingkupPekerjaan);
+    const baseUlok = `${formData.lokasiCabang.toUpperCase()}-${formData.lokasiTanggal.toUpperCase()}-${formData.lokasiManual.toUpperCase()}`;
+    const candidateUloks = Array.from(new Set(formData.isRenovasi ? [getUlokString(), baseUlok] : [baseUlok, `${baseUlok}-R`]));
+    const candidateUlokSet = new Set(candidateUloks.map((ulok) => ulok.toUpperCase()));
+    const lookupKey = `${[...candidateUloks].sort().join('|')}::${currentScope}`;
+    if (crossScopePrefillKeyRef.current === lookupKey) return;
+
+    let cancelled = false;
+    crossScopePrefillKeyRef.current = lookupKey;
+
+    const loadCrossScopePrefill = async () => {
+      try {
+        const listResults = await Promise.all(
+          candidateUloks.map((nomor_ulok) =>
+            fetchRABList({ nomor_ulok }, { suppressGlobalError: true }).catch(() => ({ status: 'error', data: [] }))
+          )
+        );
+        if (cancelled) return;
+
+        const seenRabIds = new Set<number>();
+        const candidates = listResults
+          .flatMap((result) => result.data || [])
+          .filter((rab: any) => {
+            const rabId = Number(rab?.id);
+            if (!rabId || seenRabIds.has(rabId)) return false;
+            seenRabIds.add(rabId);
+            const rabUlok = String(rab?.nomor_ulok || rab?.toko?.nomor_ulok || '').trim().toUpperCase();
+            if (!candidateUlokSet.has(rabUlok)) return false;
+            return normalizeRabScope(rab?.toko?.lingkup_pekerjaan || rab?.lingkup_pekerjaan) !== currentScope;
+          })
+          .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+        const source: any = candidates[0];
+        if (!source?.id) return;
+
+        const detailResult = await fetchRABDetail(Number(source.id));
+        if (cancelled) return;
+
+        const detail = detailResult.data;
+        const tokoRef = detail.toko || {};
+        const rabRef = detail.rab || {};
+        const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
+        const sourceParts = String(sourceUlok).split('-');
+        const sourceProject = resolveProjectFromSource(tokoRef.proyek, sourceUlok);
+        const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
+        const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
+        const sourceAsuransi = rabRef.file_asuransi || '';
+        const sourceLogo = rabRef.logo || '';
+
+        setFormData(prev => ({
+          ...prev,
+          lokasiCabang: sourceParts[0] || prev.lokasiCabang,
+          lokasiTanggal: sourceParts[1] || prev.lokasiTanggal,
+          lokasiManual: sourceParts[2] || prev.lokasiManual,
+          isRenovasi: sourceProject.isRenovasi,
+          proyek: sourceProject.proyek,
+          cabang: sourceCabang || prev.cabang,
+          lingkupPekerjaan: prev.lingkupPekerjaan,
+          namaToko: prev.namaToko || tokoRef.nama_toko || source.nama_toko || '',
+          alamat: prev.alamat || tokoRef.alamat || '',
+          kategoriLokasi: prev.kategoriLokasi || normalizeKategoriLokasi(rabRef.kategori_lokasi),
+          durasiPekerjaan: prev.durasiPekerjaan || String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, ''),
+          luasAreaParkir: prev.luasAreaParkir || String(rabRef.luas_area_parkir || ''),
+          luasAreaSales: prev.luasAreaSales || String(rabRef.luas_area_sales || ''),
+          luasGudang: prev.luasGudang || String(rabRef.luas_gudang || ''),
+          luasBangunan: prev.luasBangunan || String(rabRef.luas_bangunan || ''),
+          luasAreaTerbuka: prev.luasAreaTerbuka || String(rabRef.luas_area_terbuka || ''),
+          noPolis: prev.noPolis || String(rabRef.no_polis || ''),
+          berlakuPolis: prev.berlakuPolis || String(rabRef.berlaku_polis || ''),
+          fileAsuransi: prev.fileAsuransi || sourceAsuransi,
+          logo: prev.logo || sourceLogo,
+        }));
+
+        if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
+        if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
+
+        showAlert(
+          "Data proyek otomatis terisi",
+          `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup yang sedang Anda input tetap ${currentScope}.`,
+          "info"
+        );
+      } catch (err) {
+        console.log("Prefill RAB lintas lingkup dilewati:", err);
+      }
+    };
+
+    loadCrossScopePrefill();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isReadOnly,
+    isContractor,
+    hasProjectPlanningRequest,
+    currentRabId,
+    formData.lokasiCabang,
+    formData.lokasiTanggal,
+    formData.lokasiManual,
+    formData.isRenovasi,
+    formData.lingkupPekerjaan,
+  ]);
 
   // --- 3. DETEKSI OTOMATIS DATA REVISI (DIHAPUS SESUAI PERMINTAAN) ---
 
