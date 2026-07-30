@@ -804,39 +804,48 @@ function GanttBoard() {
         }
 
         if (currentAppMode === 'pic') {
-            Promise.all([
-                fetchGanttList(),
-                fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }),
-                fetchSPKList({ status: 'SPK_APPROVED' }).catch(() => ({ data: [] }))
-            ])
-                .then(([res, instruksiRes, spkRes]) => {
-                    const spkIds = new Set<number>();
-                    if (spkRes && Array.isArray(spkRes.data)) {
-                        spkRes.data.forEach((spk: any) => {
-                            if (spk.id_toko) spkIds.add(Number(spk.id_toko));
-                        });
-                    }
-                    setSpkTokoIds(spkIds);
+            const loadPicLookupData = () => {
+                Promise.all([
+                    fetchGanttList(),
+                    fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }),
+                    fetchSPKList({ status: 'SPK_APPROVED' }).catch(() => ({ data: [] }))
+                ])
+                    .then(([res, instruksiRes, spkRes]) => {
+                        const spkIds = new Set<number>();
+                        if (spkRes && Array.isArray(spkRes.data)) {
+                            spkRes.data.forEach((spk: any) => {
+                                if (spk.id_toko) spkIds.add(Number(spk.id_toko));
+                            });
+                        }
+                        setSpkTokoIds(spkIds);
 
-                    const data = res.data || [];
-                    const ganttOnlyFiltered = upperCabang ? data.filter(item => {
-                        const normalizedCabang = normalizeBranchValue(item.cabang);
-                        if (canSeeAllBranches) return true;
-                        if (userGroup) return userGroup.includes(normalizedCabang);
-                        return normalizedCabang === upperCabang;
-                    }) : data;
-                    const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
-                    const merged = mergeProjectOptions(data, ilProjects);
-                    const filtered = upperCabang ? merged.filter(item => {
-                        const normalizedCabang = normalizeBranchValue(item.cabang);
-                        if (canSeeAllBranches) return true;
-                        if (userGroup) return userGroup.includes(normalizedCabang);
-                        return normalizedCabang === upperCabang;
-                    }) : merged;
-                    setAvailableProjects(ganttOnlyFiltered);
-                    setAllTokoList(filtered);
-                })
-                .catch(err => console.error("Gagal memuat semua daftar Gantt:", err));
+                        const data = res.data || [];
+                        const ganttOnlyFiltered = upperCabang ? data.filter(item => {
+                            const normalizedCabang = normalizeBranchValue(item.cabang);
+                            if (canSeeAllBranches) return true;
+                            if (userGroup) return userGroup.includes(normalizedCabang);
+                            return normalizedCabang === upperCabang;
+                        }) : data;
+                        const ilProjects = mapApprovedInstruksiToTokoOptions(instruksiRes.data || []);
+                        const merged = mergeProjectOptions(data, ilProjects);
+                        const filtered = upperCabang ? merged.filter(item => {
+                            const normalizedCabang = normalizeBranchValue(item.cabang);
+                            if (canSeeAllBranches) return true;
+                            if (userGroup) return userGroup.includes(normalizedCabang);
+                            return normalizedCabang === upperCabang;
+                        }) : merged;
+                        setAvailableProjects(ganttOnlyFiltered);
+                        setAllTokoList(filtered);
+                    })
+                    .catch(err => console.error("Gagal memuat semua daftar Gantt:", err));
+            };
+
+            if (urlUlok) {
+                const lookupTimer = window.setTimeout(loadPicLookupData, 1500);
+                return () => window.clearTimeout(lookupTimer);
+            }
+
+            loadPicLookupData();
         } else {
             Promise.all([
                 fetchRABList(),
