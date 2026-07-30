@@ -40,7 +40,10 @@ import {
     fetchSPKList,
     fetchPertambahanSPKList,
     fetchPertambahanSPKDetail,
+    fetchOpnameFinalList,
+    fetchOpnameFinalDetail,
     interveneGanttStatus,
+    interveneOpnameFinalStatus,
     interveneProjekPlanningStatus,
     interveneSPKStatus,
     intervenePertambahanSPKStatus,
@@ -57,6 +60,7 @@ import {
     type PertambahanSPKListItem,
     type PertambahanSPKDetailResponse,
     type PertambahanSPKInterventionPayload,
+    type OpnameFinalInterventionPayload,
 } from "@/lib/api";
 import { formatRupiah } from "@/lib/utils";
 import { getParentBranch, normalizeBranchValue } from "@/lib/constants";
@@ -80,11 +84,12 @@ import {
     XCircle,
 } from "lucide-react";
 
-type InterventionDocType = "RAB" | "SPK" | "PROJECT_PLANNING" | "GANTT" | "PERTAMBAHAN_SPK";
+type InterventionDocType = "RAB" | "SPK" | "PROJECT_PLANNING" | "GANTT" | "PERTAMBAHAN_SPK" | "KTK";
 type StatusCategory = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
 type SpkTargetStatus = "WAITING_FOR_BM_APPROVAL" | "SPK_APPROVED" | "SPK_REJECTED";
 type PertambahanSpkTargetStatus = "WAITING_FOR_BM_APPROVAL" | "APPROVED_BY_BM" | "REJECTED_BY_BM";
 type GanttTargetStatus = "active" | "terkunci";
+type KtkTargetStatus = OpnameFinalInterventionPayload["target_status"];
 
 type StatusOption = {
     value: string;
@@ -287,11 +292,39 @@ const GANTT_STATUS_OPTIONS: StatusOption[] = [
     },
 ];
 
+const KTK_STATUS_OPTIONS: StatusOption[] = [
+    {
+        value: "Ditolak oleh Koordinator",
+        label: "Revisi Koordinator",
+        description: "Kembalikan KTK ke kontraktor sebagai revisi dari level koordinator.",
+        tone: "danger",
+    },
+    {
+        value: "Ditolak oleh Manajer",
+        label: "Revisi Manajer",
+        description: "Kembalikan KTK ke kontraktor sebagai revisi dari level manajer.",
+        tone: "danger",
+    },
+    {
+        value: "Ditolak oleh Direktur Kontraktor",
+        label: "Revisi Direktur",
+        description: "Kembalikan KTK ke kontraktor sebagai revisi dari direktur kontraktor.",
+        tone: "danger",
+    },
+    {
+        value: "Menunggu Persetujuan Koordinator",
+        label: "Menunggu Koordinator",
+        description: "Masukkan KTK ke antrean approval koordinator.",
+        tone: "warning",
+    },
+];
+
 const TYPE_FILTERS: Array<{ value: InterventionDocType | "ALL"; label: string }> = [
     { value: "ALL", label: "Semua Tipe" },
     { value: "RAB", label: "RAB" },
     { value: "SPK", label: "SPK" },
     { value: "PERTAMBAHAN_SPK", label: "Pertambahan SPK" },
+    { value: "KTK", label: "KTK" },
     { value: "PROJECT_PLANNING", label: "Project Planning" },
     { value: "GANTT", label: "Gantt" },
 ];
@@ -443,6 +476,22 @@ const normalizePertambahanSpk = (psp: PertambahanSPKListItem): InterventionDocum
     updated_at: psp.waktu_persetujuan,
     email_pembuat: psp.dibuat_oleh,
     raw: psp,
+});
+
+const normalizeKtk = (ktk: Record<string, unknown>): InterventionDocument => ({
+    id: Number(ktk.id),
+    type: "KTK",
+    id_toko: Number(ktk.id_toko || 0) || null,
+    nomor_ulok: String(ktk.nomor_ulok || ""),
+    nama_toko: String(ktk.nama_toko || ""),
+    cabang: String(ktk.cabang || ""),
+    contractor: String(ktk.nama_kontraktor || ""),
+    project: String(ktk.proyek || ktk.tipe_opname || ""),
+    status: String(ktk.status_opname_final || ""),
+    total: parseMoney(ktk.grand_total_final || ktk.grand_total_opname),
+    created_at: String(ktk.created_at || ""),
+    email_pembuat: String(ktk.email_pembuat || ""),
+    raw: ktk,
 });
 
 const mapActivityLogs = (logs: ActivityLog[]): InterventionLog[] =>
@@ -652,6 +701,50 @@ const interventionAdapters: Record<InterventionDocType, InterventionAdapter> = {
             });
         },
     },
+    KTK: {
+        type: "KTK",
+        label: "KTK",
+        accentClass: "border-amber-200 bg-amber-50 text-amber-700",
+        icon: <CheckCircle2 className="h-4 w-4" />,
+        fetchList: async () => {
+            const response = await fetchOpnameFinalList({ tipe_opname: "OPNAME_FINAL", aksi: "terkunci" });
+            return ((response.data || []) as Record<string, unknown>[]).map(normalizeKtk);
+        },
+        fetchDetail: async (doc) => {
+            const [detail, logs] = await Promise.all([
+                fetchOpnameFinalDetail(doc.id).catch(() => null),
+                fetchActivityLogs("OPNAME_FINAL", doc.id).then((res) => res.data).catch(() => []),
+            ]);
+            if (!detail?.data) return { ...doc, logs: mapActivityLogs(logs) };
+
+            const ktk = detail.data.opname_final as Record<string, unknown>;
+            const toko = detail.data.toko as Record<string, unknown>;
+            return {
+                ...normalizeKtk({
+                    ...ktk,
+                    id: ktk.id,
+                    id_toko: ktk.id_toko,
+                    nomor_ulok: toko.nomor_ulok,
+                    nama_toko: toko.nama_toko,
+                    cabang: toko.cabang,
+                    proyek: toko.proyek,
+                    lingkup_pekerjaan: toko.lingkup_pekerjaan,
+                }),
+                project: `${String(toko.proyek || "-")} / ${String(toko.lingkup_pekerjaan || "-")}`,
+                logs: mapActivityLogs(logs),
+                raw: detail.data,
+            };
+        },
+        getStatusOptions: () => KTK_STATUS_OPTIONS,
+        submit: async (doc, targetStatus, reason, user) => {
+            await interveneOpnameFinalStatus(doc.id, {
+                actor_email: user.email,
+                actor_role: user.role,
+                target_status: targetStatus as KtkTargetStatus,
+                alasan_intervensi: reason,
+            });
+        },
+    },
 };
 
 export default function IntervensiPage() {
@@ -853,7 +946,7 @@ export default function IntervensiPage() {
                                 Pusat Intervensi Dokumen
                             </h1>
                             <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                                Satu tempat untuk intervensi RAB dan SPK yang sudah didukung sistem. Modul lain bisa ditambahkan lewat adapter saat endpoint-nya tersedia.
+                                Satu tempat untuk intervensi RAB, SPK, KTK, Gantt, Project Planning, dan Pertambahan SPK yang sudah didukung sistem.
                             </p>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">

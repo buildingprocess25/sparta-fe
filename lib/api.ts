@@ -2775,6 +2775,32 @@ export const approveOpnameFinal = async (id: number, payload: {
     return result;
 };
 
+export type OpnameFinalInterventionPayload = {
+    actor_email: string;
+    actor_role: string;
+    target_status:
+        | "Menunggu Persetujuan Koordinator"
+        | "Menunggu Persetujuan Manajer"
+        | "Menunggu Persetujuan Direktur Kontraktor"
+        | "Ditolak oleh Koordinator"
+        | "Ditolak oleh Manajer"
+        | "Ditolak oleh Direktur Kontraktor";
+    alasan_intervensi: string;
+};
+
+export const interveneOpnameFinalStatus = async (id: number, payload: OpnameFinalInterventionPayload) => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/intervensi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Akses intervensi hanya untuk Super Human.");
+    if (res.status === 422) throw new Error(result.message || "Validasi intervensi KTK gagal.");
+    if (!res.ok) throw new Error(result.message || `Gagal melakukan intervensi KTK (${res.status}).`);
+    return result;
+};
+
 /** Download PDF Opname */
 export const downloadOpnameFinalPdf = async (id: number): Promise<boolean> => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/pdf?t=${Date.now()}`);
