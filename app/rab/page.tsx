@@ -776,7 +776,6 @@ function RABPageContent() {
         const sourceProject = resolveProjectFromSource(tokoRef.proyek, sourceUlok);
         const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
         const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
-        const sourceAsuransi = rabRef.file_asuransi || '';
         const sourceLogo = rabRef.logo || '';
 
         setFormData(prev => ({
@@ -799,12 +798,10 @@ function RABPageContent() {
           luasAreaTerbuka: prev.luasAreaTerbuka || String(rabRef.luas_area_terbuka || ''),
           noPolis: prev.noPolis || String(rabRef.no_polis || ''),
           berlakuPolis: prev.berlakuPolis || String(rabRef.berlaku_polis || ''),
-          fileAsuransi: prev.fileAsuransi || sourceAsuransi,
           logo: prev.logo || sourceLogo,
         }));
 
         if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
-        if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
 
         showAlert(
           "Data proyek otomatis terisi",
