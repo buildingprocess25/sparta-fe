@@ -1725,7 +1725,6 @@ function GanttBoard() {
 
         const hasPendingFollowup = missingPengawasan > 0
             || readyOpnameItems > 0
-            || missingDates.length > 0
             || pendingOpnameDates.length > 0;
         const isReady = !hasPendingFollowup && (Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady);
         const isGenerated = hasGeneratedPdf && allOpnameDone && !hasPendingFollowup;
