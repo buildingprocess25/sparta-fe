@@ -191,6 +191,16 @@ const parseDecimalInput = (value: unknown): number => {
 };
 
 const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
+const blockedIncrementKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
+const normalizeIntegerInput = (value: string) => value.replace(/[^\d]/g, '');
+
+const preventNativeStepChange = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (blockedIncrementKeys.has(event.key)) event.preventDefault();
+};
+
+const preventFocusedWheelChange = (event: React.WheelEvent<HTMLElement>) => {
+    if (event.currentTarget === document.activeElement) event.preventDefault();
+};
 
 function formatUlokWithDash(ulok: string) {
     if (!ulok) return "";
@@ -1282,14 +1292,15 @@ function GanttBoard() {
     };
 
     const handleRangeChange = (taskId: number, rangeIdx: number, field: 'start' | 'end', value: string) => {
-        let parsedVal = parseInt(value);
+        const sanitizedValue = normalizeIntegerInput(value);
+        let parsedVal = parseInt(sanitizedValue);
         if (!isNaN(parsedVal)) {
             const maxDuration = projectData?.duration || 99;
             if (parsedVal > maxDuration) {
                 parsedVal = maxDuration;
             }
         }
-        const finalValue = isNaN(parsedVal) && value !== '' ? '' : (value === '' ? '' : parsedVal.toString());
+        const finalValue = sanitizedValue === '' || isNaN(parsedVal) ? '' : parsedVal.toString();
 
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
@@ -2786,6 +2797,8 @@ function GanttBoard() {
                                                         disabled={isReadOnly}
                                                         className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-xs"
                                                         value={task.dependencies[0] || ''}
+                                                        onKeyDown={preventNativeStepChange}
+                                                        onWheel={preventFocusedWheelChange}
                                                         onChange={(e) => handleDependencyChange(task.id, e.target.value)}
                                                     >
                                                         <option value="">- Tidak Ada -</option>
@@ -2801,9 +2814,14 @@ function GanttBoard() {
                                                                 <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
                                                                 <input
                                                                     readOnly={isReadOnly}
-                                                                    type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800"
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    pattern="[0-9]*"
+                                                                    className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800"
                                                                     value={r.start} onChange={(e) => handleRangeChange(task.id, idx, 'start', e.target.value)}
-                                                                    placeholder="Start" min="1" max={projectData?.duration || 99}
+                                                                    onKeyDown={preventNativeStepChange}
+                                                                    onWheel={preventFocusedWheelChange}
+                                                                    placeholder="Start"
                                                                 />
                                                             </div>
                                                             <span className="text-slate-400 text-xs">➜</span>
@@ -2811,9 +2829,14 @@ function GanttBoard() {
                                                                 <span className="bg-slate-100 text-slate-500 px-2 py-1.5 text-xs font-bold border-r">H</span>
                                                                 <input
                                                                     readOnly={isReadOnly}
-                                                                    type="number" className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800"
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    pattern="[0-9]*"
+                                                                    className="w-16 p-1.5 text-center outline-none focus:bg-blue-50 text-sm font-semibold text-slate-800"
                                                                     value={r.end} onChange={(e) => handleRangeChange(task.id, idx, 'end', e.target.value)}
-                                                                    placeholder="End" min="1" max={projectData?.duration || 99}
+                                                                    onKeyDown={preventNativeStepChange}
+                                                                    onWheel={preventFocusedWheelChange}
+                                                                    placeholder="End"
                                                                 />
                                                             </div>
 
