@@ -37,6 +37,34 @@ import {
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
+const blockedIncrementKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
+const decimalFormFields = new Set(['luasBangunan', 'luasAreaTerbuka', 'luasAreaSales', 'luasGudang', 'luasAreaParkir']);
+
+const keepSingleDecimalSeparator = (value: string) => {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [head, ...tail] = normalized.split('.');
+  return tail.length > 0 ? `${head}.${tail.join('')}` : head;
+};
+
+const normalizeDecimalInput = (value: string) => keepSingleDecimalSeparator(value);
+const normalizeIntegerInput = (value: string) => value.replace(/[^\d]/g, '');
+const parseDecimalInput = (value: string) => {
+  const parsed = parseFloat(normalizeDecimalInput(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const decimalPayloadValue = (value: string) => String(parseDecimalInput(value));
+
+const preventNativeNumberStep = (event: React.KeyboardEvent<HTMLElement>) => {
+  if (blockedIncrementKeys.has(event.key)) event.preventDefault();
+};
+
+const preventWheelNumberChange = (event: React.WheelEvent<HTMLElement>) => {
+  if (event.currentTarget === document.activeElement) event.preventDefault();
+};
+
+const preventSelectArrowChange = (event: React.KeyboardEvent<HTMLSelectElement>) => {
+  if (blockedIncrementKeys.has(event.key)) event.preventDefault();
+};
 
 const normalizeBranchName = (value?: string | null) =>
   String(value ?? '').trim().toUpperCase().replace(/^CAB(?:ANG)?\.?\s+/, '').replace(/^CABANG\s+/, '').trim();
@@ -951,6 +979,12 @@ function RABPageContent() {
     if (name === 'lokasiManual') {
         finalValue = formData.isRenovasi ? String(finalValue).replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : String(finalValue).replace(/[^0-9]/g, '');
     }
+    if (name === 'durasiPekerjaan') {
+        finalValue = normalizeIntegerInput(String(finalValue));
+    }
+    if (decimalFormFields.has(name)) {
+        finalValue = normalizeDecimalInput(String(finalValue));
+    }
     setFormData(prev => ({ ...prev, [name]: finalValue }));
     // Jika user mengubah ULOK secara manual, hapus projek_planning_id dari URL
     // supaya tidak ter-submit sebagai permintaan Project Planning
@@ -1114,12 +1148,12 @@ function RABPageContent() {
       nama_pt: sessionNamaPt,
       durasi_pekerjaan: String(formData.durasiPekerjaan),
       kategori_lokasi: formData.kategoriLokasi.toUpperCase(),
-      luas_bangunan: String(formData.luasBangunan || "0"),
+      luas_bangunan: decimalPayloadValue(formData.luasBangunan),
       luas_terbangun: String(luasTerbangun.toFixed(2)),
-      luas_area_terbuka: String(formData.luasAreaTerbuka || "0"),
-      luas_area_parkir: String(formData.luasAreaParkir || "0"),
-      luas_area_sales: String(formData.luasAreaSales || "0"),
-      luas_gudang: String(formData.luasGudang || "0"),
+      luas_area_terbuka: decimalPayloadValue(formData.luasAreaTerbuka),
+      luas_area_parkir: decimalPayloadValue(formData.luasAreaParkir),
+      luas_area_sales: decimalPayloadValue(formData.luasAreaSales),
+      luas_gudang: decimalPayloadValue(formData.luasGudang),
       no_polis: formData.noPolis,
       berlaku_polis: formData.berlakuPolis,
       is_revisi: String(isRevisionSubmit),
@@ -1463,7 +1497,7 @@ function RABPageContent() {
                   </div>
                   <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isReadOnly || hasProjectPlanningRequest} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select disabled={isReadOnly} onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="number" min="1" step="1" name="durasiPekerjaan" readOnly={isReadOnly} value={formData.durasiPekerjaan} onChange={handleInputChange} placeholder="Masukkan jumlah hari" className="bg-white" required /></div>
+                  <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="text" inputMode="numeric" pattern="[0-9]*" name="durasiPekerjaan" readOnly={isReadOnly} value={formData.durasiPekerjaan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="Masukkan jumlah hari" className="bg-white" required /></div>
                 </div>
               </div>
             </CardContent>
@@ -1540,11 +1574,11 @@ function RABPageContent() {
           <Card className="mb-8 shadow-sm">
             <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Dimensi & Ukuran Proyek</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pt-6">
-              <div className="space-y-2"><Label>Luas Bangunan (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasBangunan" readOnly={isReadOnly} value={formData.luasBangunan} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Area Terbuka (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasAreaTerbuka" readOnly={isReadOnly} value={formData.luasAreaTerbuka} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Area Sales (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasAreaSales" readOnly={isReadOnly} value={formData.luasAreaSales} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Gudang (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasGudang" readOnly={isReadOnly} value={formData.luasGudang} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Area Parkir (m²) <span className="text-red-500">*</span></Label><Input type="number" step="any" name="luasAreaParkir" readOnly={isReadOnly} value={formData.luasAreaParkir} onChange={handleInputChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Bangunan (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasBangunan" readOnly={isReadOnly} value={formData.luasBangunan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Area Terbuka (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaTerbuka" readOnly={isReadOnly} value={formData.luasAreaTerbuka} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Area Sales (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaSales" readOnly={isReadOnly} value={formData.luasAreaSales} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Gudang (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasGudang" readOnly={isReadOnly} value={formData.luasGudang} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Area Parkir (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaParkir" readOnly={isReadOnly} value={formData.luasAreaParkir} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
               <div className="space-y-2"><Label className="text-blue-700 font-bold">Luas Terbangun (m²) <span className="text-xs font-normal text-slate-400">(Auto)</span></Label><Input readOnly value={luasTerbangun > 0 ? luasTerbangun.toFixed(2) : ''} className="bg-blue-50 border-blue-200 font-bold text-blue-800 cursor-not-allowed" placeholder="0.00" tabIndex={-1} /></div>
             </CardContent>
           </Card>
@@ -1616,7 +1650,7 @@ function RABPageContent() {
                               <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
                                 <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap">
-                                  <select disabled={isReadOnly} className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
+                                  <select disabled={isReadOnly} className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onKeyDown={preventSelectArrowChange} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
                                     <option value="">-- Pilih --</option>
                                     {row.jenisPekerjaan && !hasCurrentJobOption && (
                                       <option value={row.jenisPekerjaan}>{row.jenisPekerjaan}</option>
@@ -1634,7 +1668,7 @@ function RABPageContent() {
                                   )}
                                 </td>
                                 <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
-                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="number" min="0" step="any" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? 0 : row.volume} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseFloat(e.target.value) || 0))} readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
+                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? '' : String(row.volume)} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseDecimalInput(e.target.value)))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} /></td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditUpahPrice} tabIndex={canEditUpahPrice ? 0 : -1} /></td>
                                 <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaMaterial)}</td>
