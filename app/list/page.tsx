@@ -29,7 +29,7 @@ import {
     fetchActivityLogs, type ActivityLog,
     fetchInstruksiLapanganList, fetchInstruksiLapanganDetail, downloadInstruksiLapanganPdf, regenerateAndDownloadInstruksiLapanganPdf,
     fetchProjekPlanningList, fetchProjekPlanningDetail, downloadProjekPlanningPdf, proxyProjekPlanningFile,
-    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, regenerateAndDownloadSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline,
+    fetchDokumentasiBangunanList, fetchDokumentasiBangunanDetail, downloadSerahTerimaPdf, regenerateBerkasSerahTerimaPdf, downloadDokumentasiBangunanPdf, viewGeneratedPdfOnline,
     fetchUserCabangList,
     type ProjekPlanningItem,
 } from '@/lib/api';
@@ -2226,7 +2226,9 @@ export default function DaftarDokumenPage() {
             } else if (selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') {
                 await regenerateAndDownloadInstruksiLapanganPdf(selectedDetail.id);
             } else if (selectedDetail.tipe === 'BERKAS_SERAH_TERIMA') {
-                await regenerateAndDownloadSerahTerimaPdf(selectedDetail.id);
+                await regenerateBerkasSerahTerimaPdf(selectedDetail.id);
+                showToast('Generate ulang PDF Serah Terima sedang diproses di background. Tunggu sebentar lalu klik download/buka PDF lagi.', 'success');
+                return;
             } else {
                 showToast('Generate ulang belum tersedia untuk dokumen ini.', 'error');
                 return;
