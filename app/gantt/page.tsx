@@ -3193,15 +3193,15 @@ function GanttBoard() {
                 <OpnameModal
                     activeHeaderClick={activeHeaderClick}
                     rabItems={rabItems}
-                    id_toko={projectData?.id_toko}
+                    id_toko={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.id_toko ?? projectData?.id_toko}
                     onClose={() => {
                         setShowOpnameModal(false);
                         setUnifiedOpnameFlow(null);
                         if (!unifiedOpnameFlow) setShowMemoModal(true);
                     }}
-                    selectedGanttId={selectedGanttId}
+                    selectedGanttId={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.gantt_id ?? selectedGanttId}
                     spkInfo={spkInfo}
-                    nomorUlok={projectData?.ulokClean}
+                    nomorUlok={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.nomor_ulok ?? projectData?.ulokClean}
                     scopeLabel={unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index]?.scope?.lingkup_pekerjaan}
                     nextScopeLabel={unifiedOpnameFlow && unifiedOpnameFlow.index + 1 < unifiedOpnameFlow.scopes.length ? unifiedOpnameFlow.scopes[unifiedOpnameFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
                     flowStep={unifiedOpnameFlow ? { current: unifiedOpnameFlow.index + 1, total: unifiedOpnameFlow.scopes.length } : null}
@@ -4497,16 +4497,29 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     const canGenerateSerahTerima = hasOpnameFinal && completedItems.length === 0;
 
     useEffect(() => {
+        if (!selectedGanttId || !id_toko) {
+            setCompletedItems([]);
+            setCompletedPengawasanCount(0);
+            setIsLoading(false);
+            return;
+        }
+
+        let cancelled = false;
         setIsLoading(true);
         import('@/lib/api').then(({ fetchPengawasanList, fetchRABDetail, fetchRABList, fetchOpnameList, fetchOpnameFinalList }) => {
-            fetchPengawasanList({ id_gantt: selectedGanttId })
+            const targetDate = activeHeaderClick?.dateString
+                ? formatPengawasanDateKey(activeHeaderClick.dateString)
+                : undefined;
+
+            fetchPengawasanList({ id_gantt: selectedGanttId, status: 'selesai', tanggal: targetDate })
                 .then(async res => {
+                    if (cancelled) return;
                     const allData = res.data || [];
                     // Tampilkan hanya pengawasan selesai pada tanggal yang dipilih (jika modal dibuka dari suatu tanggal)
                     const data = allData.filter((p: any) => {
                         if (p.status?.toLowerCase() !== 'selesai') return false;
-                        if (activeHeaderClick?.dateString) {
-                            return p.tanggal_pengawasan === activeHeaderClick.dateString;
+                        if (targetDate) {
+                            return formatPengawasanDateKey(p.tanggal_pengawasan) === targetDate;
                         }
                         return true;
                     });
@@ -4647,6 +4660,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     });
                     const dedupedItems = Array.from(deduped.values());
 
+                    if (cancelled) return;
                     setCompletedItems(dedupedItems);
 
                     const inputs: any = {};
@@ -4666,12 +4680,18 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     setOpnameInputs(inputs);
                 })
                 .catch(err => {
+                    if (cancelled) return;
                     console.error(err);
                     showAlert({ message: "Gagal memuat list pengawasan selesai.", type: "error" });
                 })
-                .finally(() => setIsLoading(false));
+                .finally(() => {
+                    if (!cancelled) setIsLoading(false);
+                });
         });
-    }, [selectedGanttId, rabItems, id_toko, nomorUlok]);
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedGanttId, activeHeaderClick?.dateString, rabItems, id_toko, nomorUlok]);
 
     const handleSetOpname = (id: string | number, field: string, value: any) => {
         setOpnameInputs(prev => ({
