@@ -1564,7 +1564,7 @@ export const downloadRABPdf = async (id: number): Promise<boolean> => {
 
     // Parsing nama file dari Content-Disposition header
     const disposition = res.headers.get("Content-Disposition");
-    let filename = `RAB_${id}.pdf`;
+    let filename = `RAB_GABUNGAN_${id}.pdf`;
     if (disposition?.includes("filename=")) {
         const match = disposition.match(/filename="?([^"]+)"?/);
         if (match?.[1]) filename = match[1];
@@ -1618,7 +1618,7 @@ export const regenerateAndDownloadRABPdf = async (id: number): Promise<boolean> 
     }
 
     const disposition = res.headers.get("Content-Disposition");
-    let filename = `RAB_${id}.pdf`;
+    let filename = `RAB_GABUNGAN_${id}.pdf`;
     if (disposition?.includes("filename=")) {
         const match = disposition.match(/filename="?([^"]+)"?/);
         if (match?.[1]) filename = match[1];
