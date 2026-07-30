@@ -1948,10 +1948,12 @@ export type SupervisionWorkspace = {
 };
 
 export const fetchSupervisionWorkspace = async (
-    nomorUlok: string
+    nomorUlok: string,
+    options?: ApiRequestOptions
 ): Promise<{ status: string; data: SupervisionWorkspace }> =>
     safeFetchJSON(
-        `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`
+        `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`,
+        options
     );
 
 export type GanttNoteItem = {

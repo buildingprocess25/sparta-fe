@@ -508,6 +508,7 @@ function GanttBoard() {
         dateString: string;
     } | null>(null);
     const [unifiedMemoDrafts, setUnifiedMemoDrafts] = useState<Record<string, any>>({});
+    const workspaceLoadSeqRef = useRef(0);
 
     const { user } = useSession();
     
@@ -559,11 +560,28 @@ function GanttBoard() {
 
     const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
         if (!nomorUlok) return;
+        const requestSeq = workspaceLoadSeqRef.current + 1;
+        workspaceLoadSeqRef.current = requestSeq;
+        const normalizedUlok = formatUlokWithDash(nomorUlok);
+
         setIsWorkspaceLoading(true);
+        setSupervisionWorkspace(null);
+        setProjectData(null);
+        setTasks([]);
+        setRawDayGanttData([]);
+        setRabItems([]);
+        setPengawasanDates([]);
+        setPengawasanHistory([]);
+        setSelectedGanttId(null);
+        setSpkInfo(null);
+        setSelectedUlok(normalizedUlok);
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 25000);
         try {
-            const response = await fetchSupervisionWorkspace(nomorUlok);
+            const response = await fetchSupervisionWorkspace(nomorUlok, { signal: controller.signal });
+            if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(response.data);
-            setSelectedUlok(formatUlokWithDash(nomorUlok));
+            setSelectedUlok(normalizedUlok);
             setProjectData((prev: any) => ({
                 ...(prev || {}),
                 ulokClean: response.data.nomor_ulok,
@@ -585,10 +603,17 @@ function GanttBoard() {
             // (spk_start_date || spk_duration) akan membuat filter SPK error karena
             // scope yang WAITING_FOR_BM_APPROVAL pun bisa punya spk_start_date.
         } catch (error: any) {
+            if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(null);
-            showAlert({ message: error?.message || "Gagal memuat workspace pengawasan.", type: "error" });
+            const message = error?.name === "AbortError"
+                ? "Gagal memuat workspace pengawasan: request melebihi 25 detik. Silakan coba ulang."
+                : error?.message || "Gagal memuat workspace pengawasan.";
+            showAlert({ message, type: "error" });
         } finally {
-            setIsWorkspaceLoading(false);
+            window.clearTimeout(timeoutId);
+            if (workspaceLoadSeqRef.current === requestSeq) {
+                setIsWorkspaceLoading(false);
+            }
         }
     }, [showAlert]);
 
