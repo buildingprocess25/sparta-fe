@@ -462,6 +462,7 @@ function RABPageContent() {
   // --- 1a. DRAFT (AUTO-SAVE) ---
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftData, setDraftData] = useState<any>(null);
+  const draftAutosaveDisabledRef = useRef(false);
 
   // Reset state revisi saat component mount (setiap navigasi ke halaman ini)
   // Mencegah state revisi lama terbawa saat user kembali via browser back button
@@ -505,7 +506,7 @@ function RABPageContent() {
   useEffect(() => {
     // Simpan otomatis jika tidak dalam mode loading, bukan readonly, tidak sedang edit revisi (currentRabId == null),
     // dan jika form atau tabel sudah terisi sebagian
-    if (!isLoading && !isReadOnly && user?.email && !currentRabId && !hasProjectPlanningRequest) {
+    if (!draftAutosaveDisabledRef.current && !isLoading && !isReadOnly && user?.email && !currentRabId && !hasProjectPlanningRequest) {
       const draftKey = `rab_draft_${user.email}_${user.role}_${user.cabang}`;
       const hasData = tableRows.length > 0 || formData.namaToko.trim() !== '' || formData.lokasiTanggal.trim() !== '';
       if (hasData) {
@@ -1346,7 +1347,13 @@ function RABPageContent() {
         const submitRes = await submitRABData(textFields, detailItems, asuransiFile);
         
         // Hapus draft setelah submit berhasil
-        if (sessionEmail) localStorage.removeItem(`rab_draft_${sessionEmail}`);
+        draftAutosaveDisabledRef.current = true;
+        if (sessionEmail) {
+          localStorage.removeItem(`rab_draft_${sessionEmail}`);
+          if (user?.role && user?.cabang) {
+            localStorage.removeItem(`rab_draft_${sessionEmail}_${user.role}_${user.cabang}`);
+          }
+        }
 
         // Tangkap id_toko dari data response API
         const idToko = submitRes.data?.id_toko;

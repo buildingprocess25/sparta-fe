@@ -2168,8 +2168,8 @@ export default function DaftarDokumenPage() {
                 return;
             }
 
-            if (detail.tipe === 'RAB' && detail.link_pdf) {
-                window.open(detail.link_pdf, '_blank', 'noopener,noreferrer');
+            if (detail.tipe === 'RAB') {
+                await viewGeneratedPdfOnline(detail.id, 'RAB');
                 return;
             }
 
@@ -4143,7 +4143,21 @@ export default function DaftarDokumenPage() {
                                         )}
 
                                         {/* Additional PDF links */}
-                                        {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.link_pdf_gabungan && (
+                                        {selectedDetail.tipe === 'RAB' && selectedDetail.link_pdf_gabungan && (
+                                            <Button
+                                                variant="outline"
+                                                disabled={downloadingId === selectedDetail.id}
+                                                onClick={handleRegenerateRabPdf}
+                                            >
+                                                {downloadingId === selectedDetail.id ? (
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <FileDown className="w-4 h-4 mr-2" />
+                                                )}
+                                                PDF Gabungan
+                                            </Button>
+                                        )}
+                                        {selectedDetail.tipe === 'INSTRUKSI_LAPANGAN' && selectedDetail.link_pdf_gabungan && (
                                             <a href={selectedDetail.link_pdf_gabungan} target="_blank" rel="noopener noreferrer">
                                                 <Button variant="outline">
                                                     <FileDown className="w-4 h-4 mr-2" /> PDF Gabungan
