@@ -257,6 +257,14 @@ const normalizeRabScope = (value?: string | null) => {
   return upper;
 };
 
+const extractRabListUlok = (rab: any) =>
+  String(rab?.nomor_ulok || rab?.toko?.nomor_ulok || rab?.['Nomor Ulok'] || rab?.['Nomor_Ulok'] || '').trim().toUpperCase();
+
+const extractRabListScope = (rab: any) =>
+  normalizeRabScope(rab?.lingkup_pekerjaan || rab?.toko?.lingkup_pekerjaan || rab?.['Lingkup Pekerjaan'] || rab?.['Lingkup_Pekerjaan']);
+
+const getOppositeRabScope = (scope: string) => scope === 'Sipil' ? 'ME' : scope === 'ME' ? 'Sipil' : '';
+
 const resolveProjectFromSource = (project?: string | null, nomorUlok?: string | null) => {
   const rawProject = String(project || '').trim();
   const upperProject = rawProject.toUpperCase();
@@ -458,6 +466,7 @@ function RABPageContent() {
   // State untuk melacak perubahan pada form revisi
   const [initialFormState, setInitialFormState] = useState<string | null>(null);
   const crossScopePrefillKeyRef = useRef<string | null>(null);
+  const [crossScopeProjectLocked, setCrossScopeProjectLocked] = useState(false);
 
   // --- 1a. DRAFT (AUTO-SAVE) ---
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
@@ -537,6 +546,7 @@ function RABPageContent() {
     if (draftData) {
       setFormData(draftData.formData);
       setTableRows(draftData.tableRows || []);
+      setCrossScopeProjectLocked(false);
     }
     setDraftDialogOpen(false);
   };
@@ -545,6 +555,7 @@ function RABPageContent() {
     if (user?.email && user?.role && user?.cabang) {
       localStorage.removeItem(`rab_draft_${user.email}_${user.role}_${user.cabang}`);
     }
+    setCrossScopeProjectLocked(false);
     setDraftData(null);
     setDraftDialogOpen(false);
   };
@@ -725,8 +736,7 @@ function RABPageContent() {
       currentRabId ||
       formData.lokasiCabang.length < 4 ||
       formData.lokasiTanggal.length !== 4 ||
-      formData.lokasiManual.length !== 4 ||
-      !formData.lingkupPekerjaan
+      formData.lokasiManual.length !== 4
     ) {
       return;
     }
@@ -735,7 +745,7 @@ function RABPageContent() {
     const baseUlok = `${formData.lokasiCabang.toUpperCase()}-${formData.lokasiTanggal.toUpperCase()}-${formData.lokasiManual.toUpperCase()}`;
     const candidateUloks = Array.from(new Set(formData.isRenovasi ? [getUlokString(), baseUlok] : [baseUlok, `${baseUlok}-R`]));
     const candidateUlokSet = new Set(candidateUloks.map((ulok) => ulok.toUpperCase()));
-    const lookupKey = `${[...candidateUloks].sort().join('|')}::${currentScope}`;
+    const lookupKey = `${[...candidateUloks].sort().join('|')}::${currentScope || 'AUTO'}`;
     if (crossScopePrefillKeyRef.current === lookupKey) return;
 
     let cancelled = false;
@@ -751,18 +761,33 @@ function RABPageContent() {
         if (cancelled) return;
 
         const seenRabIds = new Set<number>();
-        const candidates = listResults
+        const exactMatches = listResults
           .flatMap((result) => result.data || [])
           .filter((rab: any) => {
             const rabId = Number(rab?.id);
             if (!rabId || seenRabIds.has(rabId)) return false;
             seenRabIds.add(rabId);
-            const rabUlok = String(rab?.nomor_ulok || rab?.toko?.nomor_ulok || '').trim().toUpperCase();
+            const rabUlok = extractRabListUlok(rab);
             if (!candidateUlokSet.has(rabUlok)) return false;
-            return normalizeRabScope(rab?.toko?.lingkup_pekerjaan || rab?.lingkup_pekerjaan) !== currentScope;
+            return true;
           })
           .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
+        if (!currentScope) {
+          const existingScopes = new Set(exactMatches.map(extractRabListScope).filter(Boolean));
+          const inferredScope = existingScopes.has('Sipil') && !existingScopes.has('ME')
+            ? 'ME'
+            : existingScopes.has('ME') && !existingScopes.has('Sipil')
+              ? 'Sipil'
+              : '';
+          if (inferredScope) {
+            setFormData(prev => ({ ...prev, lingkupPekerjaan: inferredScope }));
+            setTableRows([]);
+          }
+          return;
+        }
+
+        const candidates = exactMatches.filter((rab: any) => extractRabListScope(rab) === getOppositeRabScope(currentScope));
         const source: any = candidates[0];
         if (!source?.id) return;
 
@@ -776,6 +801,7 @@ function RABPageContent() {
         const sourceParts = String(sourceUlok).split('-');
         const sourceProject = resolveProjectFromSource(tokoRef.proyek, sourceUlok);
         const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
+        const targetScope = getOppositeRabScope(sourceScope) || currentScope;
         const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
         const sourceAsuransi = rabRef.file_asuransi || '';
         const sourceLogo = rabRef.logo || '';
@@ -788,28 +814,29 @@ function RABPageContent() {
           isRenovasi: sourceProject.isRenovasi,
           proyek: sourceProject.proyek,
           cabang: sourceCabang || prev.cabang,
-          lingkupPekerjaan: prev.lingkupPekerjaan,
-          namaToko: prev.namaToko || tokoRef.nama_toko || source.nama_toko || '',
-          alamat: prev.alamat || tokoRef.alamat || '',
-          kategoriLokasi: prev.kategoriLokasi || normalizeKategoriLokasi(rabRef.kategori_lokasi),
-          durasiPekerjaan: prev.durasiPekerjaan || String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, ''),
-          luasAreaParkir: prev.luasAreaParkir || String(rabRef.luas_area_parkir || ''),
-          luasAreaSales: prev.luasAreaSales || String(rabRef.luas_area_sales || ''),
-          luasGudang: prev.luasGudang || String(rabRef.luas_gudang || ''),
-          luasBangunan: prev.luasBangunan || String(rabRef.luas_bangunan || ''),
-          luasAreaTerbuka: prev.luasAreaTerbuka || String(rabRef.luas_area_terbuka || ''),
-          noPolis: prev.noPolis || String(rabRef.no_polis || ''),
-          berlakuPolis: prev.berlakuPolis || String(rabRef.berlaku_polis || ''),
-          fileAsuransi: prev.fileAsuransi || sourceAsuransi,
-          logo: prev.logo || sourceLogo,
+          lingkupPekerjaan: targetScope,
+          namaToko: tokoRef.nama_toko || source.nama_toko || prev.namaToko,
+          alamat: tokoRef.alamat || prev.alamat,
+          kategoriLokasi: normalizeKategoriLokasi(rabRef.kategori_lokasi) || prev.kategoriLokasi,
+          durasiPekerjaan: String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, '') || prev.durasiPekerjaan,
+          luasAreaParkir: String(rabRef.luas_area_parkir || '') || prev.luasAreaParkir,
+          luasAreaSales: String(rabRef.luas_area_sales || '') || prev.luasAreaSales,
+          luasGudang: String(rabRef.luas_gudang || '') || prev.luasGudang,
+          luasBangunan: String(rabRef.luas_bangunan || '') || prev.luasBangunan,
+          luasAreaTerbuka: String(rabRef.luas_area_terbuka || '') || prev.luasAreaTerbuka,
+          noPolis: String(rabRef.no_polis || '') || prev.noPolis,
+          berlakuPolis: String(rabRef.berlaku_polis || '') || prev.berlakuPolis,
+          fileAsuransi: sourceAsuransi || prev.fileAsuransi,
+          logo: sourceLogo || prev.logo,
         }));
+        setCrossScopeProjectLocked(true);
 
         if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
         if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
 
         showAlert(
           "Data proyek otomatis terisi",
-          `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup yang sedang Anda input tetap ${currentScope}.`,
+          `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup otomatis diset ke ${targetScope} dan data proyek dikunci.`,
           "info"
         );
       } catch (err) {
@@ -1136,6 +1163,10 @@ function RABPageContent() {
     if (decimalFormFields.has(name)) {
         finalValue = normalizeDecimalInput(String(finalValue));
     }
+    if (name === 'lokasiTanggal' || name === 'lokasiManual') {
+        crossScopePrefillKeyRef.current = null;
+        setCrossScopeProjectLocked(false);
+    }
     setFormData(prev => ({ ...prev, [name]: finalValue }));
     // Jika user mengubah ULOK secara manual, hapus projek_planning_id dari URL
     // supaya tidak ter-submit sebagai permintaan Project Planning
@@ -1151,6 +1182,8 @@ function RABPageContent() {
   const handleSelectChange = (name: string, value: string) => {
       setFormData(prev => ({ ...prev, [name]: value }));
       if (name === 'lingkupPekerjaan') {
+          crossScopePrefillKeyRef.current = null;
+          setCrossScopeProjectLocked(false);
           // Hanya reset tabel jika user manual mengganti dropdown scope dari form
           setTableRows([]);
       }
@@ -1445,6 +1478,10 @@ function RABPageContent() {
       : !isFormComplete
         ? "Lengkapi data wajib proyek, dimensi, asuransi, dan minimal 1 item pekerjaan bervolume."
         : "";
+  const isProjectFieldLocked = isReadOnly || crossScopeProjectLocked;
+  const projectInputClass = crossScopeProjectLocked
+    ? "bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200"
+    : "bg-white";
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-12">
@@ -1571,18 +1608,18 @@ function RABPageContent() {
 
               {/* --- GRID FORM IDENTITAS --- */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isReadOnly} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className="bg-white" required /></div>
+                <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isProjectFieldLocked} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className={projectInputClass} required /></div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" disabled={isReadOnly || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? 'Renovasi' : 'Reguler'}))}/>
+                    <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? 'Renovasi' : 'Reguler'}))}/>
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
                   </div>
                   <div className="flex gap-2 items-center">
                     <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
                     <span className="font-bold text-slate-400">-</span>
-                    <Input name="lokasiTanggal" readOnly={isReadOnly || hasProjectPlanningRequest} placeholder="YYMM" className="w-[30%] bg-white" maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
+                    <Input name="lokasiTanggal" readOnly={isProjectFieldLocked || hasProjectPlanningRequest} placeholder="YYMM" className={`w-[30%] ${projectInputClass}`} maxLength={4} value={formData.lokasiTanggal} onChange={handleInputChange} required />
                     <span className="font-bold text-slate-400">-</span>
-                    <Input name="lokasiManual" readOnly={isReadOnly || hasProjectPlanningRequest} placeholder={formData.isRenovasi ? "C0B4" : "0001"} className="w-[40%] bg-white uppercase" maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
+                    <Input name="lokasiManual" readOnly={isProjectFieldLocked || hasProjectPlanningRequest} placeholder={formData.isRenovasi ? "C0B4" : "0001"} className={`w-[40%] uppercase ${projectInputClass}`} maxLength={4} value={formData.lokasiManual} onChange={handleInputChange} required />
                     {formData.isRenovasi && (<><span className="font-bold text-slate-400">-</span><Input readOnly value="R" className="w-12 bg-slate-100 text-center font-bold text-slate-500 cursor-not-allowed border-slate-200" tabIndex={-1} /></>)}
                   </div>
                 </div>
@@ -1590,11 +1627,11 @@ function RABPageContent() {
                   <Label>Proyek <span className="text-red-500">*</span></Label>
                   {formData.isRenovasi ? (
                     <Select 
-                      disabled={isReadOnly || hasProjectPlanningRequest}
+                      disabled={isProjectFieldLocked || hasProjectPlanningRequest}
                       value={formData.proyek || 'Renovasi'} 
                       onValueChange={(val) => setFormData(prev => ({...prev, proyek: val}))}
                     >
-                      <SelectTrigger className="bg-white">
+                      <SelectTrigger className={projectInputClass}>
                         <SelectValue placeholder="Pilih Jenis Renovasi" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1609,7 +1646,7 @@ function RABPageContent() {
                     <Input value="Reguler" readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                   )}
                 </div>
-                <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" readOnly={isReadOnly} value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className="bg-white" required /></div>
+                <div className="space-y-2 lg:col-span-3"><Label>Alamat Lengkap <span className="text-red-500">*</span></Label><Input name="alamat" readOnly={isProjectFieldLocked} value={formData.alamat} onChange={handleInputChange} placeholder="Masukkan alamat lengkap proyek" className={projectInputClass} required /></div>
                 <div className="space-y-2 lg:col-span-3"><Label>Alamat Wilayah / Office <span className="text-xs text-slate-400 font-normal">(Otomatis dari data wilayah)</span></Label><Input name="alamatCabang" value={formData.alamatCabang || ''} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} placeholder="-" /></div>
                 
                 <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1617,10 +1654,12 @@ function RABPageContent() {
                     <Label>Wilayah <span className="text-red-500">*</span></Label>
                     {availableCabang.length > 1 ? (
                       <Select 
-                        disabled={isReadOnly || hasProjectPlanningRequest}
+                        disabled={isProjectFieldLocked || hasProjectPlanningRequest}
                         value={formData.cabang} 
                         onValueChange={(val) => {
                           const newLokasiCabang = val === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[val] || "KODE");
+                          crossScopePrefillKeyRef.current = null;
+                          setCrossScopeProjectLocked(false);
                           setFormData(prev => ({ 
                             ...prev, 
                             cabang: val, 
@@ -1639,7 +1678,7 @@ function RABPageContent() {
                           }
                         }}
                       >
-                        <SelectTrigger className="bg-white">
+                        <SelectTrigger className={projectInputClass}>
                           <SelectValue placeholder="-- Pilih Wilayah --" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1652,9 +1691,9 @@ function RABPageContent() {
                       <Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                     )}
                   </div>
-                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isReadOnly || hasProjectPlanningRequest} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select disabled={isReadOnly} onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className="bg-white"><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="text" inputMode="numeric" pattern="[0-9]*" name="durasiPekerjaan" readOnly={isReadOnly} value={formData.durasiPekerjaan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="Masukkan jumlah hari" className="bg-white" required /></div>
+                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked || hasProjectPlanningRequest} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked} onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="text" inputMode="numeric" pattern="[0-9]*" name="durasiPekerjaan" readOnly={isProjectFieldLocked} value={formData.durasiPekerjaan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="Masukkan jumlah hari" className={projectInputClass} required /></div>
                 </div>
               </div>
             </CardContent>
@@ -1667,11 +1706,11 @@ function RABPageContent() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <Label>No. Polis <span className="text-red-500">*</span></Label>
-                  <Input name="noPolis" readOnly={isReadOnly} value={formData.noPolis} onChange={handleInputChange} placeholder="Masukkan nomor polis" className="bg-white" required />
+                  <Input name="noPolis" readOnly={isProjectFieldLocked} value={formData.noPolis} onChange={handleInputChange} placeholder="Masukkan nomor polis" className={projectInputClass} required />
                 </div>
                 <div className="space-y-2">
                   <Label>Masa Berlaku <span className="text-red-500">*</span></Label>
-                  {isReadOnly ? (
+                  {isProjectFieldLocked ? (
                     <Input readOnly value={formData.berlakuPolis} className="bg-slate-100 text-slate-500 font-semibold cursor-not-allowed border-slate-200" />
                   ) : (
                     <DatePicker
@@ -1699,14 +1738,14 @@ function RABPageContent() {
                           <Download className="w-3.5 h-3.5" />
                         </a>
                       )}
-                      {!isReadOnly && (
+                      {!isProjectFieldLocked && (
                         <button type="button" onClick={removeAsuransiFile} className="p-1.5 bg-red-100 text-red-500 rounded-full hover:bg-red-200 transition-colors shrink-0" title="Hapus file">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   ) : (
-                    !isReadOnly ? (
+                    !isProjectFieldLocked ? (
                       <label className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg shadow-sm text-sm font-bold text-slate-700 cursor-pointer transition-all hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 group">
                         <Upload className="w-4 h-4 text-red-500 transition-transform group-hover:-translate-y-0.5" />
                         Pilih File
@@ -1731,11 +1770,11 @@ function RABPageContent() {
           <Card className="mb-8 shadow-sm">
             <CardHeader className="border-b bg-slate-50/50 pb-4"><CardTitle className="text-red-700">Dimensi & Ukuran Proyek</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 pt-6">
-              <div className="space-y-2"><Label>Luas Bangunan (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasBangunan" readOnly={isReadOnly} value={formData.luasBangunan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Area Terbuka (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaTerbuka" readOnly={isReadOnly} value={formData.luasAreaTerbuka} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Area Sales (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaSales" readOnly={isReadOnly} value={formData.luasAreaSales} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Gudang (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasGudang" readOnly={isReadOnly} value={formData.luasGudang} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
-              <div className="space-y-2"><Label>Luas Area Parkir (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaParkir" readOnly={isReadOnly} value={formData.luasAreaParkir} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className="bg-white" required /></div>
+              <div className="space-y-2"><Label>Luas Bangunan (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasBangunan" readOnly={isProjectFieldLocked} value={formData.luasBangunan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className={projectInputClass} required /></div>
+              <div className="space-y-2"><Label>Luas Area Terbuka (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaTerbuka" readOnly={isProjectFieldLocked} value={formData.luasAreaTerbuka} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className={projectInputClass} required /></div>
+              <div className="space-y-2"><Label>Luas Area Sales (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaSales" readOnly={isProjectFieldLocked} value={formData.luasAreaSales} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className={projectInputClass} required /></div>
+              <div className="space-y-2"><Label>Luas Gudang (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasGudang" readOnly={isProjectFieldLocked} value={formData.luasGudang} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className={projectInputClass} required /></div>
+              <div className="space-y-2"><Label>Luas Area Parkir (m²) <span className="text-red-500">*</span></Label><Input type="text" inputMode="decimal" name="luasAreaParkir" readOnly={isProjectFieldLocked} value={formData.luasAreaParkir} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0.00" className={projectInputClass} required /></div>
               <div className="space-y-2"><Label className="text-blue-700 font-bold">Luas Terbangun (m²) <span className="text-xs font-normal text-slate-400">(Auto)</span></Label><Input readOnly value={luasTerbangun > 0 ? luasTerbangun.toFixed(2) : ''} className="bg-blue-50 border-blue-200 font-bold text-blue-800 cursor-not-allowed" placeholder="0.00" tabIndex={-1} /></div>
             </CardContent>
           </Card>
