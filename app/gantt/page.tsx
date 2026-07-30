@@ -575,10 +575,8 @@ function GanttBoard() {
         setSelectedGanttId(null);
         setSpkInfo(null);
         setSelectedUlok(normalizedUlok);
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 25000);
         try {
-            const response = await fetchSupervisionWorkspace(nomorUlok, { signal: controller.signal });
+            const response = await fetchSupervisionWorkspace(nomorUlok);
             if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(response.data);
             setSelectedUlok(normalizedUlok);
@@ -605,12 +603,8 @@ function GanttBoard() {
         } catch (error: any) {
             if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(null);
-            const message = error?.name === "AbortError"
-                ? "Gagal memuat workspace pengawasan: request melebihi 25 detik. Silakan coba ulang."
-                : error?.message || "Gagal memuat workspace pengawasan.";
-            showAlert({ message, type: "error" });
+            showAlert({ message: error?.message || "Gagal memuat workspace pengawasan.", type: "error" });
         } finally {
-            window.clearTimeout(timeoutId);
             if (workspaceLoadSeqRef.current === requestSeq) {
                 setIsWorkspaceLoading(false);
             }
