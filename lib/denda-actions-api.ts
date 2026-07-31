@@ -2,7 +2,7 @@ import { apiFetch, safeFetchJSON } from "./api";
 import { API_URL } from "./constants";
 
 export type DendaActionType = "SP" | "TAKEOVER";
-export type SpReason = "KETERLAMBATAN" | "MENOLAK_SPK" | "MANIPULASI" | "LAINNYA";
+export type SpReason = "KETERLAMBATAN" | "MENOLAK_SPK" | "MANIPULASI" | "KELALAIAN" | "LAINNYA";
 export type DendaActionStatus =
     | "WAITING_MANAGER"
     | "REJECTED_BY_MANAGER"
@@ -42,6 +42,8 @@ export type DendaAction = {
     id_opname_final: number | null;
     nomor_ulok: string | null;
     lingkup_pekerjaan: string | null;
+    nama_toko: string | null;
+    kode_toko: string | null;
     cabang: string | null;
     nama_kontraktor: string | null;
     nomor_spk: string | null;

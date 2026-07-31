@@ -22,6 +22,7 @@ import {
     rejectDendaAction,
     type DendaAction,
     type DendaActionCandidate,
+    type CreateSpActionPayload,
     type SpReason,
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
@@ -32,6 +33,7 @@ const SP_REASON_LABELS: Record<SpReason, string> = {
     KETERLAMBATAN: "Keterlambatan",
     MENOLAK_SPK: "Menolak SPK",
     MANIPULASI: "Manipulasi",
+    KELALAIAN: "Kelalaian",
     LAINNYA: "Lainnya",
 };
 
@@ -54,8 +56,8 @@ const matchesContractorCompany = (actionCompany?: string | null, userCompany?: s
     if (!actionName || !sessionName) return false;
     return actionName === sessionName || actionName.includes(sessionName) || sessionName.includes(actionName);
 };
-const canApprove = (roles: string[], isHO: boolean) => roles.some((role) => role === "BRANCH BUILDING & MAINTENANCE MANAGER" || role.includes("SUPER HUMAN"));
-const canSubmit = (roles: string[], _isHO: boolean) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
+const canApprove = (roles: string[]) => roles.some((role) => role === "BRANCH BUILDING & MAINTENANCE MANAGER" || role.includes("SUPER HUMAN"));
+const canSubmit = (roles: string[]) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
 
 const getSpTimeline = (action: DendaAction) => {
     const hasPdf = Boolean(action.link_pdf);
@@ -100,6 +102,20 @@ export default function SuratPeringatanPage() {
         () => candidates.find((candidate) => candidate.id_toko === selectedId) ?? null,
         [candidates, selectedId]
     );
+    const highestActiveSpLevel = useMemo(() => {
+        if (!selectedContractor) return 0;
+        const relevantActions = actions.filter((a) =>
+            a.action_type === "SP" &&
+            normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
+            ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status) &&
+            !a.is_expired
+        );
+        return relevantActions.length > 0 ? Math.max(...relevantActions.map((action) => action.sp_level || 0)) : 0;
+    }, [actions, selectedContractor]);
+    const allowedSpLevels = useMemo(
+        () => ([1, 2, 3] as const).filter((level) => level > highestActiveSpLevel),
+        [highestActiveSpLevel]
+    );
 
     const filteredCandidates = useMemo(() => {
         let base = candidates;
@@ -118,13 +134,6 @@ export default function SuratPeringatanPage() {
             base = base.filter(c => normalize(c.nama_kontraktor) === normalize(selectedContractor));
         }
 
-        // Apply reason-specific filters
-        if (reason === "KETERLAMBATAN") {
-            // KETERLAMBATAN: Hanya ULOK yang terlambat
-            base = base.filter((c) => Number(c.hari_denda) > 0);
-        }
-        // MENOLAK SPK, MANIPULASI, LAINNYA: Semua ULOK dari kontraktor (no additional filter)
-
         // Search filter
         const q = normalize(search);
         if (!q) return base;
@@ -135,19 +144,13 @@ export default function SuratPeringatanPage() {
             candidate.cabang,
             candidate.nomor_spk,
         ].some((value) => normalize(value).includes(q)));
-    }, [candidates, search, reason, selectedContractor, user]);
+    }, [candidates, search, selectedContractor, user]);
 
     const availableContractors = useMemo(() => {
         // ALWAYS show ALL contractors (backend already filtered by branch)
         // No filtering by ULOK availability
         return contractors;
     }, [contractors]);
-
-    useEffect(() => {
-        if (reason === "KETERLAMBATAN" && selected && Number(selected.hari_denda) <= 0) {
-            setSelectedId(null);
-        }
-    }, [reason, selected]);
 
     const groupedActions = useMemo(() => {
         const map = new Map<string, DendaAction[]>();
@@ -182,8 +185,8 @@ export default function SuratPeringatanPage() {
 
         return groups;
     }, [actions, user, userIsContractor]);
-    const userCanApprove = canApprove(user?.roles ?? [], Boolean(user?.isHO));
-    const userCanSubmit = canSubmit(user?.roles ?? [], Boolean(user?.isHO));
+    const userCanApprove = canApprove(user?.roles ?? []);
+    const userCanSubmit = canSubmit(user?.roles ?? []);
 
     const loadData = async () => {
         setLoading(true);
@@ -213,6 +216,12 @@ export default function SuratPeringatanPage() {
         loadData();
     }, []);
 
+    useEffect(() => {
+        if (allowedSpLevels.length > 0 && !allowedSpLevels.includes(spLevel)) {
+            setSpLevel(allowedSpLevels[0]);
+        }
+    }, [allowedSpLevels, spLevel]);
+
     const submitSp = async () => {
         if (submitting || !selectedContractor) return;
         
@@ -235,7 +244,7 @@ export default function SuratPeringatanPage() {
         try {
             // Join non-empty notes with newline for backend
             const catatanFinal = notes.filter(n => n.trim()).join("\n");
-            const payload: any = {
+            const payload: CreateSpActionPayload = {
                 sp_level: spLevel,
                 alasan_sp: reason,
                 alasan_lainnya: reason === "LAINNYA" ? alasanLainnya : undefined,
@@ -394,7 +403,7 @@ export default function SuratPeringatanPage() {
                             <div className="text-center py-16 text-slate-400">
                                 <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-30" />
                                 <p className="font-semibold">Belum ada Surat Peringatan.</p>
-                                {userCanSubmit && <p className="text-sm mt-1">Klik "Buat Peringatan Baru" untuk mengajukan SP pertama.</p>}
+                                {userCanSubmit && <p className="text-sm mt-1">Klik &quot;Buat Peringatan Baru&quot; untuk mengajukan SP pertama.</p>}
                             </div>
                         ) : (
                             <div className="grid gap-3">
@@ -532,7 +541,7 @@ export default function SuratPeringatanPage() {
                                                             <div className="p-4 text-center text-sm font-medium text-slate-500">
                                                                 {!selectedContractor ? (
                                                                     "Pilih kontraktor terlebih dahulu"
-                                                                ) : reason === "KETERLAMBATAN" ? (
+                                                                ) : String(reason) === "__NONE__" ? (
                                                                     <>
                                                                         <div className="mb-2">❌ Tidak ada ULOK yang terlambat</div>
                                                                         <div className="text-xs text-slate-400">Kontraktor ini tidak memiliki ULOK dengan keterlambatan saat ini</div>
@@ -540,7 +549,7 @@ export default function SuratPeringatanPage() {
                                                                 ) : (
                                                                     <>
                                                                         <div className="mb-2">❌ Tidak ada ULOK</div>
-                                                                        <div className="text-xs text-slate-400">Kontraktor ini belum memiliki ULOK terdaftar</div>
+                                                                        <div className="text-xs text-slate-400">Kontraktor ini belum memiliki ULOK dengan SPK terbit</div>
                                                                     </>
                                                                 )}
                                                             </div>
@@ -579,42 +588,26 @@ export default function SuratPeringatanPage() {
                                             <div className="space-y-2">
                                                 <Label className="text-sm font-bold text-slate-700">Tingkat SP</Label>
                                                 {(() => {
-                                                    const relevantActions = actions.filter((a) =>
-                                                        a.action_type === "SP" &&
-                                                        normalize(a.nama_kontraktor) === normalize(selectedContractor) &&
-                                                        ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(a.status) &&
-                                                        !a.is_expired
-                                                    );
-                                                    
-                                                    const activeCount = relevantActions.length;
-                                                    const highestActiveLevel = activeCount > 0 ? Math.max(...relevantActions.map(a => a.sp_level || 0)) : 0;
-                                                    
-                                                    if (activeCount === 0) {
-                                                        // Bisa pilih manual jika belum ada SP aktif
+                                                    if (allowedSpLevels.length === 0) {
                                                         return (
-                                                            <Select value={String(spLevel)} onValueChange={(v) => setSpLevel(Number(v) as 1 | 2 | 3)}>
-                                                                <SelectTrigger className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-red-500 h-11">
-                                                                    <SelectValue placeholder="Pilih tingkat SP..." />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {[1, 2, 3].map((lvl) => (
-                                                                        <SelectItem key={lvl} value={String(lvl)}>
-                                                                            Surat Peringatan Ke-{lvl}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
+                                                            <div className="flex h-11 items-center rounded-lg border border-red-200 bg-red-50 px-3 gap-2">
+                                                                <span className="text-sm font-bold text-red-700">SP aktif sudah mencapai SP III</span>
+                                                            </div>
                                                         );
                                                     }
-
-                                                    const nextLevel = highestActiveLevel + 1;
-                                                    const levelLabel = ["I", "II", "III"][nextLevel - 1] ?? nextLevel.toString();
-                                                    
                                                     return (
-                                                        <div className="flex h-11 items-center rounded-lg border border-orange-200 bg-orange-50 px-3 gap-2">
-                                                            <span className="text-sm font-bold text-orange-700">SP {levelLabel} (Otomatis)</span>
-                                                            <span className="text-xs text-orange-500">Berdasarkan riwayat aktif</span>
-                                                        </div>
+                                                        <Select value={String(spLevel)} onValueChange={(v) => setSpLevel(Number(v) as 1 | 2 | 3)}>
+                                                            <SelectTrigger className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-red-500 h-11">
+                                                                <SelectValue placeholder="Pilih tingkat SP..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {allowedSpLevels.map((lvl) => (
+                                                                    <SelectItem key={lvl} value={String(lvl)}>
+                                                                        Surat Peringatan Ke-{lvl}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     );
                                                 })()}
                                             </div>
@@ -689,7 +682,12 @@ export default function SuratPeringatanPage() {
                                 <div className="pt-2">
                                     {(() => {
                                         const hasPendingUlok = selected?.has_pending_approval;
-                                        const isBlocked = hasPendingUlok;
+                                        const isBlocked = hasPendingUlok || allowedSpLevels.length === 0;
+                                        const submitLabel = hasPendingUlok
+                                            ? "SP Sedang Diproses - Tidak Bisa Ajukan Baru"
+                                            : allowedSpLevels.length === 0
+                                                ? "SP Aktif Sudah Mencapai SP III"
+                                                : "Ajukan Surat Peringatan";
                                         return (
                                             <Button
                                                 className="w-full h-14 font-bold shadow-lg transition-all bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-60 flex items-center justify-center gap-2 overflow-hidden px-4"
@@ -700,7 +698,7 @@ export default function SuratPeringatanPage() {
                                                     {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
                                                 </span>
                                                 <span className="truncate text-sm md:text-base">
-                                                    {isBlocked ? "SP Sedang Diproses — Tidak Bisa Ajukan Baru" : "Ajukan Surat Peringatan"}
+                                                    {submitLabel}
                                                 </span>
                                             </Button>
                                         );
