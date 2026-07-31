@@ -266,7 +266,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                 const spkEndDate = new Date(effectiveStartDate);
                 spkEndDate.setDate(spkEndDate.getDate() + effectiveDuration - 1);
                 const stInfo = calculateEffectiveStDate(spkEndDate);
-                const stOffsetDays = timelineDuration ? 0 : stInfo.offsetDays;
+                const stOffsetDays = isBelumSpk || timelineDuration ? 0 : stInfo.offsetDays;
                 if (!timelineDuration && stOffsetDays > 0) {
                     effectiveDuration += stOffsetDays;
                 }
@@ -283,7 +283,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     extensionDays,
                     extensionStartLabel: extensionStartDate ? formatFullDate(extensionStartDate) : '',
                     extensionEndLabel: extensionEndDate ? formatFullDate(extensionEndDate) : '',
-                    stBufferStartDay: (spkEffectiveDuration || spkDuration || 0) + 1,
+                    stBufferStartDay: isBelumSpk ? 0 : (spkEffectiveDuration || spkDuration || 0) + 1,
                     stBufferDays: stOffsetDays,
                     stBufferLabel: stInfo.label,
                     stBufferOffsetDays: stInfo.offsetDays,
@@ -550,16 +550,16 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                             let isLiveDay = false;
                             let fullDateString = '';
                             // Apakah kolom ini bagian dari hari pertambahan SPK?
-                            const isExtensionDay = !!(projectData?.hasExtension
+                            const isExtensionDay = !isBelumSpk && !!(projectData?.hasExtension
                                 && projectData?.originalSpkDays > 0
                                 && (i + 1) > projectData.originalSpkDays
                                 && (i + 1) <= (projectData.originalSpkDays + projectData.extensionDays)
                             );
-                            const isStBufferDay = !!(projectData?.stBufferDays > 0
+                            const isStBufferDay = !isBelumSpk && !!(projectData?.stBufferDays > 0
                                 && (i + 1) >= projectData.stBufferStartDay
                                 && (i + 1) < projectData.stBufferStartDay + projectData.stBufferDays
                             );
-                            const isSpkEndDay = !!(projectData?.stBufferDays > 0
+                            const isSpkEndDay = !isBelumSpk && !!(projectData?.stBufferDays > 0
                                 && projectData?.stBufferStartDay > 1
                                 && (i + 1) === projectData.stBufferStartDay - 1
                             );
