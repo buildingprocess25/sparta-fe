@@ -778,6 +778,7 @@ function ApprovalPageContent() {
     const [rabCoordinatorInfo, setRabCoordinatorInfo] = useState(EMPTY_RAB_COORDINATOR_INFO);
     const [approveModalError, setApproveModalError] = useState('');
     const [approveSuccessModal, setApproveSuccessModal] = useState<{ title: string; desc: string } | null>(null);
+    const [rejectSuccessModal, setRejectSuccessModal] = useState<{ title: string; desc: string } | null>(null);
     const [toast, setToast]                   = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     // ==========================================
@@ -1907,6 +1908,10 @@ function ApprovalPageContent() {
                 setActiveView('list');
             }
             refreshApprovalCounts();
+            setRejectSuccessModal({
+                title: item.tipe === 'RAB' ? 'RAB Berhasil Ditolak' : 'Pengajuan Berhasil Ditolak',
+                desc: `${APPROVAL_CONFIG[item.tipe].label} ${item.nama_toko || ''} (${item.nomor_ulok || '-'}) berhasil ditolak.`,
+            });
             showToast('Pengajuan berhasil ditolak.', 'success');
         } catch (err: any) {
             // Modal stays open so user can see error and retry without losing their input
@@ -2210,6 +2215,26 @@ function ApprovalPageContent() {
                             <Button
                                 className="mt-6 h-11 w-full bg-green-600 text-white hover:bg-green-700"
                                 onClick={() => setApproveSuccessModal(null)}
+                            >
+                                OK
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {rejectSuccessModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 text-center">
+                            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+                                <XCircle className="h-8 w-8 text-red-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900">{rejectSuccessModal.title}</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">{rejectSuccessModal.desc}</p>
+                            <Button
+                                className="mt-6 h-11 w-full bg-red-600 text-white hover:bg-red-700"
+                                onClick={() => setRejectSuccessModal(null)}
                             >
                                 OK
                             </Button>
