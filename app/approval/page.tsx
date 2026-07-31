@@ -777,6 +777,7 @@ function ApprovalPageContent() {
     const [approveNote, setApproveNote]       = useState('');
     const [rabCoordinatorInfo, setRabCoordinatorInfo] = useState(EMPTY_RAB_COORDINATOR_INFO);
     const [approveModalError, setApproveModalError] = useState('');
+    const [approveSuccessModal, setApproveSuccessModal] = useState<{ title: string; desc: string } | null>(null);
     const [toast, setToast]                   = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     // ==========================================
@@ -1782,6 +1783,12 @@ function ApprovalPageContent() {
                 setActiveView('list');
             }
             refreshApprovalCounts();
+            if (item.tipe === 'RAB') {
+                setApproveSuccessModal({
+                    title: 'Approval RAB Berhasil',
+                    desc: `Pengajuan RAB ${item.nama_toko || ''} (${item.nomor_ulok || '-'}) berhasil di-approve.`,
+                });
+            }
             showToast(`${APPROVAL_CONFIG[item.tipe].label} berhasil di-approve!`, 'success');
         } catch (err: any) {
             showToast(err.message || 'Gagal melakukan approval.', 'error');
@@ -2188,6 +2195,26 @@ function ApprovalPageContent() {
                 <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-white text-sm font-semibold animate-in slide-in-from-top-2 duration-300 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
                     {toast.type === 'success' ? <CheckCircle className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
                     {toast.msg}
+                </div>
+            )}
+
+            {approveSuccessModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 text-center">
+                            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                                <CheckCircle className="h-8 w-8 text-green-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900">{approveSuccessModal.title}</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">{approveSuccessModal.desc}</p>
+                            <Button
+                                className="mt-6 h-11 w-full bg-green-600 text-white hover:bg-green-700"
+                                onClick={() => setApproveSuccessModal(null)}
+                            >
+                                OK
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
 
