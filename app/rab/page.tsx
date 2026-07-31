@@ -55,6 +55,29 @@ const parseDecimalInput = (value: string) => {
 };
 const decimalPayloadValue = (value: string) => String(parseDecimalInput(value));
 
+const normalizeVolumeInput = (value: string) => {
+  const normalized = value.replace(/\./g, ',').replace(/[^\d,]/g, '');
+  const [head, ...tail] = normalized.split(',');
+  return tail.length > 0 ? `${head || '0'},${tail.join('')}` : head;
+};
+
+const normalizeVolumeOnBlur = (value: string) => {
+  const normalized = normalizeVolumeInput(value);
+  if (!normalized || normalized === '0') return '';
+  return normalized.endsWith(',') ? normalized.slice(0, -1) : normalized;
+};
+
+const volumeToNumber = (value: number | string | null | undefined) => {
+  const parsed = parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const volumeToInputValue = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined || value === '') return '';
+  if (volumeToNumber(value) === 0) return '';
+  return String(value).replace('.', ',');
+};
+
 const preventNativeNumberStep = (event: React.KeyboardEvent<HTMLElement>) => {
   if (blockedIncrementKeys.has(event.key)) event.preventDefault();
 };
@@ -209,7 +232,7 @@ type RabTableRow = {
   category: string;
   jenisPekerjaan: string;
   satuan: string;
-  volume: number;
+  volume: number | string;
   hargaMaterial: number;
   hargaUpah: number;
   isKondisional: boolean;
@@ -239,7 +262,7 @@ const toComparableRevisionRow = (row: Partial<RabTableRow>): RevisionComparableR
   category: String(row?.category ?? '').trim(),
   jenisPekerjaan: String(row?.jenisPekerjaan ?? '').trim(),
   satuan: String(row?.satuan ?? '').trim(),
-  volume: Number(row?.volume) || 0,
+  volume: volumeToNumber(row?.volume),
   hargaMaterial: Number(row?.hargaMaterial) || 0,
   hargaUpah: Number(row?.hargaUpah) || 0,
   catatan: String(row?.catatan ?? '').trim(),
@@ -1142,7 +1165,7 @@ function RABPageContent() {
   }, [formData.luasBangunan, formData.luasAreaTerbuka]);
 
   const totalEstimasi = useMemo(() => {
-    return tableRows.reduce((acc, row) => acc + (row.volume * (row.hargaMaterial + row.hargaUpah)), 0);
+    return tableRows.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
   }, [tableRows]);
   
   const pembulatan = Math.floor(totalEstimasi / 10000) * 10000;
@@ -1261,12 +1284,12 @@ function RABPageContent() {
 
     // Filter dan petakan baris tabel menjadi array detail_items
     const detailItems = tableRows
-      .filter(row => row.jenisPekerjaan && row.volume > 0)
+      .filter(row => row.jenisPekerjaan && volumeToNumber(row.volume) > 0)
       .map(row => ({
         kategori_pekerjaan: row.category,
         jenis_pekerjaan: row.jenisPekerjaan,
         satuan: row.satuan,
-        volume: Number(row.volume),
+        volume: volumeToNumber(row.volume),
         harga_material: Number(row.hargaMaterial),
         harga_upah: Number(row.hargaUpah),
         catatan: row.catatan || ''
@@ -1278,7 +1301,7 @@ function RABPageContent() {
     }
 
     const conditionalItemsWithoutNotes = tableRows.filter(row => 
-        row.jenisPekerjaan && Number(row.volume) > 0 && row.isKondisional && (!row.catatan || row.catatan.trim() === '')
+        row.jenisPekerjaan && volumeToNumber(row.volume) > 0 && row.isKondisional && (!row.catatan || row.catatan.trim() === '')
     );
     if (conditionalItemsWithoutNotes.length > 0) {
        setIsLoading(false);
@@ -1452,7 +1475,7 @@ function RABPageContent() {
     formData.berlakuPolis.trim() !== '' &&
     (formData.fileAsuransi !== '' || asuransiFile !== null)
   );
-  const hasValidWorkItem = tableRows.some(row => row.jenisPekerjaan && Number(row.volume) > 0);
+  const hasValidWorkItem = tableRows.some(row => row.jenisPekerjaan && volumeToNumber(row.volume) > 0);
 
   const isFormComplete = 
     formData.namaToko.trim() !== '' &&
@@ -1806,7 +1829,7 @@ function RABPageContent() {
               <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block">Detail Bill of Quantities (BoQ)</h2>
               {activeCategories.map((category) => {
                 const itemsInCategory = tableRows.filter(r => r.category === category);
-                const subTotal = itemsInCategory.reduce((acc, row) => acc + (row.volume * (row.hargaMaterial + row.hargaUpah)), 0);
+                const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
                 const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
 
                 return (
@@ -1864,12 +1887,12 @@ function RABPageContent() {
                                   )}
                                 </td>
                                 <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
-                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={row.volume === 0 ? '' : String(row.volume)} onChange={(e) => updateRow(row.id, 'volume', Math.max(0, parseDecimalInput(e.target.value)))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
+                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={volumeToInputValue(row.volume)} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} onBlur={(e) => updateRow(row.id, 'volume', normalizeVolumeOnBlur(e.target.value))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} /></td>
                                 <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditUpahPrice} tabIndex={canEditUpahPrice ? 0 : -1} /></td>
-                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaMaterial)}</td>
-                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(row.volume * row.hargaUpah)}</td>
-                                <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(row.volume * (row.hargaMaterial + row.hargaUpah))}</td>
+                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * row.hargaMaterial)}</td>
+                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * row.hargaUpah)}</td>
+                                <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah))}</td>
                                 <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder={row.isKondisional ? "Wajib isi detail pekerjaan..." : "Catatan..."} disabled={isReadOnly} className={`min-h-9 py-1 px-2 text-xs border-slate-300 focus-visible:ring-blue-500 resize-y ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 focus-visible:ring-red-500 placeholder:text-red-400' : 'bg-white'}`} value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
                                 <td className="p-2 text-center whitespace-nowrap">
                                   {!isReadOnly && (
