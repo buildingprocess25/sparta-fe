@@ -3652,6 +3652,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             let isSkippedCompletely = false;
             let isLastDay = false;
             let hideOnProgress = true; // default hidden
+            let hideOnTerlambat = false; // default visible
             let rawRangeMatch: any = null;
 
             task.ranges?.forEach((r: any) => {
@@ -3732,10 +3733,29 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     isLastDay = true;
                 }
 
-                // Progress harus muncul HANYA jika hari ini berjalan di dalam rentang waktu (day >= s) 
-                // TETAPI belum mencapai hari terakhir (day < e).
-                if (day >= s && day < e) {
+                // Cek apakah ada tanggal pengawasan lain di masa depan yang juga meng-hit item ini (sebelum atau pada saat e)
+                let hasFutureHit = false;
+                if (chartData?.supervisionDays) {
+                    const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                    for (const sd of sortedDays) {
+                        if (sd > day && sd <= e) {
+                            hasFutureHit = true;
+                            break;
+                        }
+                    }
+                }
+
+                // [Poin 1 & 2] Aturan visibilitas tombol status:
+                // Jika masih ada pengawasan di masa depan (hasFutureHit = true):
+                // -> BISA isi Selesai/Progress. TIDAK BISA isi Terlambat.
+                // Jika tidak ada pengawasan di masa depan (hasFutureHit = false):
+                // -> BISA isi Selesai/Terlambat. TIDAK BISA isi Progress.
+                if (hasFutureHit) {
                     hideOnProgress = false;
+                    hideOnTerlambat = true;
+                } else {
+                    hideOnProgress = true;
+                    hideOnTerlambat = false;
                 }
 
                 // Kita prioritaskan rawRangeMatch untuk rentang yang benar-benar aktif atau yang sudah terlewati
@@ -3843,7 +3863,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             });
 
             return {
-                category: { ...task, isLastDay, hideOnProgress, rawRangeMatch },
+                category: { ...task, isLastDay, hideOnProgress, hideOnTerlambat, rawRangeMatch },
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
@@ -4446,13 +4466,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             Selesai
                                                                                         </button>
 
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
-                                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                        >
-                                                                                            Terlambat
-                                                                                        </button>
+                                                                                        {!d.category.hideOnTerlambat && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                            >
+                                                                                                Terlambat
+                                                                                            </button>
+                                                                                        )}
 
                                                                                         {!d.category.hideOnProgress && (
                                                                                             <button
