@@ -3683,8 +3683,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (chartData?.supervisionDays) {
                         const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
                         for (const sd of sortedDays) {
-                            if (sd > day) {
-                                nextPengawasanDay = sd;
+                            const sd0 = sd - 1; // Convert to 0-indexed
+                            if (sd0 > day) {
+                                nextPengawasanDay = sd0;
                                 break;
                             }
                         }
@@ -3738,7 +3739,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (chartData?.supervisionDays) {
                     const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
                     for (const sd of sortedDays) {
-                        if (sd > day && sd <= e) {
+                        const sd0 = sd - 1; // Convert to 0-indexed
+                        if (sd0 > day && sd0 <= e) {
                             hasFutureHit = true;
                             break;
                         }
