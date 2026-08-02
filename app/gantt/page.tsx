@@ -3539,7 +3539,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             if (p.status.toLowerCase() !== 'selesai') {
                                 initial[key] = {
                                     status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
-                                    lateDays: getCategoryLateDays(p.kategori_pekerjaan),
+                                    lateDays: 0,
                                     catatan: p.catatan || '',
                                     file: null,
                                     dokumentasiUrl: p.dokumentasi || null,
@@ -4129,7 +4129,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 if (val.status === 'Terlambat' && Number(val.lateDays) > 0) {
-                    catsLate.set(catName, Math.max(catsLate.get(catName) || 0, Number(val.lateDays)));
+                    let totalDelay = Number(val.lateDays);
+                    const task = chartData?.processedTasks.find((t: any) => t.category.name.toUpperCase() === catName.toUpperCase());
+                    
+                    if (task && activeHeaderClick) {
+                        const previousDelay = task.lateDays || 0;
+                        const originalEndOffset = task.startOffset + task.duration - 1;
+                        const expectedEndOffset = originalEndOffset + previousDelay;
+                        const currentDayIndex = activeHeaderClick.dayIndex;
+                        
+                        const naturalDelay = Math.max(0, currentDayIndex - expectedEndOffset);
+                        totalDelay = previousDelay + naturalDelay + totalDelay;
+                    }
+                    
+                    catsLate.set(catName, Math.max(catsLate.get(catName) || 0, totalDelay));
                 }
             });
 
@@ -4491,15 +4504,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     {/* Input Hari Keterlambatan jika status Terlambat */}
                                                                                     {currentStatus === 'Terlambat' && (
                                                                                         <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
-                                                                                            <span className="text-xs font-semibold text-red-600">Terlambat:</span>
                                                                                             <input
-                                                                                                type="number" min="0"
-                                                                                                className="w-20 p-1 text-sm border-2 border-red-300 rounded focus:border-red-500 focus:outline-none"
+                                                                                                type="number"
+                                                                                                className="w-16 rounded border border-slate-300 p-1 text-center text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-inner"
+                                                                                                min={0}
                                                                                                 value={lateDays === 0 ? '' : lateDays}
                                                                                                 onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
-                                                                                                placeholder="Hari"
+                                                                                                placeholder="+ Hari"
+                                                                                                title="Masukkan tambahan hari keterlambatan dari hari ini"
                                                                                             />
-                                                                                            <span className="text-xs text-slate-500">hari</span>
+                                                                                            <span className="text-xs text-slate-500">tambahan hari</span>
                                                                                         </div>
                                                                                     )}
 
