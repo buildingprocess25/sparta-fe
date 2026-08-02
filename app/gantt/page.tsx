@@ -3703,30 +3703,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             isScheduledToday = appearance.scheduled;
             isSkippedCompletely = appearance.skipped;
 
-            // [Poin 6 Fix] Kategori dengan beberapa rentang (ranges) hanya boleh muncul 1 kali
-            // secara natural (yaitu pada hari pertama kali kategori ini di-hit atau di-skip).
-            // Jika hari ini BUKAN hari pertama kemunculannya, jangan tampilkan secara natural.
-            // (Tetap akan tampil jika di-carry over dari pengawasan sebelumnya via isUnfinishedFromPreviousPengawasan)
-            if (isScheduledToday || isSkippedCompletely) {
-                let firstAppearanceDay = -1;
-                if (chartData?.supervisionDays) {
-                    const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
-                    for (const sd of sortedDays) {
-                        const sd0 = sd - 1;
-                        const app = checkAppearanceForDay(sd0);
-                        if (app.scheduled || app.skipped) {
-                            firstAppearanceDay = sd0;
-                            break;
-                        }
-                    }
-                }
-                
-                if (firstAppearanceDay !== -1 && day > firstAppearanceDay) {
-                    isScheduledToday = false;
-                    isSkippedCompletely = false;
-                }
-            }
-
             // Hitung hasFutureHit untuk SELURUH task (lintas semua range)
             let hasFutureHit = false;
             task.ranges?.forEach((r: any) => {
