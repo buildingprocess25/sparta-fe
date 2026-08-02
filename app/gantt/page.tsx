@@ -4104,8 +4104,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                if (val.status === 'Terlambat' && Number(val.lateDays) > 0) {
-                    let totalDelay = Number(val.lateDays);
+                if (val.status === 'Terlambat') {
+                    let additionalDelay = Number(val.lateDays) || 0;
+                    let totalDelay = additionalDelay;
                     const task = chartData?.processedTasks.find((t: any) => t.category.name.toUpperCase() === catName.toUpperCase());
                     
                     if (task && activeHeaderClick) {
@@ -4115,10 +4116,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const currentDayIndex = activeHeaderClick.dayIndex;
                         
                         const naturalDelay = Math.max(0, currentDayIndex - expectedEndOffset);
-                        totalDelay = previousDelay + naturalDelay + totalDelay;
+                        totalDelay = previousDelay + naturalDelay + additionalDelay;
                     }
                     
-                    catsLate.set(catName, Math.max(catsLate.get(catName) || 0, totalDelay));
+                    if (totalDelay > 0) {
+                        catsLate.set(catName, Math.max(catsLate.get(catName) || 0, totalDelay));
+                    }
                 }
             });
 
