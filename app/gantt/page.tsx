@@ -3655,121 +3655,126 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             let hideOnTerlambat = false; // default visible
             let rawRangeMatch: any = null;
 
-            task.ranges?.forEach((r: any) => {
-                if (!r.start || !r.end) return;
-                const s = parseInt(r.start) + shift - 1;
-                const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
+            const checkAppearanceForDay = (targetDay: number) => {
+                let scheduled = false;
+                let skipped = false;
+                task.ranges?.forEach((r: any) => {
+                    if (!r.start || !r.end) return;
+                    const s = parseInt(r.start) + shift - 1;
+                    const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
 
-                if (s <= day && day <= e) {
-                    // Poin 6: item yang ter hit di lebih dari satu tanggal pengawasan 
-                    // tampil pada pengawasan awal aja
-                    let hitByPrevious = false;
-                    if (chartData?.supervisionDays) {
-                        const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
-                        for (const sd of sortedDays) {
-                            const sd0 = sd - 1;
-                            if (s <= sd0 && sd0 <= e && sd0 < day) {
-                                hitByPrevious = true;
-                                break;
+                    if (s <= targetDay && targetDay <= e) {
+                        let hitByPrev = false;
+                        if (chartData?.supervisionDays) {
+                            const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                            for (const sd of sortedDays) {
+                                const sd0 = sd - 1;
+                                if (s <= sd0 && sd0 <= e && sd0 < targetDay) {
+                                    hitByPrev = true;
+                                    break;
+                                }
                             }
+                        }
+                        if (!hitByPrev) scheduled = true;
+                    }
+
+                    if (s > targetDay) {
+                        let nextSd0 = -1;
+                        if (chartData?.supervisionDays) {
+                            const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                            for (const sd of sortedDays) {
+                                const sd0 = sd - 1;
+                                if (sd0 > targetDay) {
+                                    nextSd0 = sd0;
+                                    break;
+                                }
+                            }
+                        }
+                        if (nextSd0 !== -1) {
+                            if (e < nextSd0) scheduled = true;
+                        } else {
+                            scheduled = true;
                         }
                     }
 
-                    if (!hitByPrevious) {
-                        isScheduledToday = true;
-                    }
-                }
-
-                // [ORPHAN PREVENTION] Tarik item ke tanggal ini JIKA item tersebut 
-                // akan dimulai di masa depan (s > day) TETAPI berakhir sebelum checkpoint berikutnya.
-                // Jika tidak ditarik, item akan kelewatan dan baru muncul sebagai Past-Due di checkpoint berikutnya.
-                if (s > day) {
-                    let nextPengawasanDay = -1;
-                    if (chartData?.supervisionDays) {
-                        const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
-                        for (const sd of sortedDays) {
-                            const sd0 = sd - 1; // Convert to 0-indexed
-                            if (sd0 > day) {
-                                nextPengawasanDay = sd0;
-                                break;
+                    if (e < targetDay) {
+                        let hitDuring = false;
+                        let hitAfter = false;
+                        if (chartData?.supervisionDays) {
+                            const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                            for (const sd of sortedDays) {
+                                const sd0 = sd - 1;
+                                if (s <= sd0 && sd0 <= e) hitDuring = true;
+                                if (sd0 > e && sd0 < targetDay) hitAfter = true;
                             }
                         }
+                        if (!hitDuring && !hitAfter) skipped = true;
                     }
-                    if (nextPengawasanDay !== -1) {
-                        if (e < nextPengawasanDay) {
-                            isScheduledToday = true;
-                        }
-                    } else {
-                        // Jika tidak ada checkpoint berikutnya (ini adalah checkpoint terakhir),
-                        // maka tarik semua item masa depan yang tersisa.
-                        isScheduledToday = true;
-                    }
-                }
+                });
+                return { scheduled, skipped };
+            };
 
-                if (e < day) {
-                    let hitDuringActive = false;
-                    let hitAfterActiveButBeforeToday = false;
+            const appearance = checkAppearanceForDay(day);
+            isScheduledToday = appearance.scheduled;
+            isSkippedCompletely = appearance.skipped;
 
-                    if (chartData?.supervisionDays) {
-                        const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
-                        for (const sd of sortedDays) {
-                            const sd0 = sd - 1;
-                            if (s <= sd0 && sd0 <= e) {
-                                hitDuringActive = true;
-                            }
-                            if (sd0 > e && sd0 < day) {
-                                hitAfterActiveButBeforeToday = true;
-                            }
-                        }
-                    }
-
-                    // [POIN 2 & 3 FIX] Item yang tidak pernah di-hit hanya muncul di
-                    // checkpoint TERDEKAT setelah task berakhir (bukan semua checkpoint berikutnya).
-                    // Jika ada checkpoint antara akhir task (e) dan hari ini (day) yang JUGA tidak meng-hit
-                    // task ini, maka seharusnya item sudah muncul di sana (checkpoint terdekat), 
-                    // sehingga di checkpoint saat ini TIDAK perlu muncul lagi.
-                    if (!hitDuringActive && !hitAfterActiveButBeforeToday) {
-                        // Ini checkpoint pertama setelah task berakhir → tampilkan
-                        isSkippedCompletely = true;
-                    }
-                    // Jika hitAfterActiveButBeforeToday = true, berarti ada checkpoint setelah
-                    // task selesai yang seharusnya sudah menampilkan item ini.
-                    // Checkpoint saat ini bukan yang terdekat → jangan tampilkan.
-                }
-
-
-                // Cek apakah hari terakhir kategori ini bertepatan dengan hari pengawasan
-                if (day === e) {
-                    isLastDay = true;
-                }
-
-                // Cek apakah ada tanggal pengawasan lain di masa depan yang juga meng-hit item ini (sebelum atau pada saat e)
-                let hasFutureHit = false;
+            // [Poin 6 Fix] Kategori dengan beberapa rentang (ranges) hanya boleh muncul 1 kali
+            // secara natural (yaitu pada hari pertama kali kategori ini di-hit atau di-skip).
+            // Jika hari ini BUKAN hari pertama kemunculannya, jangan tampilkan secara natural.
+            // (Tetap akan tampil jika di-carry over dari pengawasan sebelumnya via isUnfinishedFromPreviousPengawasan)
+            if (isScheduledToday || isSkippedCompletely) {
+                let firstAppearanceDay = -1;
                 if (chartData?.supervisionDays) {
                     const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
                     for (const sd of sortedDays) {
-                        const sd0 = sd - 1; // Convert to 0-indexed
+                        const sd0 = sd - 1;
+                        const app = checkAppearanceForDay(sd0);
+                        if (app.scheduled || app.skipped) {
+                            firstAppearanceDay = sd0;
+                            break;
+                        }
+                    }
+                }
+                
+                if (firstAppearanceDay !== -1 && day > firstAppearanceDay) {
+                    isScheduledToday = false;
+                    isSkippedCompletely = false;
+                }
+            }
+
+            // Hitung hasFutureHit untuk SELURUH task (lintas semua range)
+            let hasFutureHit = false;
+            task.ranges?.forEach((r: any) => {
+                if (!r.start || !r.end) return;
+                const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
+                if (day === e) isLastDay = true;
+                
+                if (chartData?.supervisionDays) {
+                    const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                    for (const sd of sortedDays) {
+                        const sd0 = sd - 1;
                         if (sd0 > day && sd0 <= e) {
                             hasFutureHit = true;
                             break;
                         }
                     }
                 }
+            });
 
-                // [Poin 1 & 2] Aturan visibilitas tombol status:
-                // Jika masih ada pengawasan di masa depan (hasFutureHit = true):
-                // -> BISA isi Selesai/Progress. TIDAK BISA isi Terlambat.
-                // Jika tidak ada pengawasan di masa depan (hasFutureHit = false):
-                // -> BISA isi Selesai/Terlambat. TIDAK BISA isi Progress.
-                if (hasFutureHit) {
-                    hideOnProgress = false;
-                    hideOnTerlambat = true;
-                } else {
-                    hideOnProgress = true;
-                    hideOnTerlambat = false;
-                }
+            // [Poin 1 & 2] Aturan visibilitas tombol status:
+            if (hasFutureHit) {
+                hideOnProgress = false;
+                hideOnTerlambat = true;
+            } else {
+                hideOnProgress = true;
+                hideOnTerlambat = false;
+            }
 
-                // Kita prioritaskan rawRangeMatch untuk rentang yang benar-benar aktif atau yang sudah terlewati
+            // Kita prioritaskan rawRangeMatch untuk rentang yang benar-benar aktif atau yang sudah terlewati
+            task.ranges?.forEach((r: any) => {
+                if (!r.start || !r.end) return;
+                const s = parseInt(r.start) + shift - 1;
+                const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
                 if (day >= s && day <= e) {
                     rawRangeMatch = r;
                 } else if (!rawRangeMatch && day > e) {
