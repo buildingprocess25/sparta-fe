@@ -462,6 +462,20 @@ export const isViewOnlyUser = (
     isSuperHuman = false
 ): boolean => hasRegionalManagerRole(role) && !isSuperHuman;
 
+/**
+ * Hanya BRANCH BUILDING SUPPORT (dan SuperHuman) yang dapat menginput
+ * pengawasan pada Gantt Chart. BRANCH BUILDING & MAINTENANCE MANAGER dan
+ * BRANCH BUILDING COORDINATOR bersifat read-only untuk pengawasan.
+ */
+export const canInputPengawasan = (
+    role: string | string[] | undefined | null,
+    isSuperHuman = false
+): boolean => {
+    if (isSuperHuman) return true;
+    const roles = normalizeRoles(role);
+    return roles.includes('BRANCH BUILDING SUPPORT');
+};
+
 // -----------------------------------------------------------------------------
 // KATEGORI PEKERJAAN
 // Digunakan untuk validasi dan tampilan form RAB / Opname.

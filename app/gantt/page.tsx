@@ -115,7 +115,7 @@ const mergeProjectOptions = (base: any[] = [], extra: any[] = []) => {
     return Array.from(map.values());
 };
 import type { GanttListItem, GanttNoteItem } from '@/lib/api';
-import { API_URL, BRANCH_GROUPS, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser, normalizeBranchValue } from '@/lib/constants';
+import { API_URL, BRANCH_GROUPS, canInputPengawasan, canViewAllBranches, GLOBAL_VIEW_ONLY_ROLES, isViewOnlyUser, normalizeBranchValue } from '@/lib/constants';
 import InstruksiLapanganModal from '@/components/InstruksiLapanganModal';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
@@ -320,11 +320,11 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     if (scope.status_opname_final === "APPROVED") {
         return true;
     }
-    
+
     const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
     const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
-    
+
     return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0;
 }
 
@@ -428,7 +428,7 @@ function GanttBoard() {
                 const ulokTokos = allTokoList.filter(t => t.nomor_ulok === toko.nomor_ulok);
                 const spkCount = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
                 const totalCount = ulokTokos.length;
-                
+
                 // SPK Lengkap: ULOK punya 2+ scope DAN semua sudah SPK
                 if (spkFilter === 'spk') return totalCount >= 2 && spkCount === totalCount;
                 // SPK Tunggal: ULOK cuma punya 1 scope DAN sudah SPK
@@ -521,7 +521,7 @@ function GanttBoard() {
     const workspaceLoadSeqRef = useRef(0);
 
     const { user } = useSession();
-    
+
     const isScopeSpkApproved = useMemo(() => {
         if (!projectData?.id_toko) return false;
         return spkTokoIds.has(Number(projectData.id_toko));
@@ -529,6 +529,9 @@ function GanttBoard() {
 
     const isViewOnly = isViewOnlyUser(user?.roles, user?.isSuperHuman ?? false);
     const isReadOnly = isViewOnly;
+    // Hanya BRANCH BUILDING SUPPORT (dan SuperHuman) yang dapat menginput pengawasan.
+    // Manager dan Coordinator hanya bisa melihat, tidak bisa input.
+    const isPengawasanReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
     const activeNotesGanttId = selectedGanttId
         ?? supervisionWorkspace?.scopes.find(scope => scope.gantt_id)?.gantt_id
         ?? null;
@@ -1636,6 +1639,31 @@ function GanttBoard() {
         return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex };
     }, [tasks, projectData, spkInfo, pengawasanDates]);
 
+    // Map dari tanggal pengawasan (DD/MM/YYYY) → data checkpoint agregat dari semua scopes
+    // Digunakan untuk pewarnaan header kolom: hijau/merah/biru (Poin 7, 8, 9)
+    const pengawasanCheckpointMap = useMemo(() => {
+        const map = new Map<string, { total_items: number; filled_items: number; selesai_items: number }>();
+        (supervisionWorkspace?.scopes || []).forEach(scope => {
+            (scope.checkpoints || []).forEach((cp: any) => {
+                const dateKey = String(cp.tanggal_pengawasan || '').trim();
+                if (!dateKey) return;
+                const existing = map.get(dateKey);
+                if (existing) {
+                    existing.total_items += Number(cp.total_items || 0);
+                    existing.filled_items += Number(cp.filled_items || 0);
+                    existing.selesai_items += Number(cp.selesai_items || 0);
+                } else {
+                    map.set(dateKey, {
+                        total_items: Number(cp.total_items || 0),
+                        filled_items: Number(cp.filled_items || 0),
+                        selesai_items: Number(cp.selesai_items || 0),
+                    });
+                }
+            });
+        });
+        return map;
+    }, [supervisionWorkspace]);
+
     const targetStInfo = useMemo(() => {
         const candidates = (supervisionWorkspace?.scopes || []).flatMap((scope) => {
             const explicitTarget = parseLocalDate(scope.st_target_date);
@@ -2000,232 +2028,231 @@ function GanttBoard() {
                                         {!((urlIdToko || urlUlok) && !isDirectAccess) && (
                                             <>
                                                 {/* Search */}
-                                                 <div className="relative min-w-0">
-                                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
-                                                     <Input
-                                                         placeholder="Cari Nomor / Toko / Cabang..."
-                                                         className="h-12 rounded-lg border-slate-300 bg-white pl-10 text-sm shadow-none focus-visible:ring-red-500"
-                                                         value={searchUlokInput}
-                                                         onPointerDown={() => setIsUlokListOpen(true)}
-                                                         onClick={() => setIsUlokListOpen(true)}
-                                                         onChange={(e) => {
-                                                             setSearchUlokInput(e.target.value);
-                                                         }}
-                                                         onKeyDown={(event) => {
-                                                             if (event.key === 'Enter') handleManualUlokSubmit();
-                                                         }}
-                                                     />
-                                                 </div>
-                                                 <Select value={spkFilter} onValueChange={(value) => setSpkFilter(value as typeof spkFilter)}>
-                                                     <SelectTrigger className="h-12 rounded-lg border-slate-300 bg-white text-sm font-bold text-slate-900 shadow-none focus:ring-red-500">
-                                                         <SlidersHorizontal className="mr-2 h-4 w-4 text-red-600" />
-                                                         <SelectValue placeholder="Status SPK" />
-                                                     </SelectTrigger>
-                                                     <SelectContent>
-                                                         {spkFilterOptions.map((option) => (
-                                                             <SelectItem key={option.key} value={option.key}>
-                                                                 <span className="flex w-full items-center justify-between gap-4">
-                                                                     <span>{option.label}</span>
-                                                                     <span className="text-xs text-slate-500">{option.count}</span>
-                                                                 </span>
-                                                             </SelectItem>
-                                                         ))}
-                                                     </SelectContent>
-                                                 </Select>
-                                                 {selectedSpkSummary ? (
-                                                     <div className={`flex h-12 min-w-0 items-center gap-2 rounded-lg border px-3 ${selectedSpkSummary.cardClass}`}>
-                                                         <span className="flex min-w-0 items-center gap-2">
-                                                             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${selectedSpkSummary.dotClass}`} />
-                                                             <span className="min-w-0">
-                                                                 <span className="block truncate text-[10px] font-black uppercase opacity-70">Status ULOK</span>
-                                                                 <span className="block truncate text-sm font-black">{selectedSpkSummary.label}</span>
-                                                             </span>
-                                                         </span>
-                                                     </div>
-                                                 ) : (
-                                                     <div className="hidden h-12 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-500 lg:flex lg:items-center">
-                                                         Pilih ULOK
-                                                     </div>
-                                                 )}
-                                                {false && <>
-                                                {/* Filter SPK - Always visible */}
-                                                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
-                                                    <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-                                                        <SlidersHorizontal className="h-4 w-4 text-slate-500" />
-                                                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Filter Status SPK</span>
-                                                    </div>
-                                                    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                        {(() => {
-                                                            // Deduplicate per ULOK untuk hitungan yang benar
-                                                            const uniqueUloks = [...new Map(allTokoList.map(t => [t.nomor_ulok, t])).keys()];
-                                                            const countAll = uniqueUloks.length;
-                                                            
-                                                            // SPK Lengkap: ULOK punya 2+ scope DAN semua scope sudah SPK
-                                                            const countSpk = uniqueUloks.filter(ulok => {
-                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
-                                                                return ulokTokos.length >= 2 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
-                                                            }).length;
-                                                            
-                                                            // SPK Tunggal: ULOK cuma punya 1 scope DAN sudah SPK
-                                                            const countSingle = uniqueUloks.filter(ulok => {
-                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
-                                                                return ulokTokos.length === 1 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
-                                                            }).length;
-                                                            
-                                                            // SPK Partial: ULOK punya 2+ scope DAN ada yang belum SPK
-                                                            const countPartial = uniqueUloks.filter(ulok => {
-                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
-                                                                const spkC = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
-                                                                return ulokTokos.length >= 2 && spkC > 0 && spkC < ulokTokos.length;
-                                                            }).length;
-                                                            
-                                                            const countNoSpk = uniqueUloks.filter(ulok => {
-                                                                const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
-                                                                return ulokTokos.every(t => !spkTokoIds.has(Number(t.id_toko || t.id)));
-                                                            }).length;
-                                                            
-                                                            const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number; activeClass: string; hoverClass: string; icon: string }[] = [
-                                                                { key: 'all', label: 'Semua', count: countAll, activeClass: 'bg-slate-900 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '📋' },
-                                                                { key: 'spk', label: 'SPK Lengkap', count: countSpk, activeClass: 'bg-emerald-600 text-white shadow-md', hoverClass: 'text-emerald-700 hover:bg-emerald-50 border-emerald-300 border', icon: '✓✓' },
-                                                                { key: 'single' as any, label: 'SPK Tunggal', count: countSingle, activeClass: 'bg-blue-600 text-white shadow-md', hoverClass: 'text-blue-700 hover:bg-blue-50 border-blue-300 border', icon: '✓' },
-                                                                { key: 'partial', label: 'SPK Partial', count: countPartial, activeClass: 'bg-amber-500 text-white shadow-md', hoverClass: 'text-amber-700 hover:bg-amber-50 border-amber-300 border', icon: '½' },
-                                                                { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'bg-slate-500 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '○' },
-                                                            ];
-                                                            return filters.map(f => (
-                                                                <button
-                                                                    key={f.key}
-                                                                    type="button"
-                                                                    onClick={() => setSpkFilter(f.key as any)}
-                                                                    className={`py-3 px-3 text-xs font-bold rounded-lg transition-all text-left flex items-center justify-between gap-2 ${
-                                                                        spkFilter === f.key ? f.activeClass : f.hoverClass
-                                                                    }`}
-                                                                >
-                                                                    <div className="flex-1">
-                                                                        <div className="flex items-center gap-2 mb-1">
-                                                                            <span className="text-lg">{f.icon}</span>
-                                                                            <span>{f.label}</span>
-                                                                        </div>
-                                                                        <span className={`text-[10px] font-normal ${spkFilter === f.key ? 'opacity-90' : 'opacity-60'}`}>
-                                                                            {f.count} proyek
-                                                                        </span>
-                                                                    </div>
-                                                                </button>
-                                                            ));
-                                                        })()}
-                                                    </div>
+                                                <div className="relative min-w-0">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                                                    <Input
+                                                        placeholder="Cari Nomor / Toko / Cabang..."
+                                                        className="h-12 rounded-lg border-slate-300 bg-white pl-10 text-sm shadow-none focus-visible:ring-red-500"
+                                                        value={searchUlokInput}
+                                                        onPointerDown={() => setIsUlokListOpen(true)}
+                                                        onClick={() => setIsUlokListOpen(true)}
+                                                        onChange={(e) => {
+                                                            setSearchUlokInput(e.target.value);
+                                                        }}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === 'Enter') handleManualUlokSubmit();
+                                                        }}
+                                                    />
                                                 </div>
+                                                <Select value={spkFilter} onValueChange={(value) => setSpkFilter(value as typeof spkFilter)}>
+                                                    <SelectTrigger className="h-12 rounded-lg border-slate-300 bg-white text-sm font-bold text-slate-900 shadow-none focus:ring-red-500">
+                                                        <SlidersHorizontal className="mr-2 h-4 w-4 text-red-600" />
+                                                        <SelectValue placeholder="Status SPK" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {spkFilterOptions.map((option) => (
+                                                            <SelectItem key={option.key} value={option.key}>
+                                                                <span className="flex w-full items-center justify-between gap-4">
+                                                                    <span>{option.label}</span>
+                                                                    <span className="text-xs text-slate-500">{option.count}</span>
+                                                                </span>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {selectedSpkSummary ? (
+                                                    <div className={`flex h-12 min-w-0 items-center gap-2 rounded-lg border px-3 ${selectedSpkSummary.cardClass}`}>
+                                                        <span className="flex min-w-0 items-center gap-2">
+                                                            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${selectedSpkSummary.dotClass}`} />
+                                                            <span className="min-w-0">
+                                                                <span className="block truncate text-[10px] font-black uppercase opacity-70">Status ULOK</span>
+                                                                <span className="block truncate text-sm font-black">{selectedSpkSummary.label}</span>
+                                                            </span>
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="hidden h-12 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-500 lg:flex lg:items-center">
+                                                        Pilih ULOK
+                                                    </div>
+                                                )}
+                                                {false && <>
+                                                    {/* Filter SPK - Always visible */}
+                                                    <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-sm">
+                                                        <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                                                            <SlidersHorizontal className="h-4 w-4 text-slate-500" />
+                                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Filter Status SPK</span>
+                                                        </div>
+                                                        <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            {(() => {
+                                                                // Deduplicate per ULOK untuk hitungan yang benar
+                                                                const uniqueUloks = [...new Map(allTokoList.map(t => [t.nomor_ulok, t])).keys()];
+                                                                const countAll = uniqueUloks.length;
+
+                                                                // SPK Lengkap: ULOK punya 2+ scope DAN semua scope sudah SPK
+                                                                const countSpk = uniqueUloks.filter(ulok => {
+                                                                    const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                    return ulokTokos.length >= 2 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                                }).length;
+
+                                                                // SPK Tunggal: ULOK cuma punya 1 scope DAN sudah SPK
+                                                                const countSingle = uniqueUloks.filter(ulok => {
+                                                                    const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                    return ulokTokos.length === 1 && ulokTokos.every(t => spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                                }).length;
+
+                                                                // SPK Partial: ULOK punya 2+ scope DAN ada yang belum SPK
+                                                                const countPartial = uniqueUloks.filter(ulok => {
+                                                                    const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                    const spkC = ulokTokos.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length;
+                                                                    return ulokTokos.length >= 2 && spkC > 0 && spkC < ulokTokos.length;
+                                                                }).length;
+
+                                                                const countNoSpk = uniqueUloks.filter(ulok => {
+                                                                    const ulokTokos = allTokoList.filter(t => t.nomor_ulok === ulok);
+                                                                    return ulokTokos.every(t => !spkTokoIds.has(Number(t.id_toko || t.id)));
+                                                                }).length;
+
+                                                                const filters: { key: 'all' | 'spk' | 'partial' | 'no_spk' | 'single'; label: string; count: number; activeClass: string; hoverClass: string; icon: string }[] = [
+                                                                    { key: 'all', label: 'Semua', count: countAll, activeClass: 'bg-slate-900 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '📋' },
+                                                                    { key: 'spk', label: 'SPK Lengkap', count: countSpk, activeClass: 'bg-emerald-600 text-white shadow-md', hoverClass: 'text-emerald-700 hover:bg-emerald-50 border-emerald-300 border', icon: '✓✓' },
+                                                                    { key: 'single' as any, label: 'SPK Tunggal', count: countSingle, activeClass: 'bg-blue-600 text-white shadow-md', hoverClass: 'text-blue-700 hover:bg-blue-50 border-blue-300 border', icon: '✓' },
+                                                                    { key: 'partial', label: 'SPK Partial', count: countPartial, activeClass: 'bg-amber-500 text-white shadow-md', hoverClass: 'text-amber-700 hover:bg-amber-50 border-amber-300 border', icon: '½' },
+                                                                    { key: 'no_spk', label: 'Belum SPK', count: countNoSpk, activeClass: 'bg-slate-500 text-white shadow-md', hoverClass: 'text-slate-700 hover:bg-slate-50 border-slate-300 border', icon: '○' },
+                                                                ];
+                                                                return filters.map(f => (
+                                                                    <button
+                                                                        key={f.key}
+                                                                        type="button"
+                                                                        onClick={() => setSpkFilter(f.key as any)}
+                                                                        className={`py-3 px-3 text-xs font-bold rounded-lg transition-all text-left flex items-center justify-between gap-2 ${spkFilter === f.key ? f.activeClass : f.hoverClass
+                                                                            }`}
+                                                                    >
+                                                                        <div className="flex-1">
+                                                                            <div className="flex items-center gap-2 mb-1">
+                                                                                <span className="text-lg">{f.icon}</span>
+                                                                                <span>{f.label}</span>
+                                                                            </div>
+                                                                            <span className={`text-[10px] font-normal ${spkFilter === f.key ? 'opacity-90' : 'opacity-60'}`}>
+                                                                                {f.count} proyek
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                ));
+                                                            })()}
+                                                        </div>
+                                                    </div>
                                                 </>}
                                             </>
                                         )}
                                         {false && supervisionWorkspace && <>
-                                        {/* Dropdown Pilih Proyek */}
-                                        <Select
-                                            value={(() => {
-                                                const workspaceUlok = supervisionWorkspace?.nomor_ulok;
-                                                if (appMode === 'pic' && workspaceUlok) {
-                                                    return `ulok-${encodeURIComponent(String(workspaceUlok))}`;
-                                                }
-                                                const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko || '') : null);
-                                                if (!targetTokoId) return '';
-
-                                                const ganttMatch = availableProjects.find((p: any) => {
-                                                    if (p.id_toko && targetTokoId) return p.id_toko === targetTokoId;
-                                                    if (p.id === selectedGanttId) return true;
-                                                    return false;
-                                                });
-                                                return ganttMatch?.id ? `gantt-${ganttMatch?.id}` : `toko-${targetTokoId}`;
-                                            })()}
-                                            onValueChange={(val) => {
-                                                if (!val) return;
-
-                                                if (val.startsWith('ulok-')) {
-                                                    const nomorUlok = decodeURIComponent(val.slice(5));
-                                                    const newUrl = new URL(window.location.href);
-                                                    newUrl.searchParams.set('ulok', nomorUlok);
-                                                    newUrl.searchParams.delete('id_toko');
-                                                    window.history.pushState({}, '', newUrl.toString());
-                                                    loadSupervisionWorkspace(nomorUlok);
-                                                } else if (val.startsWith('gantt-')) {
-                                                    const gId = parseInt(val.replace('gantt-', ''));
-                                                    const proj = availableProjects.find(p => p.id === gId);
-                                                    if (proj?.id_toko) {
-                                                        const newUrl = new URL(window.location.href);
-                                                        newUrl.searchParams.set('id_toko', proj.id_toko.toString());
-                                                        window.history.pushState({}, '', newUrl.toString());
-                                                        loadDataByToko(proj.id_toko);
-                                                    } else {
-                                                        loadGanttDetail(gId);
+                                            {/* Dropdown Pilih Proyek */}
+                                            <Select
+                                                value={(() => {
+                                                    const workspaceUlok = supervisionWorkspace?.nomor_ulok;
+                                                    if (appMode === 'pic' && workspaceUlok) {
+                                                        return `ulok-${encodeURIComponent(String(workspaceUlok))}`;
                                                     }
-                                                } else if (val.startsWith('toko-')) {
-                                                    const tId = parseInt(val.replace('toko-', ''));
-                                                    const newUrl = new URL(window.location.href);
-                                                    newUrl.searchParams.set('id_toko', tId.toString());
-                                                    window.history.pushState({}, '', newUrl.toString());
-                                                    loadDataByToko(tId);
-                                                }
-                                            }}
-                                        >
-                                            <SelectTrigger className="h-12 w-full min-w-0 rounded-lg border-slate-300 bg-white text-base font-medium text-slate-700 shadow-none focus:ring-red-500 [&>span]:truncate">
-                                                <SelectValue placeholder="-- Pilih Proyek / RAB Anda --" />
-                                            </SelectTrigger>
-                                            <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
-                                                {(() => {
-                                                    const uniqueMap = new Map();
-                                                    filteredTokoList.forEach((toko) => {
-                                                        const tID = toko.id_toko || toko.id;
-                                                        if (appMode === 'pic') {
-                                                            const val = `ulok-${encodeURIComponent(toko.nomor_ulok)}`;
-                                                            const existing = uniqueMap.get(val);
-                                                            const scopes = new Set<string>(existing?.scopes || []);
-                                                            if (toko.lingkup_pekerjaan) scopes.add(String(toko.lingkup_pekerjaan).toUpperCase());
-                                                            uniqueMap.set(val, {
-                                                                toko: existing?.toko || toko,
-                                                                val,
-                                                                scopes: Array.from(scopes),
-                                                            });
-                                                            return;
-                                                        }
-                                                        const ganttMatch = availableProjects.find((p: any) => {
-                                                            if (p.id_toko && tID) return p.id_toko === tID;
-                                                            const matchUlok = p.nomor_ulok === toko.nomor_ulok;
-                                                            const matchLingkup = !p.lingkup_pekerjaan || !toko.lingkup_pekerjaan || (p.lingkup_pekerjaan?.toUpperCase() === toko.lingkup_pekerjaan?.toUpperCase());
-                                                            return matchUlok && matchLingkup;
-                                                        });
-                                                        const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
+                                                    const targetTokoId = projectData?.id_toko ? projectData.id_toko : (urlIdToko ? parseInt(urlIdToko || '') : null);
+                                                    if (!targetTokoId) return '';
 
-                                                        if (!uniqueMap.has(val)) {
-                                                            uniqueMap.set(val, { toko, ganttMatch, val });
-                                                        }
+                                                    const ganttMatch = availableProjects.find((p: any) => {
+                                                        if (p.id_toko && targetTokoId) return p.id_toko === targetTokoId;
+                                                        if (p.id === selectedGanttId) return true;
+                                                        return false;
                                                     });
-
-                                                    const dedupedList = Array.from(uniqueMap.values());
-
-                                                    if (dedupedList.length === 0) {
-                                                        return (
-                                                            <div className="px-2 py-4 text-center text-sm text-slate-500">
-                                                                Pencarian tidak ditemukan
-                                                            </div>
-                                                        );
-                                                    }
-
-                                                    return dedupedList.map(({ toko, ganttMatch, val, scopes }) => {
-                                                        const ulok = formatUlokWithDash(toko.nomor_ulok);
-                                                        const scopeLabel = appMode === 'pic'
-                                                            ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
-                                                            : toko.lingkup_pekerjaan;
-                                                        const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' - Terkunci' : ganttMatch?.status === 'active' ? ' - Aktif' : '';
-                                                        const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
-                                                            .filter(Boolean).join(' - ');
-
-                                                        return (
-                                                            <SelectItem key={val} value={val}>
-                                                                <span className="block truncate">{label || ulok}{ganttStatusLabel}</span>
-                                                            </SelectItem>
-                                                        );
-                                                    });
+                                                    return ganttMatch?.id ? `gantt-${ganttMatch?.id}` : `toko-${targetTokoId}`;
                                                 })()}
-                                            </SelectContent>
-                                        </Select>
+                                                onValueChange={(val) => {
+                                                    if (!val) return;
+
+                                                    if (val.startsWith('ulok-')) {
+                                                        const nomorUlok = decodeURIComponent(val.slice(5));
+                                                        const newUrl = new URL(window.location.href);
+                                                        newUrl.searchParams.set('ulok', nomorUlok);
+                                                        newUrl.searchParams.delete('id_toko');
+                                                        window.history.pushState({}, '', newUrl.toString());
+                                                        loadSupervisionWorkspace(nomorUlok);
+                                                    } else if (val.startsWith('gantt-')) {
+                                                        const gId = parseInt(val.replace('gantt-', ''));
+                                                        const proj = availableProjects.find(p => p.id === gId);
+                                                        if (proj?.id_toko) {
+                                                            const newUrl = new URL(window.location.href);
+                                                            newUrl.searchParams.set('id_toko', proj.id_toko.toString());
+                                                            window.history.pushState({}, '', newUrl.toString());
+                                                            loadDataByToko(proj.id_toko);
+                                                        } else {
+                                                            loadGanttDetail(gId);
+                                                        }
+                                                    } else if (val.startsWith('toko-')) {
+                                                        const tId = parseInt(val.replace('toko-', ''));
+                                                        const newUrl = new URL(window.location.href);
+                                                        newUrl.searchParams.set('id_toko', tId.toString());
+                                                        window.history.pushState({}, '', newUrl.toString());
+                                                        loadDataByToko(tId);
+                                                    }
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-12 w-full min-w-0 rounded-lg border-slate-300 bg-white text-base font-medium text-slate-700 shadow-none focus:ring-red-500 [&>span]:truncate">
+                                                    <SelectValue placeholder="-- Pilih Proyek / RAB Anda --" />
+                                                </SelectTrigger>
+                                                <SelectContent position="popper" side="bottom" className="w-(--radix-select-trigger-width) max-h-75">
+                                                    {(() => {
+                                                        const uniqueMap = new Map();
+                                                        filteredTokoList.forEach((toko) => {
+                                                            const tID = toko.id_toko || toko.id;
+                                                            if (appMode === 'pic') {
+                                                                const val = `ulok-${encodeURIComponent(toko.nomor_ulok)}`;
+                                                                const existing = uniqueMap.get(val);
+                                                                const scopes = new Set<string>(existing?.scopes || []);
+                                                                if (toko.lingkup_pekerjaan) scopes.add(String(toko.lingkup_pekerjaan).toUpperCase());
+                                                                uniqueMap.set(val, {
+                                                                    toko: existing?.toko || toko,
+                                                                    val,
+                                                                    scopes: Array.from(scopes),
+                                                                });
+                                                                return;
+                                                            }
+                                                            const ganttMatch = availableProjects.find((p: any) => {
+                                                                if (p.id_toko && tID) return p.id_toko === tID;
+                                                                const matchUlok = p.nomor_ulok === toko.nomor_ulok;
+                                                                const matchLingkup = !p.lingkup_pekerjaan || !toko.lingkup_pekerjaan || (p.lingkup_pekerjaan?.toUpperCase() === toko.lingkup_pekerjaan?.toUpperCase());
+                                                                return matchUlok && matchLingkup;
+                                                            });
+                                                            const val = ganttMatch ? `gantt-${ganttMatch.id}` : `toko-${tID}`;
+
+                                                            if (!uniqueMap.has(val)) {
+                                                                uniqueMap.set(val, { toko, ganttMatch, val });
+                                                            }
+                                                        });
+
+                                                        const dedupedList = Array.from(uniqueMap.values());
+
+                                                        if (dedupedList.length === 0) {
+                                                            return (
+                                                                <div className="px-2 py-4 text-center text-sm text-slate-500">
+                                                                    Pencarian tidak ditemukan
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return dedupedList.map(({ toko, ganttMatch, val, scopes }) => {
+                                                            const ulok = formatUlokWithDash(toko.nomor_ulok);
+                                                            const scopeLabel = appMode === 'pic'
+                                                                ? (scopes || []).sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b)).join(' + ')
+                                                                : toko.lingkup_pekerjaan;
+                                                            const ganttStatusLabel = ganttMatch?.status === 'terkunci' ? ' - Terkunci' : ganttMatch?.status === 'active' ? ' - Aktif' : '';
+                                                            const label = [ulok, toko.nama_toko, toko.cabang, scopeLabel]
+                                                                .filter(Boolean).join(' - ');
+
+                                                            return (
+                                                                <SelectItem key={val} value={val}>
+                                                                    <span className="block truncate">{label || ulok}{ganttStatusLabel}</span>
+                                                                </SelectItem>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </SelectContent>
+                                            </Select>
                                         </>}
                                     </>
                                 )}
@@ -2256,16 +2283,14 @@ function GanttBoard() {
                                                             key={option.val}
                                                             type="button"
                                                             onClick={() => handleSelectUlokOption(option.val)}
-                                                            className={`group relative flex w-full flex-col gap-2 px-4 py-3 text-left transition-all duration-150 active:scale-[0.997] sm:flex-row sm:items-center sm:justify-between ${
-                                                                active
+                                                            className={`group relative flex w-full flex-col gap-2 px-4 py-3 text-left transition-all duration-150 active:scale-[0.997] sm:flex-row sm:items-center sm:justify-between ${active
                                                                     ? 'bg-red-600 text-white shadow-[inset_4px_0_0_rgba(255,255,255,0.75)]'
                                                                     : 'bg-white text-slate-900 hover:bg-red-50 hover:text-red-900 hover:shadow-[inset_4px_0_0_#dc2626] focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             <span className="min-w-0 truncate text-sm font-bold transition-transform duration-150 group-hover:translate-x-0.5">{option.identity}</span>
-                                                            <span className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${
-                                                                active ? 'border-white/25 bg-white/15 text-white' : option.statusClass
-                                                            }`}>
+                                                            <span className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${active ? 'border-white/25 bg-white/15 text-white' : option.statusClass
+                                                                }`}>
                                                                 <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-white' : option.dotClass}`} />
                                                                 {option.statusLabel}
                                                             </span>
@@ -2318,11 +2343,10 @@ function GanttBoard() {
                                                 key={option.key}
                                                 type="button"
                                                 onClick={() => setSpkFilter(option.key)}
-                                                className={`flex min-h-16 items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
-                                                    active
+                                                className={`flex min-h-16 items-center justify-between rounded-lg border px-4 py-3 text-left transition ${active
                                                         ? `${activeClass} shadow-sm`
                                                         : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
                                                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${active ? "bg-white" : dotClass}`} />
@@ -2413,11 +2437,10 @@ function GanttBoard() {
                                         <div className="mb-1.5 flex items-center justify-between gap-2">
                                             <p className="text-[11px] font-black uppercase text-red-700">Target ST</p>
                                             {(handoverReadiness.isGenerated || handoverReadiness.isReady) && (
-                                                <span className={`rounded px-2 py-0.5 text-[10px] font-black ${
-                                                    handoverReadiness.isGenerated 
-                                                        ? "bg-emerald-600 text-white" 
+                                                <span className={`rounded px-2 py-0.5 text-[10px] font-black ${handoverReadiness.isGenerated
+                                                        ? "bg-emerald-600 text-white"
                                                         : "bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.6)] animate-pulse"
-                                                }`}>
+                                                    }`}>
                                                     {handoverStatusText}
                                                 </span>
                                             )}
@@ -2446,21 +2469,21 @@ function GanttBoard() {
                         ) : supervisionWorkspace ? (
                             <>
                                 {hasReadyOpnameCheckpoint && (
-                                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
-                                    <div className="flex items-start gap-3">
-                                        <span className="relative mt-1 flex h-3 w-3 shrink-0">
-                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                                            <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
-                                        </span>
-                                        <div>
-                                            <p className="font-extrabold">Petunjuk Opname</p>
-                                            <p className="mt-0.5 text-xs leading-relaxed text-red-700">
-                                                Titik merah berkedip hanya muncul ketika ada pekerjaan selesai yang belum masuk Opname.
-                                                Checkpoint sesudahnya tidak akan memunculkan form kosong.
-                                            </p>
+                                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
+                                        <div className="flex items-start gap-3">
+                                            <span className="relative mt-1 flex h-3 w-3 shrink-0">
+                                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                                                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
+                                            </span>
+                                            <div>
+                                                <p className="font-extrabold">Petunjuk Opname</p>
+                                                <p className="mt-0.5 text-xs leading-relaxed text-red-700">
+                                                    Titik merah berkedip hanya muncul ketika ada pekerjaan selesai yang belum masuk Opname.
+                                                    Checkpoint sesudahnya tidak akan memunculkan form kosong.
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
                                 )}
 
                                 {supervisionWorkspace.has_date_mismatch && (
@@ -2537,46 +2560,46 @@ function GanttBoard() {
                                             </div>
 
                                             <div className="flex min-h-0 flex-1 flex-col space-y-4 p-4">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <p className="mt-1 text-sm font-semibold text-slate-950">{handoverStatusText}</p>
-                                                        </div>
-                                                        {handoverReadiness.isGenerated
-                                                            ? <CheckCircle className="h-7 w-7 text-emerald-500" />
-                                                            : <ClipboardCheck className="h-7 w-7 text-red-300" />}
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="mt-1 text-sm font-semibold text-slate-950">{handoverStatusText}</p>
                                                     </div>
-                                                    {handoverReadiness.isGenerated ? (
-                                                        <div className="flex flex-col gap-2">
-                                                            <Button
-                                                                type="button"
-                                                                onClick={() => handleDownloadPdf(masterHandoverId)}
-                                                                disabled={!masterHandoverId || isDownloadingPdf[masterHandoverId]}
-                                                                className={`flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500 ${!masterHandoverId ? 'pointer-events-none opacity-50' : ''}`}
-                                                            >
-                                                                {masterHandoverId && isDownloadingPdf[masterHandoverId] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                                                                Unduh Serah Terima (SIPIL+ME)
-                                                            </Button>
-                                                            <Button
-                                                                type="button"
-                                                                onClick={handleGenerateUnifiedHandover}
-                                                                disabled={!handoverReadiness.isReady || isGeneratingHandover}
-                                                                className="h-9 w-full bg-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-300 disabled:opacity-50"
-                                                            >
-                                                                {isGeneratingHandover
-                                                                    ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                                    : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-                                                                Generate Ulang
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col gap-2">
-                                                            {(() => {
-                                                                const anyScopeGenerated = handoverReadiness.isGenerated && supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
-                                                                return supervisionWorkspace.scopes.map(scope => {
-                                                                    if (!scope.gantt_id) return null;
-                                                                    const scopeName = String(scope.lingkup_pekerjaan || "Lingkup").toUpperCase();
-                                                                    if (handoverReadiness.isGenerated && scope.link_pdf_serah_terima) {
-                                                                        return (
+                                                    {handoverReadiness.isGenerated
+                                                        ? <CheckCircle className="h-7 w-7 text-emerald-500" />
+                                                        : <ClipboardCheck className="h-7 w-7 text-red-300" />}
+                                                </div>
+                                                {handoverReadiness.isGenerated ? (
+                                                    <div className="flex flex-col gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            onClick={() => handleDownloadPdf(masterHandoverId)}
+                                                            disabled={!masterHandoverId || isDownloadingPdf[masterHandoverId]}
+                                                            className={`flex h-11 w-full items-center justify-center rounded-md bg-emerald-600 px-4 font-bold text-white transition-colors hover:bg-emerald-500 ${!masterHandoverId ? 'pointer-events-none opacity-50' : ''}`}
+                                                        >
+                                                            {masterHandoverId && isDownloadingPdf[masterHandoverId] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                                            Unduh Serah Terima (SIPIL+ME)
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handleGenerateUnifiedHandover}
+                                                            disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                            className="h-9 w-full bg-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-300 disabled:opacity-50"
+                                                        >
+                                                            {isGeneratingHandover
+                                                                ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                                : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                                                            Generate Ulang
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col gap-2">
+                                                        {(() => {
+                                                            const anyScopeGenerated = handoverReadiness.isGenerated && supervisionWorkspace.scopes.some(s => Boolean(s.link_pdf_serah_terima));
+                                                            return supervisionWorkspace.scopes.map(scope => {
+                                                                if (!scope.gantt_id) return null;
+                                                                const scopeName = String(scope.lingkup_pekerjaan || "Lingkup").toUpperCase();
+                                                                if (handoverReadiness.isGenerated && scope.link_pdf_serah_terima) {
+                                                                    return (
                                                                         <Button
                                                                             key={scope.id_toko}
                                                                             type="button"
@@ -2587,49 +2610,49 @@ function GanttBoard() {
                                                                             {scope.berkas_serah_terima_id && isDownloadingPdf[scope.berkas_serah_terima_id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                                                                             Unduh Serah Terima {scopeName}
                                                                         </Button>
-                                                                        );
-                                                                    }
-                                                                    
-                                                                    if (anyScopeGenerated) return null;
-                                                                    
-                                                                    const isScopeReady = isScopeReadyForSt(scope);
-                                                                    const isGenerating = generatingScopes[Number(scope.id_toko)];
-                                                                    return (
-                                                                        <Button
-                                                                            key={scope.id_toko}
-                                                                            type="button"
-                                                                            onClick={() => handleGenerateIndividualHandover(Number(scope.id_toko))}
-                                                                            disabled={!isScopeReady || isGenerating}
-                                                                            className={`h-11 w-full font-bold text-white disabled:bg-slate-200 disabled:text-slate-400 ${scopeName === 'SIPIL' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                                                                        >
-                                                                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                                                                            Generate Serah Terima {scopeName}
-                                                                        </Button>
                                                                     );
-                                                                });
-                                                            })()}
-                                                            
-                                                            {supervisionWorkspace.scopes.filter(s => s.gantt_id).length > 1 && (
-                                                                <Button
-                                                                    type="button"
-                                                                    onClick={handleGenerateUnifiedHandover}
-                                                                    disabled={!handoverReadiness.isReady || isGeneratingHandover}
-                                                                    className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-                                                                >
-                                                                    {isGeneratingHandover
-                                                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                        : <FileText className="mr-2 h-4 w-4" />}
-                                                                    Generate Serah Terima (SIPIL+ME)
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                                }
 
-                                                    <div className="flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-4">
-                                                        <div className="mb-2 flex justify-end">
-                                                            <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
-                                                        </div>
-                                                        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-100 bg-slate-50/60 p-2.5">
+                                                                if (anyScopeGenerated) return null;
+
+                                                                const isScopeReady = isScopeReadyForSt(scope);
+                                                                const isGenerating = generatingScopes[Number(scope.id_toko)];
+                                                                return (
+                                                                    <Button
+                                                                        key={scope.id_toko}
+                                                                        type="button"
+                                                                        onClick={() => handleGenerateIndividualHandover(Number(scope.id_toko))}
+                                                                        disabled={!isScopeReady || isGenerating}
+                                                                        className={`h-11 w-full font-bold text-white disabled:bg-slate-200 disabled:text-slate-400 ${scopeName === 'SIPIL' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
+                                                                    >
+                                                                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                                                                        Generate Serah Terima {scopeName}
+                                                                    </Button>
+                                                                );
+                                                            });
+                                                        })()}
+
+                                                        {supervisionWorkspace.scopes.filter(s => s.gantt_id).length > 1 && (
+                                                            <Button
+                                                                type="button"
+                                                                onClick={handleGenerateUnifiedHandover}
+                                                                disabled={!handoverReadiness.isReady || isGeneratingHandover}
+                                                                className="h-11 w-full bg-slate-800 font-bold text-white hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
+                                                            >
+                                                                {isGeneratingHandover
+                                                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                    : <FileText className="mr-2 h-4 w-4" />}
+                                                                Generate Serah Terima (SIPIL+ME)
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-4">
+                                                    <div className="mb-2 flex justify-end">
+                                                        <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{ganttNotes.length} Catatan</Badge>
+                                                    </div>
+                                                    <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-100 bg-slate-50/60 p-2.5">
                                                         {isGanttNoteLoading ? (
                                                             <div className="flex h-full items-center justify-center text-sm text-slate-500">
                                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memuat...
@@ -2651,32 +2674,32 @@ function GanttBoard() {
                                                                         </div>
                                                                         <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{note.note}</p>
                                                                     </div>
-                                                                ))} 
-                                                            </div>
-                                                        )}
-                                                        </div>
-                                                        {canWriteGanttCommunication && (
-                                                            <div className="sticky bottom-0 z-10 mt-3 grid shrink-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 bg-white/95 pb-1 pt-3 backdrop-blur">
-                                                                <textarea
-                                                                    value={ganttNoteInput}
-                                                                    onChange={(e) => setGanttNoteInput(e.target.value)}
-                                                                    rows={2}
-                                                                    className="min-h-12 max-h-28 w-full min-w-0 resize-none rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                                                                    placeholder="Tulis catatan..."
-                                                                />
-                                                                <Button
-                                                                    type="button"
-                                                                    aria-label="Kirim catatan"
-                                                                    className="h-12 w-11 rounded-full bg-blue-600 p-0 font-semibold text-white hover:bg-blue-700"
-                                                                    disabled={isGanttNoteSending || !ganttNoteInput.trim()}
-                                                                    onClick={handleSendGanttNote}
-                                                                >
-                                                                    {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                                                </Button>
+                                                                ))}
                                                             </div>
                                                         )}
                                                     </div>
+                                                    {canWriteGanttCommunication && (
+                                                        <div className="sticky bottom-0 z-10 mt-3 grid shrink-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 bg-white/95 pb-1 pt-3 backdrop-blur">
+                                                            <textarea
+                                                                value={ganttNoteInput}
+                                                                onChange={(e) => setGanttNoteInput(e.target.value)}
+                                                                rows={2}
+                                                                className="min-h-12 max-h-28 w-full min-w-0 resize-none rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                                                placeholder="Tulis catatan..."
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                aria-label="Kirim catatan"
+                                                                className="h-12 w-11 rounded-full bg-blue-600 p-0 font-semibold text-white hover:bg-blue-700"
+                                                                disabled={isGanttNoteSending || !ganttNoteInput.trim()}
+                                                                onClick={handleSendGanttNote}
+                                                            >
+                                                                {isGanttNoteSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                            </div>
                                         </aside>
                                     ) : null}
                                 </div>
@@ -2930,10 +2953,50 @@ function GanttBoard() {
                                                         isPengawasan = true;
                                                     }
                                                 }
-                                                const isClickable = appMode === 'pic' && isPengawasan && !isReadOnly && isScopeSpkApproved;
-                                                
+                                                // --- Poin 1: Hanya BRANCH BUILDING SUPPORT yang bisa input ---
+                                                const isClickable = appMode === 'pic' && isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved;
+
+                                                // --- Poin 7, 8, 9: Warna header berdasarkan status pengawasan ---
+                                                // Gunakan pengawasanCheckpointMap (dari supervisionWorkspace.checkpoints)
+                                                // untuk data akurat per tanggal pengawasan
+                                                let pengawasanHeaderColor = 'bg-blue-50 text-blue-700'; // default: pending
+                                                let pengawasanDotColor = 'bg-blue-500';
+                                                if (isPengawasan && fullDateString) {
+                                                    const cpData = pengawasanCheckpointMap.get(fullDateString);
+
+                                                    if (cpData !== undefined) {
+                                                        const totalItems = cpData.total_items;
+                                                        const filledItems = cpData.filled_items;
+                                                        const today = new Date();
+                                                        today.setHours(0, 0, 0, 0);
+
+                                                        // Parse tanggal pengawasan untuk bandingkan dengan hari ini (DD/MM/YYYY)
+                                                        const parts = fullDateString.split('/');
+                                                        const cpDate = parts.length === 3
+                                                            ? new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
+                                                            : null;
+                                                        const isPast = cpDate ? cpDate < today : false;
+
+                                                        if (totalItems === 0) {
+                                                            // Poin 7: Tidak ada item yang ter-hit → auto-green
+                                                            pengawasanHeaderColor = 'bg-green-50 text-green-700';
+                                                            pengawasanDotColor = 'bg-green-500';
+                                                        } else if (filledItems >= totalItems && totalItems > 0) {
+                                                            // Poin 8: Semua item sudah punya status (progress/terlambat/selesai) → hijau
+                                                            pengawasanHeaderColor = 'bg-green-50 text-green-700';
+                                                            pengawasanDotColor = 'bg-green-500';
+                                                        } else if (isPast) {
+                                                            // Poin 9: Sudah lewat hari ini, belum semua terisi → merah
+                                                            pengawasanHeaderColor = 'bg-red-50 text-red-700';
+                                                            pengawasanDotColor = 'bg-red-500';
+                                                        }
+                                                        // else: masih pending/future → biru (default)
+                                                    }
+                                                }
+
+
                                                 return (
-                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:bg-blue-100 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : ''}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
+                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (isPengawasan && !isPengawasanReadOnly ? '' : '')}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                                         onClick={() => {
                                                             if (isClickable) {
                                                                 setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
@@ -2941,10 +3004,11 @@ function GanttBoard() {
                                                             }
                                                         }}>
                                                         <span>{label}</span>
-                                                        {isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" title="Hari Pengawasan" />}
+                                                        {isPengawasan && <div className={`w-1.5 h-1.5 rounded-full ${pengawasanDotColor} mt-1`} title="Hari Pengawasan" />}
                                                         {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
                                                     </div>
                                                 )
+
                                             })}
                                         </div>
                                     </div>
@@ -3335,6 +3399,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const router = useRouter();
     const { user } = useSession();
     const canCreateInstruksiLapangan = (user?.isSuperHuman ?? false) || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
+    const isReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean }>>({});
@@ -3594,7 +3659,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const s = parseInt(r.start) + shift - 1;
                 const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
 
-                if (s <= day && day <= e) isScheduledToday = true;
+                if (s <= day && day <= e) {
+                    // Poin 6: item yang ter hit di lebih dari satu tanggal pengawasan 
+                    // tampil pada pengawasan awal aja
+                    let hitByPrevious = false;
+                    pastPengawasanDays.forEach((pDay: number) => {
+                        if (s <= pDay && pDay <= e && pDay < day) {
+                            hitByPrevious = true;
+                        }
+                    });
+
+                    if (!hitByPrevious) {
+                        isScheduledToday = true;
+                    }
+                }
 
                 // [ORPHAN PREVENTION] Tarik item ke tanggal ini JIKA item tersebut 
                 // akan dimulai di masa depan (s > day) TETAPI berakhir sebelum checkpoint berikutnya.
@@ -3634,10 +3712,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
                     });
 
+                    // [POIN 2 & 3 FIX] Item yang tidak pernah di-hit hanya muncul di
+                    // checkpoint TERDEKAT setelah task berakhir (bukan semua checkpoint berikutnya).
+                    // Jika ada checkpoint antara akhir task (e) dan hari ini (day) yang JUGA tidak meng-hit
+                    // task ini, maka seharusnya item sudah muncul di sana (checkpoint terdekat), 
+                    // sehingga di checkpoint saat ini TIDAK perlu muncul lagi.
                     if (!hitDuringActive && !hitAfterActiveButBeforeToday) {
+                        // Ini checkpoint pertama setelah task berakhir → tampilkan
                         isSkippedCompletely = true;
                     }
+                    // Jika hitAfterActiveButBeforeToday = true, berarti ada checkpoint setelah
+                    // task selesai yang seharusnya sudah menampilkan item ini.
+                    // Checkpoint saat ini bukan yang terdekat → jangan tampilkan.
                 }
+
 
                 // Cek apakah hari terakhir kategori ini bertepatan dengan hari pengawasan
                 if (day === e) {
@@ -3711,7 +3799,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // Jangan sembunyikan item dari Gantt jika belum "Selesai", meskipun sudah masuk Opname (hindari deadlock)
                 const isBlockedByOpname = blockedOpnameItemKeys.has(getWorkItemKey(item));
                 const isSelesai = latestStatusLower === 'selesai';
-                
+
                 if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY') {
                     if (isBlockedByOpname && isSelesai) {
                         return false;
@@ -3719,7 +3807,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 const memoInput = memoInputs[key] as any;
-                
+
                 let isUnfinishedFromPreviousPengawasan = false;
                 if (['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus) {
                     if (memoInput.previousPengawasanDate) {
@@ -3737,24 +3825,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                let isPastDueAndUnfinished = false;
-                // Hanya muncul otomatis karena past-due JIKA belum pernah diisi sama sekali (status kosong).
-                // Jika sudah pernah diisi (misal Progress), kemunculannya diatur oleh rule isUnfinishedFromPreviousPengawasan
-                if (!latestStatusLower) {
-                    task.ranges?.forEach((r: any) => {
-                        if (!r.start || !r.end) return;
-                        const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
-                        if (day > e) {
-                            isPastDueAndUnfinished = true;
-                        }
-                    });
-                }
+                // [Poin 2] Item yang BELUM diisi apapun (kosong) jangan muncul terus menerus (past-due),
+                // tapi muncul HANYA pada tanggal yang ter-hit saja (isScheduledToday).
+                // Logika isPastDueAndUnfinished telah dihapus karena bertentangan dengan Poin 2.
 
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
-                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
-                // sudah lewat batas waktu (akhir schedule) tapi belum diselesaikan
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !isPastDueAndUnfinished) return false;
+                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
@@ -4347,75 +4425,86 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                         <div className="flex items-center gap-2 font-bold">
                                                                                             {latestStatusKey === 'Terlambat' ? <AlertCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
                                                                                             <span>
-                                                                                                Sebelumnya: {latestStatusKey}
-                                                                                                {latestStatusKey === 'Terlambat' && (memoInputs[key] as any)?.previousLateDays > 0 ? ` ${(memoInputs[key] as any).previousLateDays} Hari` : ''}
+                                                                                                {latestStatusKey} dari pengawasan sebelumnya
+                                                                                                {(memoInputs[key] as any)?.previousPengawasanDate ? ` (${(memoInputs[key] as any).previousPengawasanDate})` : ''}
+                                                                                                {latestStatusKey === 'Terlambat' && (memoInputs[key] as any)?.previousLateDays > 0 ? ` · ${(memoInputs[key] as any).previousLateDays} Hari` : ''}
                                                                                             </span>
                                                                                         </div>
                                                                                     </div>
+                                                                                    <p className="mt-1 text-[10px] opacity-75">Perbarui status item ini untuk pengawasan hari ini.</p>
                                                                                 </div>
+
                                                                             )}
-                                                                            <div className="flex gap-2">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
-                                                                                    className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                >
-                                                                                    Selesai
-                                                                                </button>
+                                                                            {!isReadOnly ? (
+                                                                                <>
+                                                                                    <div className="flex gap-2">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Selesai')}
+                                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                        >
+                                                                                            Selesai
+                                                                                        </button>
 
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
-                                                                                    className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                >
-                                                                                    Terlambat
-                                                                                </button>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                        >
+                                                                                            Terlambat
+                                                                                        </button>
 
-                                                                                {!d.category.hideOnProgress && (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
-                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                    >
-                                                                                        Progress
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-
-                                                                            {/* Input Hari Keterlambatan jika status Terlambat */}
-                                                                            {currentStatus === 'Terlambat' && (
-                                                                                <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
-                                                                                    <span className="text-xs font-semibold text-red-600">Terlambat:</span>
-                                                                                    <input
-                                                                                        type="number" min="0"
-                                                                                        className="w-20 p-1 text-sm border-2 border-red-300 rounded focus:border-red-500 focus:outline-none"
-                                                                                        value={lateDays === 0 ? '' : lateDays}
-                                                                                        onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
-                                                                                        placeholder="Hari"
-                                                                                    />
-                                                                                    <span className="text-xs text-slate-500">hari</span>
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
-                                                                            {currentStatus && (
-                                                                                <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
-                                                                                    <textarea
-                                                                                        className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
-                                                                                        placeholder="Tambahkan catatan/keterangan (opsional)..."
-                                                                                        value={memoInputs[key]?.catatan || ''}
-                                                                                        onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
-                                                                                        rows={2}
-                                                                                    />
-                                                                                    <div className="flex items-center text-xs">
-                                                                                        <span className="text-slate-600 font-medium w-16">Foto/Dok<span className="text-red-500">*</span>:</span>
-                                                                                        <input
-                                                                                            type="file"
-                                                                                            accept="image/*,.pdf,application/pdf"
-                                                                                            onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
-                                                                                            className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
-                                                                                        />
+                                                                                        {!d.category.hideOnProgress && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
+                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                            >
+                                                                                                Progress
+                                                                                            </button>
+                                                                                        )}
                                                                                     </div>
+
+                                                                                    {/* Input Hari Keterlambatan jika status Terlambat */}
+                                                                                    {currentStatus === 'Terlambat' && (
+                                                                                        <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
+                                                                                            <span className="text-xs font-semibold text-red-600">Terlambat:</span>
+                                                                                            <input
+                                                                                                type="number" min="0"
+                                                                                                className="w-20 p-1 text-sm border-2 border-red-300 rounded focus:border-red-500 focus:outline-none"
+                                                                                                value={lateDays === 0 ? '' : lateDays}
+                                                                                                onChange={(e) => handleSetLateDays(d.category.name, item.jenis_pekerjaan, parseInt(e.target.value) || 0)}
+                                                                                                placeholder="Hari"
+                                                                                            />
+                                                                                            <span className="text-xs text-slate-500">hari</span>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
+                                                                                    {currentStatus && (
+                                                                                        <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
+                                                                                            <textarea
+                                                                                                className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
+                                                                                                placeholder="Tambahkan catatan/keterangan (opsional)..."
+                                                                                                value={memoInputs[key]?.catatan || ''}
+                                                                                                onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
+                                                                                                rows={2}
+                                                                                            />
+                                                                                            <div className="flex items-center text-xs">
+                                                                                                <span className="text-slate-600 font-medium w-16">Foto/Dok<span className="text-red-500">*</span>:</span>
+                                                                                                <input
+                                                                                                    type="file"
+                                                                                                    accept="image/*,.pdf,application/pdf"
+                                                                                                    onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                                    className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                                                                                                />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : (
+                                                                                <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center">
+                                                                                    <span className="text-xs font-semibold text-slate-400">Belum ada status pengawasan</span>
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -4492,10 +4581,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
                                 </Button>
                             )}
-                            <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && canCreateNextHandover && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
-                                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                                Simpan
-                            </Button>
+                            {!isReadOnly && (
+                                <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && canCreateNextHandover && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                                    Simpan
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
