@@ -3678,24 +3678,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         if (!hitByPrev) scheduled = true;
                     }
 
-                    if (s > targetDay) {
-                        let nextSd0 = -1;
-                        if (chartData?.supervisionDays) {
-                            const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
-                            for (const sd of sortedDays) {
-                                const sd0 = sd - 1;
-                                if (sd0 > targetDay) {
-                                    nextSd0 = sd0;
-                                    break;
-                                }
-                            }
-                        }
-                        if (nextSd0 !== -1) {
-                            if (e < nextSd0) scheduled = true;
-                        } else {
-                            scheduled = true;
-                        }
-                    }
+
 
                     if (e < targetDay) {
                         let hitDuring = false;
