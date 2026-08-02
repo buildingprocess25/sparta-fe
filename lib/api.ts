@@ -1925,6 +1925,8 @@ export type SupervisionScope = {
     total_pengawasan_checkpoints?: number;
     filled_pengawasan_checkpoints?: number;
     missing_pengawasan_checkpoints?: number;
+    total_expected_items?: number;
+    total_selesai_items?: number;
     checkpoints: SupervisionCheckpoint[];
 };
 

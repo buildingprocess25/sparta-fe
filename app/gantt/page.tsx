@@ -324,8 +324,10 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
     const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
+    const totalExpected = Number(scope.total_expected_items || 0);
+    const totalSelesai = Number(scope.total_selesai_items || 0);
 
-    return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0;
+    return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai === totalExpected;
 }
 
 function GanttBoard() {
