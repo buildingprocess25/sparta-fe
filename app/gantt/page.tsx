@@ -3821,11 +3821,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isBlockedByOpname = blockedOpnameItemKeys.has(getWorkItemKey(item));
                 const isSelesai = latestStatusLower === 'selesai';
 
-                const jenisPekerjaan = item.jenis_pekerjaan || task.name;
-                const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
-
                 if (item.source_type !== 'PLACEHOLDER' && item.source_type !== 'HISTORY') {
-                    if (isBlockedByOpname && isSelesai && !wasFinishedToday) {
+                    if (isBlockedByOpname && isSelesai) {
                         return false;
                     }
                 }
@@ -3859,6 +3856,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
+                const jenisPekerjaan = item.jenis_pekerjaan || task.name;
+                const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
                 if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
 
                 return true;
