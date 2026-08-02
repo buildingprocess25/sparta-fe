@@ -3664,11 +3664,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     // Poin 6: item yang ter hit di lebih dari satu tanggal pengawasan 
                     // tampil pada pengawasan awal aja
                     let hitByPrevious = false;
-                    pastPengawasanDays.forEach((pDay: number) => {
-                        if (s <= pDay && pDay <= e && pDay < day) {
-                            hitByPrevious = true;
+                    if (chartData?.supervisionDays) {
+                        const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                        for (const sd of sortedDays) {
+                            const sd0 = sd - 1;
+                            if (s <= sd0 && sd0 <= e && sd0 < day) {
+                                hitByPrevious = true;
+                                break;
+                            }
                         }
-                    });
+                    }
 
                     if (!hitByPrevious) {
                         isScheduledToday = true;
@@ -3705,14 +3710,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     let hitDuringActive = false;
                     let hitAfterActiveButBeforeToday = false;
 
-                    pastPengawasanDays.forEach((pDay: number) => {
-                        if (s <= pDay && pDay <= e) {
-                            hitDuringActive = true;
+                    if (chartData?.supervisionDays) {
+                        const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
+                        for (const sd of sortedDays) {
+                            const sd0 = sd - 1;
+                            if (s <= sd0 && sd0 <= e) {
+                                hitDuringActive = true;
+                            }
+                            if (sd0 > e && sd0 < day) {
+                                hitAfterActiveButBeforeToday = true;
+                            }
                         }
-                        if (pDay > e && pDay < day) {
-                            hitAfterActiveButBeforeToday = true;
-                        }
-                    });
+                    }
 
                     // [POIN 2 & 3 FIX] Item yang tidak pernah di-hit hanya muncul di
                     // checkpoint TERDEKAT setelah task berakhir (bukan semua checkpoint berikutnya).
