@@ -3860,14 +3860,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isCurrentlyInRange = rawRangeMatch && (day >= (parseInt(rawRangeMatch.start) + shiftForCheck - 1)) && (day <= (parseInt(rawRangeMatch.end) + shiftForCheck - 1 + (parseInt(rawRangeMatch.keterlambatan) || 0)));
                 const isNeverSupervisedButInRange = isCurrentlyInRange && !latestStatusLower;
 
+                const jenisPekerjaan = item.jenis_pekerjaan || task.name;
+                const wasSupervisedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase());
+                
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
-                // belum pernah disupervisi tapi masih berada di dalam rentang
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !isNeverSupervisedButInRange) return false;
+                // belum pernah disupervisi tapi masih berada di dalam rentang, atau
+                // DI-SUPERVISI PADA HARI INI (ada record di database untuk hari ini)
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !isNeverSupervisedButInRange && !wasSupervisedToday) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
-                const jenisPekerjaan = item.jenis_pekerjaan || task.name;
                 const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
                 if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
 
