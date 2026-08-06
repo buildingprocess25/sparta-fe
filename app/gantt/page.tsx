@@ -2996,12 +2996,37 @@ function GanttBoard() {
                                                             : null;
                                                         const isPast = cpDate ? cpDate < today : false;
 
-                                                        if (totalItems === 0) {
+                                                        let expectedItemsOnThisDay = 0;
+                                                        if (processedTasks) {
+                                                            for (const task of processedTasks) {
+                                                                const shift = task.computed?.shift || 0;
+                                                                for (const r of task.ranges || []) {
+                                                                    const startD = parseInt(r.start) + shift - 1;
+                                                                    const endD = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
+                                                                    if ((i + 1) >= startD && (i + 1) <= endD) {
+                                                                        const itemCount = (task.items && task.items.length > 0) ? task.items.length : (task.target_volume > 0 ? 1 : 0);
+                                                                        expectedItemsOnThisDay += itemCount;
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        if (totalItems === 0 && expectedItemsOnThisDay === 0) {
                                                             // Poin 7: Tidak ada item yang ter-hit → auto-green
                                                             pengawasanHeaderColor = 'bg-green-50 text-green-700';
                                                             pengawasanDotColor = 'bg-green-500';
-                                                        } else if (filledItems >= totalItems && totalItems > 0) {
+                                                        } else if (totalItems === 0 && expectedItemsOnThisDay > 0) {
+                                                            // Ada item terjadwal, tapi belum diisi satupun!
+                                                            if (isPast) {
+                                                                pengawasanHeaderColor = 'bg-red-50 text-red-700';
+                                                                pengawasanDotColor = 'bg-red-500';
+                                                            } else {
+                                                                pengawasanHeaderColor = 'bg-blue-50 text-blue-700';
+                                                                pengawasanDotColor = 'bg-blue-500';
+                                                            }
+                                                        } else if (filledItems >= expectedItemsOnThisDay && filledItems > 0) {
                                                             // Poin 8: Semua item sudah punya status (progress/terlambat/selesai) → hijau
+                                                            // Note: Kita gunakan >= expectedItemsOnThisDay karena bisa ada item carry-over dari tanggal sebelumnya
                                                             pengawasanHeaderColor = 'bg-green-50 text-green-700';
                                                             pengawasanDotColor = 'bg-green-500';
                                                         } else if (isPast) {
