@@ -1798,25 +1798,27 @@ function GanttBoard() {
             pendingOpnameDates,
         };
     }, [masterHandoverPdfLink, supervisionWorkspace]);
-    const handoverStatusText = handoverReadiness.isGenerated
-        ? "ST selesai"
-        : handoverReadiness.isReady
-            ? "Syarat ST terpenuhi"
-            : handoverReadiness.missingPengawasan > 0
-                ? (() => {
-                    const datesStr = handoverReadiness.missingDates.length > 0
-                        ? ` (${handoverReadiness.missingDates.slice(0, 3).join(', ')}${handoverReadiness.missingDates.length > 3 ? `, +${handoverReadiness.missingDates.length - 3} lagi` : ''})`
-                        : '';
-                    return `${handoverReadiness.missingPengawasan} pengawasan belum selesai${datesStr}`;
-                })()
-                : handoverReadiness.pendingOpnameDates.length > 0
-                    ? (() => {
-                        const datesStr = handoverReadiness.pendingOpnameDates.slice(0, 2).join(', ');
-                        return `Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`;
-                    })()
-                    : handoverReadiness.readyOpnameItems > 0
-                        ? `${handoverReadiness.readyOpnameItems} item menunggu opname`
-                        : "Menunggu opname selesai";
+    const handoverStatusText = (() => {
+        if (handoverReadiness.isGenerated) return "ST selesai";
+        if (handoverReadiness.isReady) return "Syarat ST terpenuhi";
+
+        const warnings: string[] = [];
+        
+        if (handoverReadiness.missingPengawasan > 0) {
+            warnings.push(`${handoverReadiness.missingPengawasan} item belum Selesai (masih Progress/Terlambat)`);
+        }
+        
+        if (handoverReadiness.pendingOpnameDates.length > 0) {
+            const datesStr = handoverReadiness.pendingOpnameDates.slice(0, 2).join(', ');
+            warnings.push(`Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
+        } else if (handoverReadiness.readyOpnameItems > 0 && warnings.length === 0) {
+            warnings.push(`${handoverReadiness.readyOpnameItems} item menunggu opname`);
+        } else if (warnings.length === 0) {
+            warnings.push("Menunggu opname selesai");
+        }
+
+        return warnings.join(' | ');
+    })();
     const utilityPanelAvailable = Boolean(supervisionWorkspace || activeNotesGanttId);
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
@@ -3821,20 +3823,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const memoInput = memoInputs[key] as any;
 
                 let isUnfinishedFromPreviousPengawasan = false;
-                if (['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus) {
-                    if (memoInput.previousPengawasanDate) {
-                        const parsedPrev = parseDateAny(memoInput.previousPengawasanDate);
-                        if (parsedPrev && !isNaN(parsedPrev.getTime())) {
-                            const diffTime = parsedPrev.getTime() - startD.getTime();
-                            const recordDay = Math.round(diffTime / (1000 * 3600 * 24));
-                            const lastPengawasanDay = pastPengawasanDays.length > 0 ? Math.max(...pastPengawasanDays) : -1;
-                            if (recordDay >= lastPengawasanDay) {
-                                isUnfinishedFromPreviousPengawasan = true;
-                            }
-                        }
-                    } else {
-                        isUnfinishedFromPreviousPengawasan = true;
-                    }
+                if (['progress', 'terlambat'].includes(latestStatusLower)) {
+                    isUnfinishedFromPreviousPengawasan = true;
                 }
 
                 // [Poin 2] Item yang BELUM diisi apapun (kosong) jangan muncul terus menerus (past-due),
