@@ -2997,8 +2997,8 @@ function GanttBoard() {
                                                         const isPast = cpDate ? cpDate < today : false;
 
                                                         let expectedItemsOnThisDay = 0;
-                                                        if (processedTasks) {
-                                                            for (const task of processedTasks) {
+                                                        if (chartData?.processedTasks) {
+                                                            for (const task of chartData.processedTasks) {
                                                                 const shift = task.computed?.shift || 0;
                                                                 for (const r of task.ranges || []) {
                                                                     const startD = parseInt(r.start) + shift - 1;
