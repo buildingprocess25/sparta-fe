@@ -3823,7 +3823,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const memoInput = memoInputs[key] as any;
 
                 let isUnfinishedFromPreviousPengawasan = false;
-                if (['progress', 'terlambat'].includes(latestStatusLower)) {
+                if (['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus) {
                     isUnfinishedFromPreviousPengawasan = true;
                 }
 
