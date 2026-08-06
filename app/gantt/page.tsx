@@ -1227,14 +1227,29 @@ function GanttBoard() {
                     });
                 }
             });
+            // Hitung base date untuk IL agar sinkron dengan getEffectiveWorkStart di UI
+            let baseEffectiveDate = projectStart;
+            if (spkInfo?.startDate) {
+                const pDate = parseDateAny(spkInfo.startDate);
+                if (pDate && !Number.isNaN(pDate.getTime()) && pDate.getFullYear() > 2000) {
+                    baseEffectiveDate = new Date(pDate.toISOString().split('T')[0] + 'T00:00:00');
+                }
+            }
+
+            const toDayNumberForIL = (value: any): number => {
+                const parsed = parseDateAny(String(value || ''));
+                if (!parsed || Number.isNaN(parsed.getTime())) return NaN;
+                const diff = Math.round((parsed.getTime() - baseEffectiveDate.getTime()) / msPerDay);
+                return diff + 1;
+            };
 
             const ilRangeKeys = new Set<string>();
             instruksiItems.forEach((item: any) => {
                 const key = String(item.kategori_pekerjaan || '').toLowerCase().trim();
                 if (!key) return;
 
-                const startDay = toDayNumberFromDateValue(item.il_tanggal_mulai || item.il_created_at);
-                const endDayRaw = toDayNumberFromDateValue(item.il_tanggal_selesai || item.il_tanggal_mulai || item.il_created_at);
+                const startDay = toDayNumberForIL(item.il_tanggal_mulai || item.il_created_at);
+                const endDayRaw = toDayNumberForIL(item.il_tanggal_selesai || item.il_tanggal_mulai || item.il_created_at);
                 if (Number.isNaN(startDay) || Number.isNaN(endDayRaw)) return;
 
                 const endDay = Math.max(startDay, endDayRaw);
@@ -3826,10 +3841,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // tapi muncul HANYA pada tanggal yang ter-hit saja (isScheduledToday).
                 // Logika isPastDueAndUnfinished telah dihapus karena bertentangan dengan Poin 2.
 
+                const shiftForCheck = task.computed?.shift || 0;
+                const isCurrentlyInRange = rawRangeMatch && (day >= (parseInt(rawRangeMatch.start) + shiftForCheck - 1)) && (day <= (parseInt(rawRangeMatch.end) + shiftForCheck - 1 + (parseInt(rawRangeMatch.keterlambatan) || 0)));
+                const isNeverSupervisedButInRange = isCurrentlyInRange && !latestStatusLower;
+
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
-                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan) return false;
+                // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
+                // belum pernah disupervisi tapi masih berada di dalam rentang
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !isNeverSupervisedButInRange) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
@@ -4106,19 +4126,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                 if (val.status === 'Terlambat') {
                     let additionalDelay = Number(val.lateDays) || 0;
-                    let totalDelay = additionalDelay;
-                    const task = chartData?.processedTasks.find((t: any) => t.category.name.toUpperCase() === catName.toUpperCase());
-                    
-                    if (task && activeHeaderClick) {
-                        const previousDelay = task.lateDays || 0;
-                        const originalEndOffset = task.startOffset + task.duration - 1;
-                        const expectedEndOffset = originalEndOffset + previousDelay;
-                        const currentDayIndex = activeHeaderClick.dayIndex;
-                        
-                        const naturalDelay = Math.max(0, currentDayIndex - expectedEndOffset);
-                        totalDelay = previousDelay + naturalDelay + additionalDelay;
-                    }
-                    
+                    // FIX: t.category tidak ada, property yang benar adalah t.name
+                    // FIX: task.lateDays/startOffset/duration tidak ada di struktur task.
+                    //      Ambil previousDelay dari task.ranges[].keterlambatan (konsisten dengan getCategoryLateDays)
+                    const task = chartData?.processedTasks?.find(
+                        (t: any) => typeof t.name === 'string' && t.name.toUpperCase() === catName.toUpperCase()
+                    );
+                    const previousDelay = task?.ranges
+                        ? (task.ranges as any[]).reduce((acc: number, r: any) => acc + (parseInt(r.keterlambatan) || 0), 0)
+                        : 0;
+                    const totalDelay = previousDelay + additionalDelay;
+
                     if (totalDelay > 0) {
                         catsLate.set(catName, Math.max(catsLate.get(catName) || 0, totalDelay));
                     }
