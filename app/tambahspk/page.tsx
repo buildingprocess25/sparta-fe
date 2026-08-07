@@ -347,9 +347,9 @@ export default function TambahSPKPage() {
 
         setSelectedSpk(selected);
 
-        // Check existing pertambahan for this SPK (akan otomatis apply ke semua lingkup via backend query)
+        // Check existing pertambahan for this ULOK to prevent duplicate submissions
         try {
-            const perpRes = await fetchPertambahanSPKList({ id_spk: selected.id });
+            const perpRes = await fetchPertambahanSPKList({ nomor_ulok: selected.nomor_ulok });
             const existings = perpRes.data || [];
             
             // Urutkan berdasarkan yang terbaru (created_at)
@@ -363,7 +363,7 @@ export default function TambahSPKPage() {
             if (latest) {
                 if (latest.status_persetujuan === 'Menunggu Persetujuan') {
                     setStatusMsg({
-                        text: "ULOK ini sudah memiliki pengajuan perpanjangan yang masih menunggu persetujuan. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME).",
+                        text: "ULOK ini sudah memiliki pengajuan perpanjangan yang masih menunggu persetujuan. Pengajuan ganda tidak diizinkan.",
                         type: 'warning'
                     });
                 } else if (latest.status_persetujuan === 'Ditolak BM') {
@@ -379,24 +379,29 @@ export default function TambahSPKPage() {
                         alasanPenolakan: latest.alasan_penolakan || 'Tidak ada alasan yang diberikan.',
                     });
                     setStatusMsg({
-                        text: "Data pengajuan yang ditolak telah dimuat. Ubah minimal 1 field lalu kirim ulang. Perpanjangan akan berlaku untuk semua lingkup (SIPIL & ME).",
+                        text: "Data pengajuan yang ditolak telah dimuat. Ubah minimal 1 field lalu kirim ulang.",
+                        type: 'warning'
+                    });
+                } else if (latest.status_persetujuan === 'Disetujui BM') {
+                    setStatusMsg({
+                        text: "ULOK ini sudah memiliki pengajuan perpanjangan yang disetujui. Pengajuan ganda tidak diizinkan.",
                         type: 'warning'
                     });
                 } else {
                     setStatusMsg({
-                        text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME) dalam ULOK ini.",
+                        text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.",
                         type: 'info'
                     });
                 }
             } else {
                 setStatusMsg({
-                    text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME) dalam ULOK ini.",
+                    text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.",
                     type: 'info'
                 });
             }
         } catch {
             // No existing data, continue
-            setStatusMsg({ text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK. Perpanjangan akan otomatis berlaku untuk semua lingkup (SIPIL & ME) dalam ULOK ini.", type: 'info' });
+            setStatusMsg({ text: "Silakan lengkapi form untuk pengajuan perpanjangan SPK.", type: 'info' });
         }
     };
 
@@ -464,7 +469,7 @@ export default function TambahSPKPage() {
 
     // Check if form can be submitted
     const hasPendingPerpanjangan = existingPerpanjangan.some(
-        p => p.status_persetujuan === 'Menunggu Persetujuan'
+        p => p.status_persetujuan === 'Menunggu Persetujuan' || p.status_persetujuan === 'Disetujui BM'
     );
     const isFormDisabled = hasPendingPerpanjangan || isReadOnly;
 
