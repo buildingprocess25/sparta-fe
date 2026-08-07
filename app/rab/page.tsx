@@ -1332,7 +1332,7 @@ function RABPageContent() {
     const sessionNamaPt = (sessionStorage.getItem("nama_pt") || "").trim();
     const sessionEmail = (sessionStorage.getItem("loggedInUserEmail") || "").trim();
 
-    if (!sessionNamaPt || sessionNamaPt === "-") {
+    if (!sessionNamaPt || sessionNamaPt === "-" || sessionNamaPt.toUpperCase() === "NAMA PT TIDAK DITEMUKAN") {
       setIsLoading(false);
       return showAlert(
         "Data PT/CV belum lengkap",
