@@ -3639,6 +3639,7 @@ export type PertambahanSPKListItem = {
 export type PertambahanSPKListFilters = {
     id_spk?: number;
     status_persetujuan?: string;
+    nomor_ulok?: string;
 };
 
 export type PertambahanSPKDetailResponse = PertambahanSPKListItem & {
@@ -3744,6 +3745,7 @@ export const fetchPertambahanSPKList = async (
     if (filters?.id_spk)              params.append("id_spk", filters.id_spk.toString());
     if (filters?.status_persetujuan)  params.append("status_persetujuan", filters.status_persetujuan);
     if (filters?.nama_kontraktor)     params.append("nama_kontraktor", filters.nama_kontraktor);
+    if (filters?.nomor_ulok)          params.append("nomor_ulok", filters.nomor_ulok);
     const url = `${base}/api/pertambahan-spk${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
