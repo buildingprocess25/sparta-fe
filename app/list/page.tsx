@@ -2094,6 +2094,32 @@ export default function DaftarDokumenPage() {
     // =========================================================================
     // PDF DOWNLOAD
     // =========================================================================
+    const handleDownloadExcel = useCallback(async (id: number, tipe: DokumenKategori) => {
+        setDownloadingId(id);
+        try {
+            if (tipe === 'RAB') {
+                const { API_URL } = require('@/lib/constants');
+                const token = sessionStorage.getItem("spartaAccessToken");
+                const url = new URL(`${API_URL}/api/v1/rab/${id}/excel`);
+                if (token) url.searchParams.set("access_token", token);
+                window.open(url.toString(), '_blank');
+            } else if (tipe === 'OPNAME' || tipe === 'OPNAME_FINAL') {
+                const { API_URL } = require('@/lib/constants');
+                const token = sessionStorage.getItem("spartaAccessToken");
+                const url = new URL(`${API_URL}/api/v1/opname-final/${id}/excel`);
+                if (token) url.searchParams.set("access_token", token);
+                window.open(url.toString(), '_blank');
+            } else {
+                throw new Error(`Unduh Excel belum didukung untuk dokumen ${tipe}.`);
+            }
+            showToast('Excel sedang diunduh.', 'success');
+        } catch (err: any) {
+            showToast(err.message || 'Gagal mengunduh Excel.', 'error');
+        } finally {
+            setDownloadingId(null);
+        }
+    }, [showToast]);
+
     const handleDownloadPDF = useCallback(async (id: number, tipe: DokumenKategori) => {
         setDownloadingId(id);
         try {
@@ -4081,6 +4107,22 @@ export default function DaftarDokumenPage() {
                                                     <Download className="w-4 h-4 mr-2" />
                                                 )}
                                                 Unduh PDF {selectedDetail.tipe}
+                                            </Button>
+                                        )}
+                                        
+                                        {/* Download Excel Button */}
+                                        {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL') && (
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                                disabled={downloadingId === selectedDetail.id}
+                                                onClick={() => void handleDownloadExcel(selectedDetail.id, selectedDetail.tipe)}
+                                            >
+                                                {downloadingId === selectedDetail.id ? (
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                ) : (
+                                                    <Download className="w-4 h-4 mr-2" />
+                                                )}
+                                                Unduh Excel {selectedDetail.tipe}
                                             </Button>
                                         )}
 
