@@ -35,26 +35,8 @@ const formatRupiah = (number: number) => new Intl.NumberFormat("id-ID", { style:
 
 const normalizeText = (value?: string | null) => String(value ?? "").trim().toUpperCase();
 
-const isNoPpnArea = (rab: any) => {
-    const identity = [
-        rab?.Cabang,
-        rab?.Nama_Toko,
-        rab?.Alamat,
-    ].map(normalizeText);
-
-    return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
-};
-
-const roundBeforePpn = (value: number) => {
-    if (!Number.isFinite(value) || value <= 0) return 0;
-    return Math.floor(value / 10000) * 10000;
-};
-
 const getSpkGrandTotal = (rab: any) => {
     if (!rab) return 0;
-    if (isNoPpnArea(rab)) {
-        return roundBeforePpn(parseCurrency(rab["Grand Total Non PPN"] ?? rab["Grand Total"] ?? rab["Grand Total Final"]) || 0);
-    }
     return parseCurrency(rab["Grand Total Final"] ?? rab["Grand Total"]) || 0;
 };
 
@@ -565,7 +547,7 @@ export default function SPKPage() {
                                             <div><p className="text-xs font-medium text-slate-500 uppercase">Proyek</p><p className="font-semibold text-slate-800">{selectedRabObj.Proyek}</p></div>
                                             <div><p className="text-xs font-medium text-slate-500 uppercase">Lingkup</p><p className="font-semibold text-slate-800">{selectedRabObj.Lingkup_Pekerjaan}</p></div>
                                             <div>
-                                                <p className="text-xs font-medium text-slate-500 uppercase">{isNoPpnArea(selectedRabObj) ? "Grand Total SPK (Non PPN)" : "Grand Total Final"}</p>
+                                                <p className="text-xs font-medium text-slate-500 uppercase">Grand Total Final</p>
                                                 <p className="font-bold text-red-600">{formatRupiah(getSpkGrandTotal(selectedRabObj))}</p>
                                             </div>
                                         </div>

@@ -634,12 +634,6 @@ const getBuildingClassification = (value?: boolean | null, fallback?: string | n
     return raw;
 };
 
-const isNoPpnArea = (input: { cabang?: string | null; nama_toko?: string | null; alamat?: string | null }) => {
-    const identity = [input.cabang, input.nama_toko, input.alamat]
-        .map(value => String(value ?? '').trim().toUpperCase());
-    return identity.some(value => value === 'BATAM' || value === 'BINTAN' || /\bBATAM\b|\bBINTAN\b/.test(value));
-};
-
 type RabDisplayTotalSource = {
     cabang?: string | null;
     nama_toko?: string | null;
@@ -655,27 +649,11 @@ type RabDisplayTotalSource = {
 };
 
 const getRabDisplayTotal = (rab: RabDisplayTotalSource) => {
-    const cabang = rab?.cabang ?? rab?.toko?.cabang;
-    const nama_toko = rab?.nama_toko ?? rab?.toko?.nama_toko;
-    const alamat = rab?.alamat ?? rab?.toko?.alamat;
-    if (isNoPpnArea({ cabang, nama_toko, alamat })) {
-        return roundBeforePpn(parseCurrency(rab?.grand_total_non_sbo ?? rab?.grand_total ?? rab?.grand_total_final));
-    }
     return parseCurrency(rab?.grand_total_final ?? rab?.grand_total);
 };
 
-const roundBeforePpn = (value: number) => {
-    if (!Number.isFinite(value) || value <= 0) return 0;
-    return Math.floor(value / 10000) * 10000;
-};
-
-const getSpkDisplayTotal = (
-    value: unknown,
-    input?: { cabang?: string | null; nama_toko?: string | null; alamat?: string | null }
-) => {
-    const amount = parseCurrency(value);
-    if (!amount) return 0;
-    return input && isNoPpnArea(input) ? roundBeforePpn(amount) : amount;
+const getSpkDisplayTotal = (value: any, input: { cabang?: string | null; nama_toko?: string | null; alamat?: string | null }) => {
+    return parseCurrency(value);
 };
 
 const PROYEK_LABEL_MAP: Record<string, string> = {
