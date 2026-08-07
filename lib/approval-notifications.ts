@@ -364,9 +364,10 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
 
     // RAB: Special logic for KONTRAKTOR to see rejected submissions they need to revise
     if (item.tipe === "RAB") {
+        const isRejected = upper.includes("TOLAK") || upper.includes("DITOLAK") || upper === "REJECTED";
+        
         // KONTRAKTOR sees only REJECTED items from their company
         if (isContractorOnly || jabatan === "KONTRAKTOR") {
-            const isRejected = upper.includes("DITOLAK") || upper.includes("REJECTED") || upper.includes("TOLAK");
             if (!isRejected) return false;
             // Must match company name
             if (!user.namaPt || !matchesUserCompany(item.raw, user.namaPt)) return false;
@@ -374,6 +375,8 @@ const canCountForUser = (item: CountableApprovalItem, user: UserSession, jabatan
         }
         
         // Other roles: approval flow (NOT rejected items)
+        if (isRejected || !isPendingApprovalStatus(upper)) return false;
+
         if (userCabang && !isDirectorHOUser && item.cabang) {
             if (!isSameBranchScope(item.cabang, user)) return false;
         }
