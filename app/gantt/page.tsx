@@ -4148,7 +4148,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     // FIX: task.lateDays/startOffset/duration tidak ada di struktur task.
                     //      Ambil previousDelay dari task.ranges[].keterlambatan (konsisten dengan getCategoryLateDays)
                     const task = chartData?.processedTasks?.find(
-                        (t: any) => typeof t.name === 'string' && t.name.toUpperCase() === catName.toUpperCase()
+                        (t: any) => t && typeof t.name === 'string' && t.name.toUpperCase() === catName.toUpperCase()
                     );
                     const previousDelay = task?.ranges
                         ? (task.ranges as any[]).reduce((acc: number, r: any) => acc + (parseInt(r.keterlambatan) || 0), 0)
