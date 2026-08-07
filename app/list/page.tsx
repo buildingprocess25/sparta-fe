@@ -2100,13 +2100,13 @@ export default function DaftarDokumenPage() {
             if (tipe === 'RAB') {
                 const { API_URL } = require('@/lib/constants');
                 const token = sessionStorage.getItem("spartaAccessToken");
-                const url = new URL(`${API_URL}/api/v1/rab/${id}/excel`);
+                const url = new URL(`${API_URL}/api/rab/${id}/excel`);
                 if (token) url.searchParams.set("access_token", token);
                 window.open(url.toString(), '_blank');
             } else if (tipe === 'OPNAME' || tipe === 'OPNAME_FINAL') {
                 const { API_URL } = require('@/lib/constants');
                 const token = sessionStorage.getItem("spartaAccessToken");
-                const url = new URL(`${API_URL}/api/v1/opname-final/${id}/excel`);
+                const url = new URL(`${API_URL}/api/final_opname/${id}/excel`);
                 if (token) url.searchParams.set("access_token", token);
                 window.open(url.toString(), '_blank');
             } else {
