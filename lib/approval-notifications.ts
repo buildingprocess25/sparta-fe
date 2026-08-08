@@ -469,10 +469,6 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
     const jabatan = getApprovalJabatan(user);
     const counts = { ...EMPTY_APPROVAL_COUNTS };
 
-    console.log('[fetchApprovalNotificationCounts] accessibleTypes:', accessibleTypes);
-    console.log('[fetchApprovalNotificationCounts] jabatan:', jabatan);
-    console.log('[fetchApprovalNotificationCounts] user.namaPt:', user.namaPt);
-
     for (const type of accessibleTypes) {
         try {
             if (type === "RAB") {
@@ -485,9 +481,7 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                     cabang: item.cabang ?? item.toko?.cabang,
                     raw: item,
                 }));
-                console.log('[RAB] Total items fetched:', rabItems.length);
                 counts.RAB = countItems(rabItems, user, jabatan);
-                console.log('[RAB] Count after filter:', counts.RAB);
             } else if (type === "SPK") {
                 const res = await fetchSPKList({ status: "WAITING_FOR_BM_APPROVAL" }, { suppressGlobalError: true });
                 counts.SPK = countItems((res.data ?? []).map((item: unknown) => ({
@@ -513,10 +507,7 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
                     cabang: getStringValue(item, "cabang") ?? getTokoStringValue(item, "cabang"),
                     raw: item,
                 }));
-                console.log('[OPNAME] Total items fetched:', opnameItems.length);
-                console.log('[OPNAME] Sample item:', opnameItems[0]);
                 counts.OPNAME = countItems(opnameItems, user, jabatan);
-                console.log('[OPNAME] Count after filter:', counts.OPNAME);
             } else if (type === "INSTRUKSI_LAPANGAN") {
                 const res = await fetchInstruksiLapanganList(undefined, { suppressGlobalError: true });
                 counts.INSTRUKSI_LAPANGAN = countItems((res.data ?? []).map((item: unknown) => ({
@@ -566,7 +557,6 @@ export const fetchApprovalNotificationCounts = async (user: UserSession): Promis
         }
     }
 
-    console.log('[fetchApprovalNotificationCounts] Final counts:', counts);
     return counts;
 };
 

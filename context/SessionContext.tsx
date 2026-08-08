@@ -6,6 +6,8 @@ import { Building2, CalendarDays, Clock3, LogOut, ShieldAlert } from 'lucide-rea
 import { hasRegionalManagerRole, hasSuperHumanRole } from '@/lib/constants';
 import { fetchSystemMaintenanceStatus, fetchSystemAccessSchedule, type SystemMaintenanceStatus, type SystemAccessSchedule } from '@/lib/api';
 
+const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface UserSession {
   email: string;
@@ -218,7 +220,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           nextMaintenanceBlocked = Boolean(maintenanceResult.data?.is_active);
           nextAccessSchedule = scheduleResult.data;
         } catch (error) {
-          console.warn('Gagal membaca status sistem:', error);
+          if (!isAbortError(error)) {
+            console.warn('Gagal membaca status sistem:', error);
+          }
         }
       }
 
@@ -260,7 +264,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setAccessSchedule(scheduleResult.data);
         setIsTimeBlocked(!user.isSuperHuman && !isWithinOperatingHours(user.roles, scheduleResult.data));
       } catch (error) {
-        console.warn('Gagal membaca status sistem:', error);
+        if (!isAbortError(error)) {
+          console.warn('Gagal membaca status sistem:', error);
+        }
       } finally {
         isRefreshing = false;
       }

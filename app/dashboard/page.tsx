@@ -1387,14 +1387,7 @@ export default function DashboardPage() {
         const dendaTerlambat = resmiPenalties.filter(p => p.days > 0).length;
         const dendaKritis = 0; // Removed - no longer used
         
-        // Optional: Track estimated penalties
-        const totalDendaEstimasi = Array.from(penaltyByStoreKey.values())
-            .filter(penalty => penalty.source === 'Estimasi')
-            .reduce((sum, value) => sum + value.amount, 0);
-        
-        // Debug log
-        console.log(`[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
-        console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Total ULOK=${resmiPenalties.length}`);
+        // Estimated penalties stay available through penaltyByStoreKey when needed.
 
         // ✅ Calculate Cost/m² from deduplicated ULOK map (aggregate SIPIL+ME)
         costPerUlokMap.forEach((data) => {
@@ -1412,7 +1405,6 @@ export default function DashboardPage() {
             }
         });
 
-        console.log(`[Dashboard] Cost/m² (GABUNGAN per ULOK): Terbuka=${countTerbuka} ULOK, Bangunan=${countBangunan} ULOK, Terbangun=${countTerbangun} ULOK`);
 
         const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
             type: 'KONTRAKTOR',
