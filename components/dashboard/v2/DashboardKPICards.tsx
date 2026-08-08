@@ -70,7 +70,7 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ cards, isL
         return (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
                 {primaryCards.map((type) => (
-                    <div key={type} className="h-[154px] animate-pulse rounded-[24px] border border-slate-200 bg-white shadow-sm" />
+                    <div key={type} className="h-[240px] animate-pulse rounded-[24px] border border-slate-200 bg-white shadow-sm" />
                 ))}
             </div>
         );
@@ -86,22 +86,22 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ cards, isL
                         key={card.type}
                         type="button"
                         onClick={() => onCardClick(card.type)}
-                        className={`group relative min-h-[154px] overflow-hidden rounded-[24px] border px-6 py-5 text-left shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl ${tone.bg} ${tone.glow}`}
+                        className={`group relative min-h-[240px] overflow-hidden rounded-[24px] border p-6 text-left shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl ${tone.bg} ${tone.glow}`}
                     >
-                        <div className="relative z-10 flex h-full flex-col justify-between gap-4">
+                        <div className="relative z-10 flex h-full flex-col justify-between gap-6">
                             <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0 space-y-1.5">
+                                <div className="min-w-0 space-y-2">
                                     <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500">{card.title}</h4>
-                                    <p className={`break-words text-[32px] font-black leading-none tracking-normal ${tone.text}`}>
+                                    <p className={`break-words text-4xl font-black leading-none tracking-normal ${tone.text}`}>
                                         {card.value}
                                     </p>
                                 </div>
-                                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white shadow-sm transition duration-300 group-hover:scale-105">
-                                    <Icon className={`h-5 w-5 ${tone.icon}`} />
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white shadow-sm transition duration-300 group-hover:scale-105">
+                                    <Icon className={`h-6 w-6 ${tone.icon}`} />
                                 </span>
                             </div>
 
-                            <div className="border-t border-slate-200/60 pt-3">
+                            <div className="border-t border-slate-200/60 pt-4">
                                 <p className="text-[12px] font-bold leading-relaxed text-slate-600">{card.subtitle}</p>
                             </div>
                         </div>
