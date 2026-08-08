@@ -1,111 +1,145 @@
 import React from 'react';
 import {
-    BarElement,
-    CategoryScale,
     Chart as ChartJS,
-    Legend,
+    CategoryScale,
     LinearScale,
+    PointElement,
+    LineElement,
+    BarElement,
+    ArcElement,
+    Title,
     Tooltip,
+    Legend,
+    Filler
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { formatRupiah } from '@/lib/utils';
-import type { DashboardV2Charts, DashboardV2Period } from '@/lib/dashboard-v2-api';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+// Register Chart.js components
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    BarElement,
+    ArcElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler
+);
 
 interface DashboardChartsProps {
-    charts: DashboardV2Charts | null;
-    period: DashboardV2Period;
-    onPeriodChange: (period: DashboardV2Period) => void;
+    trendData: {
+        labels: string[];
+        datasets: {
+            label: string;
+            data: number[];
+            borderColor: string;
+            backgroundColor: string;
+            fill: boolean;
+            tension: number;
+        }[];
+    };
+    branchData: {
+        labels: string[];
+        datasets: {
+            label: string;
+            data: number[];
+            backgroundColor: string;
+            borderRadius: number;
+        }[];
+    };
+    budgetData: {
+        labels: string[];
+        datasets: {
+            data: number[];
+            backgroundColor: string[];
+            borderWidth: number;
+        }[];
+    };
 }
 
-const periodLabel: Record<DashboardV2Period, string> = {
-    '1m': '1 Bulan',
-    '3m': '3 Bulan',
-    '6m': '6 Bulan',
-    '1y': '1 Tahun',
-    all: 'Semua',
-};
+export const DashboardCharts: React.FC<DashboardChartsProps> = ({
+    trendData,
+    branchData,
+    budgetData
+}) => {
+    // Chart Options
+    const lineOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'top' as const, labels: { boxWidth: 10, font: { family: 'Geist' } } },
+            tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: { family: 'Geist' }, bodyFont: { family: 'Geist' } }
+        },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Geist' } } },
+            x: { grid: { display: false }, ticks: { font: { family: 'Geist' } } }
+        },
+        interaction: { mode: 'index' as const, intersect: false },
+    };
 
-const palette = ['#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+    const barOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: { family: 'Geist' }, bodyFont: { family: 'Geist' } }
+        },
+        scales: {
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Geist' } } },
+            x: { grid: { display: false }, ticks: { font: { family: 'Geist' } } }
+        }
+    };
 
-export const DashboardCharts: React.FC<DashboardChartsProps> = ({ charts, period, onPeriodChange }) => {
+    const doughnutOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '75%',
+        plugins: {
+            legend: { position: 'right' as const, labels: { boxWidth: 12, padding: 20, font: { family: 'Geist' } } },
+            tooltip: {
+                backgroundColor: '#1e293b',
+                padding: 12,
+                titleFont: { family: 'Geist' },
+                bodyFont: { family: 'Geist' },
+                callbacks: {
+                    label: function(context: any) {
+                        return ' ' + context.label + ': ' + formatRupiah(context.raw);
+                    }
+                }
+            }
+        }
+    };
+
     return (
-        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h3 className="text-base font-black text-slate-900">Grafik Dashboard</h3>
-                    <p className="text-xs font-semibold text-slate-500">Perbandingan dokumen dan nilai proyek</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg text-slate-800">Trend Pembangunan Bulanan</h3>
                 </div>
-                <Select value={period} onValueChange={(value) => onPeriodChange(value as DashboardV2Period)}>
-                    <SelectTrigger className="h-9 w-[130px] rounded-lg border-slate-200 bg-slate-50 text-sm font-bold">
-                        {periodLabel[period]}
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="1m">1 Bulan</SelectItem>
-                        <SelectItem value="3m">3 Bulan</SelectItem>
-                        <SelectItem value="6m">6 Bulan</SelectItem>
-                        <SelectItem value="1y">1 Tahun</SelectItem>
-                        <SelectItem value="all">Semua</SelectItem>
-                    </SelectContent>
-                </Select>
+                <div className="h-[280px]">
+                    <Line data={trendData} options={lineOptions} />
+                </div>
             </div>
-
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {(charts?.charts ?? []).map((chart) => {
-                    const isCurrency = chart.datasets.some((dataset) => dataset.kind === 'currency');
-                    const data = {
-                        labels: chart.labels,
-                        datasets: chart.datasets.map((dataset, index) => ({
-                            label: dataset.label,
-                            data: dataset.data,
-                            backgroundColor: palette[index % palette.length],
-                            borderRadius: 6,
-                            maxBarThickness: 34,
-                        })),
-                    };
-
-                    return (
-                        <div key={chart.id} className="h-[280px] rounded-lg border border-slate-100 bg-slate-50/40 p-3">
-                            <h4 className="mb-2 text-sm font-black text-slate-800">{chart.title}</h4>
-                            <Bar
-                                data={data}
-                                options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: {
-                                        legend: {
-                                            position: 'top',
-                                            labels: { boxWidth: 10, font: { size: 11, weight: 'bold' } },
-                                        },
-                                        tooltip: {
-                                            backgroundColor: '#0f172a',
-                                            callbacks: {
-                                                label: (context) => {
-                                                    const label = context.dataset.label || '';
-                                                    const value = Number(context.raw || 0);
-                                                    return `${label}: ${isCurrency ? formatRupiah(value) : value}`;
-                                                },
-                                            },
-                                        },
-                                    },
-                                    scales: {
-                                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-                                        y: {
-                                            beginAtZero: true,
-                                            grid: { color: '#e2e8f0' },
-                                            ticks: {
-                                                font: { size: 11 },
-                                                callback: (value) => isCurrency ? formatRupiah(Number(value)).replace('Rp ', 'Rp') : value,
-                                            },
-                                        },
-                                    },
-                                }}
-                            />
-                        </div>
-                    );
-                })}
+            
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg text-slate-800">Distribusi Proyek per Cabang</h3>
+                </div>
+                <div className="h-[280px]">
+                    <Bar data={branchData} options={barOptions} />
+                </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg text-slate-800">Proporsi Anggaran Proyek</h3>
+                </div>
+                <div className="h-[300px] flex justify-center">
+                    <Doughnut data={budgetData} options={doughnutOptions} />
+                </div>
             </div>
         </div>
     );

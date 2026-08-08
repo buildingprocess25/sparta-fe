@@ -1,82 +1,90 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, FileCheck, HardHat, Store } from 'lucide-react';
-import type { DashboardV2CardType, DashboardV2SummaryCard, DashboardV2Tone } from '@/lib/dashboard-v2-api';
+import { HardHat, Store, AlertTriangle, FileCheck } from 'lucide-react';
+import { formatRupiah } from '@/lib/utils';
 
 interface DashboardKPICardsProps {
-    cards: DashboardV2SummaryCard[];
-    isLoading: boolean;
-    onCardClick: (cardType: DashboardV2CardType) => void;
+    stats: any;
+    extraStats: any;
+    onCardClick: (cardType: string) => void;
 }
 
-const primaryCards: DashboardV2CardType[] = ['TOTAL_TOKO', 'SLA', 'SPK_AKTIF', 'TOTAL_DENDA'];
-
-const toneClass: Record<DashboardV2Tone, string> = {
-    neutral: 'border-slate-200 bg-white text-slate-900',
-    blue: 'border-blue-200 bg-blue-50 text-blue-900',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    yellow: 'border-amber-200 bg-amber-50 text-amber-900',
-    red: 'border-red-200 bg-red-50 text-red-900',
-    purple: 'border-violet-200 bg-violet-50 text-violet-900',
-    orange: 'border-orange-200 bg-orange-50 text-orange-900',
-};
-
-const iconClass: Record<DashboardV2Tone, string> = {
-    neutral: 'bg-slate-100 text-slate-700',
-    blue: 'bg-blue-100 text-blue-700',
-    green: 'bg-emerald-100 text-emerald-700',
-    yellow: 'bg-amber-100 text-amber-700',
-    red: 'bg-red-100 text-red-700',
-    purple: 'bg-violet-100 text-violet-700',
-    orange: 'bg-orange-100 text-orange-700',
-};
-
-const iconForCard = (type: DashboardV2CardType) => {
-    if (type === 'SLA') return AlertTriangle;
-    if (type === 'SPK_AKTIF') return HardHat;
-    if (type === 'TOTAL_DENDA') return FileCheck;
-    if (type === 'SERAH_TERIMA') return CheckCircle2;
-    return Store;
-};
-
-export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ cards, isLoading, onCardClick }) => {
-    const visibleCards = cards.filter((card) => primaryCards.includes(card.type));
-
-    if (isLoading) {
-        return (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {primaryCards.map((type) => (
-                    <div key={type} className="h-[132px] animate-pulse rounded-xl border border-slate-200 bg-white" />
-                ))}
-            </div>
-        );
-    }
+export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, extraStats, onCardClick }) => {
+    
+    const cards = [
+        {
+            title: 'TOTAL TOKO',
+            value: stats.total || 0,
+            icon: <Store className="w-6 h-6 text-indigo-600" />,
+            glow: 'shadow-indigo-500/20',
+            bg: 'bg-gradient-to-br from-indigo-50 to-white border-indigo-100',
+            text: 'text-indigo-900',
+            subtext: `Done: ${stats.miniStats?.['Done'] || 0} · Ongoing: ${(stats.total || 0) - (stats.miniStats?.['Done'] || 0)}`,
+            type: 'TOTAL_PROJECT'
+        },
+        {
+            title: 'SLA PERHATIAN',
+            value: stats.attention || 0,
+            icon: <AlertTriangle className="w-6 h-6 text-rose-600" />,
+            glow: 'shadow-rose-500/20',
+            bg: 'bg-gradient-to-br from-rose-50 to-white border-rose-100',
+            text: 'text-rose-900',
+            subtext: `PJU: ${stats.miniPerhatian?.['Proses PJU'] || 0} · SPK: ${stats.miniPerhatian?.['Approval SPK'] || 0} · Ongoing: ${stats.miniPerhatian?.['Ongoing'] || 0}`,
+            type: 'SLA'
+        },
+        {
+            title: 'SPK AKTIF',
+            value: extraStats.spkOngoing || 0,
+            icon: <HardHat className="w-6 h-6 text-orange-600" />,
+            glow: 'shadow-orange-500/20',
+            bg: 'bg-gradient-to-br from-orange-50 to-white border-orange-100',
+            text: 'text-orange-900',
+            subtext: `Dari ${(extraStats.spkOngoing || 0) + (extraStats.spkDone || 0)} total SPK diterbitkan`,
+            type: 'SPK'
+        },
+        {
+            title: 'TOTAL DENDA',
+            value: formatRupiah(stats.totalDenda || 0),
+            icon: <FileCheck className="w-6 h-6 text-emerald-600" />,
+            glow: 'shadow-emerald-500/20',
+            bg: 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100',
+            text: 'text-emerald-900',
+            subtext: `${stats.dendaTerlambat || 0} ULOK melampaui batas waktu`,
+            type: 'DENDA'
+        }
+    ];
 
     return (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {visibleCards.map((card) => {
-                const Icon = iconForCard(card.type);
-                return (
-                    <button
-                        key={card.type}
-                        type="button"
-                        onClick={() => onCardClick(card.type)}
-                        className={`min-h-[132px] rounded-xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${toneClass[card.tone]}`}
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{card.title}</p>
-                                <p className="mt-2 break-words text-3xl font-black leading-none tracking-normal">{card.value}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {cards.map((card, idx) => (
+                <div 
+                    key={idx}
+                    onClick={() => onCardClick(card.type)}
+                    className={`relative overflow-hidden rounded-[24px] p-6 border ${card.bg} shadow-lg ${card.glow} cursor-pointer group transition-all duration-500 hover:-translate-y-1 hover:shadow-xl`}
+                >
+                    {/* Decorative Background Blob */}
+                    <div className="absolute -top-12 -right-12 w-32 h-32 bg-white rounded-full opacity-40 blur-2xl group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
+                    
+                    <div className="relative z-10 flex flex-col h-full justify-between gap-6">
+                        <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500">{card.title}</h4>
+                                <p className={`text-4xl md:text-3xl lg:text-4xl font-black tracking-tighter ${card.text}`}>
+                                    {card.value}
+                                </p>
                             </div>
-                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconClass[card.tone]}`}>
-                                <Icon className="h-5 w-5" />
-                            </span>
+                            <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0 border border-white/60 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                                {card.icon}
+                            </div>
                         </div>
-                        <div className="mt-4 border-t border-current/10 pt-3">
-                            <p className="text-xs font-bold leading-5 text-slate-600">{card.subtitle}</p>
+                        
+                        <div className="pt-4 border-t border-slate-200/50">
+                            <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+                                {card.subtext}
+                            </p>
                         </div>
-                    </button>
-                );
-            })}
+                    </div>
+                </div>
+            ))}
         </div>
     );
 };

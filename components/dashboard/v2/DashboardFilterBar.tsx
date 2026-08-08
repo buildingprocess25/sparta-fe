@@ -1,74 +1,64 @@
 import React from 'react';
-import { Loader2, MapPin, RefreshCw, Search } from 'lucide-react';
+import { Search, MapPin, Loader2, Download, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import type { DashboardV2JobType } from '@/lib/dashboard-v2-api';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface DashboardFilterBarProps {
     searchQuery: string;
     onSearchChange: (value: string) => void;
-    onSearchSubmit: () => void;
     selectedBranch: string;
     onBranchChange: (value: string) => void;
     accessibleBranches: string[];
     isSuperAdmin: boolean;
-    jobType: DashboardV2JobType;
-    onJobTypeChange: (value: DashboardV2JobType) => void;
-    onRefresh: () => void | Promise<void>;
+    onRefresh: () => void;
     isRefreshing: boolean;
+    onExport: (format: 'xlsx' | 'csv' | 'pdf') => void;
+    isExporting: boolean;
 }
-
-const jobTypeLabels: Record<DashboardV2JobType, string> = {
-    ALL: 'Semua Tipe',
-    REGULER: 'Reguler',
-    RENOVASI: 'Renovasi',
-};
 
 export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     searchQuery,
     onSearchChange,
-    onSearchSubmit,
     selectedBranch,
     onBranchChange,
     accessibleBranches,
     isSuperAdmin,
-    jobType,
-    onJobTypeChange,
     onRefresh,
     isRefreshing,
+    onExport,
+    isExporting
 }) => {
-    const showBranchFilter = isSuperAdmin && accessibleBranches.length > 1;
-
     return (
-        <form
-            className="sticky top-0 z-30 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"
-            onSubmit={(event) => {
-                event.preventDefault();
-                onSearchSubmit();
-            }}
-        >
-            <div className="relative min-w-[260px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                    type="search"
-                    placeholder="Cari Proyek, No ULOK, Kontraktor..."
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/10"
+        <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center relative z-30 mb-6">
+            <div className="flex-1 min-w-[250px] relative">
+                <span className="absolute left-3.5 top-2.5 text-slate-400 mt-0.5">
+                    <Search className="w-4 h-4" />
+                </span>
+                <input 
+                    type="text" 
+                    placeholder="Cari Proyek, No ULOK, Kontraktor..." 
+                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition text-slate-700"
                     value={searchQuery}
-                    onChange={(event) => onSearchChange(event.target.value)}
+                    onChange={(e) => onSearchChange(e.target.value)}
                 />
             </div>
-
-            {showBranchFilter && (
-                <div className="w-[190px] max-w-full">
+            
+            {accessibleBranches.length > 1 && (
+                <div className="w-full md:w-64">
                     <Select value={selectedBranch} onValueChange={onBranchChange}>
-                        <SelectTrigger className="h-10 w-full rounded-lg border-slate-200 bg-slate-50 text-sm font-semibold">
-                            <div className="flex min-w-0 items-center gap-2">
-                                <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
-                                <span className="truncate">{selectedBranch === 'ALL' ? 'Semua Cabang' : selectedBranch}</span>
+                        <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px]">
+                            <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-slate-400" />
+                                <span className="truncate">
+                                    {selectedBranch === 'all' ? 'Semua Cabang' : selectedBranch}
+                                </span>
                             </div>
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="ALL">Semua Cabang</SelectItem>
+                            <SelectItem value="all">
+                                <span className="font-semibold text-red-600">Semua Cabang</span>
+                            </SelectItem>
                             {accessibleBranches.map((branch) => (
                                 <SelectItem key={branch} value={branch}>
                                     {branch}
@@ -79,29 +69,38 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                 </div>
             )}
 
-            <div className="w-[150px] max-w-full">
-                <Select value={jobType} onValueChange={(value) => onJobTypeChange(value as DashboardV2JobType)}>
-                    <SelectTrigger className="h-10 w-full rounded-lg border-slate-200 bg-slate-50 text-sm font-semibold">
-                        {jobTypeLabels[jobType]}
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="ALL">Semua Tipe</SelectItem>
-                        <SelectItem value="REGULER">Reguler</SelectItem>
-                        <SelectItem value="RENOVASI">Renovasi</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
+            <div className="flex items-center gap-2 ml-auto w-full md:w-auto">
+                <Button 
+                    variant="outline" 
+                    className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 h-[42px] flex-1 md:flex-none"
+                    onClick={onRefresh}
+                    disabled={isRefreshing}
+                >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    Refresh
+                </Button>
 
-            <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-lg border-slate-200 px-3 text-sm font-bold text-slate-700"
-                onClick={onRefresh}
-                disabled={isRefreshing}
-            >
-                {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Refresh
-            </Button>
-        </form>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 h-[42px] flex-1 md:flex-none">
+                            {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                            Export Data
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 rounded-xl p-2">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 pt-1">Format Unduhan</div>
+                        <DropdownMenuItem onClick={() => onExport('xlsx')} className="cursor-pointer rounded-lg py-2">
+                            <span className="font-medium text-green-700">Excel (.xlsx)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onExport('csv')} className="cursor-pointer rounded-lg py-2">
+                            <span className="font-medium text-slate-700">CSV (.csv)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onExport('pdf')} className="cursor-pointer rounded-lg py-2">
+                            <span className="font-medium text-red-600">PDF Document</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+        </div>
     );
 };

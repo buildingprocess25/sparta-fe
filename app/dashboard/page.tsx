@@ -1,2879 +1,2822 @@
-"use client"
-
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSession } from '@/context/SessionContext';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-import AppNavbar from '@/components/AppNavbar';
-import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage } from '@/lib/constants';
-import { formatRupiah, parseCurrency } from '@/lib/utils';
-import { downloadDashboardExport, downloadPengawasanPdf, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
-import {
-    EMPTY_APPROVAL_COUNTS,
-    fetchApprovalNotificationCounts,
-    getAccessibleApprovalTypes,
-    getApprovalNotificationTotal,
-    type ApprovalCounts,
-} from '@/lib/approval-notifications';
-import { 
-    Activity, CheckCircle2, ChevronRight, Clock, FileCheck, FileEdit, FileText, 
-    HardHat, Layers, Search, Store, Users, MapPin, RefreshCw,
-    TrendingUp, AlertCircle, Calendar, Loader2, Home, DollarSign,
-    Tag, UserCheck, Coffee, AlertTriangle, X, LogOut, Download, FileDown, FileSpreadsheet, ExternalLink
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
-import { DashboardViewV2 } from '@/components/dashboard/v2/DashboardViewV2';
-import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
-import TaskNotificationBell from '@/components/TaskNotificationBell';
-import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
-import { isNonWorkingDay } from '@/lib/gantt-calculator';
-import {
-    fetchDashboardV2Charts,
-    fetchDashboardV2Summary,
-    type DashboardV2Charts,
-    type DashboardV2JobType,
-    type DashboardV2Period,
-    type DashboardV2ScopeParams,
-    type DashboardV2Summary,
-} from '@/lib/dashboard-v2-api';
-
-
-// =============================================================================
-// MAIN COMPONENT
-// =============================================================================
-const normalizeDashboardText = (value: unknown) =>
-    String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
-
-const isHeadOfficeCabang = (value: unknown) => normalizeDashboardText(value) === 'HEAD OFFICE';
-
-const isHeadOfficeProject = (project: any) => isHeadOfficeCabang(project?.toko?.cabang);
-
-const PAUSED_STORE_DOCUMENT_MESSAGE =
-    "Akses Penyimpanan Dokumen Toko diberhentikan sementara. Penyimpanan dokumen saat ini terpusat di GDrive regional.";
-const DENDA_TIER_1_DAYS = 5;
-const DENDA_TIER_1_RATE = 1_000_000;
-const DENDA_TIER_2_DAYS = 5;
-const DENDA_TIER_2_RATE = 500_000;
-const DENDA_MAX_NOMINAL = 7_500_000;
-const DENDA_ACTION_THRESHOLD_DAYS = 11;
-
-const readDashboardField = (value: unknown, key: string) => {
-    if (!value || typeof value !== 'object') return undefined;
-    return (value as Record<string, unknown>)[key];
-};
-
-const asDashboardArray = (value: unknown): Record<string, unknown>[] => {
-    if (Array.isArray(value)) return value.filter(Boolean) as Record<string, unknown>[];
-    return value ? [value as Record<string, unknown>] : [];
-};
-
-const projectMatchesCompany = (project: unknown, companyName: string) => {
-    const normalizedCompany = normalizeDashboardText(companyName);
-    if (!normalizedCompany) return false;
-
-    const toko = readDashboardField(project, 'toko');
-    const rabList = asDashboardArray(readDashboardField(project, 'rab'));
-    const spkList = asDashboardArray(readDashboardField(project, 'spk'));
-    const companyCandidates = [
-        readDashboardField(toko, 'nama_pt'),
-        readDashboardField(toko, 'nama_kontraktor'),
-        ...rabList.flatMap(rab => [rab.nama_pt, rab.nama_kontraktor]),
-        ...spkList.flatMap(spk => [spk.nama_pt, spk.nama_kontraktor]),
-    ];
-
-    return companyCandidates.some(candidate => normalizeDashboardText(candidate) === normalizedCompany);
-};
-
-const SP_DASHBOARD_ACTIVE_STATUSES = new Set([
-    'WAITING_MANAGER',
-    'APPROVED',
-    'SENT_TO_CONTRACTOR',
-    'VIEWED_BY_CONTRACTOR',
-    'ACKNOWLEDGED_BY_CONTRACTOR',
-]);
-
-const canViewInternalSpDashboard = (roles: string[]) =>
-    roles.some(role =>
-        role === 'BRANCH BUILDING & MAINTENANCE MANAGER' ||
-        role.includes('BRANCH BUILDING COORDINATOR') ||
-        role.includes('KOORDINATOR') ||
-        role.includes('COORDINATOR') ||
-        role.includes('SUPER HUMAN')
-    );
-
-const parseDashboardDate = (value: unknown): Date | null => {
-    const raw = String(value || '').trim();
-    if (!raw) return null;
-    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (slashMatch) {
-        const [, day, month, year] = slashMatch;
-        return new Date(Number(year), Number(month) - 1, Number(day));
-    }
-    const parsed = new Date(raw);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-};
-
-const dashboardDateKey = (value: unknown) => {
-    const date = parseDashboardDate(value);
-    if (!date) return null;
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
-
-const isDashboardStoredStDateSynced = (project: any, opname: any) => {
-    const stArr = Array.isArray(project?.berkas_serah_terima)
-        ? project.berkas_serah_terima
-        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
-    const stored = dashboardDateKey(opname?.tanggal_serah_terima_denda);
-    const actual = dashboardDateKey(stArr[0]?.created_at);
-    return !stored || !actual || stored === actual;
-};
-
-const dashboardDayDiff = (from: Date | null, to: Date | null = new Date()) => {
-    if (!from || !to) return 0;
-    return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
-};
-
-const isDashboardDateEffective = (value: unknown, now = new Date()) => {
-    const date = parseDashboardDate(value);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return Boolean(date && date.getTime() < today.getTime());
-};
-
-const addDashboardDays = (date: Date, days: number) => {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-};
-
-const isDashboardWeekend = (date: Date) => {
-    const day = date.getDay();
-    return day === 0 || day === 6;
-};
-
-const nextDashboardBusinessDayAfter = (date: Date) => {
-    let current = addDashboardDays(date, 1);
-    while (isNonWorkingDay(current)) current = addDashboardDays(current, 1);
-    return current;
-};
-
-const countDashboardWeekdaysAfter = (freeDate: Date, compareDate: Date) => {
-    if (compareDate <= freeDate) return 0;
-    return Math.max(0, Math.floor((compareDate.getTime() - freeDate.getTime()) / (1000 * 60 * 60 * 24)));
-};
-
-const isApprovedDashboardSpk = (spk: any) => {
-    const status = String(spk?.status || '').toUpperCase();
-    return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status);
-};
-
-const getApprovedDashboardSpks = (project: any) => {
-    const spkArr = Array.isArray(project?.spk) ? project.spk : (project?.spk ? [project.spk] : []);
-    const approved = spkArr.filter(isApprovedDashboardSpk);
-    return approved.length > 0 ? approved : (spkArr[0] ? [spkArr[0]] : []);
-};
-
-const getSpkEffectiveEndDate = (spk: any, project?: any) => {
-    // CROSS-LINGKUP FIX: Check pertambahan_spk for entire ULOK, not just this SPK
-    // If project is provided, check all SPKs within same ULOK
-    let pertambahanArr: any[] = [];
-    
-    if (project) {
-        // Get all SPKs for this project (same ULOK)
-        const allSpks = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
-        
-        // Collect all pertambahan_spk from all SPKs in the ULOK
-        allSpks.forEach((projectSpk: any) => {
-            const spkPertambahan = Array.isArray(projectSpk?.pertambahan_spk) 
-                ? projectSpk.pertambahan_spk 
-                : [];
-            pertambahanArr.push(...spkPertambahan);
-        });
-    } else {
-        // Fallback to per-SPK if no project context
-        pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
-    }
-    
-    const approvedPertambahanDates = pertambahanArr
-        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
-        .map((pt: any) => parseDashboardDate(pt?.tanggal_spk_akhir_setelah_perpanjangan))
-        .filter(Boolean) as Date[];
-    const latestPertambahanDate = approvedPertambahanDates.sort((a, b) => b.getTime() - a.getTime())[0];
-    return latestPertambahanDate || parseDashboardDate(spk?.waktu_selesai);
-};
-
-const getSpkAllowedDays = (spk: any, project?: any) => {
-    const durasi = Number(spk?.durasi || 0);
-    
-    // CROSS-LINGKUP FIX: Check pertambahan for entire ULOK
-    let pertambahanArr: any[] = [];
-    
-    if (project) {
-        const allSpks = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
-        allSpks.forEach((projectSpk: any) => {
-            const spkPertambahan = Array.isArray(projectSpk?.pertambahan_spk) 
-                ? projectSpk.pertambahan_spk 
-                : [];
-            pertambahanArr.push(...spkPertambahan);
-        });
-    } else {
-        pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
-    }
-    
-    const totalPertambahan = pertambahanArr
-        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
-        .reduce((sum: number, pt: any) => sum + Number(pt?.pertambahan_hari || 0), 0);
-    return durasi + totalPertambahan;
-};
-
-const getProjectAllowedDays = (project: any) => {
-    return Math.max(0, ...getApprovedDashboardSpks(project).map((spk: any) => getSpkAllowedDays(spk, project)));
-};
-
-const getLatestProjectSpkEndDate = (project: any) => {
-    const candidateDates: Array<Date | null> = getApprovedDashboardSpks(project)
-        .map((spk: any) => getSpkEffectiveEndDate(spk, project));
-    return candidateDates
-        .filter((date: Date | null): date is Date => Boolean(date))
-        .sort((a: Date, b: Date) => b.getTime() - a.getTime())[0];
-};
-
-const calculateProjectLateDays = (project: any, compareFallback = new Date()) => {
-    const opnameFinalArr = Array.isArray(project?.opname_final)
-        ? project.opname_final
-        : (project?.opname_final ? [project.opname_final] : []);
-    const latestOpnameFinal = opnameFinalArr[0];
-    const backendDendaHari = Number(latestOpnameFinal?.hari_denda ?? NaN);
-    const backendHasPenaltyDates = Boolean(latestOpnameFinal?.tanggal_akhir_spk_denda || latestOpnameFinal?.tanggal_serah_terima_denda);
-    if (backendHasPenaltyDates && Number.isFinite(backendDendaHari) && isDashboardStoredStDateSynced(project, latestOpnameFinal)) {
-        return Math.max(0, backendDendaHari);
-    }
-
-    const latestEndDate = getLatestProjectSpkEndDate(project);
-    if (!latestEndDate) return 0;
-
-    const stArr = Array.isArray(project?.berkas_serah_terima)
-        ? project.berkas_serah_terima
-        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
-    const stDate = parseDashboardDate(stArr[0]?.created_at) || parseDashboardDate(compareFallback.toISOString());
-    if (!stDate) return 0;
-
-    return countDashboardWeekdaysAfter(nextDashboardBusinessDayAfter(latestEndDate), stDate);
-};
-
-const calculateProjectPenalty = (lateDays: number) => {
-    if (lateDays <= 0) return 0;
-    const hariPertama = Math.min(lateDays, DENDA_TIER_1_DAYS);
-    const hariBerikutnya = Math.max(0, Math.min(lateDays - DENDA_TIER_1_DAYS, DENDA_TIER_2_DAYS));
-    return Math.min((hariPertama * DENDA_TIER_1_RATE) + (hariBerikutnya * DENDA_TIER_2_RATE), DENDA_MAX_NOMINAL);
-};
-
-const normalizeStorePenaltyKeyPart = (value: unknown) => {
-    return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-};
-
-const getProjectStorePenaltyKey = (project: any) => {
-    const nomorUlok = normalizeStorePenaltyKeyPart(project?.toko?.nomor_ulok);
-    if (nomorUlok) return `ULOK|${nomorUlok}`;
-
-    const kodeToko = normalizeStorePenaltyKeyPart(project?.toko?.kode_toko);
-    if (kodeToko) return `KODE|${kodeToko}`;
-
-    const cabang = normalizeStorePenaltyKeyPart(project?.toko?.cabang);
-    const namaToko = normalizeStorePenaltyKeyPart(project?.toko?.nama_toko);
-    if (namaToko) return `NAMA|${cabang}|${namaToko}`;
-
-    return `TOKO_ID|${project?.toko?.id || 'UNKNOWN'}`;
-};
-
-const getProjectOpnameFinals = (project: any) => {
-    return Array.isArray(project?.opname_final)
-        ? project.opname_final
-        : (project?.opname_final ? [project.opname_final] : []);
-};
-
-const getLatestProjectOpnameFinal = (project: any) => {
-    return getProjectOpnameFinals(project)[0] ?? null;
-};
-
-type ProjectPenaltyInfo = {
-    amount: number;
-    days: number;
-    source: 'Resmi' | 'Estimasi';
-    targetKategori: 'OPNAME_FINAL';
-    requiresAction: boolean;
-    actionOptions: Array<'SP' | 'TAKEOVER'>;
-};
-
-const getContractorSpDashboardKey = (action: DendaAction) => {
-    const nomorSurat = normalizeDashboardText(action.nomor_surat);
-    if (nomorSurat) return `SURAT|${nomorSurat}`;
-    return [
-        'SP',
-        normalizeDashboardText(action.nomor_ulok),
-        action.sp_level || '-',
-        normalizeDashboardText(action.alasan_sp),
-        normalizeDashboardText(action.nama_kontraktor),
-    ].join('|');
-};
-
-const getContractorSpStatusRank = (status: string) => ({
-    APPROVED: 1,
-    SENT_TO_CONTRACTOR: 2,
-    VIEWED_BY_CONTRACTOR: 3,
-    ACKNOWLEDGED_BY_CONTRACTOR: 4,
-}[status] ?? 0);
-
-const getUniqueContractorDashboardSp = (actions: DendaAction[]) => {
-    const grouped = new Map<string, DendaAction>();
-    actions.forEach((action) => {
-        const key = getContractorSpDashboardKey(action);
-        const current = grouped.get(key);
-        if (!current) {
-            grouped.set(key, action);
-            return;
-        }
-
-        const nextRank = getContractorSpStatusRank(action.status);
-        const currentRank = getContractorSpStatusRank(current.status);
-        const nextTime = new Date(action.updated_at || action.created_at).getTime();
-        const currentTime = new Date(current.updated_at || current.created_at).getTime();
-        if (nextRank > currentRank || (nextRank === currentRank && (nextTime > currentTime || action.id > current.id))) {
-            grouped.set(key, action);
-        }
-    });
-    return Array.from(grouped.values()).sort((a, b) => b.id - a.id);
-};
-
-const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyInfo => {
-    const calculatedDays = lateDays ?? calculateProjectLateDays(project);
-    const calculatedAmount = calculateProjectPenalty(calculatedDays);
-
-    const latestOpnameFinal = getLatestProjectOpnameFinal(project);
-    if (latestOpnameFinal) {
-        const dbAmount = Math.max(0, parseCurrency(latestOpnameFinal.nilai_denda));
-        const dbDays = Number(latestOpnameFinal.hari_denda ?? 0);
-
-        // If opname_final has tanggal_akhir_spk_denda set, a real denda calculation has been
-        // persisted (even if the result is 0 â€“ e.g. ME peer delivered on time â†’ minimum = 0).
-        // In that case we MUST use the official stored values and NOT fall through to estimasi.
-        const hasOfficialCalculation =
-            Boolean(latestOpnameFinal.tanggal_akhir_spk_denda)
-            && isDashboardStoredStDateSynced(project, latestOpnameFinal);
-
-        if (dbAmount > 0 || dbDays > 0 || hasOfficialCalculation) {
-            return {
-                amount: dbAmount,
-                days: dbDays,
-                source: 'Resmi' as const,
-                targetKategori: 'OPNAME_FINAL',
-                requiresAction: dbDays >= DENDA_ACTION_THRESHOLD_DAYS,
-                actionOptions: dbDays >= DENDA_ACTION_THRESHOLD_DAYS ? ['SP', 'TAKEOVER'] : [],
-            };
-        }
-    }
-
-    return {
-        amount: calculatedAmount,
-        days: calculatedDays,
-        source: 'Estimasi' as const,
-        targetKategori: 'OPNAME_FINAL',
-        requiresAction: calculatedDays >= DENDA_ACTION_THRESHOLD_DAYS,
-        actionOptions: calculatedDays >= DENDA_ACTION_THRESHOLD_DAYS ? ['SP', 'TAKEOVER'] : [],
-    };
-};
-
-
-const compareProjectPenaltyInfo = (current: ProjectPenaltyInfo | undefined, next: ProjectPenaltyInfo) => {
-    if (!current) return next;
-    if (current.source !== next.source) {
-        return next.source === 'Resmi' ? next : current;
-    }
-    return next.amount > current.amount ? next : current;
-};
-
-const getUniquePenaltyProjects = (projects: any[]) => {
-    const byStore = new Map<string, { project: any; penalty: ProjectPenaltyInfo; createdAt: number }>();
-
-    projects.forEach((project) => {
-        const key = getProjectStorePenaltyKey(project);
-        const latestOpnameFinal = getLatestProjectOpnameFinal(project);
-        const penalty = getProjectPenaltyInfo(project);
-        const createdAt = new Date(latestOpnameFinal?.created_at || project?.toko?.created_at || 0).getTime() || 0;
-        const existing = byStore.get(key);
-        const selectedPenalty = compareProjectPenaltyInfo(existing?.penalty, penalty);
-
-        if (
-            !existing ||
-            selectedPenalty !== existing.penalty ||
-            (penalty.amount === existing.penalty.amount && penalty.source === existing.penalty.source && createdAt > existing.createdAt)
-        ) {
-            byStore.set(key, { project, penalty, createdAt });
-        }
-    });
-
-    return Array.from(byStore.values()).map((entry) => entry.project);
-};
-
-const getProjectStage = (project: any): string => {
-    const now = new Date();
-    const hasRAB = (project.rab || []).length > 0;
-    const rabData = project.rab?.[0];
-    const rabStatus = (rabData?.status || '').toUpperCase();
-    const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
-    const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
-    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
-    const hasSPK = spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
-    const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
-    const stArray = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
-    const hasST = stArray.some((st: any) => isDashboardDateEffective(st?.created_at, now));
-    const hasSTDocument = stArray.some((st: any) =>
-        String(st?.link_pdf || '').trim() && isDashboardDateEffective(st?.created_at, now)
-    );
-    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
-    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim() && isDashboardDateEffective(o?.created_at, now));
-    const hasOpnamePdf = !!opnameData;
-    const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
-    const hasDirectorApproval = isDashboardDateEffective(opnameData?.waktu_persetujuan_direktur, now);
-
-    if (hasOpnamePdf && isOpnameDisetujui && hasDirectorApproval) return 'Done';
-    if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
-    if (hasOpnamePdf && isOpnameDisetujui && !hasDirectorApproval) return 'Kerja Tambah Kurang';
-    if (hasST) return 'Kerja Tambah Kurang';
-    if (hasSPK) return 'Ongoing';
-    if (hasApprovalSPK) return 'Approval SPK';
-    if (isRabDisetujui) return 'Proses PJU';
-    if (hasRAB && isRabMenungguGantt) return 'Proses Gantt';
-    return 'Approval RAB';
-};
-
-const isProjectPastSla = (project: any, stage = getProjectStage(project)) => {
-    const now = new Date();
-    const rabData = project.rab?.[0];
-    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
-    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
-    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim()) || opnameArr[0];
-    const stArr = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
-    const latestSt = stArr
-        .filter(Boolean)
-        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
-
-    if (stage === 'Ongoing') {
-        const approvedSpks = getApprovedDashboardSpks(project);
-        if (approvedSpks.length === 0) return false;
-        const waktuMulai = approvedSpks
-            .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
-            .filter((date: Date | null): date is Date => Boolean(date))
-            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
-        return dashboardDayDiff(waktuMulai, now) > getProjectAllowedDays(project);
-    }
-
-    if (stage === 'Approval SPK') {
-        const spkData = spkArray.find((spk: any) => String(spk?.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL') || spkArray[0];
-        const start = parseDashboardDate(spkData?.created_at);
-        const end = parseDashboardDate(spkData?.waktu_persetujuan) || now;
-        return dashboardDayDiff(start, end) > 2;
-    }
-
-    if (stage === 'Approval RAB') {
-        const start = parseDashboardDate(rabData?.created_at || project.toko?.created_at);
-        const end = parseDashboardDate(rabData?.waktu_persetujuan_manager) || now;
-        return dashboardDayDiff(start, end) > 2;
-    }
-
-    if (stage === 'Proses Gantt') {
-        return false;
-    }
-
-    if (stage === 'Proses PJU') {
-        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager);
-        const firstSpkCreated = spkArray
-            .map((spk: any) => parseDashboardDate(spk?.created_at))
-            .filter((date: Date | null): date is Date => Boolean(date))
-            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
-        return dashboardDayDiff(start, firstSpkCreated || now) > 10;
-    }
-
-    if (stage === 'Kerja Tambah Kurang') {
-        const start = parseDashboardDate(latestSt?.created_at);
-        const end = parseDashboardDate(opnameData?.created_at) || now;
-        return dashboardDayDiff(start, end) > 14;
-    }
-
-    return false;
-};
-
-const getProjectStageElapsedDays = (project: any, stage = getProjectStage(project)) => {
-    if (stage === 'Proses Gantt' || stage === 'Done') return 1;
-
-    const now = new Date();
-    const rabData = project.rab?.[0];
-    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
-    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
-    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim()) || opnameArr[0];
-    const stArr = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
-    const latestSt = stArr
-        .filter(Boolean)
-        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
-
-    if (stage === 'Ongoing') {
-        const approvedSpks = getApprovedDashboardSpks(project);
-        const start = approvedSpks
-            .map((spk: any) => parseDashboardDate(spk.waktu_mulai))
-            .filter((date: Date | null): date is Date => Boolean(date))
-            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
-        return dashboardDayDiff(start, now);
-    }
-
-    if (stage === 'Approval SPK') {
-        const spkData = spkArray.find((spk: any) => String(spk?.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL') || spkArray[0];
-        return dashboardDayDiff(parseDashboardDate(spkData?.created_at), parseDashboardDate(spkData?.waktu_persetujuan) || now);
-    }
-
-    if (stage === 'Approval RAB') {
-        return dashboardDayDiff(parseDashboardDate(rabData?.created_at || project.toko?.created_at), parseDashboardDate(rabData?.waktu_persetujuan_manager) || now);
-    }
-
-    if (stage === 'Proses PJU') {
-        const firstSpkCreated = spkArray
-            .map((spk: any) => parseDashboardDate(spk?.created_at))
-            .filter((date: Date | null): date is Date => Boolean(date))
-            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
-        return dashboardDayDiff(parseDashboardDate(rabData?.waktu_persetujuan_manager), firstSpkCreated || now);
-    }
-
-    if (stage === 'Kerja Tambah Kurang') {
-        return dashboardDayDiff(parseDashboardDate(latestSt?.created_at), parseDashboardDate(opnameData?.created_at) || now);
-    }
-
-    return 0;
-};
-
-const getLatestSerahTerima = (project: any) => {
-    const arr = Array.isArray(project?.berkas_serah_terima)
-        ? project.berkas_serah_terima
-        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
-    return arr
-        .filter(Boolean)
-        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ?? null;
-};
-
-const getProjectFinancialSummary = (project: any) => {
-    const rab = project?.rab?.[0];
-    const spkArr = Array.isArray(project?.spk) ? project.spk : (project?.spk ? [project.spk] : []);
-    const opname = getLatestProjectOpnameFinal(project);
-    const spkTotal = spkArr
-        .filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(String(s.status).toUpperCase()))
-        .reduce((sum: number, s: any) => sum + parseCurrency(s.grand_total || s.total_harga), 0);
-    return {
-        penawaran: parseCurrency(rab?.grand_total_final),
-        spk: spkTotal,
-        opname: parseCurrency(opname?.grand_total_opname),
-    };
-};
-
-const getStoreQualityScore = (items: any[]) => {
-    if (!items.length) return { desain: 0, kualitas: 0, spesifikasi: 0, total: 0 };
-    const desain = (items.filter((i: any) => i.desain === 'Sesuai').length / items.length) * 30;
-    const kualitas = (items.filter((i: any) => i.kualitas === 'Baik').length / items.length) * 35;
-    const spesifikasi = (items.filter((i: any) => i.spesifikasi === 'Sesuai').length / items.length) * 35;
-    return { desain, kualitas, spesifikasi, total: desain + kualitas + spesifikasi };
-};
-
-// =============================================================================
-// GLOBAL CACHE FOR DASHBOARD DATA (Prevents full reload on navigation back)
-// =============================================================================
-const dashboardCache = {
-    projects: null as any[] | null,
-    cabangList: [] as string[],
-    opnameMap: {} as Record<number, any[]>,
-    timestamp: 0,
-    email: '',
-};
-const CACHE_TTL = 300_000; // 5 minutes
-
-export default function DashboardPage() {
-    const router = useRouter();
-
-    const [userInfo, setUserInfo]           = useState({ name: '', roles: [] as string[], cabang: '', namaPt: '' });
-    const [allowedMenus, setAllowedMenus]   = useState<any[]>([]);
-    const [isLoading, setIsLoading]         = useState(true);
-    const [isDataLoading, setIsDataLoading] = useState(false);
-    const [detailModal, setDetailModal] = useState({ open: false, title: '', context: '', subContext: '' });
-    const [modalPage, setModalPage] = useState(1);
-    const [expandedRow, setExpandedRow] = useState<number | null>(null);
-    const itemsPerPage = 5;
-    const [sidebarOpen, setSidebarOpen]     = useState(true);
-    const [isCompanyScopedUser, setIsCompanyScopedUser] = useState(false);
-    const [canViewMonitoringDashboard, setCanViewMonitoringDashboard] = useState(false);
-    const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts>(EMPTY_APPROVAL_COUNTS);
-    const [rabRevisionCount, setRabRevisionCount] = useState(0);
-    const [rabPlanningRequestCount, setRabPlanningRequestCount] = useState(0);
-    const [contractorSpSummary, setContractorSpSummary] = useState<{ active: number; pendingAck: number; highestLevel: number; latest?: DendaAction } | null>(null);
-    const [internalSpContractorCount, setInternalSpContractorCount] = useState(0);
-
-    // Data State
-    const [projects, setProjects] = useState<any[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCabang, setSelectedCabang] = useState('ALL');
-    const [selectedProyek, setSelectedProyek] = useState('ALL');
-    const [dashboardV2JobType, setDashboardV2JobType] = useState<DashboardV2JobType>('ALL');
-    const [dashboardV2Period, setDashboardV2Period] = useState<DashboardV2Period>('1m');
-    const [dashboardV2Summary, setDashboardV2Summary] = useState<DashboardV2Summary | null>(null);
-    const [dashboardV2Charts, setDashboardV2Charts] = useState<DashboardV2Charts | null>(null);
-    const [dashboardV2Loading, setDashboardV2Loading] = useState(false);
-    const [cabangList, setCabangList] = useState<string[]>([]);
-    const [exportingFormat, setExportingFormat] = useState<DashboardExportFormat | null>(null);
-    const [exportDialogOpen, setExportDialogOpen] = useState(false);
-    const [pendingExportFormat, setPendingExportFormat] = useState<DashboardExportFormat>("xlsx");
-    const [exportSearch, setExportSearch] = useState('');
-    const [selectedExportIds, setSelectedExportIds] = useState<Set<number>>(() => new Set());
-
-    // Opname items map keyed by id_toko â€” populated once via bulk fetch
-    const [opnameItemsMap, setOpnameItemsMap] = useState<Record<number, any[]>>({});
-    // RAB items map keyed by rab.id â€” populated once after dashboard load
-    const [rabItemsMap, setRabItemsMap] = useState<Record<number, any[]>>({});
-
-    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
-    const [featureAlertOpen, setFeatureAlertOpen] = useState(false);
-    const [featureAlert, setFeatureAlert] = useState({
-        title: "Fitur Belum Tersedia",
-        description: "Fitur ini belum tersedia saat ini.",
-    });
-
-    const showFeatureAlert = useCallback((title: string, description: string) => {
-        setFeatureAlert({ title, description });
-        setFeatureAlertOpen(true);
-    }, []);
-
-    // =========================================================================
-    // SESSION
-    // =========================================================================
-    const { user } = useSession();
-
-    // =========================================================================
-    // INIT
-    // =========================================================================
-    useEffect(() => {
-        if (!user) return;
-
-        const { cabang: userCabang, namaLengkap, namaPt, roles, isHO, isSuperHuman, isRegionalManager } = user;
-
-        // Handle Multi-Role (DIREKTUR, KONTRAKTOR)
-        const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
-        const directorFlag = roles.some(r => r.includes('DIREKTUR'));
-        const companyScopedRole = contractorFlag || directorFlag;
-
-        let combinedAllowedIds: string[] = [];
-        roles.forEach(r => {
-            if (ROLE_CONFIG[r]) {
-                combinedAllowedIds = [...combinedAllowedIds, ...ROLE_CONFIG[r]];
-            }
-        });
-
-        // Unique IDs
-        let allowedIds = Array.from(new Set(combinedAllowedIds));
-
-        if (isSuperHuman) {
-            allowedIds = ALL_MENUS.map(m => m.id);
-        } else if (allowedIds.length === 0) {
-            allowedIds = [...(ROLE_CONFIG[isHO ? 'HEAD OFFICE' : 'BRANCH BUILDING SUPPORT'] ?? [])];
-        }
-
-        // Super Human gets menu-users explicitly (already in ROLE_CONFIG but ensure it)
-        if (isSuperHuman) {
-            allowedIds.push("menu-users");
-        }
-
-        if (
-            ['MANADO', 'BOGOR'].includes(userCabang.toUpperCase()) &&
-            roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER')
-        ) {
-            allowedIds.push("menu-inputpic");
-        }
-
-        if (
-            userCabang.toUpperCase() === 'BATAM' &&
-            roles.includes('BRANCH BUILDING COORDINATOR')
-        ) {
-            allowedIds.push("menu-spk");
-        }
-
-        if (!canAccessProjectPlanningByCabang(userCabang) && !isRegionalManager && !isSuperHuman) {
-            allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
-        }
-
-        const menuList = ALL_MENUS.filter(m => allowedIds.includes(m.id) && m.id !== "menu-dc-development");
-        setAllowedMenus(menuList);
-        setUserInfo({ name: namaLengkap.toUpperCase(), roles: roles, cabang: userCabang.toUpperCase(), namaPt });
-        setIsCompanyScopedUser(companyScopedRole);
-        
-        if (window.innerWidth <= 768) setSidebarOpen(false);
-
-        const canViewMonitoring = true;
-        setCanViewMonitoringDashboard(canViewMonitoring);
-
-        // Dashboard monitoring tersedia untuk semua cabang.
-        // Head Office, Super Human, dan role global view-only melihat semua cabang.
-        fetchDashboardData(
-            userCabang.toUpperCase(),
-            userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman),
-            user.email,
-            namaPt,
-            companyScopedRole,
-            false,
-            roles
-        );
-        fetchApprovalNotificationCounts(user)
-            .then(setApprovalCounts)
-            .catch(() => setApprovalCounts(EMPTY_APPROVAL_COUNTS));
-        if (contractorFlag) {
-            fetchTaskNotifications({ suppressGlobalError: true })
-                .then((result) => {
-                    const revisionRab = (result.data?.groups || []).find(group => group.key === 'revision_rab');
-                    setRabRevisionCount(revisionRab?.count || 0);
-                })
-                .catch(() => setRabRevisionCount(0));
-            fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
-                .then((result) => setRabPlanningRequestCount(result.count || 0))
-                .catch(() => setRabPlanningRequestCount(0));
-            fetchDendaActions({ action_type: "SP" })
-                .then((result) => {
-                    const active = getUniqueContractorDashboardSp(((result.data ?? []) as DendaAction[])
-                        .filter((item: DendaAction) => item.action_type === "SP")
-                        .filter((item: DendaAction) => !item.is_expired && ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(item.status))
-                    );
-                    if (active.length === 0) {
-                        setContractorSpSummary(null);
-                        return;
-                    }
-                    setContractorSpSummary({
-                        active: active.length,
-                        pendingAck: active.filter((item) => ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR"].includes(item.status)).length,
-                        highestLevel: Math.max(...active.map((item) => item.sp_level || 0)),
-                        latest: active[0],
-                    });
-                })
-                .catch(() => setContractorSpSummary(null));
-        } else {
-            setRabRevisionCount(0);
-            setRabPlanningRequestCount(0);
-            setContractorSpSummary(null);
-        }
-        if (!companyScopedRole && canViewInternalSpDashboard(roles)) {
-            fetchDendaActions({ action_type: "SP" })
-                .then((result) => {
-                    const canSeeAllSpBranches = userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman);
-                    const activeActions = (result.data || [])
-                        .filter((item) => SP_DASHBOARD_ACTIVE_STATUSES.has(item.status))
-                        .filter((item) => !item.is_expired)
-                        .filter((item) => canSeeAllSpBranches || canAccessBranchForUser(item.cabang, roles, userCabang, getSessionBranchCoverage()));
-
-                    const contractorKeys = new Set(
-                        activeActions.map((item) => normalizeDashboardText(item.nama_kontraktor) || `SP-${item.id}`)
-                    );
-                    setInternalSpContractorCount(contractorKeys.size);
-                })
-                .catch(() => setInternalSpContractorCount(0));
-        } else {
-            setInternalSpContractorCount(0);
-        }
-        setIsLoading(false);
-    }, [user]);
-
-    useEffect(() => {
-        if (detailModal.open) {
-            setModalPage(1);
-            setExpandedRow(null);
-        }
-    }, [detailModal.open, detailModal.context, detailModal.subContext]);
-
-    const fetchDashboardData = async (
-        userCabang: string,
-        canSeeAllBranches = false,
-        userEmail = '',
-        userNamaPt = '',
-        shouldFilterByCompany = false,
-        forceRefresh = false,
-        userRoles: string[] = []
-    ) => {
-        const now = Date.now();
-        const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail;
-
-        if (isCacheValid) {
-            const cachedProjects = dashboardCache.projects!.filter((p: any) => !isHeadOfficeProject(p));
-            setProjects(cachedProjects);
-            setCabangList(dashboardCache.cabangList.filter((cabang) => !isHeadOfficeCabang(cabang)));
-            setOpnameItemsMap(dashboardCache.opnameMap);
-            return;
-        }
-
-        setIsDataLoading(true);
-        try {
-            // Fetch dari API real
-            const json = await fetchDashboardAll();
-            let data = json.data || [];
-            data = data.filter((p: any) => !isHeadOfficeProject(p));
-            
-            // Head Office, Super Human, dan role global view-only melihat semua cabang.
-            // User cabang biasa hanya melihat cabang session-nya sendiri.
-            let allowedBranches: string[] = [];
-            if (!canSeeAllBranches || shouldFilterByCompany) {
-                // Expand allowedBranches untuk branch support users (Cikokol, Cileungsi, dll)
-                const sessionCoverage = getSessionBranchCoverage();
-                const accessibleBranches = getAccessibleBranchesForUser(userRoles, userCabang, sessionCoverage);
-                allowedBranches = accessibleBranches.length > 0 ? accessibleBranches : [userCabang];
-                data = data.filter((p: any) => allowedBranches.map(b => b.toUpperCase()).includes((p.toko?.cabang || '').toUpperCase()));
-                // Untuk user cabang/branch: tampilkan semua sub-cabang yang ada di data
-                const actualBranches = Array.from(new Set(data.map((p: any) => (p.toko?.cabang || '').toUpperCase()).filter(Boolean))) as string[];
-                setCabangList(actualBranches.sort());
-            } else {
-                allowedBranches = Array.from(new Set(data.map((p: any) => p.toko?.cabang?.toUpperCase()).filter(Boolean)));
-                // Untuk HO/SuperHuman: collapse ke cabang induk saja di dropdown
-                const parentBranches = Array.from(new Set(allowedBranches.map(b => getParentBranch(b))));
-                setCabangList(parentBranches.sort());
-            }
-
-            if (shouldFilterByCompany) {
-                data = data.filter((p: unknown) => projectMatchesCompany(p, userNamaPt));
-            }
-
-            setProjects(data);
-
-            const opnameMap: Record<number, any[]> = {};
-
-            data.forEach((project: any) => {
-                const tokoId = project.toko?.id;
-                const opnameFinals = Array.isArray(project.opname_final)
-                    ? project.opname_final
-                    : (project.opname_final ? [project.opname_final] : []);
-
-                opnameFinals.forEach((final: any) => {
-                    const items = Array.isArray(final?.items) ? final.items : [];
-                    if (!tokoId || items.length === 0) return;
-                    if (!opnameMap[tokoId]) opnameMap[tokoId] = [];
-                    opnameMap[tokoId].push(...items);
-                });
-
-            });
-
-            setOpnameItemsMap(opnameMap);
-
-            // Update cache
-            dashboardCache.projects = data;
-            dashboardCache.cabangList = allowedBranches.sort();
-            dashboardCache.opnameMap = opnameMap;
-            dashboardCache.timestamp = now;
-            dashboardCache.email = userEmail;
-
-        } catch (err) {
-            console.error('Gagal memuat data dashboard:', err);
-            setProjects([]);
-            setCabangList([]);
-            setOpnameItemsMap({});
-        } finally {
-            setIsDataLoading(false);
-        }
-    };
-
-    const canExportDashboard = false;
-
-    const handleDownloadDashboardExport = async (format: DashboardExportFormat, tokoIds?: number[]) => {
-        if (!canExportDashboard || exportingFormat) return;
-        if (tokoIds && tokoIds.length === 0) {
-            setFeatureAlert({
-                title: "Pilih Data Export",
-                description: "Centang minimal satu toko sebelum menarik data.",
-            });
-            setFeatureAlertOpen(true);
-            return;
-        }
-
-        setExportingFormat(format);
-        try {
-            await downloadDashboardExport({
-                format,
-                actorRole: userInfo.roles.join(', '),
-                actorCabang: userInfo.cabang,
-                cabang: selectedCabang,
-                search: searchQuery,
-                tokoIds,
-            });
-            setExportDialogOpen(false);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : 'Gagal mengunduh export dashboard.';
-            setFeatureAlert({
-                title: "Export Dashboard Gagal",
-                description: message,
-            });
-            setFeatureAlertOpen(true);
-        } finally {
-            setExportingFormat(null);
-        }
-    };
-
-
-
-    // Logic for filtered projects
-    const filteredProjects = useMemo(() => {
-        return projects.filter(p => {
-            if (isHeadOfficeProject(p)) return false;
-            const matchSearch = 
-                p.toko.nomor_ulok?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                p.toko.nama_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                p.toko.kode_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                p.toko.cabang?.toLowerCase().includes(searchQuery.toLowerCase());
-            
-            const pCabang = (p.toko?.cabang || '').toUpperCase();
-            const canSeeAllBranches = canViewAllBranches(userInfo?.roles, user?.isSuperHuman);
-            // HO: match by parent cabang group. User cabang/branch: match exact sub-cabang
-            const matchCabang = selectedCabang === 'ALL'
-                ? true
-                : canSeeAllBranches
-                    ? getParentBranch(pCabang) === selectedCabang
-                    : pCabang === selectedCabang;
-            
-            const pProyek = (p.toko?.proyek || '').toUpperCase();
-            const matchProyek = 
-                selectedProyek === 'ALL' ? true :
-                selectedProyek === 'RENOVASI' ? pProyek.includes('RENOVASI') || pProyek.includes('PERBAIKAN') || pProyek.includes('PEREMAJAAN') :
-                selectedProyek === 'REGULER' ? pProyek === 'REGULER' || pProyek === 'ALFAMART REGULER' :
-                false;
-
-            return matchSearch && matchCabang && matchProyek;
-        });
-    }, [projects, searchQuery, selectedCabang, selectedProyek, userInfo?.roles, user?.isSuperHuman]);
-
-    const exportCandidates = useMemo(() => {
-        return filteredProjects
-            .filter((project) => Number(project?.toko?.id) > 0)
-            .sort((a, b) => String(a?.toko?.nama_toko || '').localeCompare(String(b?.toko?.nama_toko || ''), 'id'));
-    }, [filteredProjects]);
-
-    const visibleExportCandidates = useMemo(() => {
-        const query = exportSearch.trim().toLowerCase();
-        if (!query) return exportCandidates;
-        return exportCandidates.filter((project) => {
-            const toko = project.toko || {};
-            return [toko.nama_toko, toko.nomor_ulok, toko.kode_toko, toko.cabang, toko.lingkup_pekerjaan]
-                .some((value) => String(value || '').toLowerCase().includes(query));
-        });
-    }, [exportCandidates, exportSearch]);
-
-    const selectedExportCount = selectedExportIds.size;
-    const visibleExportIds = visibleExportCandidates.map((project) => Number(project.toko.id));
-    const allVisibleExportSelected = visibleExportIds.length > 0
-        && visibleExportIds.every((id) => selectedExportIds.has(id));
-
-    const openExportSelector = (format: DashboardExportFormat) => {
-        setPendingExportFormat(format);
-        setExportSearch('');
-        setSelectedExportIds(new Set());
-        setExportDialogOpen(true);
-    };
-
-    const dashboardV2ScopeParams = useMemo<DashboardV2ScopeParams>(() => ({
-        actorRole: userInfo.roles.join(', '),
-        actorCabang: userInfo.cabang || user?.cabang || 'HEAD OFFICE',
-        actorCompany: userInfo.namaPt,
-        cabang: selectedCabang,
-        search: searchQuery,
-        jobType: dashboardV2JobType,
-    }), [dashboardV2JobType, searchQuery, selectedCabang, user?.cabang, userInfo.cabang, userInfo.namaPt, userInfo.roles]);
-
-    const loadDashboardV2Data = useCallback(async () => {
-        if (!userInfo.cabang && !user?.cabang) return;
-        setDashboardV2Loading(true);
-        try {
-            const [summary, charts] = await Promise.all([
-                fetchDashboardV2Summary(dashboardV2ScopeParams),
-                fetchDashboardV2Charts({ ...dashboardV2ScopeParams, period: dashboardV2Period }),
-            ]);
-            setDashboardV2Summary(summary);
-            setDashboardV2Charts(charts);
-        } catch (err) {
-            console.error('Failed to load dashboard v2 data', err);
-            setFeatureAlert({
-                title: 'Dashboard Gagal Dimuat',
-                description: err instanceof Error ? err.message : 'Data dashboard v2 belum bisa dimuat.',
-            });
-            setFeatureAlertOpen(true);
-        } finally {
-            setDashboardV2Loading(false);
-        }
-    }, [dashboardV2Period, dashboardV2ScopeParams, user?.cabang, userInfo.cabang]);
-
-    useEffect(() => {
-        loadDashboardV2Data();
-    }, [loadDashboardV2Data]);
-
-    const toggleExportSelection = (id: number, checked: boolean) => {
-        setSelectedExportIds((prev) => {
-            const next = new Set(prev);
-            if (checked) next.add(id);
-            else next.delete(id);
-            return next;
-        });
-    };
-
-    const toggleVisibleExportSelection = (checked: boolean) => {
-        setSelectedExportIds((prev) => {
-            const next = new Set(prev);
-            visibleExportIds.forEach((id) => {
-                if (checked) next.add(id);
-                else next.delete(id);
-            });
-            return next;
-        });
-    };
-
-    const handleOpenPenaltyProject = useCallback((project: any) => {
-        const penaltyInfo = getProjectPenaltyInfo(project);
-        const nomorUlok = String(project?.toko?.nomor_ulok || '').trim();
-        const query = new URLSearchParams({
-            kategori: penaltyInfo.targetKategori,
-            q: nomorUlok || String(project?.toko?.nama_toko || ''),
-        });
-        router.push(`/list?${query.toString()}`);
-    }, [router]);
-
-    const handleOpenSerahTerima = useCallback(async (project: any) => {
-        const serahTerima = getLatestSerahTerima(project);
-        if (!serahTerima) return;
-        if (serahTerima.id) {
-            await viewGeneratedPdfOnline(serahTerima.id, 'BERKAS_SERAH_TERIMA');
-            return;
-        }
-        console.warn('Berkas serah terima tidak memiliki ID untuk dibuka lewat viewer aplikasi.', serahTerima);
-    }, []);
-
-    const canOpenDashboardSource = useCallback((_project: any, context: string) => {
-        const hasDocumentAccess = allowedMenus.some(menu => menu.id === "menu-daftardokumen");
-        if (context === "PROJECT_PLANNING") {
-            return allowedMenus.some(menu => menu.id === "menu-projek-planning");
-        }
-        return hasDocumentAccess;
-    }, [allowedMenus]);
-
-    const handleOpenDashboardSource = useCallback((project: any, context: string) => {
-        if (!canOpenDashboardSource(project, context)) return;
-        const stage = getProjectStage(project);
-        const hasSerahTerima = Boolean(getLatestSerahTerima(project));
-        let kategori = "RAB";
-
-        if (context === "SPK" || context === "JHK" || context === "DELAY" || ["Approval SPK", "Ongoing"].includes(stage)) {
-            kategori = "SPK";
-        } else if (context === "DENDA" || context === "NILAI_TOKO" || stage === "Kerja Tambah Kurang") {
-            kategori = "OPNAME_FINAL";
-        } else if (stage === "Done" && hasSerahTerima) {
-            kategori = "BERKAS_SERAH_TERIMA";
-        } else if (context === "COST_M2") {
-            kategori = getLatestProjectOpnameFinal(project) ? "OPNAME_FINAL" : "RAB";
-        }
-
-        const query = new URLSearchParams({
-            kategori,
-            q: String(project?.toko?.nomor_ulok || project?.toko?.nama_toko || ""),
-        });
-        router.push(`/list?${query.toString()}`);
-    }, [canOpenDashboardSource, router]);
-
-    // Summary Stats
-    const stats = useMemo(() => {
-        let totalPenawaran = 0;
-        let totalSPK = 0;
-        let totalJHK = 0;
-        let totalDelay = 0;
-        const penaltyByStoreKey = new Map<string, ProjectPenaltyInfo>();
-        
-        let sumRatioTerbuka = 0; let countTerbuka = 0;
-        let sumRatioBangunan = 0; let countBangunan = 0;
-        let sumRatioTerbangun = 0; let countTerbangun = 0;
-
-        // ✅ FIX: Deduplicate Cost/m² per ULOK (aggregate SIPIL+ME)
-        const costPerUlokMap = new Map<string, {
-            costTerbuka: number;
-            costBangunan: number;
-            costTerbangun: number;
-            luasTerbuka: number;
-            luasBangunan: number;
-            luasTerbangun: number;
-        }>();
-
-        let totalNilaiToko = 0;
-        let countNilaiToko = 0;
-        let totalNilaiKontraktor = 0;
-        let totalBeanspot = 0;
-        let attentionCount = 0;
-        let jhkProjectCount = 0;
-        let delayProjectCount = 0;
-
-        let miniStats = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0, 'Done': 0 };
-        let miniPerhatian = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
-        let tokoPerhatian: string[] = [];
-
-        const contractorScores: Record<string, { totalNilai: number, count: number, stores: any[] }> = {};
-        const beanspotStores: { nama_toko: string, nomor_ulok: string, cabang: string, nominal: number }[] = [];
-        let sumBeanspot = 0;
-        let countBeanspot = 0;
-
-        filteredProjects.forEach(p => {
-            // Mapping Category (Funnel)
-            const cat = getProjectStage(p);
-            if (miniStats[cat as keyof typeof miniStats] !== undefined) {
-                miniStats[cat as keyof typeof miniStats]++;
-            }
-
-            // SLA / Attention Logic
-            const isPerhatian = isProjectPastSla(p, cat);
-
-            if (isPerhatian && cat !== 'Done') {
-                attentionCount++;
-                if (miniPerhatian[cat as keyof typeof miniPerhatian] !== undefined) {
-                    miniPerhatian[cat as keyof typeof miniPerhatian]++;
-                }
-                if (p.toko?.nomor_ulok) {
-                    tokoPerhatian.push(p.toko.nomor_ulok);
-                }
-            }
-
-            // Calculations
-            const rab = p.rab?.[0];
-            if (rab) {
-                totalPenawaran += parseCurrency(rab.grand_total_final);
-            }
-
-            const spks = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-            spks.forEach((s: any) => {
-                const status = (s.status || '').toUpperCase();
-                // Include everything except rejected/cancelled to show the full SPK pipeline value
-                if (status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(status)) {
-                    totalSPK += parseCurrency(s.grand_total || s.total_harga);
-                }
-            });
-
-            let projectJHK = 0;
-            const totalAllowedDays = getProjectAllowedDays(p);
-
-            if (totalAllowedDays > 0) {
-                jhkProjectCount++;
-                const keterlambatan = calculateProjectLateDays(p);
-                if (keterlambatan > 0) delayProjectCount++;
-                const penaltyKey = getProjectStorePenaltyKey(p);
-                const penaltyInfo = getProjectPenaltyInfo(p, keterlambatan);
-                
-                // ✅ FIX: Only accumulate penalty if it's official ("Resmi")
-                // Store all penalties in the map, but filter will happen during totalDenda calculation
-                penaltyByStoreKey.set(penaltyKey, compareProjectPenaltyInfo(penaltyByStoreKey.get(penaltyKey), penaltyInfo));
-                
-                projectJHK = totalAllowedDays + keterlambatan;
-                totalDelay += keterlambatan;
-            }
-            totalJHK += projectJHK;
-
-            // Perhitungan Rata-rata Nilai Toko dari Opname Items
-            const opnameItems = opnameItemsMap[p.toko?.id] || [];
-            if (opnameItems.length > 0) {
-                const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
-                const countKualitasBaik = opnameItems.filter((i: any) => i.kualitas === 'Baik').length;
-                const countSpesifikasiSesuai = opnameItems.filter((i: any) => i.spesifikasi === 'Sesuai').length;
-
-                const nilaiDesain = (countDesainSesuai / opnameItems.length) * 30;
-                const nilaiKualitas = (countKualitasBaik / opnameItems.length) * 35;
-                const nilaiSpesifikasi = (countSpesifikasiSesuai / opnameItems.length) * 35;
-
-                totalNilaiToko += (nilaiDesain + nilaiKualitas + nilaiSpesifikasi);
-                countNilaiToko++;
-
-                const p_total = nilaiDesain + nilaiKualitas + nilaiSpesifikasi;
-                const kn = p.toko?.nama_kontraktor;
-                if (kn) {
-                    const knUpper = kn.toUpperCase();
-                    if (!contractorScores[knUpper]) contractorScores[knUpper] = { totalNilai: 0, count: 0, stores: [] };
-                    contractorScores[knUpper].totalNilai += p_total;
-                    contractorScores[knUpper].count++;
-                    contractorScores[knUpper].stores.push({
-                        nama_toko: p.toko?.nama_toko,
-                        nomor_ulok: p.toko?.nomor_ulok,
-                        cabang: p.toko?.cabang,
-                        nilai: p_total,
-                        desain: nilaiDesain,
-                        kualitas: nilaiKualitas,
-                        spesifikasi: nilaiSpesifikasi
-                    });
-                }
-            }
-
-            // Perhitungan Cost/m2 per Toko/Ulok
-            let costTerbukaToko = 0;
-            let costBangunanToko = 0;
-            let costTerbangunToko = 0;
-            let luasTerbukaToko = 0;
-            let luasBangunanToko = 0;
-            let luasTerbangunToko = 0;
-            let beanspotTokoNominal = 0;
-
-            const rabItemCategoryMap = new Map<number, string>();
-            const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
-            rabArr.forEach((rab: any) => {
-                const itemsFromCache = rabItemsMap[rab.id] || [];
-                const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
-                const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
-                const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
-                
-                finalItems.forEach((item: any) => {
-                    if (item.id) rabItemCategoryMap.set(item.id, (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase());
-                });
-            });
-
-            const latestOpnameFinal = getLatestProjectOpnameFinal(p);
-            const opnameFinalItems = latestOpnameFinal?.items || opnameItemsMap[p.toko?.id] || [];
-            const useOpnameFinal = !!latestOpnameFinal && opnameFinalItems.length > 0;
-
-            rabArr.forEach((rab: any) => {
-                luasTerbukaToko = Math.max(luasTerbukaToko, Number(rab.luas_area_terbuka || 0));
-                luasBangunanToko = Math.max(luasBangunanToko, Number(rab.luas_bangunan || 0));
-                luasTerbangunToko = Math.max(luasTerbangunToko, Number(rab.luas_terbangun || 0));
-                
-                if (!useOpnameFinal) {
-                    costTerbangunToko += Number(rab.grand_total_final || 0);
-                    
-                    if (rab.cost_bangunan !== undefined || rab.cost_terbuka !== undefined) {
-                        costTerbukaToko += Number(rab.cost_terbuka || 0);
-                        costBangunanToko += Number(rab.cost_bangunan || 0);
-                        beanspotTokoNominal += Number(rab.cost_beanspot || 0);
-                    } else {
-                        // Fallback lama (bila data agregat belum tersedia di API)
-                        const itemsFromCache = rabItemsMap[rab.id] || [];
-                        const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
-                        const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
-                        const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
-                        
-                        if (finalItems.length > 0) {
-                            finalItems.forEach((item: any) => {
-                                const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
-                                const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
-                                if (kat === 'PEKERJAAN AREA TERBUKA') {
-                                    costTerbukaToko += itemTotal;
-                                } else {
-                                    costBangunanToko += itemTotal;
-                                }
-                                if (kat === 'PEKERJAAN BEANSPOT') {
-                                    beanspotTokoNominal += itemTotal;
-                                }
-                            });
-                        } else {
-                            // Fallback jika tidak ada items sama sekali
-                            costBangunanToko += Number(rab.grand_total_final || 0);
-                        }
-                    }
-                }
-            });
-
-            if (useOpnameFinal) {
-                // Untuk total terbangun, gunakan grand total opname final
-                costTerbangunToko = Number(latestOpnameFinal.grand_total_opname || 0);
-
-                if (latestOpnameFinal.cost_bangunan !== undefined || latestOpnameFinal.cost_terbuka !== undefined) {
-                    costTerbukaToko += Number(latestOpnameFinal.cost_terbuka || 0);
-                    costBangunanToko += Number(latestOpnameFinal.cost_bangunan || 0);
-                    beanspotTokoNominal += Number(latestOpnameFinal.cost_beanspot || 0);
-                } else {
-                    opnameFinalItems.forEach((oItem: any) => {
-                        const itemTotal = Number(oItem.total_harga_opname || 0);
-                        // Dapatkan kategori dari map yang telah dibuat berdasarkan id_rab_item
-                        const kat = rabItemCategoryMap.get(oItem.id_rab_item) || '';
-                        
-                        if (kat === 'PEKERJAAN AREA TERBUKA') {
-                            costTerbukaToko += itemTotal;
-                        } else {
-                            costBangunanToko += itemTotal;
-                        }
-                        if (kat === 'PEKERJAAN BEANSPOT') {
-                            beanspotTokoNominal += itemTotal;
-                        }
-                    });
-                }
-            }
-
-            if ((luasTerbukaToko > 0 && costTerbukaToko > 0) || (luasBangunanToko > 0 && costBangunanToko > 0) || (luasTerbangunToko > 0 && costTerbangunToko > 0)) {
-                // ✅ Aggregate per ULOK (deduplicate SIPIL+ME)
-                const ulokKey = normalizeStorePenaltyKeyPart(p?.toko?.nomor_ulok) || `TOKO_${p?.toko?.id}`;
-                const existing = costPerUlokMap.get(ulokKey) || {
-                    costTerbuka: 0,
-                    costBangunan: 0,
-                    costTerbangun: 0,
-                    luasTerbuka: 0,
-                    luasBangunan: 0,
-                    luasTerbangun: 0
-                };
-                
-                costPerUlokMap.set(ulokKey, {
-                    costTerbuka: existing.costTerbuka + costTerbukaToko,
-                    costBangunan: existing.costBangunan + costBangunanToko,
-                    costTerbangun: existing.costTerbangun + costTerbangunToko,
-                    luasTerbuka: Math.max(existing.luasTerbuka, luasTerbukaToko),
-                    luasBangunan: Math.max(existing.luasBangunan, luasBangunanToko),
-                    luasTerbangun: Math.max(existing.luasTerbangun, luasTerbangunToko)
-                });
-            }
-
-            if (beanspotTokoNominal > 0) {
-                beanspotStores.push({
-                    nama_toko: p.toko?.nama_toko || '-',
-                    nomor_ulok: p.toko?.nomor_ulok || '-',
-                    cabang: p.toko?.cabang || '-',
-                    nominal: beanspotTokoNominal,
-                });
-                sumBeanspot += beanspotTokoNominal;
-                countBeanspot++;
-            }
-        });
-
-        let sumNilaiKontraktor = 0;
-        let countKontraktor = 0;
-        Object.values(contractorScores).forEach(c => {
-            if (c.count > 0) {
-                sumNilaiKontraktor += (c.totalNilai / c.count);
-                countKontraktor++;
-            }
-        });
-        const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
-        
-        // ✅ FIX: Deduplicate per ULOK with MINIMUM penalty (earliest completion wins)
-        // Use penaltyByStoreKey that was already populated in the loop above
-        const penaltyByUlok = new Map<string, ProjectPenaltyInfo>();
-        
-        // Group penalties by ULOK (deduplicate SIPIL+ME)
-        Array.from(penaltyByStoreKey.entries()).forEach(([storeKey, penalty]) => {
-            // Extract ULOK from storeKey (format: "ULOK|xxx" or "KODE|xxx" or "NAMA|xxx")
-            const ulokMatch = storeKey.match(/^ULOK\|(.+)$/);
-            const ulokKey = ulokMatch ? ulokMatch[1] : storeKey;
-            
-            // Only include Resmi penalties with amount > 0
-            if (penalty.source !== 'Resmi' || penalty.amount <= 0) return;
-            
-            const existing = penaltyByUlok.get(ulokKey);
-            
-            // ✅ Take MINIMUM penalty (peer yang selesai duluan menentukan denda)
-            if (!existing || penalty.amount < existing.amount) {
-                penaltyByUlok.set(ulokKey, penalty);
-            }
-        });
-        
-        const resmiPenalties = Array.from(penaltyByUlok.values());
-        const totalDenda = resmiPenalties.reduce((sum, penalty) => sum + penalty.amount, 0);
-        
-        // ✅ All penalties are classified as "Terlambat" (no "Kritis" distinction)
-        const dendaTerlambat = resmiPenalties.filter(p => p.days > 0).length;
-        const dendaKritis = 0; // Removed - no longer used
-        
-        // Optional: Track estimated penalties
-        const totalDendaEstimasi = Array.from(penaltyByStoreKey.values())
-            .filter(penalty => penalty.source === 'Estimasi')
-            .reduce((sum, value) => sum + value.amount, 0);
-        
-        // Debug log
-        console.log(`[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
-        console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Total ULOK=${resmiPenalties.length}`);
-
-        // ✅ Calculate Cost/m² from deduplicated ULOK map (aggregate SIPIL+ME)
-        costPerUlokMap.forEach((data) => {
-            if (data.luasTerbuka > 0 && data.costTerbuka > 0) {
-                sumRatioTerbuka += (data.costTerbuka / data.luasTerbuka);
-                countTerbuka++;
-            }
-            if (data.luasBangunan > 0 && data.costBangunan > 0) {
-                sumRatioBangunan += (data.costBangunan / data.luasBangunan);
-                countBangunan++;
-            }
-            if (data.luasTerbangun > 0 && data.costTerbangun > 0) {
-                sumRatioTerbangun += (data.costTerbangun / data.luasTerbangun);
-                countTerbangun++;
-            }
-        });
-
-        console.log(`[Dashboard] Cost/m² (GABUNGAN per ULOK): Terbuka=${countTerbuka} ULOK, Bangunan=${countBangunan} ULOK, Terbangun=${countTerbangun} ULOK`);
-
-        const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
-            type: 'KONTRAKTOR',
-            nama_kontraktor: nama,
-            nilai: data.count > 0 ? (data.totalNilai / data.count) : 0,
-            tokoCount: data.count,
-            stores: data.stores
-        }));
-
-        const count = filteredProjects.length || 1;
-
-        return {
-            total: filteredProjects.length,
-            attention: attentionCount,
-            tokoPerhatian,
-            penawaran: totalPenawaran,
-            spk: totalSPK,
-            avgJHK: Math.round(totalJHK / (jhkProjectCount || 1)),
-            avgDelay: Math.round(totalDelay / (delayProjectCount || 1)),
-            totalDenda: totalDenda,
-            dendaTerlambat: dendaTerlambat,
-            avgCostTerbuka: countTerbuka > 0 ? Math.round(sumRatioTerbuka / countTerbuka) : 0,
-            avgCostBangunan: countBangunan > 0 ? Math.round(sumRatioBangunan / countBangunan) : 0,
-            avgCostTerbangun: countTerbangun > 0 ? Math.round(sumRatioTerbangun / countTerbangun) : 0,
-            avgNilaiToko: countNilaiToko > 0 ? (totalNilaiToko / countNilaiToko).toFixed(1) : '0.0',
-            avgNilaiKontraktor: finalAvgNilaiKontraktor,
-            contractorGrouped,
-            avgBeanspot: countBeanspot > 0 ? Math.round(sumBeanspot / countBeanspot) : 0,
-            beanspotStores,
-            miniStats,
-            miniPerhatian
-        };
-    }, [filteredProjects, rabItemsMap, opnameItemsMap]);
-
-    const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
-    const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
-    const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
-    const pipelineSteps = ['Approval RAB', 'Proses Gantt', 'Proses PJU', 'Approval SPK', 'Ongoing', 'Kerja Tambah Kurang', 'Done'];
-    const priorityProjects = useMemo(() => {
-        return filteredProjects
-            .map((project) => {
-                const lateDays = calculateProjectLateDays(project);
-                const penalty = getProjectPenaltyInfo(project, lateDays);
-                const stage = getProjectStage(project);
-                const hasST = Boolean(getLatestSerahTerima(project));
-                const priorityScore = (penalty.amount > 0 ? 3 : 0) + (lateDays > 0 ? 2 : 0) + (stage !== 'Done' ? 1 : 0) + (!hasST && stage === 'Kerja Tambah Kurang' ? 1 : 0);
-                return { project, stage, lateDays, penalty, hasST, priorityScore };
-            })
-            .filter(item => item.priorityScore > 0)
-            .sort((a, b) => b.priorityScore - a.priorityScore || b.lateDays - a.lateDays || b.penalty.amount - a.penalty.amount)
-            .slice(0, 6);
-    }, [filteredProjects]);
-
-    const financialHighlights = [
-        { label: 'Penawaran', value: formatRupiah(stats.penawaran), icon: <FileText className="w-4 h-4" />, context: 'PENAWARAN', color: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
-        { label: 'SPK', value: formatRupiah(stats.spk), icon: <DollarSign className="w-4 h-4" />, context: 'SPK', color: 'text-orange-700 bg-orange-50 border-orange-100' },
-        { label: 'Denda', value: formatRupiah(stats.totalDenda), icon: <AlertCircle className="w-4 h-4" />, context: 'DENDA', color: 'text-red-700 bg-red-50 border-red-100' },
-        { label: 'Nilai Toko', value: `${stats.avgNilaiToko} Poin`, icon: <Tag className="w-4 h-4" />, context: 'NILAI_TOKO', color: 'text-amber-700 bg-amber-50 border-amber-100' },
-    ];
-    const focusCards: Array<{ label: string; value: number | string; helper: string; icon: React.ReactNode; context: string; subContext: string; tone: string }> = [
-        { label: 'Total Toko', value: stats.total, helper: 'Semua toko pada filter aktif', icon: <Store className="w-4 h-4" />, context: 'PROJECT', subContext: '', tone: 'border-slate-200 bg-white text-slate-900' },
-        { label: 'Perlu Dicek', value: stats.attention, helper: 'Lewat SLA atau punya risiko denda', icon: <AlertTriangle className="w-4 h-4" />, context: 'ATTENTION', subContext: '', tone: 'border-red-200 bg-red-50 text-red-700' },
-        { label: 'Ongoing', value: stats.miniStats.Ongoing, helper: 'Sudah SPK dan masih berjalan', icon: <HardHat className="w-4 h-4" />, context: 'PROJECT', subContext: 'Ongoing', tone: 'border-blue-200 bg-blue-50 text-blue-700' },
-        { label: 'Done', value: stats.miniStats.Done, helper: 'Opname final disetujui lengkap', icon: <CheckCircle2 className="w-4 h-4" />, context: 'PROJECT', subContext: 'Done', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-        { label: 'SP Pending', value: approvalCounts.SURAT_PERINGATAN || 0, helper: 'Surat Peringatan Menunggu Approval', icon: <AlertTriangle className="w-4 h-4" />, context: 'APPROVAL', subContext: 'SP', tone: 'border-amber-200 bg-amber-50 text-amber-700' },
-    ];
-    const secondaryMetrics = [
-        { label: 'JHK Pekerjaan', value: `${stats.avgJHK} hari`, helper: 'Durasi SPK + tambah hari', context: 'JHK', icon: <Calendar className="w-4 h-4" /> },
-        { label: 'Keterlambatan', value: `${stats.avgDelay} hari`, helper: 'Rata-rata lewat target', context: 'DELAY', icon: <Clock className="w-4 h-4" /> },
-        { label: 'Nilai Kontraktor', value: `${stats.avgNilaiKontraktor} poin`, helper: 'Rata-rata hasil ST', context: 'NILAI_KONTRAKTOR', icon: <UserCheck className="w-4 h-4" /> },
-    ];
-    const approvalMenuCount = user
-        ? getApprovalNotificationTotal(approvalCounts, getAccessibleApprovalTypes(user))
-        : 0;
-    const dashboardMenuCounts: Record<string, number> = {
-        "menu-rab": rabRevisionCount + rabPlanningRequestCount,
-        "menu-approval": approvalMenuCount,
-    };
-
-    // =========================================================================
-    // LOADING STATE
-    // =========================================================================
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
-                <div className="flex flex-col items-center gap-3 text-slate-400">
-                    <div className="w-10 h-10 border-4 border-red-200 border-t-red-600 rounded-full animate-spin" />
-                    <span className="text-sm font-medium">Memuat Dashboard...</span>
-                </div>
-            </div>
-        );
-    }
-
-    // =========================================================================
-    // RENDER
-    // =========================================================================
-    return (
-        // h-screen + overflow-hidden â†’ tidak ada scroll sama sekali
-        <div className="h-screen flex flex-col overflow-hidden bg-slate-100 font-sans text-slate-800">
-
-            {/* ================================================================
-                HEADER â€” Menggunakan AppNavbar dengan konfigurasi khusus Dashboard
-            ================================================================ */}
-            <AppNavbar 
-                title="SPARTA Building"
-                showBuildingLogo={true}
-                showMenuToggle={true}
-                isMenuOpen={sidebarOpen}
-                onMenuToggle={() => setSidebarOpen(prev => !prev)}
-                showLogout={true}
-                onLogout={() => setLogoutDialogOpen(true)}
-                rightActions={<TaskNotificationBell variant="brand" />}
-            />
-
-            {/* ================================================================
-                BODY: SIDEBAR + MAIN CONTENT
-            ================================================================ */}
-            <div className="flex flex-1 overflow-hidden relative">
-
-                {/* Overlay gelap â€” hanya mobile */}
-                {sidebarOpen && (
-                    <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />
-                )}
-
-                {/* ===================== SIDEBAR ===================== */}
-                <aside
-                    className={`
-                        shrink-0 bg-white border-r border-slate-200 flex flex-col z-20
-                        transition-all duration-300 ease-in-out overflow-hidden
-                        absolute md:relative top-0 left-0 h-full
-                        ${sidebarOpen
-                            ? 'w-75 translate-x-0 shadow-xl md:shadow-none'
-                            : 'w-0 -translate-x-full md:translate-x-0 md:w-0'}
-                    `}
-                >
-                    <DashboardNavigation
-                        menus={allowedMenus}
-                        menuCounts={dashboardMenuCounts}
-                        userName={userInfo.name}
-                        roleLabel={user?.isSuperHuman ? "SUPER HUMAN" : (userInfo.roles[0] || "USER")}
-                        cabang={userInfo.cabang}
-                        onCloseMobile={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}
-                        onFeatureAlert={showFeatureAlert}
-                        onChangeWorkspace={() => router.push('/workspace')}
-                    />
-                    {/* Sidebar header */}
-                    <div className="hidden px-4 pt-4 pb-2.5 border-b border-slate-100 shrink-0">
-                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Navigasi</p>
-                        <h2 className="text-sm font-bold text-slate-700 mt-0.5">Fitur Akses</h2>
-                    </div>
-
-                    {/* Menu items */}
-                    <nav className="hidden flex-1 overflow-y-auto px-2.5 py-2.5 flex-col gap-0.5">
-                        {allowedMenus.map((menu) => {
-                            const IconComp = menu.icon;
-                            const approvalCount = menu.id === "menu-approval" && user
-                                ? getApprovalNotificationTotal(approvalCounts, getAccessibleApprovalTypes(user))
-                                : 0;
-                            const menuCount = menu.id === "menu-rab"
-                                ? rabRevisionCount + rabPlanningRequestCount
-                                : approvalCount;
-                            const menuCountClass = menu.id === "menu-rab"
-                                ? "bg-amber-500 text-white"
-                                : "bg-red-600 text-white";
-                            const isPausedStoreDocumentMenu =
-                                menu.id === "menu-svdokumen" && userInfo.cabang !== "HEAD OFFICE";
-                            const inner = (
-                                <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-50 hover:border-red-200 border border-transparent transition-all duration-200 group cursor-pointer">
-                                    <div className="w-7 h-7 rounded-md bg-slate-100 group-hover:bg-red-100 flex items-center justify-center shrink-0 transition-colors">
-                                        <IconComp className="w-3.5 h-3.5 text-slate-500 group-hover:text-red-600 transition-colors" />
-                                    </div>
-                                    <div className="flex-1 min-w-0 flex items-center justify-between pr-2">
-                                        <div className="flex-1 min-w-0 pr-1">
-                                            <p className="text-sm font-semibold text-slate-700 group-hover:text-red-700 leading-snug transition-colors wrap-break-word">{menu.title}</p>
-                                            <p className="text-xs text-slate-400 leading-snug wrap-break-word mt-0.5">{menu.desc}</p>
-                                        </div>
-                                        {menuCount > 0 && (
-                                            <span className={`ml-2 min-w-5 h-5 px-1.5 rounded-full ${menuCountClass} text-xs font-extrabold flex items-center justify-center shadow-sm`}>
-                                                {menuCount > 99 ? '99+' : menuCount}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <ChevronRight className="w-3 h-3 text-slate-300 group-hover:text-red-400 shrink-0 transition-colors" />
-                                </div>
-                            );
-                            if (isPausedStoreDocumentMenu) return (
-                                <div
-                                    key={menu.id}
-                                    onClick={() => {
-                                        showFeatureAlert("Akses Diberhentikan Sementara", PAUSED_STORE_DOCUMENT_MESSAGE);
-                                        if (window.innerWidth <= 768) setSidebarOpen(false);
-                                    }}
-                                >
-                                    {inner}
-                                </div>
-                            );
-
-                            if (menu.isAlert) return (
-                                <div
-                                    key={menu.id}
-                                    onClick={() => {
-                                        showFeatureAlert("Fitur Belum Tersedia", `Halaman ${menu.title} belum tersedia saat ini.`);
-                                        if (window.innerWidth <= 768) setSidebarOpen(false);
-                                    }}
-                                >
-                                    {inner}
-                                </div>
-                            );
-                            if (menu.external) return (
-                                <a key={menu.id} href={menu.href} target="_blank" rel="noopener noreferrer">{inner}</a>
-                            );
-                            return (
-                                <Link key={menu.id} href={menu.href} onClick={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}>{inner}</Link>
-                            );
-                        })}
-                        {allowedMenus.length === 0 && (
-                            <div className="text-center py-8 px-3">
-                                <AlertTriangle className="w-7 h-7 text-slate-300 mx-auto mb-2" />
-                                <p className="text-xs text-slate-400">Tidak ada menu tersedia</p>
-                            </div>
-                        )}
-                    </nav>
-
-                    {/* Sidebar footer */}
-                    <div className="hidden px-4 py-2.5 border-t border-slate-100 shrink-0 space-y-2">
-                        <Button
-                            variant="ghost"
-                            className="h-8 w-full justify-start rounded-lg text-xs font-semibold text-slate-500"
-                            onClick={() => router.push('/workspace')}
-                        >
-                            <LogOut className="mr-2 h-3.5 w-3.5" />
-                            Ganti Workspace
-                        </Button>
-                        <p className="text-xs text-slate-400 text-center">SPARTA Building â€” Alfamart</p>
-                    </div>
-                </aside>
-
-                {/* ===================== MAIN â€” Home Portal ===================== */}
-                                <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-                    <DashboardViewV2
-                        accessibleBranches={cabangList}
-                        selectedBranch={selectedCabang}
-                        onBranchChange={setSelectedCabang}
-                        isSuperAdmin={canSeeAllMonitoringBranches}
-                        onRefresh={async () => {
-                            await Promise.all([
-                                fetchDashboardData(
-                                    userInfo.cabang,
-                                    canSeeAllMonitoringBranches,
-                                    user?.email ?? '',
-                                    userInfo.namaPt,
-                                    isCompanyScopedUser,
-                                    true,
-                                    userInfo.roles
-                                ),
-                                loadDashboardV2Data(),
-                            ]);
-                        }}
-                        isRefreshing={isDataLoading || dashboardV2Loading}
-                        searchQuery={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        jobType={dashboardV2JobType}
-                        onJobTypeChange={setDashboardV2JobType}
-                        period={dashboardV2Period}
-                        onPeriodChange={setDashboardV2Period}
-                        summary={dashboardV2Summary}
-                        charts={dashboardV2Charts}
-                        scopeParams={dashboardV2ScopeParams}
-                    />
-                    {/* Preserve the Export Dialog */}
-                    <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-                                            <DialogContent className="max-w-3xl overflow-hidden rounded-2xl border-slate-200 p-0 shadow-2xl">
-                                                <DialogHeader className="border-b border-slate-100 bg-slate-950 px-5 py-4 text-white">
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div>
-                                                            <DialogTitle className="text-base font-black tracking-tight text-white">Pilih Data Export</DialogTitle>
-                                                            <DialogDescription className="mt-1 text-xs text-slate-300">
-                                                                Centang toko yang mau ditarik ke file {pendingExportFormat.toUpperCase()}. Tidak ada data yang dipilih otomatis.
-                                                            </DialogDescription>
-                                                        </div>
-                                                        <Badge className="shrink-0 border-white/10 bg-white/10 px-2.5 py-1 text-xs font-black text-white hover:bg-white/10">
-                                                            {selectedExportCount} dipilih
-                                                        </Badge>
-                                                    </div>
-                                                </DialogHeader>
-
-                                                <div className="space-y-3 bg-white px-5 py-4">
-                                                    <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
-                                                        <div className="relative">
-                                                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                                            <Input
-                                                                value={exportSearch}
-                                                                onChange={(event) => setExportSearch(event.target.value)}
-                                                                placeholder="Cari nama toko, ULOK, cabang, atau lingkup..."
-                                                                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-sm font-semibold"
-                                                            />
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            className="h-10 rounded-xl border-slate-200 px-3 text-xs font-black text-slate-700"
-                                                            onClick={() => toggleVisibleExportSelection(!allVisibleExportSelected)}
-                                                            disabled={visibleExportIds.length === 0}
-                                                        >
-                                                            {allVisibleExportSelected ? "Hapus hasil filter" : "Pilih hasil filter"}
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            className="h-10 rounded-xl border-red-100 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100"
-                                                            onClick={() => setSelectedExportIds(new Set())}
-                                                            disabled={selectedExportCount === 0}
-                                                        >
-                                                            Bersihkan
-                                                        </Button>
-                                                    </div>
-
-                                                    <div className="overflow-hidden rounded-2xl border border-slate-200">
-                                                        <div className="grid grid-cols-[42px_1fr_110px_82px] border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
-                                                            <span />
-                                                            <span>Toko</span>
-                                                            <span>Cabang</span>
-                                                            <span className="text-right">Lingkup</span>
-                                                        </div>
-                                                        <div className="max-h-[360px] overflow-y-auto bg-white">
-                                                            {visibleExportCandidates.length === 0 ? (
-                                                                <div className="px-4 py-10 text-center text-sm font-semibold text-slate-400">
-                                                                    Tidak ada data yang cocok dengan pencarian.
-                                                                </div>
-                                                            ) : visibleExportCandidates.map((project) => {
-                                                                const toko = project.toko || {};
-                                                                const id = Number(toko.id);
-                                                                const checked = selectedExportIds.has(id);
-                                                                return (
-                                                                    <label
-                                                                        key={id}
-                                                                        className={`grid cursor-pointer grid-cols-[42px_1fr_110px_82px] items-center border-b border-slate-100 px-3 py-3 transition-colors last:border-b-0 ${checked ? 'bg-red-50/55' : 'bg-white hover:bg-slate-50'}`}
-                                                                    >
-                                                                        <Checkbox
-                                                                            checked={checked}
-                                                                            onCheckedChange={(value) => toggleExportSelection(id, Boolean(value))}
-                                                                            className="border-slate-300 data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600"
-                                                                        />
-                                                                        <span className="min-w-0">
-                                                                            <span className="block truncate text-sm font-black text-slate-900">{toko.nama_toko || '-'}</span>
-                                                                            <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{toko.nomor_ulok || '-'} · {toko.kode_toko || '-'}</span>
-                                                                        </span>
-                                                                        <span className="truncate text-xs font-bold text-slate-600">{toko.cabang || '-'}</span>
-                                                                        <span className="text-right">
-                                                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">
-                                                                                {toko.lingkup_pekerjaan || '-'}
-                                                                            </span>
-                                                                        </span>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <DialogFooter className="flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                                    <p className="text-xs font-semibold text-slate-500">
-                                                        {visibleExportCandidates.length} data tampil dari {exportCandidates.length} data yang bisa ditarik.
-                                                    </p>
-                                                    <div className="flex gap-2">
-                                                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => setExportDialogOpen(false)}>
-                                                            Batal
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            className="rounded-xl bg-red-700 px-4 font-black text-white hover:bg-red-800"
-                                                            disabled={Boolean(exportingFormat) || selectedExportCount === 0}
-                                                            onClick={() => handleDownloadDashboardExport(pendingExportFormat, Array.from(selectedExportIds))}
-                                                        >
-                                                            {exportingFormat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                                                            Tarik {selectedExportCount} Data
-                                                        </Button>
-                                                    </div>
-                                                </DialogFooter>
-                                            </DialogContent>
-                                        </Dialog>
-                </main>
-            </div>
-
-            {/* ====================== MODALS ====================== */}
-            <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-                <AlertDialogContent className="rounded-2xl max-w-sm">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Konfirmasi Keluar</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Apakah Anda yakin ingin keluar dari sistem SPARTA Building? Sesi Anda akan diakhiri.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">Ya, Logout</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <AlertDialog open={featureAlertOpen} onOpenChange={setFeatureAlertOpen}>
-                <AlertDialogContent className="rounded-2xl max-w-md">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{featureAlert.title}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {featureAlert.description}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogAction className="bg-red-600 hover:bg-red-700">Mengerti</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <AlertDialog 
-                open={false}
-                onOpenChange={(open) => setDetailModal(prev => ({ ...prev, open }))}
-            >
-                <AlertDialogContent className="max-w-none! w-[98vw]! max-h-[92vh]! overflow-hidden flex flex-col p-0 rounded-2xl border border-slate-200 shadow-2xl">
-                    <div className="bg-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-200">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
-                                <Activity className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <AlertDialogTitle className="text-base font-black leading-none text-slate-950">{detailModal.title}</AlertDialogTitle>
-                                <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-black">Monitoring Rincian Data</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-full"
-                                onClick={() => fetchDashboardData(
-                                    userInfo.cabang,
-                                    canSeeAllMonitoringBranches,
-                                    user?.email ?? '',
-                                    userInfo.namaPt,
-                                    isCompanyScopedUser
-                                )}
-                                disabled={isDataLoading}
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 ${isDataLoading ? 'animate-spin' : ''}`} />
-                            </Button>
-                            <AlertDialogCancel className="bg-slate-100 border-none text-slate-600 hover:bg-slate-200 hover:text-slate-900 h-8 w-8 p-0 rounded-full flex items-center justify-center">
-                                <X className="w-4 h-4" />
-                            </AlertDialogCancel>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
-                        {detailModal.context === 'PROJECT' && !detailModal.subContext && (
-                            <div className="space-y-4">
-                                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                                        <div>
-                                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Ringkasan Status</p>
-                                            <h3 className="text-xl font-black text-slate-950">Pilih tahap untuk melihat toko</h3>
-                                        </div>
-                                        <Badge className="w-fit border-slate-200 bg-slate-100 px-3 py-1 font-black text-slate-700">{stats.total} total toko</Badge>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                    {Object.entries(stats.miniStats).map(([label, val]) => {
-                                        const pct = stats.total > 0 ? Math.round((Number(val) / stats.total) * 100) : 0;
-                                        return (
-                                            <button
-                                                key={label}
-                                                onClick={() => setDetailModal(prev => ({ ...prev, subContext: label }))}
-                                                className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-red-200 hover:shadow-md"
-                                            >
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div>
-                                                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">{label}</p>
-                                                        <p className="mt-2 text-3xl font-black text-slate-950">{val}</p>
-                                                    </div>
-                                                    <ChevronRight className="mt-1 h-4 w-4 text-slate-300 group-hover:text-red-600" />
-                                                </div>
-                                                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                                                    <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.max(3, pct)}%` }} />
-                                                </div>
-                                                <p className="mt-2 text-xs font-bold text-slate-400">{pct}% dari total toko</p>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {detailModal.context === 'ATTENTION' && !detailModal.subContext && (
-                            <div className="space-y-4">
-                                <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
-                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                        <div>
-                                            <p className="text-xs font-black uppercase tracking-wide text-red-500">Perlu Tindakan</p>
-                                            <h3 className="text-xl font-black text-red-950">Tahap yang lewat SLA</h3>
-                                            <p className="mt-1 text-sm font-semibold text-red-700">Klik salah satu tahap untuk membuka daftar toko yang perlu dicek.</p>
-                                        </div>
-                                        <p className="text-4xl font-black text-red-700">{stats.attention}</p>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                    {Object.entries(stats.miniPerhatian).map(([label, val]) => (
-                                        <button
-                                            key={label}
-                                            onClick={() => val > 0 && setDetailModal(prev => ({ ...prev, subContext: label }))}
-                                            disabled={Number(val) <= 0}
-                                            className={`rounded-2xl border p-4 text-left transition-all ${val > 0 ? 'border-red-100 bg-white shadow-sm hover:border-red-300 hover:shadow-md' : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'}`}
-                                        >
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div>
-                                                    <p className={`text-xs font-black uppercase tracking-wide ${val > 0 ? 'text-red-500' : 'text-slate-400'}`}>{label}</p>
-                                                    <p className={`mt-2 text-3xl font-black ${val > 0 ? 'text-red-700' : 'text-slate-300'}`}>{val}</p>
-                                                </div>
-                                                {val > 0 && <ChevronRight className="mt-1 h-4 w-4 text-red-400" />}
-                                            </div>
-                                            <p className="mt-3 text-xs font-bold text-slate-400">{val > 0 ? 'Ada toko yang perlu dicek' : 'Tidak ada masalah'}</p>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {(detailModal.subContext || !['PROJECT', 'ATTENTION'].includes(detailModal.context)) && (() => {
-                            let modalData: any[] = [];
-                            
-                            if (detailModal.context === 'NILAI_KONTRAKTOR') {
-                                modalData = stats.contractorGrouped || [];
-                            } else if (detailModal.context === 'BEANSPOT') {
-                                modalData = stats.beanspotStores || [];
-                            } else {
-                                modalData = filteredProjects.filter(p => {
-                                    if (!detailModal.subContext) {
-                                    // Context-specific filtering for summary views
-                                    if (detailModal.context === 'SPK') {
-                                        return (Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).some((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase()));
-                                    }
-                                    if (detailModal.context === 'PENAWARAN' || detailModal.context === 'COST_M2') {
-                                        return (p.rab || []).length > 0;
-                                    }
-                                    if (detailModal.context === 'NILAI_TOKO') {
-                                        const opnameItems = opnameItemsMap[p.toko?.id] || [];
-                                        return opnameItems.length > 0;
-                                    }
-                                    if (detailModal.context === 'JHK' || detailModal.context === 'DELAY' || detailModal.context === 'DENDA') {
-                                        if (getApprovedDashboardSpks(p).length === 0) return false;
-                                        if (detailModal.context === 'JHK') return true;
-
-                                        return detailModal.context === 'DENDA'
-                                            ? getProjectPenaltyInfo(p).amount > 0
-                                            : calculateProjectLateDays(p) > 0;
-                                    }
-                                    return true;
-                                }
-                                
-                                const cat = getProjectStage(p);
-
-                                if (cat !== detailModal.subContext) return false;
-                                if (detailModal.context === 'PROJECT' && getProjectStageElapsedDays(p, cat) <= 0) return false;
-
-                                if (detailModal.context === 'ATTENTION') {
-                                    return isProjectPastSla(p, cat) && cat !== 'Done';
-                                }
-
-                                return true;
-                            });
-                            }
-
-                            if (detailModal.context === 'DENDA') {
-                                modalData = getUniquePenaltyProjects(modalData);
-                            }
-
-                            const totalPages = Math.ceil(modalData.length / itemsPerPage);
-                            const paginatedData = modalData.slice((modalPage - 1) * itemsPerPage, modalPage * itemsPerPage);
-                            const renderModalPagination = () => (
-                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                    <p className="text-xs font-semibold text-slate-400">
-                                        Menampilkan <span className="font-black text-slate-700">{modalData.length ? Math.min(modalData.length, (modalPage - 1) * itemsPerPage + 1) : 0} - {Math.min(modalData.length, modalPage * itemsPerPage)}</span> dari <span className="font-black text-slate-700">{modalData.length}</span> data
-                                    </p>
-                                    {totalPages > 1 && (
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-xs font-bold" onClick={() => setModalPage(p => Math.max(1, p - 1))} disabled={modalPage === 1}>
-                                                Sebelumnya
-                                            </Button>
-                                            <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">{modalPage} / {totalPages}</span>
-                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-xs font-bold" onClick={() => setModalPage(p => Math.min(totalPages, p + 1))} disabled={modalPage === totalPages}>
-                                                Selanjutnya
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                            const modernContexts = ['PROJECT', 'ATTENTION', 'PENAWARAN', 'SPK', 'JHK', 'DELAY', 'DENDA', 'NILAI_TOKO', 'NILAI_KONTRAKTOR', 'COST_M2'];
-                            if (modernContexts.includes(detailModal.context)) {
-                                const summaryCards = [
-                                    { label: 'Data', value: modalData.length.toLocaleString('id-ID'), tone: 'border-slate-200 bg-white text-slate-900' },
-                                    { label: 'Penawaran', value: formatRupiah(modalData.reduce((sum, item) => sum + getProjectFinancialSummary(item).penawaran, 0)), tone: 'border-indigo-100 bg-indigo-50 text-indigo-800' },
-                                    { label: 'SPK', value: formatRupiah(modalData.reduce((sum, item) => sum + getProjectFinancialSummary(item).spk, 0)), tone: 'border-orange-100 bg-orange-50 text-orange-800' },
-                                    { label: 'Denda', value: formatRupiah(modalData.reduce((sum, item) => sum + getProjectPenaltyInfo(item).amount, 0)), tone: 'border-red-100 bg-red-50 text-red-800' },
-                                ];
-
-                                return (
-                                    <div className="space-y-4">
-                                        {detailModal.subContext && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="-ml-2 rounded-lg text-blue-700 hover:bg-blue-50 hover:text-blue-800"
-                                                onClick={() => setDetailModal(prev => ({ ...prev, subContext: '' }))}
-                                            >
-                                                <ChevronRight className="mr-1 h-4 w-4 rotate-180" /> Kembali ke Ringkasan
-                                            </Button>
-                                        )}
-
-                                        {detailModal.context !== 'NILAI_KONTRAKTOR' && (
-                                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                                                {summaryCards.map(item => (
-                                                    <div key={item.label} className={`rounded-xl border px-4 py-3 ${item.tone}`}>
-                                                        <p className="text-xs font-black uppercase tracking-wide opacity-70">{item.label}</p>
-                                                        <p className="mt-1 text-base font-black leading-tight">{item.value}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <div className="grid grid-cols-1 gap-3">
-                                            {paginatedData.length === 0 && (
-                                                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-                                                    <p className="text-sm font-bold text-slate-500">Tidak ada data untuk filter ini.</p>
-                                                </div>
-                                            )}
-
-                                            {paginatedData.map((p: any, i: number) => {
-                                                if (detailModal.context === 'NILAI_KONTRAKTOR') {
-                                                    return (
-                                                        <div key={p.nama_kontraktor || i} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                                                <div>
-                                                                    <p className="text-base font-black text-slate-950">{p.nama_kontraktor || '-'}</p>
-                                                                    <p className="mt-1 text-xs font-semibold text-slate-500">{p.tokoCount || 0} toko / ULOK dinilai</p>
-                                                                </div>
-                                                                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right">
-                                                                    <p className="text-xs font-black uppercase text-emerald-700">Rata-rata</p>
-                                                                    <p className="text-2xl font-black text-emerald-900">{Number(p.nilai || 0).toFixed(1)}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
-                                                                {(p.stores || []).slice(0, 4).map((st: any, idx: number) => (
-                                                                    <div key={`${st.nomor_ulok || idx}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                                                                        <div className="flex items-start justify-between gap-3">
-                                                                            <div>
-                                                                                <p className="text-sm font-black text-slate-900">{st.nama_toko || '-'}</p>
-                                                                                <p className="text-xs font-semibold text-slate-500">{st.nomor_ulok || '-'} - {st.cabang || '-'}</p>
-                                                                            </div>
-                                                                            <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{Number(st.nilai || 0).toFixed(1)}</Badge>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
-
-                                                const toko = p.toko || {};
-                                                const stage = getProjectStage(p);
-                                                const financial = getProjectFinancialSummary(p);
-                                                const penaltyInfo = getProjectPenaltyInfo(p);
-                                                const lateDays = calculateProjectLateDays(p);
-                                                const quality = getStoreQualityScore(opnameItemsMap[toko.id] || []);
-                                                const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                                                const activeSpk = spkArr.find((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(String(s.status).toUpperCase())) || spkArr[0];
-                                                const hasST = Boolean(getLatestSerahTerima(p));
-                                                const pendingPengawasanPdfs = Array.isArray(p.pengawasan_pdf_pending)
-                                                    ? p.pengawasan_pdf_pending
-                                                    : [];
-                                                const areaTerbangun = Number(toko.luas_area_terbangun || toko.luas_terbangun || 0);
-                                                const costTerbangun = areaTerbangun > 0 ? Math.round(financial.opname / areaTerbangun) : 0;
-
-                                                let headline = stage;
-                                                let headlineValue: React.ReactNode = toko.proyek || '-';
-                                                let tone = 'border-slate-200 bg-white';
-                                                let badges: React.ReactNode = null;
-                                                if (detailModal.context === 'PENAWARAN') {
-                                                    headline = 'Nilai Penawaran';
-                                                    headlineValue = formatRupiah(financial.penawaran);
-                                                    tone = 'border-indigo-100 bg-indigo-50/40';
-                                                } else if (detailModal.context === 'SPK') {
-                                                    headline = 'Nilai SPK';
-                                                    headlineValue = formatRupiah(financial.spk);
-                                                    tone = 'border-orange-100 bg-orange-50/40';
-                                                } else if (detailModal.context === 'JHK') {
-                                                    headline = 'Durasi SPK';
-                                                    headlineValue = `${Number(activeSpk?.durasi || 0)} hari`;
-                                                    tone = 'border-blue-100 bg-blue-50/40';
-                                                } else if (detailModal.context === 'DELAY') {
-                                                    headline = 'Keterlambatan';
-                                                    headlineValue = `${lateDays} hari`;
-                                                    tone = lateDays > 0 ? 'border-red-100 bg-red-50/50' : 'border-emerald-100 bg-emerald-50/40';
-                                                } else if (detailModal.context === 'DENDA') {
-                                                    headline = 'Nilai Denda';
-                                                    headlineValue = formatRupiah(penaltyInfo.amount);
-                                                    tone = 'border-rose-100 bg-rose-50/50';
-                                                    badges = (
-                                                        <div className="flex flex-wrap justify-end gap-1">
-                                                            <Badge className="border-rose-100 bg-white font-black text-rose-700">{penaltyInfo.days} hari</Badge>
-                                                            {penaltyInfo.requiresAction && (
-                                                                <Badge className="border-amber-200 bg-amber-50 font-black text-amber-700">SP/Takeover</Badge>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                } else if (detailModal.context === 'NILAI_TOKO') {
-                                                    headline = 'Nilai Toko';
-                                                    headlineValue = `${quality.total.toFixed(1)} poin`;
-                                                    tone = 'border-amber-100 bg-amber-50/50';
-                                                } else if (detailModal.context === 'COST_M2') {
-                                                    headline = 'Cost/m2 Terbangun';
-                                                    headlineValue = costTerbangun ? formatRupiah(costTerbangun) : '-';
-                                                    tone = costTerbangun > 900000 ? 'border-red-100 bg-red-50/50' : 'border-purple-100 bg-purple-50/40';
-                                                    badges = costTerbangun > 900000 ? <Badge className="border-red-100 bg-white font-black text-red-700">Rekomendasi Non-Ruko</Badge> : null;
-                                                }
-
-                                                return (
-                                                    <div key={toko.id || toko.nomor_ulok || i} className={`group overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-md ${tone}`}>
-                                                        <div className="flex flex-col lg:flex-row">
-                                                            <div className={`h-1 lg:h-auto lg:w-1.5 ${detailModal.context === 'DENDA' || detailModal.context === 'DELAY' ? 'bg-red-500' : detailModal.context === 'NILAI_TOKO' ? 'bg-amber-500' : detailModal.context === 'SPK' ? 'bg-orange-500' : detailModal.context === 'PENAWARAN' ? 'bg-indigo-500' : 'bg-blue-500'}`} />
-                                                            <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
-                                                                <div className="min-w-0 flex-1">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <p className="text-base font-black text-slate-950">{toko.nama_toko || '-'}</p>
-                                                                    <Badge className="border-slate-200 bg-white font-black text-slate-700">{toko.nomor_ulok || '-'}</Badge>
-                                                                    <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{stage}</Badge>
-                                                                    {pendingPengawasanPdfs.length > 0 && (
-                                                                        <Badge className="border-amber-200 bg-amber-50 font-black text-amber-700">
-                                                                            {pendingPengawasanPdfs.length} PDF belum terhubung Gantt
-                                                                        </Badge>
-                                                                    )}
-                                                                    {badges}
-                                                                </div>
-                                                                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-slate-500">
-                                                                        <span>{toko.cabang || '-'}</span>
-                                                                        <span>{toko.lingkup_pekerjaan || '-'}</span>
-                                                                        <span>Proyek: {toko.proyek || '-'}</span>
-                                                                    </div>
-                                                                    <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                                                                            <p className="text-[9px] font-black uppercase text-slate-400">Penawaran</p>
-                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(financial.penawaran)}</p>
-                                                                        </span>
-                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                                                                            <p className="text-[9px] font-black uppercase text-slate-400">SPK</p>
-                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(financial.spk)}</p>
-                                                                        </span>
-                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                                                                            <p className="text-[9px] font-black uppercase text-slate-400">Denda / Telat</p>
-                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(penaltyInfo.amount)} <span className="text-xs text-slate-400">({lateDays}h)</span></p>
-                                                                        </span>
-                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                                                                            <p className="text-[9px] font-black uppercase text-slate-400">ST</p>
-                                                                            <p className="text-xs font-black text-slate-900">{hasST ? 'Ada' : 'Belum'}</p>
-                                                                        </span>
-                                                                    </div>
-                                                                    {pendingPengawasanPdfs.length > 0 && (
-                                                                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                                                            <p className="text-xs font-black uppercase text-amber-700">PDF Pengawasan Migrasi</p>
-                                                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                                                {pendingPengawasanPdfs.map((pdf: any) => (
-                                                                                    <Button
-                                                                                        key={pdf.id}
-                                                                                        variant="outline"
-                                                                                        className="h-8 rounded-lg border-amber-200 bg-white px-3 text-xs font-black text-amber-800"
-                                                                                        onClick={async () => {
-                                                                                            if (pdf.id_pengawasan_gantt) {
-                                                                                                await downloadPengawasanPdf(Number(pdf.id_pengawasan_gantt));
-                                                                                                return;
-                                                                                            }
-
-                                                                                            window.open(pdf.link_pdf_pengawasan, '_blank', 'noopener,noreferrer');
-                                                                                        }}
-                                                                                    >
-                                                                                        <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                                                                                        H{pdf.h_day}
-                                                                                    </Button>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                            </div>
-
-                                                                <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-white bg-white/90 px-4 py-3 shadow-xs xl:min-w-56 xl:flex-col xl:items-end xl:text-right">
-                                                                    <div>
-                                                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">{headline}</p>
-                                                                <p className="mt-1 text-xl font-black text-slate-950">{headlineValue}</p>
-                                                                    </div>
-                                                                    {hasST && (
-                                                                        <Button variant="outline" className="h-8 rounded-lg px-3 text-xs font-black" onClick={() => handleOpenSerahTerima(p)}>
-                                                                            <ExternalLink className="mr-1 h-3.5 w-3.5" /> Buka ST
-                                                                        </Button>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {detailModal.context === 'NILAI_TOKO' && (
-                                                            <div className="border-t border-amber-100 bg-white/70 px-4 py-3 grid grid-cols-3 gap-2">
-                                                                {[
-                                                                    ['Desain', quality.desain, 30],
-                                                                    ['Kualitas', quality.kualitas, 35],
-                                                                    ['Spesifikasi', quality.spesifikasi, 35],
-                                                                ].map(([label, value, max]) => (
-                                                                    <div key={String(label)} className="rounded-xl border border-amber-100 bg-white p-3">
-                                                                        <p className="text-xs font-black uppercase text-amber-700">{label}</p>
-                                                                        <p className="mt-1 text-sm font-black text-slate-950">{Number(value).toFixed(1)} <span className="text-xs text-slate-400">/ {max}</span></p>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {renderModalPagination()}
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <div className="space-y-3">
-                                    {detailModal.subContext && (
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="mb-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 -ml-2"
-                                            onClick={() => setDetailModal(prev => ({ ...prev, subContext: '' }))}
-                                        >
-                                            <ChevronRight className="w-4 h-4 rotate-180 mr-1" /> Kembali ke Ringkasan
-                                        </Button>
-                                    )}
-                                    
-                                    <div className="bg-white rounded-2xl border border-slate-300 overflow-hidden shadow-sm">
-                                        <table className="w-full text-left border-collapse table-fixed">
-                                            <thead className="bg-slate-50 border-b border-slate-300">
-                                                <tr>
-                                                    <th className={`px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>
-                                                        {detailModal.context === 'NILAI_KONTRAKTOR' ? 'Nama Kontraktor' : 'Toko / Ulok'}
-                                                    </th>
-                                                    {detailModal.context !== 'NILAI_KONTRAKTOR' && (
-                                                        <th className="px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 w-1/3">Cabang</th>
-                                                    )}
-                                                    <th className={`px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>Informasi</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-300">
-                                                {paginatedData.map((p, i) => {
-                                                    let rTerbuka = 0, rBangunan = 0, rTerbangun = 0;
-                                                    
-                                                    if (detailModal.context === 'COST_M2') {
-                                                        let costTerbuka = 0; let costBangunan = 0; let costTerbangun = 0;
-                                                        let luasTerbuka = 0; let luasBangunan = 0; let luasTerbangun = 0;
-                                                        let dataSource = "Penawaran (RAB)";
-
-                                                        const rabItemCategoryMap = new Map<number, string>();
-                                                        const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
-                                                        
-                                                        rabArr.forEach((rab: any) => {
-                                                            const itemsFromCache = rabItemsMap[rab.id] || [];
-                                                            const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
-                                                            const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
-                                                            const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
-                                                            finalItems.forEach((item: any) => {
-                                                                if (item.id) rabItemCategoryMap.set(item.id, (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase());
-                                                            });
-                                                        });
-
-                                                        const latestOpnameFinal = getLatestProjectOpnameFinal(p);
-                                                        const opnameFinalItems = latestOpnameFinal?.items || opnameItemsMap[p.toko?.id] || [];
-                                                        const useOpnameFinal = !!latestOpnameFinal && opnameFinalItems.length > 0;
-
-                                                        rabArr.forEach((rab: any) => {
-                                                            luasTerbuka = Math.max(luasTerbuka, Number(rab.luas_area_terbuka || 0));
-                                                            luasBangunan = Math.max(luasBangunan, Number(rab.luas_bangunan || 0));
-                                                            luasTerbangun = Math.max(luasTerbangun, Number(rab.luas_terbangun || 0));
-                                                            
-                                                            if (!useOpnameFinal) {
-                                                                costTerbangun += Number(rab.grand_total_final || 0);
-                                                                const itemsFromCache = rabItemsMap[rab.id] || [];
-                                                                const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
-                                                                const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
-                                                                const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
-                                                                
-                                                                if (finalItems.length > 0) {
-                                                                    finalItems.forEach((item: any) => {
-                                                                        const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
-                                                                        const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
-                                                                        if (kat === 'PEKERJAAN AREA TERBUKA') {
-                                                                            costTerbuka += itemTotal;
-                                                                        } else {
-                                                                            costBangunan += itemTotal;
-                                                                        }
-                                                                    });
-                                                                } else {
-                                                                    costBangunan += Number(rab.grand_total_final || 0);
-                                                                }
-                                                            }
-                                                        });
-
-                                                        if (useOpnameFinal) {
-                                                            dataSource = "Opname";
-                                                            costTerbangun = Number(latestOpnameFinal.grand_total_opname || 0);
-                                                            opnameFinalItems.forEach((oItem: any) => {
-                                                                const itemTotal = Number(oItem.total_harga_opname || 0);
-                                                                const kat = rabItemCategoryMap.get(oItem.id_rab_item) || '';
-                                                                if (kat === 'PEKERJAAN AREA TERBUKA') {
-                                                                    costTerbuka += itemTotal;
-                                                                } else {
-                                                                    costBangunan += itemTotal;
-                                                                }
-                                                            });
-                                                        }
-                                                        
-                                                        rTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
-                                                        rBangunan = luasBangunan > 0 && costBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
-                                                        rTerbangun = luasTerbangun > 0 && costTerbangun > 0 ? Math.round(costTerbangun / luasTerbangun) : 0;
-
-                                                        return (
-                                                            <React.Fragment key={i}>
-                                                                <tr 
-                                                                    className={`transition-colors group cursor-pointer ${expandedRow === i ? 'bg-purple-50/30' : 'hover:bg-slate-50/50'}`}
-                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                                                                >
-                                                                    <td className="px-4 py-3 border-r border-slate-300">
-                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
-                                                                        <div className="mt-1">
-                                                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${useOpnameFinal ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                                                SUMBER: {dataSource}
-                                                                            </span>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
-                                                                    <td className="px-4 py-3 text-right">
-                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
-                                                                            {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/mÂ²</span>
-                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
-                                                                        </div>
-                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
-                                                                    </td>
-                                                                </tr>
-                                                                {expandedRow === i && (
-                                                                    <tr className="bg-slate-50/80 border-t border-slate-300 shadow-inner">
-                                                                        <td colSpan={3} className="px-4 py-4">
-                                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                                                <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm flex flex-col justify-between">
-                                                                                    <div>
-                                                                                        <p className="text-xs text-purple-600 font-bold uppercase tracking-wider mb-2">Terbangun</p>
-                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
-                                                                                            <span>Total Biaya</span>
-                                                                                            <span className="font-semibold text-slate-700">{formatRupiah(costTerbangun)}</span>
-                                                                                        </div>
-                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
-                                                                                            <span>Luas Area</span>
-                                                                                            <span className="font-semibold text-slate-700">{luasTerbangun} mÂ²</span>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div className="text-right mt-1">
-                                                                                        <p className="text-lg font-black text-purple-700">{formatRupiah(rTerbangun)}</p>
-                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
-                                                                                    </div>
-                                                                                </div>
-                                                                                
-                                                                                <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm flex flex-col justify-between">
-                                                                                    <div>
-                                                                                        <p className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-2">Bangunan</p>
-                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
-                                                                                            <span>Total Biaya</span>
-                                                                                            <span className="font-semibold text-slate-700">{formatRupiah(costBangunan)}</span>
-                                                                                        </div>
-                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
-                                                                                            <span>Luas Area</span>
-                                                                                            <span className="font-semibold text-slate-700">{luasBangunan} mÂ²</span>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div className="text-right mt-1">
-                                                                                        <p className="text-lg font-black text-blue-700">{formatRupiah(rBangunan)}</p>
-                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm flex flex-col justify-between">
-                                                                                    <div>
-                                                                                        <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-2">Terbuka</p>
-                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
-                                                                                            <span>Total Biaya</span>
-                                                                                            <span className="font-semibold text-slate-700">{formatRupiah(costTerbuka)}</span>
-                                                                                        </div>
-                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
-                                                                                            <span>Luas Area</span>
-                                                                                            <span className="font-semibold text-slate-700">{luasTerbuka} mÂ²</span>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div className="text-right mt-1">
-                                                                                        <p className="text-lg font-black text-emerald-700">{formatRupiah(rTerbuka)}</p>
-                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    }
-                                                    
-                                                    if (detailModal.context === 'JHK') {
-                                                        let jhkTotal = 0, durasi = 0, totalPertambahan = 0, keterlambatan = 0;
-                                                        const approvedSpks = getApprovedDashboardSpks(p);
-                                                        const totalAllowedDays = getProjectAllowedDays(p);
-                                                        if (approvedSpks.length > 0 && totalAllowedDays > 0) {
-                                                            durasi = Math.max(0, ...approvedSpks.map((spk: any) => Number(spk?.durasi || 0)));
-                                                            totalPertambahan = Math.max(0, totalAllowedDays - durasi);
-                                                            keterlambatan = calculateProjectLateDays(p);
-                                                            jhkTotal = totalAllowedDays + keterlambatan;
-                                                        }
-
-                                                        return (
-                                                            <React.Fragment key={i}>
-                                                                <tr 
-                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                                                                >
-                                                                    <td className="px-4 py-3 border-r border-slate-300">
-                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
-                                                                    <td className="px-4 py-3 text-right">
-                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
-                                                                            {jhkTotal} <span className="text-[9px] text-slate-400 font-normal">Hari</span>
-                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
-                                                                        </div>
-                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
-                                                                    </td>
-                                                                </tr>
-                                                                {expandedRow === i && (
-                                                                    <tr className="bg-slate-50 border-t border-slate-300">
-                                                                        <td colSpan={3} className="px-4 py-4">
-                                                                            <div className="grid grid-cols-3 gap-3">
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Durasi SPK</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{durasi}</p>
-                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
-                                                                                </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tambah SPK</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{totalPertambahan}</p>
-                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
-                                                                                </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Terlambat</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{keterlambatan}</p>
-                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
-                                                                                </div>
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    }
-
-                                                    if (detailModal.context === 'NILAI_TOKO') {
-                                                        const opnameItems = opnameItemsMap[p.toko?.id] || [];
-                                                        const serahTerima = getLatestSerahTerima(p);
-                                                        let p_nilaiDesain = 0, p_nilaiKualitas = 0, p_nilaiSpesifikasi = 0, p_total = 0;
-                                                        if (opnameItems.length > 0) {
-                                                            const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
-                                                            const countKualitasBaik = opnameItems.filter((i: any) => i.kualitas === 'Baik').length;
-                                                            const countSpesifikasiSesuai = opnameItems.filter((i: any) => i.spesifikasi === 'Sesuai').length;
-                                            
-                                                            p_nilaiDesain = (countDesainSesuai / opnameItems.length) * 30;
-                                                            p_nilaiKualitas = (countKualitasBaik / opnameItems.length) * 35;
-                                                            p_nilaiSpesifikasi = (countSpesifikasiSesuai / opnameItems.length) * 35;
-                                                            p_total = p_nilaiDesain + p_nilaiKualitas + p_nilaiSpesifikasi;
-                                                        }
-
-                                                        return (
-                                                            <React.Fragment key={i}>
-                                                                <tr 
-                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                                                                >
-                                                                    <td className="px-4 py-3 border-r border-slate-300">
-                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
-                                                                    <td className="px-4 py-3 text-right">
-                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
-                                                                            {p_total.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
-                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
-                                                                        </div>
-                                                                        <div className="mt-2 flex items-center justify-end gap-2">
-                                                                            <span className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</span>
-                                                                            {serahTerima ? (
-                                                                                <Button
-                                                                                    variant="outline"
-                                                                                    className="h-7 rounded-md px-2 text-xs font-bold bg-white"
-                                                                                    onClick={(event) => {
-                                                                                        event.stopPropagation();
-                                                                                        handleOpenSerahTerima(p);
-                                                                                    }}
-                                                                                >
-                                                                                    <ExternalLink className="w-3 h-3 mr-1" /> Lihat ST
-                                                                                </Button>
-                                                                            ) : (
-                                                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-400">Belum ST</span>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                                {expandedRow === i && (
-                                                                    <tr className="bg-slate-50 border-t border-slate-300">
-                                                                        <td colSpan={3} className="px-4 py-4">
-                                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
-                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Desain</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiDesain.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 30</span></p>
-                                                                                </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
-                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Kualitas</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiKualitas.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
-                                                                                </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
-                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Spesifikasi</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiSpesifikasi.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
-                                                                                </div>
-                                                                                <div className="bg-white rounded-xl p-3 border border-amber-200 text-center shadow-sm">
-                                                                                    <p className="text-xs text-amber-600 uppercase tracking-wider mb-1">Serah Terima</p>
-                                                                                    <p className="text-sm font-black text-slate-800">{serahTerima ? 'Tersedia' : 'Belum Ada'}</p>
-                                                                                    {serahTerima?.created_at && <p className="text-[9px] text-slate-400 mt-0.5">{new Date(serahTerima.created_at).toLocaleDateString('id-ID')}</p>}
-                                                                                </div>
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    }
-
-                                                    if (detailModal.context === 'NILAI_KONTRAKTOR') {
-                                                        const pK = p as any;
-                                                        return (
-                                                            <React.Fragment key={i}>
-                                                                <tr 
-                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
-                                                                >
-                                                                    <td className="px-4 py-3 border-r border-slate-300">
-                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pK.nama_kontraktor}</div>
-                                                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{pK.tokoCount} Toko / Ulok</div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-right">
-                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
-                                                                            {pK.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
-                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                                {expandedRow === i && (
-                                                                    <tr className="bg-slate-50 border-t border-slate-300">
-                                                                        <td colSpan={2} className="px-4 py-4">
-                                                                            <div className="space-y-3">
-                                                                                {(pK.stores || []).map((st: any, idx: number) => (
-                                                                                    <div key={idx} className="bg-white rounded-xl p-3 border border-slate-300 shadow-sm flex items-center justify-between">
-                                                                                        <div>
-                                                                                            <div className="font-bold text-slate-700 text-xs">{st.nama_toko}</div>
-                                                                                            <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-2">
-                                                                                                <span>{st.nomor_ulok}</span>
-                                                                                                <span>â€¢</span>
-                                                                                                <span>{st.cabang}</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        <div className="text-right">
-                                                                                            <div className="text-sm font-black text-slate-800">{st.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 100</span></div>
-                                                                                            <div className="text-[8px] text-slate-400 flex items-center gap-1.5 mt-0.5 justify-end">
-                                                                                                <span>Des: {st.desain.toFixed(1)}</span>
-                                                                                                <span>Kual: {st.kualitas.toFixed(1)}</span>
-                                                                                                <span>Spes: {st.spesifikasi.toFixed(1)}</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    }
-
-                                                    if (detailModal.context === 'BEANSPOT') {
-                                                        const pB = p as any;
-                                                        return (
-                                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                                                                <td className="px-4 py-3 border-r border-slate-300">
-                                                                    <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pB.nama_toko}</div>
-                                                                    <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{pB.nomor_ulok}</div>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{pB.cabang}</td>
-                                                                <td className="px-4 py-3 text-right">
-                                                                    <div className="text-xs font-black text-slate-700">{formatRupiah(pB.nominal)}</div>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    }
-
-                                                    const penaltyInfo = detailModal.context === 'DENDA' ? getProjectPenaltyInfo(p) : null;
-
-                                                    return (
-                                                    <tr
-                                                        key={i}
-                                                        className={`hover:bg-slate-50/50 transition-colors group ${detailModal.context === 'DENDA' ? 'cursor-pointer' : ''}`}
-                                                        onClick={() => {
-                                                            if (detailModal.context === 'DENDA') handleOpenPenaltyProject(p);
-                                                        }}
-                                                        title={detailModal.context === 'DENDA' ? 'Buka sumber data denda' : undefined}
-                                                    >
-                                                        <td className="px-4 py-3 border-r border-slate-300">
-                                                            <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
-                                                            <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <div className="text-xs font-black text-slate-700">
-                                                                {detailModal.context === 'PENAWARAN' 
-                                                                    ? formatRupiah(parseCurrency(p.rab?.[0]?.grand_total_final))
-                                                                    : detailModal.context === 'SPK' 
-                                                                        ? formatRupiah((Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase())).reduce((acc: number, s: any) => acc + parseCurrency(s.grand_total || s.total_harga), 0))
-                                                                        : detailModal.context === 'DELAY'
-                                                                                ? (() => {
-                                                                                    return `${calculateProjectLateDays(p)} Hari`;
-                                                                                })()
-                                                                            : detailModal.context === 'DENDA'
-                                                                                ? (() => {
-                                                                                    return formatRupiah(penaltyInfo?.amount ?? 0);
-                                                                                })()
-                                                                            : p.toko?.proyek
-                                                                }
-                                                            </div>
-                                                            {detailModal.context === 'DENDA' && penaltyInfo ? (
-                                                                <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[9px]">
-                                                                    <span className={`rounded px-1.5 py-0.5 font-bold ${penaltyInfo.source === 'Resmi' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-                                                                        {penaltyInfo.source}
-                                                                    </span>
-                                                                    <span className="text-slate-400 italic">{penaltyInfo.days} hari</span>
-                                                                    {penaltyInfo.requiresAction && (
-                                                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 font-bold text-amber-700">SP/Takeover</span>
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                    );
-                                                })}
-                                                {paginatedData.length === 0 && (
-                                                    <tr>
-                                                        <td colSpan={3} className="px-4 py-12 text-center text-xs text-slate-400 italic">
-                                                            Tidak ada data untuk ditampilkan
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Pagination Controls */}
-                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                                        <p className="text-xs text-slate-400 font-medium">
-                                            Menampilkan <span className="text-slate-700 font-bold">{Math.min(modalData.length, (modalPage - 1) * itemsPerPage + 1)} - {Math.min(modalData.length, modalPage * itemsPerPage)}</span> dari <span className="text-slate-700 font-bold">{modalData.length}</span> data
-                                        </p>
-                                        {totalPages > 1 && (
-                                            <div className="flex items-center gap-2">
-                                                <Button 
-                                                    variant="outline" 
-                                                    size="sm" 
-                                                    className="h-8 px-3 text-xs font-bold border-slate-200"
-                                                    onClick={() => setModalPage(p => Math.max(1, p - 1))}
-                                                    disabled={modalPage === 1}
-                                                >
-                                                    Sebelumnya
-                                                </Button>
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-xs font-bold text-slate-400">Halaman</span>
-                                                    <span className="text-xs font-black text-blue-600 px-2 py-1 bg-blue-50 rounded-md border border-blue-100">{modalPage}</span>
-                                                    <span className="text-xs font-bold text-slate-400">dari {totalPages}</span>
-                                                </div>
-                                                <Button 
-                                                    variant="outline" 
-                                                    size="sm" 
-                                                    className="h-8 px-3 text-xs font-bold border-slate-200"
-                                                    onClick={() => setModalPage(p => Math.min(totalPages, p + 1))}
-                                                    disabled={modalPage === totalPages}
-                                                >
-                                                    Selanjutnya
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-
-                    <div className="px-6 py-4 bg-white border-t border-slate-100 shrink-0">
-                        <p className="text-xs text-slate-400 font-medium italic">* Data diperbarui secara real-time berdasarkan filter yang aktif</p>
-                    </div>
-                </AlertDialogContent>
-            </AlertDialog>
-
-        </div>
-    );
-}
-
-// =============================================================================
-// SUB-COMPONENTS
-// =============================================================================
-
-function StatCard({ 
-    title, 
-    value, 
-    icon, 
-    bgColor, 
-    textColor, 
-    subLabel, 
-    valueColor,
-    className,
-    renderExtra,
-    onClick,
-    isLoading = false
-}: { 
-    title: string, 
-    value: string | number, 
-    icon: React.ReactNode, 
-    bgColor: string, 
-    textColor: string, 
-    subLabel?: string,
-    valueColor?: string,
-    className?: string,
-    renderExtra?: React.ReactNode,
-    onClick?: () => void,
-    isLoading?: boolean
-}) {
-    if (isLoading) {
-        return (
-            <Card className={`overflow-hidden border-none shadow-md bg-white ${className}`}>
-                <CardContent className="px-3.5 py-2 flex flex-col md:flex-row md:items-center gap-4 h-23">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="w-11 h-11 rounded-xl bg-slate-100 animate-pulse shrink-0" />
-                        <div className="flex-1 space-y-2">
-                            <div className="h-2 w-16 bg-slate-100 animate-pulse rounded" />
-                            <div className="h-5 w-24 bg-slate-100 animate-pulse rounded" />
-                            <div className="h-2 w-20 bg-slate-100 animate-pulse rounded" />
-                        </div>
-                    </div>
-                    {renderExtra && (
-                        <div className="hidden md:block shrink-0 border-l border-slate-100 pl-4">
-                            <div className="grid grid-cols-3 gap-1">
-                                {[1,2,3,4,5,6].map(i => (
-                                    <div key={i} className="w-16 h-8 bg-slate-50 animate-pulse rounded-lg" />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-        );
-    }
-
-    return (
-        <Card 
-            onClick={onClick}
-            className={`overflow-hidden border-none shadow-md hover:shadow-lg transition-all duration-300 group cursor-pointer bg-white active:scale-[0.98] ${className}`}
-        >
-            <CardContent className="px-3.5 py-2 flex flex-col md:flex-row md:items-center gap-4 h-full">
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: bgColor, color: textColor }}>
-                        {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement<any>, { className: "w-5.5 h-5.5" }) : icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
-                        {value !== undefined && value !== null && value !== '' && (
-                            <h3 className="text-lg font-black text-slate-800 truncate" style={{ color: valueColor }}>
-                                <AnimatedNumber value={value} isLoading={isLoading} />
-                            </h3>
-                        )}
-                        {subLabel && <p className="text-[9px] font-medium text-slate-500 leading-tight mt-0.5 line-clamp-1">{subLabel}</p>}
-                    </div>
-                </div>
-                {renderExtra && (
-                    <div className="shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-1.5 md:pt-0 md:pl-4">
-                        {renderExtra}
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-/**
- * A component that animates a numeric value from 0 to the target value.
- */
-function AnimatedNumber({ value, isLoading }: { value: string | number, isLoading: boolean }) {
-    const numericValue = useMemo(() => {
-        if (typeof value === 'number') return value;
-        if (!value) return 0;
-        // Clean currency prefix before parsing
-        const cleaned = typeof value === 'string' ? value.replace(/Rp\s?/g, '') : value;
-        return parseCurrency(cleaned);
-    }, [value]);
-
-    const [displayValue, setDisplayValue] = useState(0);
-    
-    const isRupiah = typeof value === 'string' && value.includes('Rp');
-    const isHari = typeof value === 'string' && value.includes('Hari');
-    const hasDecimals = typeof value === 'string' && value.includes('.') && !isRupiah;
-    const decimalPlaces = hasDecimals ? (value.toString().split('.')[1] || '').length : 0;
-
-    useEffect(() => {
-        if (isLoading) {
-            setDisplayValue(0);
-            return;
-        }
-
-        const start = 0;
-        const end = numericValue;
-        const duration = 1200; 
-        const startTime = performance.now();
-
-        let animationFrame: number;
-
-        const animate = (currentTime: number) => {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            // Cubic ease out
-            const easeProgress = 1 - Math.pow(1 - progress, 3);
-            
-            const current = easeProgress * (end - start) + start;
-            setDisplayValue(current);
-
-            if (progress < 1) {
-                animationFrame = requestAnimationFrame(animate);
-            }
-        };
-
-        animationFrame = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(animationFrame);
-    }, [numericValue, isLoading]);
-
-    if (isLoading) return null;
-
-    if (isRupiah) return <>{formatRupiah(Math.floor(displayValue))}</>;
-    if (isHari) return <>{Math.floor(displayValue)} Hari</>;
-    if (hasDecimals) return <>{displayValue.toFixed(decimalPlaces)}</>;
-
-    return <>{Math.floor(displayValue)}</>;
-}
+"use client"
+
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from '@/context/SessionContext';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+import AppNavbar from '@/components/AppNavbar';
+import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage } from '@/lib/constants';
+import { formatRupiah, parseCurrency } from '@/lib/utils';
+import { downloadDashboardExport, downloadPengawasanPdf, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
+import {
+    EMPTY_APPROVAL_COUNTS,
+    fetchApprovalNotificationCounts,
+    getAccessibleApprovalTypes,
+    getApprovalNotificationTotal,
+    type ApprovalCounts,
+} from '@/lib/approval-notifications';
+import { 
+    Activity, CheckCircle2, ChevronRight, Clock, FileCheck, FileEdit, FileText, 
+    HardHat, Layers, Search, Store, Users, MapPin, RefreshCw,
+    TrendingUp, AlertCircle, Calendar, Loader2, Home, DollarSign,
+    Tag, UserCheck, Coffee, AlertTriangle, X, LogOut, Download, FileDown, FileSpreadsheet, ExternalLink
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
+import { DashboardViewV2 } from '@/components/dashboard/v2/DashboardViewV2';
+import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
+import TaskNotificationBell from '@/components/TaskNotificationBell';
+import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
+import { isNonWorkingDay } from '@/lib/gantt-calculator';
+
+
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
+const normalizeDashboardText = (value: unknown) =>
+    String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+
+const isHeadOfficeCabang = (value: unknown) => normalizeDashboardText(value) === 'HEAD OFFICE';
+
+const isHeadOfficeProject = (project: any) => isHeadOfficeCabang(project?.toko?.cabang);
+
+const PAUSED_STORE_DOCUMENT_MESSAGE =
+    "Akses Penyimpanan Dokumen Toko diberhentikan sementara. Penyimpanan dokumen saat ini terpusat di GDrive regional.";
+const DENDA_TIER_1_DAYS = 5;
+const DENDA_TIER_1_RATE = 1_000_000;
+const DENDA_TIER_2_DAYS = 5;
+const DENDA_TIER_2_RATE = 500_000;
+const DENDA_MAX_NOMINAL = 7_500_000;
+const DENDA_ACTION_THRESHOLD_DAYS = 11;
+
+const readDashboardField = (value: unknown, key: string) => {
+    if (!value || typeof value !== 'object') return undefined;
+    return (value as Record<string, unknown>)[key];
+};
+
+const asDashboardArray = (value: unknown): Record<string, unknown>[] => {
+    if (Array.isArray(value)) return value.filter(Boolean) as Record<string, unknown>[];
+    return value ? [value as Record<string, unknown>] : [];
+};
+
+const projectMatchesCompany = (project: unknown, companyName: string) => {
+    const normalizedCompany = normalizeDashboardText(companyName);
+    if (!normalizedCompany) return false;
+
+    const toko = readDashboardField(project, 'toko');
+    const rabList = asDashboardArray(readDashboardField(project, 'rab'));
+    const spkList = asDashboardArray(readDashboardField(project, 'spk'));
+    const companyCandidates = [
+        readDashboardField(toko, 'nama_pt'),
+        readDashboardField(toko, 'nama_kontraktor'),
+        ...rabList.flatMap(rab => [rab.nama_pt, rab.nama_kontraktor]),
+        ...spkList.flatMap(spk => [spk.nama_pt, spk.nama_kontraktor]),
+    ];
+
+    return companyCandidates.some(candidate => normalizeDashboardText(candidate) === normalizedCompany);
+};
+
+const SP_DASHBOARD_ACTIVE_STATUSES = new Set([
+    'WAITING_MANAGER',
+    'APPROVED',
+    'SENT_TO_CONTRACTOR',
+    'VIEWED_BY_CONTRACTOR',
+    'ACKNOWLEDGED_BY_CONTRACTOR',
+]);
+
+const canViewInternalSpDashboard = (roles: string[]) =>
+    roles.some(role =>
+        role === 'BRANCH BUILDING & MAINTENANCE MANAGER' ||
+        role.includes('BRANCH BUILDING COORDINATOR') ||
+        role.includes('KOORDINATOR') ||
+        role.includes('COORDINATOR') ||
+        role.includes('SUPER HUMAN')
+    );
+
+const parseDashboardDate = (value: unknown): Date | null => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+        const [, day, month, year] = slashMatch;
+        return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+};
+
+const dashboardDateKey = (value: unknown) => {
+    const date = parseDashboardDate(value);
+    if (!date) return null;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const isDashboardStoredStDateSynced = (project: any, opname: any) => {
+    const stArr = Array.isArray(project?.berkas_serah_terima)
+        ? project.berkas_serah_terima
+        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const stored = dashboardDateKey(opname?.tanggal_serah_terima_denda);
+    const actual = dashboardDateKey(stArr[0]?.created_at);
+    return !stored || !actual || stored === actual;
+};
+
+const dashboardDayDiff = (from: Date | null, to: Date | null = new Date()) => {
+    if (!from || !to) return 0;
+    return Math.max(0, Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
+};
+
+const isDashboardDateEffective = (value: unknown, now = new Date()) => {
+    const date = parseDashboardDate(value);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Boolean(date && date.getTime() < today.getTime());
+};
+
+const addDashboardDays = (date: Date, days: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const isDashboardWeekend = (date: Date) => {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+};
+
+const nextDashboardBusinessDayAfter = (date: Date) => {
+    let current = addDashboardDays(date, 1);
+    while (isNonWorkingDay(current)) current = addDashboardDays(current, 1);
+    return current;
+};
+
+const countDashboardWeekdaysAfter = (freeDate: Date, compareDate: Date) => {
+    if (compareDate <= freeDate) return 0;
+    return Math.max(0, Math.floor((compareDate.getTime() - freeDate.getTime()) / (1000 * 60 * 60 * 24)));
+};
+
+const isApprovedDashboardSpk = (spk: any) => {
+    const status = String(spk?.status || '').toUpperCase();
+    return ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status);
+};
+
+const getApprovedDashboardSpks = (project: any) => {
+    const spkArr = Array.isArray(project?.spk) ? project.spk : (project?.spk ? [project.spk] : []);
+    const approved = spkArr.filter(isApprovedDashboardSpk);
+    return approved.length > 0 ? approved : (spkArr[0] ? [spkArr[0]] : []);
+};
+
+const getSpkEffectiveEndDate = (spk: any, project?: any) => {
+    // CROSS-LINGKUP FIX: Check pertambahan_spk for entire ULOK, not just this SPK
+    // If project is provided, check all SPKs within same ULOK
+    let pertambahanArr: any[] = [];
+    
+    if (project) {
+        // Get all SPKs for this project (same ULOK)
+        const allSpks = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+        
+        // Collect all pertambahan_spk from all SPKs in the ULOK
+        allSpks.forEach((projectSpk: any) => {
+            const spkPertambahan = Array.isArray(projectSpk?.pertambahan_spk) 
+                ? projectSpk.pertambahan_spk 
+                : [];
+            pertambahanArr.push(...spkPertambahan);
+        });
+    } else {
+        // Fallback to per-SPK if no project context
+        pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    }
+    
+    const approvedPertambahanDates = pertambahanArr
+        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
+        .map((pt: any) => parseDashboardDate(pt?.tanggal_spk_akhir_setelah_perpanjangan))
+        .filter(Boolean) as Date[];
+    const latestPertambahanDate = approvedPertambahanDates.sort((a, b) => b.getTime() - a.getTime())[0];
+    return latestPertambahanDate || parseDashboardDate(spk?.waktu_selesai);
+};
+
+const getSpkAllowedDays = (spk: any, project?: any) => {
+    const durasi = Number(spk?.durasi || 0);
+    
+    // CROSS-LINGKUP FIX: Check pertambahan for entire ULOK
+    let pertambahanArr: any[] = [];
+    
+    if (project) {
+        const allSpks = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+        allSpks.forEach((projectSpk: any) => {
+            const spkPertambahan = Array.isArray(projectSpk?.pertambahan_spk) 
+                ? projectSpk.pertambahan_spk 
+                : [];
+            pertambahanArr.push(...spkPertambahan);
+        });
+    } else {
+        pertambahanArr = Array.isArray(spk?.pertambahan_spk) ? spk.pertambahan_spk : [];
+    }
+    
+    const totalPertambahan = pertambahanArr
+        .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase()))
+        .reduce((sum: number, pt: any) => sum + Number(pt?.pertambahan_hari || 0), 0);
+    return durasi + totalPertambahan;
+};
+
+const getProjectAllowedDays = (project: any) => {
+    return Math.max(0, ...getApprovedDashboardSpks(project).map((spk: any) => getSpkAllowedDays(spk, project)));
+};
+
+const getLatestProjectSpkEndDate = (project: any) => {
+    const candidateDates: Array<Date | null> = getApprovedDashboardSpks(project)
+        .map((spk: any) => getSpkEffectiveEndDate(spk, project));
+    return candidateDates
+        .filter((date: Date | null): date is Date => Boolean(date))
+        .sort((a: Date, b: Date) => b.getTime() - a.getTime())[0];
+};
+
+const calculateProjectLateDays = (project: any, compareFallback = new Date()) => {
+    const opnameFinalArr = Array.isArray(project?.opname_final)
+        ? project.opname_final
+        : (project?.opname_final ? [project.opname_final] : []);
+    const latestOpnameFinal = opnameFinalArr[0];
+    const backendDendaHari = Number(latestOpnameFinal?.hari_denda ?? NaN);
+    const backendHasPenaltyDates = Boolean(latestOpnameFinal?.tanggal_akhir_spk_denda || latestOpnameFinal?.tanggal_serah_terima_denda);
+    if (backendHasPenaltyDates && Number.isFinite(backendDendaHari) && isDashboardStoredStDateSynced(project, latestOpnameFinal)) {
+        return Math.max(0, backendDendaHari);
+    }
+
+    const latestEndDate = getLatestProjectSpkEndDate(project);
+    if (!latestEndDate) return 0;
+
+    const stArr = Array.isArray(project?.berkas_serah_terima)
+        ? project.berkas_serah_terima
+        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const stDate = parseDashboardDate(stArr[0]?.created_at) || parseDashboardDate(compareFallback.toISOString());
+    if (!stDate) return 0;
+
+    return countDashboardWeekdaysAfter(nextDashboardBusinessDayAfter(latestEndDate), stDate);
+};
+
+const calculateProjectPenalty = (lateDays: number) => {
+    if (lateDays <= 0) return 0;
+    const hariPertama = Math.min(lateDays, DENDA_TIER_1_DAYS);
+    const hariBerikutnya = Math.max(0, Math.min(lateDays - DENDA_TIER_1_DAYS, DENDA_TIER_2_DAYS));
+    return Math.min((hariPertama * DENDA_TIER_1_RATE) + (hariBerikutnya * DENDA_TIER_2_RATE), DENDA_MAX_NOMINAL);
+};
+
+const normalizeStorePenaltyKeyPart = (value: unknown) => {
+    return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+};
+
+const getProjectStorePenaltyKey = (project: any) => {
+    const nomorUlok = normalizeStorePenaltyKeyPart(project?.toko?.nomor_ulok);
+    if (nomorUlok) return `ULOK|${nomorUlok}`;
+
+    const kodeToko = normalizeStorePenaltyKeyPart(project?.toko?.kode_toko);
+    if (kodeToko) return `KODE|${kodeToko}`;
+
+    const cabang = normalizeStorePenaltyKeyPart(project?.toko?.cabang);
+    const namaToko = normalizeStorePenaltyKeyPart(project?.toko?.nama_toko);
+    if (namaToko) return `NAMA|${cabang}|${namaToko}`;
+
+    return `TOKO_ID|${project?.toko?.id || 'UNKNOWN'}`;
+};
+
+const getProjectOpnameFinals = (project: any) => {
+    return Array.isArray(project?.opname_final)
+        ? project.opname_final
+        : (project?.opname_final ? [project.opname_final] : []);
+};
+
+const getLatestProjectOpnameFinal = (project: any) => {
+    return getProjectOpnameFinals(project)[0] ?? null;
+};
+
+type ProjectPenaltyInfo = {
+    amount: number;
+    days: number;
+    source: 'Resmi' | 'Estimasi';
+    targetKategori: 'OPNAME_FINAL';
+    requiresAction: boolean;
+    actionOptions: Array<'SP' | 'TAKEOVER'>;
+};
+
+const getContractorSpDashboardKey = (action: DendaAction) => {
+    const nomorSurat = normalizeDashboardText(action.nomor_surat);
+    if (nomorSurat) return `SURAT|${nomorSurat}`;
+    return [
+        'SP',
+        normalizeDashboardText(action.nomor_ulok),
+        action.sp_level || '-',
+        normalizeDashboardText(action.alasan_sp),
+        normalizeDashboardText(action.nama_kontraktor),
+    ].join('|');
+};
+
+const getContractorSpStatusRank = (status: string) => ({
+    APPROVED: 1,
+    SENT_TO_CONTRACTOR: 2,
+    VIEWED_BY_CONTRACTOR: 3,
+    ACKNOWLEDGED_BY_CONTRACTOR: 4,
+}[status] ?? 0);
+
+const getUniqueContractorDashboardSp = (actions: DendaAction[]) => {
+    const grouped = new Map<string, DendaAction>();
+    actions.forEach((action) => {
+        const key = getContractorSpDashboardKey(action);
+        const current = grouped.get(key);
+        if (!current) {
+            grouped.set(key, action);
+            return;
+        }
+
+        const nextRank = getContractorSpStatusRank(action.status);
+        const currentRank = getContractorSpStatusRank(current.status);
+        const nextTime = new Date(action.updated_at || action.created_at).getTime();
+        const currentTime = new Date(current.updated_at || current.created_at).getTime();
+        if (nextRank > currentRank || (nextRank === currentRank && (nextTime > currentTime || action.id > current.id))) {
+            grouped.set(key, action);
+        }
+    });
+    return Array.from(grouped.values()).sort((a, b) => b.id - a.id);
+};
+
+const getProjectPenaltyInfo = (project: any, lateDays?: number): ProjectPenaltyInfo => {
+    const calculatedDays = lateDays ?? calculateProjectLateDays(project);
+    const calculatedAmount = calculateProjectPenalty(calculatedDays);
+
+    const latestOpnameFinal = getLatestProjectOpnameFinal(project);
+    if (latestOpnameFinal) {
+        const dbAmount = Math.max(0, parseCurrency(latestOpnameFinal.nilai_denda));
+        const dbDays = Number(latestOpnameFinal.hari_denda ?? 0);
+
+        // If opname_final has tanggal_akhir_spk_denda set, a real denda calculation has been
+        // persisted (even if the result is 0 â€“ e.g. ME peer delivered on time â†’ minimum = 0).
+        // In that case we MUST use the official stored values and NOT fall through to estimasi.
+        const hasOfficialCalculation =
+            Boolean(latestOpnameFinal.tanggal_akhir_spk_denda)
+            && isDashboardStoredStDateSynced(project, latestOpnameFinal);
+
+        if (dbAmount > 0 || dbDays > 0 || hasOfficialCalculation) {
+            return {
+                amount: dbAmount,
+                days: dbDays,
+                source: 'Resmi' as const,
+                targetKategori: 'OPNAME_FINAL',
+                requiresAction: dbDays >= DENDA_ACTION_THRESHOLD_DAYS,
+                actionOptions: dbDays >= DENDA_ACTION_THRESHOLD_DAYS ? ['SP', 'TAKEOVER'] : [],
+            };
+        }
+    }
+
+    return {
+        amount: calculatedAmount,
+        days: calculatedDays,
+        source: 'Estimasi' as const,
+        targetKategori: 'OPNAME_FINAL',
+        requiresAction: calculatedDays >= DENDA_ACTION_THRESHOLD_DAYS,
+        actionOptions: calculatedDays >= DENDA_ACTION_THRESHOLD_DAYS ? ['SP', 'TAKEOVER'] : [],
+    };
+};
+
+
+const compareProjectPenaltyInfo = (current: ProjectPenaltyInfo | undefined, next: ProjectPenaltyInfo) => {
+    if (!current) return next;
+    if (current.source !== next.source) {
+        return next.source === 'Resmi' ? next : current;
+    }
+    return next.amount > current.amount ? next : current;
+};
+
+const getUniquePenaltyProjects = (projects: any[]) => {
+    const byStore = new Map<string, { project: any; penalty: ProjectPenaltyInfo; createdAt: number }>();
+
+    projects.forEach((project) => {
+        const key = getProjectStorePenaltyKey(project);
+        const latestOpnameFinal = getLatestProjectOpnameFinal(project);
+        const penalty = getProjectPenaltyInfo(project);
+        const createdAt = new Date(latestOpnameFinal?.created_at || project?.toko?.created_at || 0).getTime() || 0;
+        const existing = byStore.get(key);
+        const selectedPenalty = compareProjectPenaltyInfo(existing?.penalty, penalty);
+
+        if (
+            !existing ||
+            selectedPenalty !== existing.penalty ||
+            (penalty.amount === existing.penalty.amount && penalty.source === existing.penalty.source && createdAt > existing.createdAt)
+        ) {
+            byStore.set(key, { project, penalty, createdAt });
+        }
+    });
+
+    return Array.from(byStore.values()).map((entry) => entry.project);
+};
+
+const getProjectStage = (project: any): string => {
+    const now = new Date();
+    const hasRAB = (project.rab || []).length > 0;
+    const rabData = project.rab?.[0];
+    const rabStatus = (rabData?.status || '').toUpperCase();
+    const isRabMenungguGantt = rabStatus === 'MENUNGGU GANTT CHART';
+    const isRabDisetujui = rabData && rabStatus === 'DISETUJUI';
+    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+    const hasSPK = spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
+    const hasApprovalSPK = spkArray.some((s: any) => (s.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL');
+    const stArray = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const hasST = stArray.some((st: any) => isDashboardDateEffective(st?.created_at, now));
+    const hasSTDocument = stArray.some((st: any) =>
+        String(st?.link_pdf || '').trim() && isDashboardDateEffective(st?.created_at, now)
+    );
+    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim() && isDashboardDateEffective(o?.created_at, now));
+    const hasOpnamePdf = !!opnameData;
+    const isOpnameDisetujui = opnameData && (opnameData.status_opname_final || '').toUpperCase() === 'DISETUJUI';
+    const hasDirectorApproval = isDashboardDateEffective(opnameData?.waktu_persetujuan_direktur, now);
+
+    if (hasOpnamePdf && isOpnameDisetujui && hasDirectorApproval) return 'Done';
+    if (hasOpnamePdf && !isOpnameDisetujui) return 'Kerja Tambah Kurang';
+    if (hasOpnamePdf && isOpnameDisetujui && !hasDirectorApproval) return 'Kerja Tambah Kurang';
+    if (hasST) return 'Kerja Tambah Kurang';
+    if (hasSPK) return 'Ongoing';
+    if (hasApprovalSPK) return 'Approval SPK';
+    if (isRabDisetujui) return 'Proses PJU';
+    if (hasRAB && isRabMenungguGantt) return 'Proses Gantt';
+    return 'Approval RAB';
+};
+
+const isProjectPastSla = (project: any, stage = getProjectStage(project)) => {
+    const now = new Date();
+    const rabData = project.rab?.[0];
+    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim()) || opnameArr[0];
+    const stArr = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const latestSt = stArr
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+
+    if (stage === 'Ongoing') {
+        const approvedSpks = getApprovedDashboardSpks(project);
+        if (approvedSpks.length === 0) return false;
+        const waktuMulai = approvedSpks
+            .map((spk: any) => parseDashboardDate(spk.waktu_mulai || spk.created_at))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(waktuMulai, now) > getProjectAllowedDays(project);
+    }
+
+    if (stage === 'Approval SPK') {
+        const spkData = spkArray.find((spk: any) => String(spk?.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL') || spkArray[0];
+        const start = parseDashboardDate(spkData?.created_at);
+        const end = parseDashboardDate(spkData?.waktu_persetujuan) || now;
+        return dashboardDayDiff(start, end) > 2;
+    }
+
+    if (stage === 'Approval RAB') {
+        const start = parseDashboardDate(rabData?.created_at || project.toko?.created_at);
+        const end = parseDashboardDate(rabData?.waktu_persetujuan_manager) || now;
+        return dashboardDayDiff(start, end) > 2;
+    }
+
+    if (stage === 'Proses Gantt') {
+        return false;
+    }
+
+    if (stage === 'Proses PJU') {
+        const start = parseDashboardDate(rabData?.waktu_persetujuan_manager);
+        const firstSpkCreated = spkArray
+            .map((spk: any) => parseDashboardDate(spk?.created_at))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(start, firstSpkCreated || now) > 10;
+    }
+
+    if (stage === 'Kerja Tambah Kurang') {
+        const start = parseDashboardDate(latestSt?.created_at);
+        const end = parseDashboardDate(opnameData?.created_at) || now;
+        return dashboardDayDiff(start, end) > 14;
+    }
+
+    return false;
+};
+
+const getProjectStageElapsedDays = (project: any, stage = getProjectStage(project)) => {
+    if (stage === 'Proses Gantt' || stage === 'Done') return 1;
+
+    const now = new Date();
+    const rabData = project.rab?.[0];
+    const spkArray = Array.isArray(project.spk) ? project.spk : (project.spk ? [project.spk] : []);
+    const opnameArr = Array.isArray(project.opname_final) ? project.opname_final : (project.opname_final ? [project.opname_final] : []);
+    const opnameData = opnameArr.find((o: any) => String(o?.link_pdf_opname || '').trim()) || opnameArr[0];
+    const stArr = Array.isArray(project.berkas_serah_terima) ? project.berkas_serah_terima : (project.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    const latestSt = stArr
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+
+    if (stage === 'Ongoing') {
+        const approvedSpks = getApprovedDashboardSpks(project);
+        const start = approvedSpks
+            .map((spk: any) => parseDashboardDate(spk.waktu_mulai))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(start, now);
+    }
+
+    if (stage === 'Approval SPK') {
+        const spkData = spkArray.find((spk: any) => String(spk?.status || '').toUpperCase() === 'WAITING_FOR_BM_APPROVAL') || spkArray[0];
+        return dashboardDayDiff(parseDashboardDate(spkData?.created_at), parseDashboardDate(spkData?.waktu_persetujuan) || now);
+    }
+
+    if (stage === 'Approval RAB') {
+        return dashboardDayDiff(parseDashboardDate(rabData?.created_at || project.toko?.created_at), parseDashboardDate(rabData?.waktu_persetujuan_manager) || now);
+    }
+
+    if (stage === 'Proses PJU') {
+        const firstSpkCreated = spkArray
+            .map((spk: any) => parseDashboardDate(spk?.created_at))
+            .filter((date: Date | null): date is Date => Boolean(date))
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0] || null;
+        return dashboardDayDiff(parseDashboardDate(rabData?.waktu_persetujuan_manager), firstSpkCreated || now);
+    }
+
+    if (stage === 'Kerja Tambah Kurang') {
+        return dashboardDayDiff(parseDashboardDate(latestSt?.created_at), parseDashboardDate(opnameData?.created_at) || now);
+    }
+
+    return 0;
+};
+
+const getLatestSerahTerima = (project: any) => {
+    const arr = Array.isArray(project?.berkas_serah_terima)
+        ? project.berkas_serah_terima
+        : (project?.berkas_serah_terima ? [project.berkas_serah_terima] : []);
+    return arr
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0] ?? null;
+};
+
+const getProjectFinancialSummary = (project: any) => {
+    const rab = project?.rab?.[0];
+    const spkArr = Array.isArray(project?.spk) ? project.spk : (project?.spk ? [project.spk] : []);
+    const opname = getLatestProjectOpnameFinal(project);
+    const spkTotal = spkArr
+        .filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(String(s.status).toUpperCase()))
+        .reduce((sum: number, s: any) => sum + parseCurrency(s.grand_total || s.total_harga), 0);
+    return {
+        penawaran: parseCurrency(rab?.grand_total_final),
+        spk: spkTotal,
+        opname: parseCurrency(opname?.grand_total_opname),
+    };
+};
+
+const getStoreQualityScore = (items: any[]) => {
+    if (!items.length) return { desain: 0, kualitas: 0, spesifikasi: 0, total: 0 };
+    const desain = (items.filter((i: any) => i.desain === 'Sesuai').length / items.length) * 30;
+    const kualitas = (items.filter((i: any) => i.kualitas === 'Baik').length / items.length) * 35;
+    const spesifikasi = (items.filter((i: any) => i.spesifikasi === 'Sesuai').length / items.length) * 35;
+    return { desain, kualitas, spesifikasi, total: desain + kualitas + spesifikasi };
+};
+
+// =============================================================================
+// GLOBAL CACHE FOR DASHBOARD DATA (Prevents full reload on navigation back)
+// =============================================================================
+const dashboardCache = {
+    projects: null as any[] | null,
+    cabangList: [] as string[],
+    opnameMap: {} as Record<number, any[]>,
+    timestamp: 0,
+    email: '',
+};
+const CACHE_TTL = 300_000; // 5 minutes
+
+export default function DashboardPage() {
+    const router = useRouter();
+
+    const [userInfo, setUserInfo]           = useState({ name: '', roles: [] as string[], cabang: '', namaPt: '' });
+    const [allowedMenus, setAllowedMenus]   = useState<any[]>([]);
+    const [isLoading, setIsLoading]         = useState(true);
+    const [isDataLoading, setIsDataLoading] = useState(false);
+    const [detailModal, setDetailModal] = useState({ open: false, title: '', context: '', subContext: '' });
+    const [modalPage, setModalPage] = useState(1);
+    const [expandedRow, setExpandedRow] = useState<number | null>(null);
+    const itemsPerPage = 5;
+    const [sidebarOpen, setSidebarOpen]     = useState(true);
+    const [isCompanyScopedUser, setIsCompanyScopedUser] = useState(false);
+    const [canViewMonitoringDashboard, setCanViewMonitoringDashboard] = useState(false);
+    const [approvalCounts, setApprovalCounts] = useState<ApprovalCounts>(EMPTY_APPROVAL_COUNTS);
+    const [rabRevisionCount, setRabRevisionCount] = useState(0);
+    const [rabPlanningRequestCount, setRabPlanningRequestCount] = useState(0);
+    const [contractorSpSummary, setContractorSpSummary] = useState<{ active: number; pendingAck: number; highestLevel: number; latest?: DendaAction } | null>(null);
+    const [internalSpContractorCount, setInternalSpContractorCount] = useState(0);
+
+    // Data State
+    const [projects, setProjects] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCabang, setSelectedCabang] = useState('ALL');
+    const [selectedProyek, setSelectedProyek] = useState('ALL');
+    const [cabangList, setCabangList] = useState<string[]>([]);
+    const [exportingFormat, setExportingFormat] = useState<DashboardExportFormat | null>(null);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
+    const [pendingExportFormat, setPendingExportFormat] = useState<DashboardExportFormat>("xlsx");
+    const [exportSearch, setExportSearch] = useState('');
+    const [selectedExportIds, setSelectedExportIds] = useState<Set<number>>(() => new Set());
+
+    // Opname items map keyed by id_toko â€” populated once via bulk fetch
+    const [opnameItemsMap, setOpnameItemsMap] = useState<Record<number, any[]>>({});
+    // RAB items map keyed by rab.id â€” populated once after dashboard load
+    const [rabItemsMap, setRabItemsMap] = useState<Record<number, any[]>>({});
+
+    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+    const [featureAlertOpen, setFeatureAlertOpen] = useState(false);
+    const [featureAlert, setFeatureAlert] = useState({
+        title: "Fitur Belum Tersedia",
+        description: "Fitur ini belum tersedia saat ini.",
+    });
+
+    const showFeatureAlert = useCallback((title: string, description: string) => {
+        setFeatureAlert({ title, description });
+        setFeatureAlertOpen(true);
+    }, []);
+
+    // =========================================================================
+    // SESSION
+    // =========================================================================
+    const { user } = useSession();
+
+    // =========================================================================
+    // INIT
+    // =========================================================================
+    useEffect(() => {
+        if (!user) return;
+
+        const { cabang: userCabang, namaLengkap, namaPt, roles, isHO, isSuperHuman, isRegionalManager } = user;
+
+        // Handle Multi-Role (DIREKTUR, KONTRAKTOR)
+        const contractorFlag = roles.some(r => r.includes('KONTRAKTOR'));
+        const directorFlag = roles.some(r => r.includes('DIREKTUR'));
+        const companyScopedRole = contractorFlag || directorFlag;
+
+        let combinedAllowedIds: string[] = [];
+        roles.forEach(r => {
+            if (ROLE_CONFIG[r]) {
+                combinedAllowedIds = [...combinedAllowedIds, ...ROLE_CONFIG[r]];
+            }
+        });
+
+        // Unique IDs
+        let allowedIds = Array.from(new Set(combinedAllowedIds));
+
+        if (isSuperHuman) {
+            allowedIds = ALL_MENUS.map(m => m.id);
+        } else if (allowedIds.length === 0) {
+            allowedIds = [...(ROLE_CONFIG[isHO ? 'HEAD OFFICE' : 'BRANCH BUILDING SUPPORT'] ?? [])];
+        }
+
+        // Super Human gets menu-users explicitly (already in ROLE_CONFIG but ensure it)
+        if (isSuperHuman) {
+            allowedIds.push("menu-users");
+        }
+
+        if (
+            ['MANADO', 'BOGOR'].includes(userCabang.toUpperCase()) &&
+            roles.includes('BRANCH BUILDING & MAINTENANCE MANAGER')
+        ) {
+            allowedIds.push("menu-inputpic");
+        }
+
+        if (
+            userCabang.toUpperCase() === 'BATAM' &&
+            roles.includes('BRANCH BUILDING COORDINATOR')
+        ) {
+            allowedIds.push("menu-spk");
+        }
+
+        if (!canAccessProjectPlanningByCabang(userCabang) && !isRegionalManager && !isSuperHuman) {
+            allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
+        }
+
+        const menuList = ALL_MENUS.filter(m => allowedIds.includes(m.id) && m.id !== "menu-dc-development");
+        setAllowedMenus(menuList);
+        setUserInfo({ name: namaLengkap.toUpperCase(), roles: roles, cabang: userCabang.toUpperCase(), namaPt });
+        setIsCompanyScopedUser(companyScopedRole);
+        
+        if (window.innerWidth <= 768) setSidebarOpen(false);
+
+        const canViewMonitoring = true;
+        setCanViewMonitoringDashboard(canViewMonitoring);
+
+        // Dashboard monitoring tersedia untuk semua cabang.
+        // Head Office, Super Human, dan role global view-only melihat semua cabang.
+        fetchDashboardData(
+            userCabang.toUpperCase(),
+            userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman),
+            user.email,
+            namaPt,
+            companyScopedRole,
+            false,
+            roles
+        );
+        fetchApprovalNotificationCounts(user)
+            .then(setApprovalCounts)
+            .catch(() => setApprovalCounts(EMPTY_APPROVAL_COUNTS));
+        if (contractorFlag) {
+            fetchTaskNotifications({ suppressGlobalError: true })
+                .then((result) => {
+                    const revisionRab = (result.data?.groups || []).find(group => group.key === 'revision_rab');
+                    setRabRevisionCount(revisionRab?.count || 0);
+                })
+                .catch(() => setRabRevisionCount(0));
+            fetchRabProjectPlanningRequests(user.email, { suppressGlobalError: true })
+                .then((result) => setRabPlanningRequestCount(result.count || 0))
+                .catch(() => setRabPlanningRequestCount(0));
+            fetchDendaActions({ action_type: "SP" })
+                .then((result) => {
+                    const active = getUniqueContractorDashboardSp(((result.data ?? []) as DendaAction[])
+                        .filter((item: DendaAction) => item.action_type === "SP")
+                        .filter((item: DendaAction) => !item.is_expired && ["APPROVED", "SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR", "ACKNOWLEDGED_BY_CONTRACTOR"].includes(item.status))
+                    );
+                    if (active.length === 0) {
+                        setContractorSpSummary(null);
+                        return;
+                    }
+                    setContractorSpSummary({
+                        active: active.length,
+                        pendingAck: active.filter((item) => ["SENT_TO_CONTRACTOR", "VIEWED_BY_CONTRACTOR"].includes(item.status)).length,
+                        highestLevel: Math.max(...active.map((item) => item.sp_level || 0)),
+                        latest: active[0],
+                    });
+                })
+                .catch(() => setContractorSpSummary(null));
+        } else {
+            setRabRevisionCount(0);
+            setRabPlanningRequestCount(0);
+            setContractorSpSummary(null);
+        }
+        if (!companyScopedRole && canViewInternalSpDashboard(roles)) {
+            fetchDendaActions({ action_type: "SP" })
+                .then((result) => {
+                    const canSeeAllSpBranches = userCabang.toUpperCase() === 'HEAD OFFICE' || canViewAllBranches(roles, isSuperHuman);
+                    const activeActions = (result.data || [])
+                        .filter((item) => SP_DASHBOARD_ACTIVE_STATUSES.has(item.status))
+                        .filter((item) => !item.is_expired)
+                        .filter((item) => canSeeAllSpBranches || canAccessBranchForUser(item.cabang, roles, userCabang, getSessionBranchCoverage()));
+
+                    const contractorKeys = new Set(
+                        activeActions.map((item) => normalizeDashboardText(item.nama_kontraktor) || `SP-${item.id}`)
+                    );
+                    setInternalSpContractorCount(contractorKeys.size);
+                })
+                .catch(() => setInternalSpContractorCount(0));
+        } else {
+            setInternalSpContractorCount(0);
+        }
+        setIsLoading(false);
+    }, [user]);
+
+    useEffect(() => {
+        if (detailModal.open) {
+            setModalPage(1);
+            setExpandedRow(null);
+        }
+    }, [detailModal.open, detailModal.context, detailModal.subContext]);
+
+    const fetchDashboardData = async (
+        userCabang: string,
+        canSeeAllBranches = false,
+        userEmail = '',
+        userNamaPt = '',
+        shouldFilterByCompany = false,
+        forceRefresh = false,
+        userRoles: string[] = []
+    ) => {
+        const now = Date.now();
+        const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail;
+
+        if (isCacheValid) {
+            const cachedProjects = dashboardCache.projects!.filter((p: any) => !isHeadOfficeProject(p));
+            setProjects(cachedProjects);
+            setCabangList(dashboardCache.cabangList.filter((cabang) => !isHeadOfficeCabang(cabang)));
+            setOpnameItemsMap(dashboardCache.opnameMap);
+            return;
+        }
+
+        setIsDataLoading(true);
+        try {
+            // Fetch dari API real
+            const json = await fetchDashboardAll();
+            let data = json.data || [];
+            data = data.filter((p: any) => !isHeadOfficeProject(p));
+            
+            // Head Office, Super Human, dan role global view-only melihat semua cabang.
+            // User cabang biasa hanya melihat cabang session-nya sendiri.
+            let allowedBranches: string[] = [];
+            if (!canSeeAllBranches || shouldFilterByCompany) {
+                // Expand allowedBranches untuk branch support users (Cikokol, Cileungsi, dll)
+                const sessionCoverage = getSessionBranchCoverage();
+                const accessibleBranches = getAccessibleBranchesForUser(userRoles, userCabang, sessionCoverage);
+                allowedBranches = accessibleBranches.length > 0 ? accessibleBranches : [userCabang];
+                data = data.filter((p: any) => allowedBranches.map(b => b.toUpperCase()).includes((p.toko?.cabang || '').toUpperCase()));
+                // Untuk user cabang/branch: tampilkan semua sub-cabang yang ada di data
+                const actualBranches = Array.from(new Set(data.map((p: any) => (p.toko?.cabang || '').toUpperCase()).filter(Boolean))) as string[];
+                setCabangList(actualBranches.sort());
+            } else {
+                allowedBranches = Array.from(new Set(data.map((p: any) => p.toko?.cabang?.toUpperCase()).filter(Boolean)));
+                // Untuk HO/SuperHuman: collapse ke cabang induk saja di dropdown
+                const parentBranches = Array.from(new Set(allowedBranches.map(b => getParentBranch(b))));
+                setCabangList(parentBranches.sort());
+            }
+
+            if (shouldFilterByCompany) {
+                data = data.filter((p: unknown) => projectMatchesCompany(p, userNamaPt));
+            }
+
+            setProjects(data);
+
+            const opnameMap: Record<number, any[]> = {};
+
+            data.forEach((project: any) => {
+                const tokoId = project.toko?.id;
+                const opnameFinals = Array.isArray(project.opname_final)
+                    ? project.opname_final
+                    : (project.opname_final ? [project.opname_final] : []);
+
+                opnameFinals.forEach((final: any) => {
+                    const items = Array.isArray(final?.items) ? final.items : [];
+                    if (!tokoId || items.length === 0) return;
+                    if (!opnameMap[tokoId]) opnameMap[tokoId] = [];
+                    opnameMap[tokoId].push(...items);
+                });
+
+            });
+
+            setOpnameItemsMap(opnameMap);
+
+            // Update cache
+            dashboardCache.projects = data;
+            dashboardCache.cabangList = allowedBranches.sort();
+            dashboardCache.opnameMap = opnameMap;
+            dashboardCache.timestamp = now;
+            dashboardCache.email = userEmail;
+
+        } catch (err) {
+            console.error('Gagal memuat data dashboard:', err);
+            setProjects([]);
+            setCabangList([]);
+            setOpnameItemsMap({});
+        } finally {
+            setIsDataLoading(false);
+        }
+    };
+
+    const canExportDashboard = false;
+
+    const handleDownloadDashboardExport = async (format: DashboardExportFormat, tokoIds?: number[]) => {
+        if (!canExportDashboard || exportingFormat) return;
+        if (tokoIds && tokoIds.length === 0) {
+            setFeatureAlert({
+                title: "Pilih Data Export",
+                description: "Centang minimal satu toko sebelum menarik data.",
+            });
+            setFeatureAlertOpen(true);
+            return;
+        }
+
+        setExportingFormat(format);
+        try {
+            await downloadDashboardExport({
+                format,
+                actorRole: userInfo.roles.join(', '),
+                actorCabang: userInfo.cabang,
+                cabang: selectedCabang,
+                search: searchQuery,
+                tokoIds,
+            });
+            setExportDialogOpen(false);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Gagal mengunduh export dashboard.';
+            setFeatureAlert({
+                title: "Export Dashboard Gagal",
+                description: message,
+            });
+            setFeatureAlertOpen(true);
+        } finally {
+            setExportingFormat(null);
+        }
+    };
+
+
+
+    // Logic for filtered projects
+    const filteredProjects = useMemo(() => {
+        return projects.filter(p => {
+            if (isHeadOfficeProject(p)) return false;
+            const matchSearch = 
+                p.toko.nomor_ulok?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.toko.nama_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.toko.kode_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.toko.cabang?.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            const pCabang = (p.toko?.cabang || '').toUpperCase();
+            const canSeeAllBranches = canViewAllBranches(userInfo?.roles, user?.isSuperHuman);
+            // HO: match by parent cabang group. User cabang/branch: match exact sub-cabang
+            const matchCabang = selectedCabang === 'ALL'
+                ? true
+                : canSeeAllBranches
+                    ? getParentBranch(pCabang) === selectedCabang
+                    : pCabang === selectedCabang;
+            
+            const pProyek = (p.toko?.proyek || '').toUpperCase();
+            const matchProyek = 
+                selectedProyek === 'ALL' ? true :
+                selectedProyek === 'RENOVASI' ? pProyek.includes('RENOVASI') || pProyek.includes('PERBAIKAN') || pProyek.includes('PEREMAJAAN') :
+                selectedProyek === 'REGULER' ? pProyek === 'REGULER' || pProyek === 'ALFAMART REGULER' :
+                false;
+
+            return matchSearch && matchCabang && matchProyek;
+        });
+    }, [projects, searchQuery, selectedCabang, selectedProyek, userInfo?.roles, user?.isSuperHuman]);
+
+    const exportCandidates = useMemo(() => {
+        return filteredProjects
+            .filter((project) => Number(project?.toko?.id) > 0)
+            .sort((a, b) => String(a?.toko?.nama_toko || '').localeCompare(String(b?.toko?.nama_toko || ''), 'id'));
+    }, [filteredProjects]);
+
+    const visibleExportCandidates = useMemo(() => {
+        const query = exportSearch.trim().toLowerCase();
+        if (!query) return exportCandidates;
+        return exportCandidates.filter((project) => {
+            const toko = project.toko || {};
+            return [toko.nama_toko, toko.nomor_ulok, toko.kode_toko, toko.cabang, toko.lingkup_pekerjaan]
+                .some((value) => String(value || '').toLowerCase().includes(query));
+        });
+    }, [exportCandidates, exportSearch]);
+
+    const selectedExportCount = selectedExportIds.size;
+    const visibleExportIds = visibleExportCandidates.map((project) => Number(project.toko.id));
+    const allVisibleExportSelected = visibleExportIds.length > 0
+        && visibleExportIds.every((id) => selectedExportIds.has(id));
+
+    const openExportSelector = (format: DashboardExportFormat) => {
+        setPendingExportFormat(format);
+        setExportSearch('');
+        setSelectedExportIds(new Set());
+        setExportDialogOpen(true);
+    };
+
+    const toggleExportSelection = (id: number, checked: boolean) => {
+        setSelectedExportIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+        });
+    };
+
+    const toggleVisibleExportSelection = (checked: boolean) => {
+        setSelectedExportIds((prev) => {
+            const next = new Set(prev);
+            visibleExportIds.forEach((id) => {
+                if (checked) next.add(id);
+                else next.delete(id);
+            });
+            return next;
+        });
+    };
+
+    const handleOpenPenaltyProject = useCallback((project: any) => {
+        const penaltyInfo = getProjectPenaltyInfo(project);
+        const nomorUlok = String(project?.toko?.nomor_ulok || '').trim();
+        const query = new URLSearchParams({
+            kategori: penaltyInfo.targetKategori,
+            q: nomorUlok || String(project?.toko?.nama_toko || ''),
+        });
+        router.push(`/list?${query.toString()}`);
+    }, [router]);
+
+    const handleOpenSerahTerima = useCallback(async (project: any) => {
+        const serahTerima = getLatestSerahTerima(project);
+        if (!serahTerima) return;
+        if (serahTerima.id) {
+            await viewGeneratedPdfOnline(serahTerima.id, 'BERKAS_SERAH_TERIMA');
+            return;
+        }
+        console.warn('Berkas serah terima tidak memiliki ID untuk dibuka lewat viewer aplikasi.', serahTerima);
+    }, []);
+
+    const canOpenDashboardSource = useCallback((_project: any, context: string) => {
+        const hasDocumentAccess = allowedMenus.some(menu => menu.id === "menu-daftardokumen");
+        if (context === "PROJECT_PLANNING") {
+            return allowedMenus.some(menu => menu.id === "menu-projek-planning");
+        }
+        return hasDocumentAccess;
+    }, [allowedMenus]);
+
+    const handleOpenDashboardSource = useCallback((project: any, context: string) => {
+        if (!canOpenDashboardSource(project, context)) return;
+        const stage = getProjectStage(project);
+        const hasSerahTerima = Boolean(getLatestSerahTerima(project));
+        let kategori = "RAB";
+
+        if (context === "SPK" || context === "JHK" || context === "DELAY" || ["Approval SPK", "Ongoing"].includes(stage)) {
+            kategori = "SPK";
+        } else if (context === "DENDA" || context === "NILAI_TOKO" || stage === "Kerja Tambah Kurang") {
+            kategori = "OPNAME_FINAL";
+        } else if (stage === "Done" && hasSerahTerima) {
+            kategori = "BERKAS_SERAH_TERIMA";
+        } else if (context === "COST_M2") {
+            kategori = getLatestProjectOpnameFinal(project) ? "OPNAME_FINAL" : "RAB";
+        }
+
+        const query = new URLSearchParams({
+            kategori,
+            q: String(project?.toko?.nomor_ulok || project?.toko?.nama_toko || ""),
+        });
+        router.push(`/list?${query.toString()}`);
+    }, [canOpenDashboardSource, router]);
+
+    // Summary Stats
+    const stats = useMemo(() => {
+        let totalPenawaran = 0;
+        let totalSPK = 0;
+        let totalJHK = 0;
+        let totalDelay = 0;
+        const penaltyByStoreKey = new Map<string, ProjectPenaltyInfo>();
+        
+        let sumRatioTerbuka = 0; let countTerbuka = 0;
+        let sumRatioBangunan = 0; let countBangunan = 0;
+        let sumRatioTerbangun = 0; let countTerbangun = 0;
+
+        // ✅ FIX: Deduplicate Cost/m² per ULOK (aggregate SIPIL+ME)
+        const costPerUlokMap = new Map<string, {
+            costTerbuka: number;
+            costBangunan: number;
+            costTerbangun: number;
+            luasTerbuka: number;
+            luasBangunan: number;
+            luasTerbangun: number;
+        }>();
+
+        let totalNilaiToko = 0;
+        let countNilaiToko = 0;
+        let totalNilaiKontraktor = 0;
+        let totalBeanspot = 0;
+        let attentionCount = 0;
+        let jhkProjectCount = 0;
+        let delayProjectCount = 0;
+
+        let miniStats = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0, 'Done': 0 };
+        let miniPerhatian = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
+        let tokoPerhatian: string[] = [];
+
+        const contractorScores: Record<string, { totalNilai: number, count: number, stores: any[] }> = {};
+        const beanspotStores: { nama_toko: string, nomor_ulok: string, cabang: string, nominal: number }[] = [];
+        let sumBeanspot = 0;
+        let countBeanspot = 0;
+
+        filteredProjects.forEach(p => {
+            // Mapping Category (Funnel)
+            const cat = getProjectStage(p);
+            if (miniStats[cat as keyof typeof miniStats] !== undefined) {
+                miniStats[cat as keyof typeof miniStats]++;
+            }
+
+            // SLA / Attention Logic
+            const isPerhatian = isProjectPastSla(p, cat);
+
+            if (isPerhatian && cat !== 'Done') {
+                attentionCount++;
+                if (miniPerhatian[cat as keyof typeof miniPerhatian] !== undefined) {
+                    miniPerhatian[cat as keyof typeof miniPerhatian]++;
+                }
+                if (p.toko?.nomor_ulok) {
+                    tokoPerhatian.push(p.toko.nomor_ulok);
+                }
+            }
+
+            // Calculations
+            const rab = p.rab?.[0];
+            if (rab) {
+                totalPenawaran += parseCurrency(rab.grand_total_final);
+            }
+
+            const spks = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
+            spks.forEach((s: any) => {
+                const status = (s.status || '').toUpperCase();
+                // Include everything except rejected/cancelled to show the full SPK pipeline value
+                if (status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(status)) {
+                    totalSPK += parseCurrency(s.grand_total || s.total_harga);
+                }
+            });
+
+            let projectJHK = 0;
+            const totalAllowedDays = getProjectAllowedDays(p);
+
+            if (totalAllowedDays > 0) {
+                jhkProjectCount++;
+                const keterlambatan = calculateProjectLateDays(p);
+                if (keterlambatan > 0) delayProjectCount++;
+                const penaltyKey = getProjectStorePenaltyKey(p);
+                const penaltyInfo = getProjectPenaltyInfo(p, keterlambatan);
+                
+                // ✅ FIX: Only accumulate penalty if it's official ("Resmi")
+                // Store all penalties in the map, but filter will happen during totalDenda calculation
+                penaltyByStoreKey.set(penaltyKey, compareProjectPenaltyInfo(penaltyByStoreKey.get(penaltyKey), penaltyInfo));
+                
+                projectJHK = totalAllowedDays + keterlambatan;
+                totalDelay += keterlambatan;
+            }
+            totalJHK += projectJHK;
+
+            // Perhitungan Rata-rata Nilai Toko dari Opname Items
+            const opnameItems = opnameItemsMap[p.toko?.id] || [];
+            if (opnameItems.length > 0) {
+                const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
+                const countKualitasBaik = opnameItems.filter((i: any) => i.kualitas === 'Baik').length;
+                const countSpesifikasiSesuai = opnameItems.filter((i: any) => i.spesifikasi === 'Sesuai').length;
+
+                const nilaiDesain = (countDesainSesuai / opnameItems.length) * 30;
+                const nilaiKualitas = (countKualitasBaik / opnameItems.length) * 35;
+                const nilaiSpesifikasi = (countSpesifikasiSesuai / opnameItems.length) * 35;
+
+                totalNilaiToko += (nilaiDesain + nilaiKualitas + nilaiSpesifikasi);
+                countNilaiToko++;
+
+                const p_total = nilaiDesain + nilaiKualitas + nilaiSpesifikasi;
+                const kn = p.toko?.nama_kontraktor;
+                if (kn) {
+                    const knUpper = kn.toUpperCase();
+                    if (!contractorScores[knUpper]) contractorScores[knUpper] = { totalNilai: 0, count: 0, stores: [] };
+                    contractorScores[knUpper].totalNilai += p_total;
+                    contractorScores[knUpper].count++;
+                    contractorScores[knUpper].stores.push({
+                        nama_toko: p.toko?.nama_toko,
+                        nomor_ulok: p.toko?.nomor_ulok,
+                        cabang: p.toko?.cabang,
+                        nilai: p_total,
+                        desain: nilaiDesain,
+                        kualitas: nilaiKualitas,
+                        spesifikasi: nilaiSpesifikasi
+                    });
+                }
+            }
+
+            // Perhitungan Cost/m2 per Toko/Ulok
+            let costTerbukaToko = 0;
+            let costBangunanToko = 0;
+            let costTerbangunToko = 0;
+            let luasTerbukaToko = 0;
+            let luasBangunanToko = 0;
+            let luasTerbangunToko = 0;
+            let beanspotTokoNominal = 0;
+
+            const rabItemCategoryMap = new Map<number, string>();
+            const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
+            rabArr.forEach((rab: any) => {
+                const itemsFromCache = rabItemsMap[rab.id] || [];
+                const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
+                const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
+                const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
+                
+                finalItems.forEach((item: any) => {
+                    if (item.id) rabItemCategoryMap.set(item.id, (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase());
+                });
+            });
+
+            const latestOpnameFinal = getLatestProjectOpnameFinal(p);
+            const opnameFinalItems = latestOpnameFinal?.items || opnameItemsMap[p.toko?.id] || [];
+            const useOpnameFinal = !!latestOpnameFinal && opnameFinalItems.length > 0;
+
+            rabArr.forEach((rab: any) => {
+                luasTerbukaToko = Math.max(luasTerbukaToko, Number(rab.luas_area_terbuka || 0));
+                luasBangunanToko = Math.max(luasBangunanToko, Number(rab.luas_bangunan || 0));
+                luasTerbangunToko = Math.max(luasTerbangunToko, Number(rab.luas_terbangun || 0));
+                
+                if (!useOpnameFinal) {
+                    costTerbangunToko += Number(rab.grand_total_final || 0);
+                    
+                    if (rab.cost_bangunan !== undefined || rab.cost_terbuka !== undefined) {
+                        costTerbukaToko += Number(rab.cost_terbuka || 0);
+                        costBangunanToko += Number(rab.cost_bangunan || 0);
+                        beanspotTokoNominal += Number(rab.cost_beanspot || 0);
+                    } else {
+                        // Fallback lama (bila data agregat belum tersedia di API)
+                        const itemsFromCache = rabItemsMap[rab.id] || [];
+                        const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
+                        const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
+                        const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
+                        
+                        if (finalItems.length > 0) {
+                            finalItems.forEach((item: any) => {
+                                const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
+                                const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
+                                if (kat === 'PEKERJAAN AREA TERBUKA') {
+                                    costTerbukaToko += itemTotal;
+                                } else {
+                                    costBangunanToko += itemTotal;
+                                }
+                                if (kat === 'PEKERJAAN BEANSPOT') {
+                                    beanspotTokoNominal += itemTotal;
+                                }
+                            });
+                        } else {
+                            // Fallback jika tidak ada items sama sekali
+                            costBangunanToko += Number(rab.grand_total_final || 0);
+                        }
+                    }
+                }
+            });
+
+            if (useOpnameFinal) {
+                // Untuk total terbangun, gunakan grand total opname final
+                costTerbangunToko = Number(latestOpnameFinal.grand_total_opname || 0);
+
+                if (latestOpnameFinal.cost_bangunan !== undefined || latestOpnameFinal.cost_terbuka !== undefined) {
+                    costTerbukaToko += Number(latestOpnameFinal.cost_terbuka || 0);
+                    costBangunanToko += Number(latestOpnameFinal.cost_bangunan || 0);
+                    beanspotTokoNominal += Number(latestOpnameFinal.cost_beanspot || 0);
+                } else {
+                    opnameFinalItems.forEach((oItem: any) => {
+                        const itemTotal = Number(oItem.total_harga_opname || 0);
+                        // Dapatkan kategori dari map yang telah dibuat berdasarkan id_rab_item
+                        const kat = rabItemCategoryMap.get(oItem.id_rab_item) || '';
+                        
+                        if (kat === 'PEKERJAAN AREA TERBUKA') {
+                            costTerbukaToko += itemTotal;
+                        } else {
+                            costBangunanToko += itemTotal;
+                        }
+                        if (kat === 'PEKERJAAN BEANSPOT') {
+                            beanspotTokoNominal += itemTotal;
+                        }
+                    });
+                }
+            }
+
+            if ((luasTerbukaToko > 0 && costTerbukaToko > 0) || (luasBangunanToko > 0 && costBangunanToko > 0) || (luasTerbangunToko > 0 && costTerbangunToko > 0)) {
+                // ✅ Aggregate per ULOK (deduplicate SIPIL+ME)
+                const ulokKey = normalizeStorePenaltyKeyPart(p?.toko?.nomor_ulok) || `TOKO_${p?.toko?.id}`;
+                const existing = costPerUlokMap.get(ulokKey) || {
+                    costTerbuka: 0,
+                    costBangunan: 0,
+                    costTerbangun: 0,
+                    luasTerbuka: 0,
+                    luasBangunan: 0,
+                    luasTerbangun: 0
+                };
+                
+                costPerUlokMap.set(ulokKey, {
+                    costTerbuka: existing.costTerbuka + costTerbukaToko,
+                    costBangunan: existing.costBangunan + costBangunanToko,
+                    costTerbangun: existing.costTerbangun + costTerbangunToko,
+                    luasTerbuka: Math.max(existing.luasTerbuka, luasTerbukaToko),
+                    luasBangunan: Math.max(existing.luasBangunan, luasBangunanToko),
+                    luasTerbangun: Math.max(existing.luasTerbangun, luasTerbangunToko)
+                });
+            }
+
+            if (beanspotTokoNominal > 0) {
+                beanspotStores.push({
+                    nama_toko: p.toko?.nama_toko || '-',
+                    nomor_ulok: p.toko?.nomor_ulok || '-',
+                    cabang: p.toko?.cabang || '-',
+                    nominal: beanspotTokoNominal,
+                });
+                sumBeanspot += beanspotTokoNominal;
+                countBeanspot++;
+            }
+        });
+
+        let sumNilaiKontraktor = 0;
+        let countKontraktor = 0;
+        Object.values(contractorScores).forEach(c => {
+            if (c.count > 0) {
+                sumNilaiKontraktor += (c.totalNilai / c.count);
+                countKontraktor++;
+            }
+        });
+        const finalAvgNilaiKontraktor = countKontraktor > 0 ? (sumNilaiKontraktor / countKontraktor).toFixed(1) : '0.0';
+        
+        // ✅ FIX: Deduplicate per ULOK with MINIMUM penalty (earliest completion wins)
+        // Use penaltyByStoreKey that was already populated in the loop above
+        const penaltyByUlok = new Map<string, ProjectPenaltyInfo>();
+        
+        // Group penalties by ULOK (deduplicate SIPIL+ME)
+        Array.from(penaltyByStoreKey.entries()).forEach(([storeKey, penalty]) => {
+            // Extract ULOK from storeKey (format: "ULOK|xxx" or "KODE|xxx" or "NAMA|xxx")
+            const ulokMatch = storeKey.match(/^ULOK\|(.+)$/);
+            const ulokKey = ulokMatch ? ulokMatch[1] : storeKey;
+            
+            // Only include Resmi penalties with amount > 0
+            if (penalty.source !== 'Resmi' || penalty.amount <= 0) return;
+            
+            const existing = penaltyByUlok.get(ulokKey);
+            
+            // ✅ Take MINIMUM penalty (peer yang selesai duluan menentukan denda)
+            if (!existing || penalty.amount < existing.amount) {
+                penaltyByUlok.set(ulokKey, penalty);
+            }
+        });
+        
+        const resmiPenalties = Array.from(penaltyByUlok.values());
+        const totalDenda = resmiPenalties.reduce((sum, penalty) => sum + penalty.amount, 0);
+        
+        // ✅ All penalties are classified as "Terlambat" (no "Kritis" distinction)
+        const dendaTerlambat = resmiPenalties.filter(p => p.days > 0).length;
+        const dendaKritis = 0; // Removed - no longer used
+        
+        // Optional: Track estimated penalties
+        const totalDendaEstimasi = Array.from(penaltyByStoreKey.values())
+            .filter(penalty => penalty.source === 'Estimasi')
+            .reduce((sum, value) => sum + value.amount, 0);
+        
+        // Debug log
+        console.log(`[Dashboard] Denda Resmi (MINIMUM per ULOK): Rp ${totalDenda.toLocaleString('id-ID')}, Estimasi: Rp ${totalDendaEstimasi.toLocaleString('id-ID')}`);
+        console.log(`[Dashboard] Breakdown: Terlambat=${dendaTerlambat}, Total ULOK=${resmiPenalties.length}`);
+
+        // ✅ Calculate Cost/m² from deduplicated ULOK map (aggregate SIPIL+ME)
+        costPerUlokMap.forEach((data) => {
+            if (data.luasTerbuka > 0 && data.costTerbuka > 0) {
+                sumRatioTerbuka += (data.costTerbuka / data.luasTerbuka);
+                countTerbuka++;
+            }
+            if (data.luasBangunan > 0 && data.costBangunan > 0) {
+                sumRatioBangunan += (data.costBangunan / data.luasBangunan);
+                countBangunan++;
+            }
+            if (data.luasTerbangun > 0 && data.costTerbangun > 0) {
+                sumRatioTerbangun += (data.costTerbangun / data.luasTerbangun);
+                countTerbangun++;
+            }
+        });
+
+        console.log(`[Dashboard] Cost/m² (GABUNGAN per ULOK): Terbuka=${countTerbuka} ULOK, Bangunan=${countBangunan} ULOK, Terbangun=${countTerbangun} ULOK`);
+
+        const contractorGrouped = Object.entries(contractorScores).map(([nama, data]) => ({
+            type: 'KONTRAKTOR',
+            nama_kontraktor: nama,
+            nilai: data.count > 0 ? (data.totalNilai / data.count) : 0,
+            tokoCount: data.count,
+            stores: data.stores
+        }));
+
+        const count = filteredProjects.length || 1;
+
+        return {
+            total: filteredProjects.length,
+            attention: attentionCount,
+            tokoPerhatian,
+            penawaran: totalPenawaran,
+            spk: totalSPK,
+            avgJHK: Math.round(totalJHK / (jhkProjectCount || 1)),
+            avgDelay: Math.round(totalDelay / (delayProjectCount || 1)),
+            totalDenda: totalDenda,
+            dendaTerlambat: dendaTerlambat,
+            avgCostTerbuka: countTerbuka > 0 ? Math.round(sumRatioTerbuka / countTerbuka) : 0,
+            avgCostBangunan: countBangunan > 0 ? Math.round(sumRatioBangunan / countBangunan) : 0,
+            avgCostTerbangun: countTerbangun > 0 ? Math.round(sumRatioTerbangun / countTerbangun) : 0,
+            avgNilaiToko: countNilaiToko > 0 ? (totalNilaiToko / countNilaiToko).toFixed(1) : '0.0',
+            avgNilaiKontraktor: finalAvgNilaiKontraktor,
+            contractorGrouped,
+            avgBeanspot: countBeanspot > 0 ? Math.round(sumBeanspot / countBeanspot) : 0,
+            beanspotStores,
+            miniStats,
+            miniPerhatian
+        };
+    }, [filteredProjects, rabItemsMap, opnameItemsMap]);
+
+    const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
+    const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
+    const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
+    const pipelineSteps = ['Approval RAB', 'Proses Gantt', 'Proses PJU', 'Approval SPK', 'Ongoing', 'Kerja Tambah Kurang', 'Done'];
+    const priorityProjects = useMemo(() => {
+        return filteredProjects
+            .map((project) => {
+                const lateDays = calculateProjectLateDays(project);
+                const penalty = getProjectPenaltyInfo(project, lateDays);
+                const stage = getProjectStage(project);
+                const hasST = Boolean(getLatestSerahTerima(project));
+                const priorityScore = (penalty.amount > 0 ? 3 : 0) + (lateDays > 0 ? 2 : 0) + (stage !== 'Done' ? 1 : 0) + (!hasST && stage === 'Kerja Tambah Kurang' ? 1 : 0);
+                return { project, stage, lateDays, penalty, hasST, priorityScore };
+            })
+            .filter(item => item.priorityScore > 0)
+            .sort((a, b) => b.priorityScore - a.priorityScore || b.lateDays - a.lateDays || b.penalty.amount - a.penalty.amount)
+            .slice(0, 6);
+    }, [filteredProjects]);
+
+    const financialHighlights = [
+        { label: 'Penawaran', value: formatRupiah(stats.penawaran), icon: <FileText className="w-4 h-4" />, context: 'PENAWARAN', color: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+        { label: 'SPK', value: formatRupiah(stats.spk), icon: <DollarSign className="w-4 h-4" />, context: 'SPK', color: 'text-orange-700 bg-orange-50 border-orange-100' },
+        { label: 'Denda', value: formatRupiah(stats.totalDenda), icon: <AlertCircle className="w-4 h-4" />, context: 'DENDA', color: 'text-red-700 bg-red-50 border-red-100' },
+        { label: 'Nilai Toko', value: `${stats.avgNilaiToko} Poin`, icon: <Tag className="w-4 h-4" />, context: 'NILAI_TOKO', color: 'text-amber-700 bg-amber-50 border-amber-100' },
+    ];
+    const focusCards: Array<{ label: string; value: number | string; helper: string; icon: React.ReactNode; context: string; subContext: string; tone: string }> = [
+        { label: 'Total Toko', value: stats.total, helper: 'Semua toko pada filter aktif', icon: <Store className="w-4 h-4" />, context: 'PROJECT', subContext: '', tone: 'border-slate-200 bg-white text-slate-900' },
+        { label: 'Perlu Dicek', value: stats.attention, helper: 'Lewat SLA atau punya risiko denda', icon: <AlertTriangle className="w-4 h-4" />, context: 'ATTENTION', subContext: '', tone: 'border-red-200 bg-red-50 text-red-700' },
+        { label: 'Ongoing', value: stats.miniStats.Ongoing, helper: 'Sudah SPK dan masih berjalan', icon: <HardHat className="w-4 h-4" />, context: 'PROJECT', subContext: 'Ongoing', tone: 'border-blue-200 bg-blue-50 text-blue-700' },
+        { label: 'Done', value: stats.miniStats.Done, helper: 'Opname final disetujui lengkap', icon: <CheckCircle2 className="w-4 h-4" />, context: 'PROJECT', subContext: 'Done', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+        { label: 'SP Pending', value: approvalCounts.SURAT_PERINGATAN || 0, helper: 'Surat Peringatan Menunggu Approval', icon: <AlertTriangle className="w-4 h-4" />, context: 'APPROVAL', subContext: 'SP', tone: 'border-amber-200 bg-amber-50 text-amber-700' },
+    ];
+    const secondaryMetrics = [
+        { label: 'JHK Pekerjaan', value: `${stats.avgJHK} hari`, helper: 'Durasi SPK + tambah hari', context: 'JHK', icon: <Calendar className="w-4 h-4" /> },
+        { label: 'Keterlambatan', value: `${stats.avgDelay} hari`, helper: 'Rata-rata lewat target', context: 'DELAY', icon: <Clock className="w-4 h-4" /> },
+        { label: 'Nilai Kontraktor', value: `${stats.avgNilaiKontraktor} poin`, helper: 'Rata-rata hasil ST', context: 'NILAI_KONTRAKTOR', icon: <UserCheck className="w-4 h-4" /> },
+    ];
+    const approvalMenuCount = user
+        ? getApprovalNotificationTotal(approvalCounts, getAccessibleApprovalTypes(user))
+        : 0;
+    const dashboardMenuCounts: Record<string, number> = {
+        "menu-rab": rabRevisionCount + rabPlanningRequestCount,
+        "menu-approval": approvalMenuCount,
+    };
+
+    // =========================================================================
+    // LOADING STATE
+    // =========================================================================
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
+                <div className="flex flex-col items-center gap-3 text-slate-400">
+                    <div className="w-10 h-10 border-4 border-red-200 border-t-red-600 rounded-full animate-spin" />
+                    <span className="text-sm font-medium">Memuat Dashboard...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // =========================================================================
+    // RENDER
+    // =========================================================================
+    return (
+        // h-screen + overflow-hidden â†’ tidak ada scroll sama sekali
+        <div className="h-screen flex flex-col overflow-hidden bg-slate-100 font-sans text-slate-800">
+
+            {/* ================================================================
+                HEADER â€” Menggunakan AppNavbar dengan konfigurasi khusus Dashboard
+            ================================================================ */}
+            <AppNavbar 
+                title="SPARTA Building"
+                showBuildingLogo={true}
+                showMenuToggle={true}
+                isMenuOpen={sidebarOpen}
+                onMenuToggle={() => setSidebarOpen(prev => !prev)}
+                showLogout={true}
+                onLogout={() => setLogoutDialogOpen(true)}
+                rightActions={<TaskNotificationBell variant="brand" />}
+            />
+
+            {/* ================================================================
+                BODY: SIDEBAR + MAIN CONTENT
+            ================================================================ */}
+            <div className="flex flex-1 overflow-hidden relative">
+
+                {/* Overlay gelap â€” hanya mobile */}
+                {sidebarOpen && (
+                    <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />
+                )}
+
+                {/* ===================== SIDEBAR ===================== */}
+                <aside
+                    className={`
+                        shrink-0 bg-white border-r border-slate-200 flex flex-col z-20
+                        transition-all duration-300 ease-in-out overflow-hidden
+                        absolute md:relative top-0 left-0 h-full
+                        ${sidebarOpen
+                            ? 'w-75 translate-x-0 shadow-xl md:shadow-none'
+                            : 'w-0 -translate-x-full md:translate-x-0 md:w-0'}
+                    `}
+                >
+                    <DashboardNavigation
+                        menus={allowedMenus}
+                        menuCounts={dashboardMenuCounts}
+                        userName={userInfo.name}
+                        roleLabel={user?.isSuperHuman ? "SUPER HUMAN" : (userInfo.roles[0] || "USER")}
+                        cabang={userInfo.cabang}
+                        onCloseMobile={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}
+                        onFeatureAlert={showFeatureAlert}
+                        onChangeWorkspace={() => router.push('/workspace')}
+                    />
+                    {/* Sidebar header */}
+                    <div className="hidden px-4 pt-4 pb-2.5 border-b border-slate-100 shrink-0">
+                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Navigasi</p>
+                        <h2 className="text-sm font-bold text-slate-700 mt-0.5">Fitur Akses</h2>
+                    </div>
+
+                    {/* Menu items */}
+                    <nav className="hidden flex-1 overflow-y-auto px-2.5 py-2.5 flex-col gap-0.5">
+                        {allowedMenus.map((menu) => {
+                            const IconComp = menu.icon;
+                            const approvalCount = menu.id === "menu-approval" && user
+                                ? getApprovalNotificationTotal(approvalCounts, getAccessibleApprovalTypes(user))
+                                : 0;
+                            const menuCount = menu.id === "menu-rab"
+                                ? rabRevisionCount + rabPlanningRequestCount
+                                : approvalCount;
+                            const menuCountClass = menu.id === "menu-rab"
+                                ? "bg-amber-500 text-white"
+                                : "bg-red-600 text-white";
+                            const isPausedStoreDocumentMenu =
+                                menu.id === "menu-svdokumen" && userInfo.cabang !== "HEAD OFFICE";
+                            const inner = (
+                                <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-50 hover:border-red-200 border border-transparent transition-all duration-200 group cursor-pointer">
+                                    <div className="w-7 h-7 rounded-md bg-slate-100 group-hover:bg-red-100 flex items-center justify-center shrink-0 transition-colors">
+                                        <IconComp className="w-3.5 h-3.5 text-slate-500 group-hover:text-red-600 transition-colors" />
+                                    </div>
+                                    <div className="flex-1 min-w-0 flex items-center justify-between pr-2">
+                                        <div className="flex-1 min-w-0 pr-1">
+                                            <p className="text-sm font-semibold text-slate-700 group-hover:text-red-700 leading-snug transition-colors wrap-break-word">{menu.title}</p>
+                                            <p className="text-xs text-slate-400 leading-snug wrap-break-word mt-0.5">{menu.desc}</p>
+                                        </div>
+                                        {menuCount > 0 && (
+                                            <span className={`ml-2 min-w-5 h-5 px-1.5 rounded-full ${menuCountClass} text-xs font-extrabold flex items-center justify-center shadow-sm`}>
+                                                {menuCount > 99 ? '99+' : menuCount}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <ChevronRight className="w-3 h-3 text-slate-300 group-hover:text-red-400 shrink-0 transition-colors" />
+                                </div>
+                            );
+                            if (isPausedStoreDocumentMenu) return (
+                                <div
+                                    key={menu.id}
+                                    onClick={() => {
+                                        showFeatureAlert("Akses Diberhentikan Sementara", PAUSED_STORE_DOCUMENT_MESSAGE);
+                                        if (window.innerWidth <= 768) setSidebarOpen(false);
+                                    }}
+                                >
+                                    {inner}
+                                </div>
+                            );
+
+                            if (menu.isAlert) return (
+                                <div
+                                    key={menu.id}
+                                    onClick={() => {
+                                        showFeatureAlert("Fitur Belum Tersedia", `Halaman ${menu.title} belum tersedia saat ini.`);
+                                        if (window.innerWidth <= 768) setSidebarOpen(false);
+                                    }}
+                                >
+                                    {inner}
+                                </div>
+                            );
+                            if (menu.external) return (
+                                <a key={menu.id} href={menu.href} target="_blank" rel="noopener noreferrer">{inner}</a>
+                            );
+                            return (
+                                <Link key={menu.id} href={menu.href} onClick={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}>{inner}</Link>
+                            );
+                        })}
+                        {allowedMenus.length === 0 && (
+                            <div className="text-center py-8 px-3">
+                                <AlertTriangle className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                                <p className="text-xs text-slate-400">Tidak ada menu tersedia</p>
+                            </div>
+                        )}
+                    </nav>
+
+                    {/* Sidebar footer */}
+                    <div className="hidden px-4 py-2.5 border-t border-slate-100 shrink-0 space-y-2">
+                        <Button
+                            variant="ghost"
+                            className="h-8 w-full justify-start rounded-lg text-xs font-semibold text-slate-500"
+                            onClick={() => router.push('/workspace')}
+                        >
+                            <LogOut className="mr-2 h-3.5 w-3.5" />
+                            Ganti Workspace
+                        </Button>
+                        <p className="text-xs text-slate-400 text-center">SPARTA Building â€” Alfamart</p>
+                    </div>
+                </aside>
+
+                {/* ===================== MAIN â€” Home Portal ===================== */}
+                                <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+                    <DashboardViewV2
+                        projects={filteredProjects}
+                        accessibleBranches={cabangList}
+                        selectedBranch={selectedCabang}
+                        onBranchChange={setSelectedCabang}
+                        isSuperAdmin={canSeeAllMonitoringBranches}
+                        onRefresh={() => fetchDashboardData(
+                            userInfo.cabang,
+                            canSeeAllMonitoringBranches,
+                            user?.email ?? '',
+                            userInfo.namaPt,
+                            isCompanyScopedUser,
+                            true,
+                            userInfo.roles
+                        )}
+                        isRefreshing={isDataLoading}
+                        onExport={openExportSelector}
+                        isExporting={Boolean(exportingFormat)}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        stats={stats}
+                    />
+                    {/* Preserve the Export Dialog */}
+                    <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+                                            <DialogContent className="max-w-3xl overflow-hidden rounded-2xl border-slate-200 p-0 shadow-2xl">
+                                                <DialogHeader className="border-b border-slate-100 bg-slate-950 px-5 py-4 text-white">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div>
+                                                            <DialogTitle className="text-base font-black tracking-tight text-white">Pilih Data Export</DialogTitle>
+                                                            <DialogDescription className="mt-1 text-xs text-slate-300">
+                                                                Centang toko yang mau ditarik ke file {pendingExportFormat.toUpperCase()}. Tidak ada data yang dipilih otomatis.
+                                                            </DialogDescription>
+                                                        </div>
+                                                        <Badge className="shrink-0 border-white/10 bg-white/10 px-2.5 py-1 text-xs font-black text-white hover:bg-white/10">
+                                                            {selectedExportCount} dipilih
+                                                        </Badge>
+                                                    </div>
+                                                </DialogHeader>
+
+                                                <div className="space-y-3 bg-white px-5 py-4">
+                                                    <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                                                        <div className="relative">
+                                                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                                            <Input
+                                                                value={exportSearch}
+                                                                onChange={(event) => setExportSearch(event.target.value)}
+                                                                placeholder="Cari nama toko, ULOK, cabang, atau lingkup..."
+                                                                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-sm font-semibold"
+                                                            />
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="h-10 rounded-xl border-slate-200 px-3 text-xs font-black text-slate-700"
+                                                            onClick={() => toggleVisibleExportSelection(!allVisibleExportSelected)}
+                                                            disabled={visibleExportIds.length === 0}
+                                                        >
+                                                            {allVisibleExportSelected ? "Hapus hasil filter" : "Pilih hasil filter"}
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="h-10 rounded-xl border-red-100 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100"
+                                                            onClick={() => setSelectedExportIds(new Set())}
+                                                            disabled={selectedExportCount === 0}
+                                                        >
+                                                            Bersihkan
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="overflow-hidden rounded-2xl border border-slate-200">
+                                                        <div className="grid grid-cols-[42px_1fr_110px_82px] border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
+                                                            <span />
+                                                            <span>Toko</span>
+                                                            <span>Cabang</span>
+                                                            <span className="text-right">Lingkup</span>
+                                                        </div>
+                                                        <div className="max-h-[360px] overflow-y-auto bg-white">
+                                                            {visibleExportCandidates.length === 0 ? (
+                                                                <div className="px-4 py-10 text-center text-sm font-semibold text-slate-400">
+                                                                    Tidak ada data yang cocok dengan pencarian.
+                                                                </div>
+                                                            ) : visibleExportCandidates.map((project) => {
+                                                                const toko = project.toko || {};
+                                                                const id = Number(toko.id);
+                                                                const checked = selectedExportIds.has(id);
+                                                                return (
+                                                                    <label
+                                                                        key={id}
+                                                                        className={`grid cursor-pointer grid-cols-[42px_1fr_110px_82px] items-center border-b border-slate-100 px-3 py-3 transition-colors last:border-b-0 ${checked ? 'bg-red-50/55' : 'bg-white hover:bg-slate-50'}`}
+                                                                    >
+                                                                        <Checkbox
+                                                                            checked={checked}
+                                                                            onCheckedChange={(value) => toggleExportSelection(id, Boolean(value))}
+                                                                            className="border-slate-300 data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600"
+                                                                        />
+                                                                        <span className="min-w-0">
+                                                                            <span className="block truncate text-sm font-black text-slate-900">{toko.nama_toko || '-'}</span>
+                                                                            <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">{toko.nomor_ulok || '-'} · {toko.kode_toko || '-'}</span>
+                                                                        </span>
+                                                                        <span className="truncate text-xs font-bold text-slate-600">{toko.cabang || '-'}</span>
+                                                                        <span className="text-right">
+                                                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600">
+                                                                                {toko.lingkup_pekerjaan || '-'}
+                                                                            </span>
+                                                                        </span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <DialogFooter className="flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                                    <p className="text-xs font-semibold text-slate-500">
+                                                        {visibleExportCandidates.length} data tampil dari {exportCandidates.length} data yang bisa ditarik.
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <Button type="button" variant="outline" className="rounded-xl" onClick={() => setExportDialogOpen(false)}>
+                                                            Batal
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            className="rounded-xl bg-red-700 px-4 font-black text-white hover:bg-red-800"
+                                                            disabled={Boolean(exportingFormat) || selectedExportCount === 0}
+                                                            onClick={() => handleDownloadDashboardExport(pendingExportFormat, Array.from(selectedExportIds))}
+                                                        >
+                                                            {exportingFormat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                                            Tarik {selectedExportCount} Data
+                                                        </Button>
+                                                    </div>
+                                                </DialogFooter>
+                                            </DialogContent>
+                                        </Dialog>
+                </main>
+            </div>
+
+            {/* ====================== MODALS ====================== */}
+            <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+                <AlertDialogContent className="rounded-2xl max-w-sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Konfirmasi Keluar</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Apakah Anda yakin ingin keluar dari sistem SPARTA Building? Sesi Anda akan diakhiri.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">Ya, Logout</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={featureAlertOpen} onOpenChange={setFeatureAlertOpen}>
+                <AlertDialogContent className="rounded-2xl max-w-md">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{featureAlert.title}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {featureAlert.description}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700">Mengerti</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog 
+                open={false}
+                onOpenChange={(open) => setDetailModal(prev => ({ ...prev, open }))}
+            >
+                <AlertDialogContent className="max-w-none! w-[98vw]! max-h-[92vh]! overflow-hidden flex flex-col p-0 rounded-2xl border border-slate-200 shadow-2xl">
+                    <div className="bg-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-200">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+                                <Activity className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <AlertDialogTitle className="text-base font-black leading-none text-slate-950">{detailModal.title}</AlertDialogTitle>
+                                <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-black">Monitoring Rincian Data</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-full"
+                                onClick={() => fetchDashboardData(
+                                    userInfo.cabang,
+                                    canSeeAllMonitoringBranches,
+                                    user?.email ?? '',
+                                    userInfo.namaPt,
+                                    isCompanyScopedUser
+                                )}
+                                disabled={isDataLoading}
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isDataLoading ? 'animate-spin' : ''}`} />
+                            </Button>
+                            <AlertDialogCancel className="bg-slate-100 border-none text-slate-600 hover:bg-slate-200 hover:text-slate-900 h-8 w-8 p-0 rounded-full flex items-center justify-center">
+                                <X className="w-4 h-4" />
+                            </AlertDialogCancel>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+                        {detailModal.context === 'PROJECT' && !detailModal.subContext && (
+                            <div className="space-y-4">
+                                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-wide text-slate-400">Ringkasan Status</p>
+                                            <h3 className="text-xl font-black text-slate-950">Pilih tahap untuk melihat toko</h3>
+                                        </div>
+                                        <Badge className="w-fit border-slate-200 bg-slate-100 px-3 py-1 font-black text-slate-700">{stats.total} total toko</Badge>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {Object.entries(stats.miniStats).map(([label, val]) => {
+                                        const pct = stats.total > 0 ? Math.round((Number(val) / stats.total) * 100) : 0;
+                                        return (
+                                            <button
+                                                key={label}
+                                                onClick={() => setDetailModal(prev => ({ ...prev, subContext: label }))}
+                                                className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-red-200 hover:shadow-md"
+                                            >
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div>
+                                                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">{label}</p>
+                                                        <p className="mt-2 text-3xl font-black text-slate-950">{val}</p>
+                                                    </div>
+                                                    <ChevronRight className="mt-1 h-4 w-4 text-slate-300 group-hover:text-red-600" />
+                                                </div>
+                                                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                                                    <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.max(3, pct)}%` }} />
+                                                </div>
+                                                <p className="mt-2 text-xs font-bold text-slate-400">{pct}% dari total toko</p>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {detailModal.context === 'ATTENTION' && !detailModal.subContext && (
+                            <div className="space-y-4">
+                                <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-wide text-red-500">Perlu Tindakan</p>
+                                            <h3 className="text-xl font-black text-red-950">Tahap yang lewat SLA</h3>
+                                            <p className="mt-1 text-sm font-semibold text-red-700">Klik salah satu tahap untuk membuka daftar toko yang perlu dicek.</p>
+                                        </div>
+                                        <p className="text-4xl font-black text-red-700">{stats.attention}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {Object.entries(stats.miniPerhatian).map(([label, val]) => (
+                                        <button
+                                            key={label}
+                                            onClick={() => val > 0 && setDetailModal(prev => ({ ...prev, subContext: label }))}
+                                            disabled={Number(val) <= 0}
+                                            className={`rounded-2xl border p-4 text-left transition-all ${val > 0 ? 'border-red-100 bg-white shadow-sm hover:border-red-300 hover:shadow-md' : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div>
+                                                    <p className={`text-xs font-black uppercase tracking-wide ${val > 0 ? 'text-red-500' : 'text-slate-400'}`}>{label}</p>
+                                                    <p className={`mt-2 text-3xl font-black ${val > 0 ? 'text-red-700' : 'text-slate-300'}`}>{val}</p>
+                                                </div>
+                                                {val > 0 && <ChevronRight className="mt-1 h-4 w-4 text-red-400" />}
+                                            </div>
+                                            <p className="mt-3 text-xs font-bold text-slate-400">{val > 0 ? 'Ada toko yang perlu dicek' : 'Tidak ada masalah'}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {(detailModal.subContext || !['PROJECT', 'ATTENTION'].includes(detailModal.context)) && (() => {
+                            let modalData: any[] = [];
+                            
+                            if (detailModal.context === 'NILAI_KONTRAKTOR') {
+                                modalData = stats.contractorGrouped || [];
+                            } else if (detailModal.context === 'BEANSPOT') {
+                                modalData = stats.beanspotStores || [];
+                            } else {
+                                modalData = filteredProjects.filter(p => {
+                                    if (!detailModal.subContext) {
+                                    // Context-specific filtering for summary views
+                                    if (detailModal.context === 'SPK') {
+                                        return (Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).some((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase()));
+                                    }
+                                    if (detailModal.context === 'PENAWARAN' || detailModal.context === 'COST_M2') {
+                                        return (p.rab || []).length > 0;
+                                    }
+                                    if (detailModal.context === 'NILAI_TOKO') {
+                                        const opnameItems = opnameItemsMap[p.toko?.id] || [];
+                                        return opnameItems.length > 0;
+                                    }
+                                    if (detailModal.context === 'JHK' || detailModal.context === 'DELAY' || detailModal.context === 'DENDA') {
+                                        if (getApprovedDashboardSpks(p).length === 0) return false;
+                                        if (detailModal.context === 'JHK') return true;
+
+                                        return detailModal.context === 'DENDA'
+                                            ? getProjectPenaltyInfo(p).amount > 0
+                                            : calculateProjectLateDays(p) > 0;
+                                    }
+                                    return true;
+                                }
+                                
+                                const cat = getProjectStage(p);
+
+                                if (cat !== detailModal.subContext) return false;
+                                if (detailModal.context === 'PROJECT' && getProjectStageElapsedDays(p, cat) <= 0) return false;
+
+                                if (detailModal.context === 'ATTENTION') {
+                                    return isProjectPastSla(p, cat) && cat !== 'Done';
+                                }
+
+                                return true;
+                            });
+                            }
+
+                            if (detailModal.context === 'DENDA') {
+                                modalData = getUniquePenaltyProjects(modalData);
+                            }
+
+                            const totalPages = Math.ceil(modalData.length / itemsPerPage);
+                            const paginatedData = modalData.slice((modalPage - 1) * itemsPerPage, modalPage * itemsPerPage);
+                            const renderModalPagination = () => (
+                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <p className="text-xs font-semibold text-slate-400">
+                                        Menampilkan <span className="font-black text-slate-700">{modalData.length ? Math.min(modalData.length, (modalPage - 1) * itemsPerPage + 1) : 0} - {Math.min(modalData.length, modalPage * itemsPerPage)}</span> dari <span className="font-black text-slate-700">{modalData.length}</span> data
+                                    </p>
+                                    {totalPages > 1 && (
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-xs font-bold" onClick={() => setModalPage(p => Math.max(1, p - 1))} disabled={modalPage === 1}>
+                                                Sebelumnya
+                                            </Button>
+                                            <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">{modalPage} / {totalPages}</span>
+                                            <Button variant="outline" size="sm" className="h-8 rounded-lg px-3 text-xs font-bold" onClick={() => setModalPage(p => Math.min(totalPages, p + 1))} disabled={modalPage === totalPages}>
+                                                Selanjutnya
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                            const modernContexts = ['PROJECT', 'ATTENTION', 'PENAWARAN', 'SPK', 'JHK', 'DELAY', 'DENDA', 'NILAI_TOKO', 'NILAI_KONTRAKTOR', 'COST_M2'];
+                            if (modernContexts.includes(detailModal.context)) {
+                                const summaryCards = [
+                                    { label: 'Data', value: modalData.length.toLocaleString('id-ID'), tone: 'border-slate-200 bg-white text-slate-900' },
+                                    { label: 'Penawaran', value: formatRupiah(modalData.reduce((sum, item) => sum + getProjectFinancialSummary(item).penawaran, 0)), tone: 'border-indigo-100 bg-indigo-50 text-indigo-800' },
+                                    { label: 'SPK', value: formatRupiah(modalData.reduce((sum, item) => sum + getProjectFinancialSummary(item).spk, 0)), tone: 'border-orange-100 bg-orange-50 text-orange-800' },
+                                    { label: 'Denda', value: formatRupiah(modalData.reduce((sum, item) => sum + getProjectPenaltyInfo(item).amount, 0)), tone: 'border-red-100 bg-red-50 text-red-800' },
+                                ];
+
+                                return (
+                                    <div className="space-y-4">
+                                        {detailModal.subContext && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="-ml-2 rounded-lg text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                                                onClick={() => setDetailModal(prev => ({ ...prev, subContext: '' }))}
+                                            >
+                                                <ChevronRight className="mr-1 h-4 w-4 rotate-180" /> Kembali ke Ringkasan
+                                            </Button>
+                                        )}
+
+                                        {detailModal.context !== 'NILAI_KONTRAKTOR' && (
+                                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                                                {summaryCards.map(item => (
+                                                    <div key={item.label} className={`rounded-xl border px-4 py-3 ${item.tone}`}>
+                                                        <p className="text-xs font-black uppercase tracking-wide opacity-70">{item.label}</p>
+                                                        <p className="mt-1 text-base font-black leading-tight">{item.value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {paginatedData.length === 0 && (
+                                                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                                                    <p className="text-sm font-bold text-slate-500">Tidak ada data untuk filter ini.</p>
+                                                </div>
+                                            )}
+
+                                            {paginatedData.map((p: any, i: number) => {
+                                                if (detailModal.context === 'NILAI_KONTRAKTOR') {
+                                                    return (
+                                                        <div key={p.nama_kontraktor || i} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                                <div>
+                                                                    <p className="text-base font-black text-slate-950">{p.nama_kontraktor || '-'}</p>
+                                                                    <p className="mt-1 text-xs font-semibold text-slate-500">{p.tokoCount || 0} toko / ULOK dinilai</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right">
+                                                                    <p className="text-xs font-black uppercase text-emerald-700">Rata-rata</p>
+                                                                    <p className="text-2xl font-black text-emerald-900">{Number(p.nilai || 0).toFixed(1)}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                                {(p.stores || []).slice(0, 4).map((st: any, idx: number) => (
+                                                                    <div key={`${st.nomor_ulok || idx}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                                                        <div className="flex items-start justify-between gap-3">
+                                                                            <div>
+                                                                                <p className="text-sm font-black text-slate-900">{st.nama_toko || '-'}</p>
+                                                                                <p className="text-xs font-semibold text-slate-500">{st.nomor_ulok || '-'} - {st.cabang || '-'}</p>
+                                                                            </div>
+                                                                            <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{Number(st.nilai || 0).toFixed(1)}</Badge>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                const toko = p.toko || {};
+                                                const stage = getProjectStage(p);
+                                                const financial = getProjectFinancialSummary(p);
+                                                const penaltyInfo = getProjectPenaltyInfo(p);
+                                                const lateDays = calculateProjectLateDays(p);
+                                                const quality = getStoreQualityScore(opnameItemsMap[toko.id] || []);
+                                                const spkArr = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
+                                                const activeSpk = spkArr.find((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(String(s.status).toUpperCase())) || spkArr[0];
+                                                const hasST = Boolean(getLatestSerahTerima(p));
+                                                const pendingPengawasanPdfs = Array.isArray(p.pengawasan_pdf_pending)
+                                                    ? p.pengawasan_pdf_pending
+                                                    : [];
+                                                const areaTerbangun = Number(toko.luas_area_terbangun || toko.luas_terbangun || 0);
+                                                const costTerbangun = areaTerbangun > 0 ? Math.round(financial.opname / areaTerbangun) : 0;
+
+                                                let headline = stage;
+                                                let headlineValue: React.ReactNode = toko.proyek || '-';
+                                                let tone = 'border-slate-200 bg-white';
+                                                let badges: React.ReactNode = null;
+                                                if (detailModal.context === 'PENAWARAN') {
+                                                    headline = 'Nilai Penawaran';
+                                                    headlineValue = formatRupiah(financial.penawaran);
+                                                    tone = 'border-indigo-100 bg-indigo-50/40';
+                                                } else if (detailModal.context === 'SPK') {
+                                                    headline = 'Nilai SPK';
+                                                    headlineValue = formatRupiah(financial.spk);
+                                                    tone = 'border-orange-100 bg-orange-50/40';
+                                                } else if (detailModal.context === 'JHK') {
+                                                    headline = 'Durasi SPK';
+                                                    headlineValue = `${Number(activeSpk?.durasi || 0)} hari`;
+                                                    tone = 'border-blue-100 bg-blue-50/40';
+                                                } else if (detailModal.context === 'DELAY') {
+                                                    headline = 'Keterlambatan';
+                                                    headlineValue = `${lateDays} hari`;
+                                                    tone = lateDays > 0 ? 'border-red-100 bg-red-50/50' : 'border-emerald-100 bg-emerald-50/40';
+                                                } else if (detailModal.context === 'DENDA') {
+                                                    headline = 'Nilai Denda';
+                                                    headlineValue = formatRupiah(penaltyInfo.amount);
+                                                    tone = 'border-rose-100 bg-rose-50/50';
+                                                    badges = (
+                                                        <div className="flex flex-wrap justify-end gap-1">
+                                                            <Badge className="border-rose-100 bg-white font-black text-rose-700">{penaltyInfo.days} hari</Badge>
+                                                            {penaltyInfo.requiresAction && (
+                                                                <Badge className="border-amber-200 bg-amber-50 font-black text-amber-700">SP/Takeover</Badge>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                } else if (detailModal.context === 'NILAI_TOKO') {
+                                                    headline = 'Nilai Toko';
+                                                    headlineValue = `${quality.total.toFixed(1)} poin`;
+                                                    tone = 'border-amber-100 bg-amber-50/50';
+                                                } else if (detailModal.context === 'COST_M2') {
+                                                    headline = 'Cost/m2 Terbangun';
+                                                    headlineValue = costTerbangun ? formatRupiah(costTerbangun) : '-';
+                                                    tone = costTerbangun > 900000 ? 'border-red-100 bg-red-50/50' : 'border-purple-100 bg-purple-50/40';
+                                                    badges = costTerbangun > 900000 ? <Badge className="border-red-100 bg-white font-black text-red-700">Rekomendasi Non-Ruko</Badge> : null;
+                                                }
+
+                                                return (
+                                                    <div key={toko.id || toko.nomor_ulok || i} className={`group overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-md ${tone}`}>
+                                                        <div className="flex flex-col lg:flex-row">
+                                                            <div className={`h-1 lg:h-auto lg:w-1.5 ${detailModal.context === 'DENDA' || detailModal.context === 'DELAY' ? 'bg-red-500' : detailModal.context === 'NILAI_TOKO' ? 'bg-amber-500' : detailModal.context === 'SPK' ? 'bg-orange-500' : detailModal.context === 'PENAWARAN' ? 'bg-indigo-500' : 'bg-blue-500'}`} />
+                                                            <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
+                                                                <div className="min-w-0 flex-1">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <p className="text-base font-black text-slate-950">{toko.nama_toko || '-'}</p>
+                                                                    <Badge className="border-slate-200 bg-white font-black text-slate-700">{toko.nomor_ulok || '-'}</Badge>
+                                                                    <Badge className="border-blue-100 bg-blue-50 font-black text-blue-700">{stage}</Badge>
+                                                                    {pendingPengawasanPdfs.length > 0 && (
+                                                                        <Badge className="border-amber-200 bg-amber-50 font-black text-amber-700">
+                                                                            {pendingPengawasanPdfs.length} PDF belum terhubung Gantt
+                                                                        </Badge>
+                                                                    )}
+                                                                    {badges}
+                                                                </div>
+                                                                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-slate-500">
+                                                                        <span>{toko.cabang || '-'}</span>
+                                                                        <span>{toko.lingkup_pekerjaan || '-'}</span>
+                                                                        <span>Proyek: {toko.proyek || '-'}</span>
+                                                                    </div>
+                                                                    <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                                            <p className="text-[9px] font-black uppercase text-slate-400">Penawaran</p>
+                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(financial.penawaran)}</p>
+                                                                        </span>
+                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                                            <p className="text-[9px] font-black uppercase text-slate-400">SPK</p>
+                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(financial.spk)}</p>
+                                                                        </span>
+                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                                            <p className="text-[9px] font-black uppercase text-slate-400">Denda / Telat</p>
+                                                                            <p className="text-xs font-black text-slate-900">{formatRupiah(penaltyInfo.amount)} <span className="text-xs text-slate-400">({lateDays}h)</span></p>
+                                                                        </span>
+                                                                        <span className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                                            <p className="text-[9px] font-black uppercase text-slate-400">ST</p>
+                                                                            <p className="text-xs font-black text-slate-900">{hasST ? 'Ada' : 'Belum'}</p>
+                                                                        </span>
+                                                                    </div>
+                                                                    {pendingPengawasanPdfs.length > 0 && (
+                                                                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                                                            <p className="text-xs font-black uppercase text-amber-700">PDF Pengawasan Migrasi</p>
+                                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                                {pendingPengawasanPdfs.map((pdf: any) => (
+                                                                                    <Button
+                                                                                        key={pdf.id}
+                                                                                        variant="outline"
+                                                                                        className="h-8 rounded-lg border-amber-200 bg-white px-3 text-xs font-black text-amber-800"
+                                                                                        onClick={async () => {
+                                                                                            if (pdf.id_pengawasan_gantt) {
+                                                                                                await downloadPengawasanPdf(Number(pdf.id_pengawasan_gantt));
+                                                                                                return;
+                                                                                            }
+
+                                                                                            window.open(pdf.link_pdf_pengawasan, '_blank', 'noopener,noreferrer');
+                                                                                        }}
+                                                                                    >
+                                                                                        <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                                                                                        H{pdf.h_day}
+                                                                                    </Button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+
+                                                                <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-white bg-white/90 px-4 py-3 shadow-xs xl:min-w-56 xl:flex-col xl:items-end xl:text-right">
+                                                                    <div>
+                                                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">{headline}</p>
+                                                                <p className="mt-1 text-xl font-black text-slate-950">{headlineValue}</p>
+                                                                    </div>
+                                                                    {hasST && (
+                                                                        <Button variant="outline" className="h-8 rounded-lg px-3 text-xs font-black" onClick={() => handleOpenSerahTerima(p)}>
+                                                                            <ExternalLink className="mr-1 h-3.5 w-3.5" /> Buka ST
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {detailModal.context === 'NILAI_TOKO' && (
+                                                            <div className="border-t border-amber-100 bg-white/70 px-4 py-3 grid grid-cols-3 gap-2">
+                                                                {[
+                                                                    ['Desain', quality.desain, 30],
+                                                                    ['Kualitas', quality.kualitas, 35],
+                                                                    ['Spesifikasi', quality.spesifikasi, 35],
+                                                                ].map(([label, value, max]) => (
+                                                                    <div key={String(label)} className="rounded-xl border border-amber-100 bg-white p-3">
+                                                                        <p className="text-xs font-black uppercase text-amber-700">{label}</p>
+                                                                        <p className="mt-1 text-sm font-black text-slate-950">{Number(value).toFixed(1)} <span className="text-xs text-slate-400">/ {max}</span></p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {renderModalPagination()}
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="space-y-3">
+                                    {detailModal.subContext && (
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="mb-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 -ml-2"
+                                            onClick={() => setDetailModal(prev => ({ ...prev, subContext: '' }))}
+                                        >
+                                            <ChevronRight className="w-4 h-4 rotate-180 mr-1" /> Kembali ke Ringkasan
+                                        </Button>
+                                    )}
+                                    
+                                    <div className="bg-white rounded-2xl border border-slate-300 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left border-collapse table-fixed">
+                                            <thead className="bg-slate-50 border-b border-slate-300">
+                                                <tr>
+                                                    <th className={`px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>
+                                                        {detailModal.context === 'NILAI_KONTRAKTOR' ? 'Nama Kontraktor' : 'Toko / Ulok'}
+                                                    </th>
+                                                    {detailModal.context !== 'NILAI_KONTRAKTOR' && (
+                                                        <th className="px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center border-r border-slate-300 w-1/3">Cabang</th>
+                                                    )}
+                                                    <th className={`px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center ${detailModal.context === 'NILAI_KONTRAKTOR' ? 'w-1/2' : 'w-1/3'}`}>Informasi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-300">
+                                                {paginatedData.map((p, i) => {
+                                                    let rTerbuka = 0, rBangunan = 0, rTerbangun = 0;
+                                                    
+                                                    if (detailModal.context === 'COST_M2') {
+                                                        let costTerbuka = 0; let costBangunan = 0; let costTerbangun = 0;
+                                                        let luasTerbuka = 0; let luasBangunan = 0; let luasTerbangun = 0;
+                                                        let dataSource = "Penawaran (RAB)";
+
+                                                        const rabItemCategoryMap = new Map<number, string>();
+                                                        const rabArr = Array.isArray(p.rab) ? p.rab : (p.rab ? [p.rab] : []);
+                                                        
+                                                        rabArr.forEach((rab: any) => {
+                                                            const itemsFromCache = rabItemsMap[rab.id] || [];
+                                                            const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
+                                                            const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
+                                                            const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
+                                                            finalItems.forEach((item: any) => {
+                                                                if (item.id) rabItemCategoryMap.set(item.id, (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase());
+                                                            });
+                                                        });
+
+                                                        const latestOpnameFinal = getLatestProjectOpnameFinal(p);
+                                                        const opnameFinalItems = latestOpnameFinal?.items || opnameItemsMap[p.toko?.id] || [];
+                                                        const useOpnameFinal = !!latestOpnameFinal && opnameFinalItems.length > 0;
+
+                                                        rabArr.forEach((rab: any) => {
+                                                            luasTerbuka = Math.max(luasTerbuka, Number(rab.luas_area_terbuka || 0));
+                                                            luasBangunan = Math.max(luasBangunan, Number(rab.luas_bangunan || 0));
+                                                            luasTerbangun = Math.max(luasTerbangun, Number(rab.luas_terbangun || 0));
+                                                            
+                                                            if (!useOpnameFinal) {
+                                                                costTerbangun += Number(rab.grand_total_final || 0);
+                                                                const itemsFromCache = rabItemsMap[rab.id] || [];
+                                                                const itemsData = typeof rab.items === 'string' ? JSON.parse(rab.items) : (rab.items || []);
+                                                                const itemsFromJson = typeof rab.Item_Details_JSON === 'string' ? JSON.parse(rab.Item_Details_JSON) : (rab.Item_Details_JSON || []);
+                                                                const finalItems = itemsFromCache.length > 0 ? itemsFromCache : (itemsData.length > 0 ? itemsData : itemsFromJson);
+                                                                
+                                                                if (finalItems.length > 0) {
+                                                                    finalItems.forEach((item: any) => {
+                                                                        const itemTotal = Number(item.total_harga || (item.volume * (item.harga_material + item.harga_upah)) || 0);
+                                                                        const kat = (item.kategori_pekerjaan || item.Kategori_Pekerjaan || '').toUpperCase();
+                                                                        if (kat === 'PEKERJAAN AREA TERBUKA') {
+                                                                            costTerbuka += itemTotal;
+                                                                        } else {
+                                                                            costBangunan += itemTotal;
+                                                                        }
+                                                                    });
+                                                                } else {
+                                                                    costBangunan += Number(rab.grand_total_final || 0);
+                                                                }
+                                                            }
+                                                        });
+
+                                                        if (useOpnameFinal) {
+                                                            dataSource = "Opname";
+                                                            costTerbangun = Number(latestOpnameFinal.grand_total_opname || 0);
+                                                            opnameFinalItems.forEach((oItem: any) => {
+                                                                const itemTotal = Number(oItem.total_harga_opname || 0);
+                                                                const kat = rabItemCategoryMap.get(oItem.id_rab_item) || '';
+                                                                if (kat === 'PEKERJAAN AREA TERBUKA') {
+                                                                    costTerbuka += itemTotal;
+                                                                } else {
+                                                                    costBangunan += itemTotal;
+                                                                }
+                                                            });
+                                                        }
+                                                        
+                                                        rTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
+                                                        rBangunan = luasBangunan > 0 && costBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
+                                                        rTerbangun = luasTerbangun > 0 && costTerbangun > 0 ? Math.round(costTerbangun / luasTerbangun) : 0;
+
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className={`transition-colors group cursor-pointer ${expandedRow === i ? 'bg-purple-50/30' : 'hover:bg-slate-50/50'}`}
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
+                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                        <div className="mt-1">
+                                                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${useOpnameFinal ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                                                SUMBER: {dataSource}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {formatRupiah(rTerbangun)} <span className="text-[9px] text-slate-400 font-normal">/mÂ²</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50/80 border-t border-slate-300 shadow-inner">
+                                                                        <td colSpan={3} className="px-4 py-4">
+                                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                                <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm flex flex-col justify-between">
+                                                                                    <div>
+                                                                                        <p className="text-xs text-purple-600 font-bold uppercase tracking-wider mb-2">Terbangun</p>
+                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
+                                                                                            <span>Total Biaya</span>
+                                                                                            <span className="font-semibold text-slate-700">{formatRupiah(costTerbangun)}</span>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
+                                                                                            <span>Luas Area</span>
+                                                                                            <span className="font-semibold text-slate-700">{luasTerbangun} mÂ²</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="text-right mt-1">
+                                                                                        <p className="text-lg font-black text-purple-700">{formatRupiah(rTerbangun)}</p>
+                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                                
+                                                                                <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm flex flex-col justify-between">
+                                                                                    <div>
+                                                                                        <p className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-2">Bangunan</p>
+                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
+                                                                                            <span>Total Biaya</span>
+                                                                                            <span className="font-semibold text-slate-700">{formatRupiah(costBangunan)}</span>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
+                                                                                            <span>Luas Area</span>
+                                                                                            <span className="font-semibold text-slate-700">{luasBangunan} mÂ²</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="text-right mt-1">
+                                                                                        <p className="text-lg font-black text-blue-700">{formatRupiah(rBangunan)}</p>
+                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm flex flex-col justify-between">
+                                                                                    <div>
+                                                                                        <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-2">Terbuka</p>
+                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
+                                                                                            <span>Total Biaya</span>
+                                                                                            <span className="font-semibold text-slate-700">{formatRupiah(costTerbuka)}</span>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between items-center text-xs text-slate-500 mb-2 pb-2 border-b border-slate-100">
+                                                                                            <span>Luas Area</span>
+                                                                                            <span className="font-semibold text-slate-700">{luasTerbuka} mÂ²</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="text-right mt-1">
+                                                                                        <p className="text-lg font-black text-emerald-700">{formatRupiah(rTerbuka)}</p>
+                                                                                        <p className="text-[9px] text-slate-400">/ mÂ²</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+                                                    
+                                                    if (detailModal.context === 'JHK') {
+                                                        let jhkTotal = 0, durasi = 0, totalPertambahan = 0, keterlambatan = 0;
+                                                        const approvedSpks = getApprovedDashboardSpks(p);
+                                                        const totalAllowedDays = getProjectAllowedDays(p);
+                                                        if (approvedSpks.length > 0 && totalAllowedDays > 0) {
+                                                            durasi = Math.max(0, ...approvedSpks.map((spk: any) => Number(spk?.durasi || 0)));
+                                                            totalPertambahan = Math.max(0, totalAllowedDays - durasi);
+                                                            keterlambatan = calculateProjectLateDays(p);
+                                                            jhkTotal = totalAllowedDays + keterlambatan;
+                                                        }
+
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
+                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {jhkTotal} <span className="text-[9px] text-slate-400 font-normal">Hari</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                        <div className="text-[9px] text-slate-400 italic mr-6">{p.toko?.lingkup_pekerjaan}</div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
+                                                                        <td colSpan={3} className="px-4 py-4">
+                                                                            <div className="grid grid-cols-3 gap-3">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Durasi SPK</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{durasi}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tambah SPK</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{totalPertambahan}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Terlambat</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{keterlambatan}</p>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">Hari</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+
+                                                    if (detailModal.context === 'NILAI_TOKO') {
+                                                        const opnameItems = opnameItemsMap[p.toko?.id] || [];
+                                                        const serahTerima = getLatestSerahTerima(p);
+                                                        let p_nilaiDesain = 0, p_nilaiKualitas = 0, p_nilaiSpesifikasi = 0, p_total = 0;
+                                                        if (opnameItems.length > 0) {
+                                                            const countDesainSesuai = opnameItems.filter((i: any) => i.desain === 'Sesuai').length;
+                                                            const countKualitasBaik = opnameItems.filter((i: any) => i.kualitas === 'Baik').length;
+                                                            const countSpesifikasiSesuai = opnameItems.filter((i: any) => i.spesifikasi === 'Sesuai').length;
+                                            
+                                                            p_nilaiDesain = (countDesainSesuai / opnameItems.length) * 30;
+                                                            p_nilaiKualitas = (countKualitasBaik / opnameItems.length) * 35;
+                                                            p_nilaiSpesifikasi = (countSpesifikasiSesuai / opnameItems.length) * 35;
+                                                            p_total = p_nilaiDesain + p_nilaiKualitas + p_nilaiSpesifikasi;
+                                                        }
+
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
+                                                                        <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {p_total.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                        <div className="mt-2 flex items-center justify-end gap-2">
+                                                                            <span className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</span>
+                                                                            {serahTerima ? (
+                                                                                <Button
+                                                                                    variant="outline"
+                                                                                    className="h-7 rounded-md px-2 text-xs font-bold bg-white"
+                                                                                    onClick={(event) => {
+                                                                                        event.stopPropagation();
+                                                                                        handleOpenSerahTerima(p);
+                                                                                    }}
+                                                                                >
+                                                                                    <ExternalLink className="w-3 h-3 mr-1" /> Lihat ST
+                                                                                </Button>
+                                                                            ) : (
+                                                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-400">Belum ST</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
+                                                                        <td colSpan={3} className="px-4 py-4">
+                                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-300 text-center shadow-sm">
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Desain</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiDesain.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 30</span></p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Kualitas</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiKualitas.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-slate-200 text-center shadow-sm">
+                                                                                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Spesifikasi</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{p_nilaiSpesifikasi.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 35</span></p>
+                                                                                </div>
+                                                                                <div className="bg-white rounded-xl p-3 border border-amber-200 text-center shadow-sm">
+                                                                                    <p className="text-xs text-amber-600 uppercase tracking-wider mb-1">Serah Terima</p>
+                                                                                    <p className="text-sm font-black text-slate-800">{serahTerima ? 'Tersedia' : 'Belum Ada'}</p>
+                                                                                    {serahTerima?.created_at && <p className="text-[9px] text-slate-400 mt-0.5">{new Date(serahTerima.created_at).toLocaleDateString('id-ID')}</p>}
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+
+                                                    if (detailModal.context === 'NILAI_KONTRAKTOR') {
+                                                        const pK = p as any;
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                <tr 
+                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                    onClick={() => setExpandedRow(expandedRow === i ? null : i)}
+                                                                >
+                                                                    <td className="px-4 py-3 border-r border-slate-300">
+                                                                        <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pK.nama_kontraktor}</div>
+                                                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{pK.tokoCount} Toko / Ulok</div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="text-xs font-black text-slate-700 flex items-center justify-end gap-1.5">
+                                                                            {pK.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">Poin</span>
+                                                                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedRow === i ? 'rotate-90' : ''}`} />
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                                {expandedRow === i && (
+                                                                    <tr className="bg-slate-50 border-t border-slate-300">
+                                                                        <td colSpan={2} className="px-4 py-4">
+                                                                            <div className="space-y-3">
+                                                                                {(pK.stores || []).map((st: any, idx: number) => (
+                                                                                    <div key={idx} className="bg-white rounded-xl p-3 border border-slate-300 shadow-sm flex items-center justify-between">
+                                                                                        <div>
+                                                                                            <div className="font-bold text-slate-700 text-xs">{st.nama_toko}</div>
+                                                                                            <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-2">
+                                                                                                <span>{st.nomor_ulok}</span>
+                                                                                                <span>â€¢</span>
+                                                                                                <span>{st.cabang}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="text-right">
+                                                                                            <div className="text-sm font-black text-slate-800">{st.nilai.toFixed(1)} <span className="text-[9px] text-slate-400 font-normal">/ 100</span></div>
+                                                                                            <div className="text-[8px] text-slate-400 flex items-center gap-1.5 mt-0.5 justify-end">
+                                                                                                <span>Des: {st.desain.toFixed(1)}</span>
+                                                                                                <span>Kual: {st.kualitas.toFixed(1)}</span>
+                                                                                                <span>Spes: {st.spesifikasi.toFixed(1)}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+
+                                                    if (detailModal.context === 'BEANSPOT') {
+                                                        const pB = p as any;
+                                                        return (
+                                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                                                                <td className="px-4 py-3 border-r border-slate-300">
+                                                                    <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{pB.nama_toko}</div>
+                                                                    <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{pB.nomor_ulok}</div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{pB.cabang}</td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="text-xs font-black text-slate-700">{formatRupiah(pB.nominal)}</div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+                                                    const penaltyInfo = detailModal.context === 'DENDA' ? getProjectPenaltyInfo(p) : null;
+
+                                                    return (
+                                                    <tr
+                                                        key={i}
+                                                        className={`hover:bg-slate-50/50 transition-colors group ${detailModal.context === 'DENDA' ? 'cursor-pointer' : ''}`}
+                                                        onClick={() => {
+                                                            if (detailModal.context === 'DENDA') handleOpenPenaltyProject(p);
+                                                        }}
+                                                        title={detailModal.context === 'DENDA' ? 'Buka sumber data denda' : undefined}
+                                                    >
+                                                        <td className="px-4 py-3 border-r border-slate-300">
+                                                            <div className="font-bold text-slate-700 text-xs wrap-break-word whitespace-normal">{p.toko?.nama_toko}</div>
+                                                            <div className="text-xs font-mono text-red-500 bg-red-50 px-1 rounded inline-block mt-0.5">{p.toko?.nomor_ulok}</div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-xs font-semibold text-slate-500 border-r border-slate-300">{p.toko?.cabang}</td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <div className="text-xs font-black text-slate-700">
+                                                                {detailModal.context === 'PENAWARAN' 
+                                                                    ? formatRupiah(parseCurrency(p.rab?.[0]?.grand_total_final))
+                                                                    : detailModal.context === 'SPK' 
+                                                                        ? formatRupiah((Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : [])).filter((s: any) => s.status && !['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(s.status.toUpperCase())).reduce((acc: number, s: any) => acc + parseCurrency(s.grand_total || s.total_harga), 0))
+                                                                        : detailModal.context === 'DELAY'
+                                                                                ? (() => {
+                                                                                    return `${calculateProjectLateDays(p)} Hari`;
+                                                                                })()
+                                                                            : detailModal.context === 'DENDA'
+                                                                                ? (() => {
+                                                                                    return formatRupiah(penaltyInfo?.amount ?? 0);
+                                                                                })()
+                                                                            : p.toko?.proyek
+                                                                }
+                                                            </div>
+                                                            {detailModal.context === 'DENDA' && penaltyInfo ? (
+                                                                <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[9px]">
+                                                                    <span className={`rounded px-1.5 py-0.5 font-bold ${penaltyInfo.source === 'Resmi' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                                        {penaltyInfo.source}
+                                                                    </span>
+                                                                    <span className="text-slate-400 italic">{penaltyInfo.days} hari</span>
+                                                                    {penaltyInfo.requiresAction && (
+                                                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 font-bold text-amber-700">SP/Takeover</span>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-[9px] text-slate-400 italic">{p.toko?.lingkup_pekerjaan}</div>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                    );
+                                                })}
+                                                {paginatedData.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={3} className="px-4 py-12 text-center text-xs text-slate-400 italic">
+                                                            Tidak ada data untuk ditampilkan
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Pagination Controls */}
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                                        <p className="text-xs text-slate-400 font-medium">
+                                            Menampilkan <span className="text-slate-700 font-bold">{Math.min(modalData.length, (modalPage - 1) * itemsPerPage + 1)} - {Math.min(modalData.length, modalPage * itemsPerPage)}</span> dari <span className="text-slate-700 font-bold">{modalData.length}</span> data
+                                        </p>
+                                        {totalPages > 1 && (
+                                            <div className="flex items-center gap-2">
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className="h-8 px-3 text-xs font-bold border-slate-200"
+                                                    onClick={() => setModalPage(p => Math.max(1, p - 1))}
+                                                    disabled={modalPage === 1}
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-xs font-bold text-slate-400">Halaman</span>
+                                                    <span className="text-xs font-black text-blue-600 px-2 py-1 bg-blue-50 rounded-md border border-blue-100">{modalPage}</span>
+                                                    <span className="text-xs font-bold text-slate-400">dari {totalPages}</span>
+                                                </div>
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className="h-8 px-3 text-xs font-bold border-slate-200"
+                                                    onClick={() => setModalPage(p => Math.min(totalPages, p + 1))}
+                                                    disabled={modalPage === totalPages}
+                                                >
+                                                    Selanjutnya
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    <div className="px-6 py-4 bg-white border-t border-slate-100 shrink-0">
+                        <p className="text-xs text-slate-400 font-medium italic">* Data diperbarui secara real-time berdasarkan filter yang aktif</p>
+                    </div>
+                </AlertDialogContent>
+            </AlertDialog>
+
+        </div>
+    );
+}
+
+// =============================================================================
+// SUB-COMPONENTS
+// =============================================================================
+
+function StatCard({ 
+    title, 
+    value, 
+    icon, 
+    bgColor, 
+    textColor, 
+    subLabel, 
+    valueColor,
+    className,
+    renderExtra,
+    onClick,
+    isLoading = false
+}: { 
+    title: string, 
+    value: string | number, 
+    icon: React.ReactNode, 
+    bgColor: string, 
+    textColor: string, 
+    subLabel?: string,
+    valueColor?: string,
+    className?: string,
+    renderExtra?: React.ReactNode,
+    onClick?: () => void,
+    isLoading?: boolean
+}) {
+    if (isLoading) {
+        return (
+            <Card className={`overflow-hidden border-none shadow-md bg-white ${className}`}>
+                <CardContent className="px-3.5 py-2 flex flex-col md:flex-row md:items-center gap-4 h-23">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="w-11 h-11 rounded-xl bg-slate-100 animate-pulse shrink-0" />
+                        <div className="flex-1 space-y-2">
+                            <div className="h-2 w-16 bg-slate-100 animate-pulse rounded" />
+                            <div className="h-5 w-24 bg-slate-100 animate-pulse rounded" />
+                            <div className="h-2 w-20 bg-slate-100 animate-pulse rounded" />
+                        </div>
+                    </div>
+                    {renderExtra && (
+                        <div className="hidden md:block shrink-0 border-l border-slate-100 pl-4">
+                            <div className="grid grid-cols-3 gap-1">
+                                {[1,2,3,4,5,6].map(i => (
+                                    <div key={i} className="w-16 h-8 bg-slate-50 animate-pulse rounded-lg" />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return (
+        <Card 
+            onClick={onClick}
+            className={`overflow-hidden border-none shadow-md hover:shadow-lg transition-all duration-300 group cursor-pointer bg-white active:scale-[0.98] ${className}`}
+        >
+            <CardContent className="px-3.5 py-2 flex flex-col md:flex-row md:items-center gap-4 h-full">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: bgColor, color: textColor }}>
+                        {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement<any>, { className: "w-5.5 h-5.5" }) : icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
+                        {value !== undefined && value !== null && value !== '' && (
+                            <h3 className="text-lg font-black text-slate-800 truncate" style={{ color: valueColor }}>
+                                <AnimatedNumber value={value} isLoading={isLoading} />
+                            </h3>
+                        )}
+                        {subLabel && <p className="text-[9px] font-medium text-slate-500 leading-tight mt-0.5 line-clamp-1">{subLabel}</p>}
+                    </div>
+                </div>
+                {renderExtra && (
+                    <div className="shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-1.5 md:pt-0 md:pl-4">
+                        {renderExtra}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * A component that animates a numeric value from 0 to the target value.
+ */
+function AnimatedNumber({ value, isLoading }: { value: string | number, isLoading: boolean }) {
+    const numericValue = useMemo(() => {
+        if (typeof value === 'number') return value;
+        if (!value) return 0;
+        // Clean currency prefix before parsing
+        const cleaned = typeof value === 'string' ? value.replace(/Rp\s?/g, '') : value;
+        return parseCurrency(cleaned);
+    }, [value]);
+
+    const [displayValue, setDisplayValue] = useState(0);
+    
+    const isRupiah = typeof value === 'string' && value.includes('Rp');
+    const isHari = typeof value === 'string' && value.includes('Hari');
+    const hasDecimals = typeof value === 'string' && value.includes('.') && !isRupiah;
+    const decimalPlaces = hasDecimals ? (value.toString().split('.')[1] || '').length : 0;
+
+    useEffect(() => {
+        if (isLoading) {
+            setDisplayValue(0);
+            return;
+        }
+
+        const start = 0;
+        const end = numericValue;
+        const duration = 1200; 
+        const startTime = performance.now();
+
+        let animationFrame: number;
+
+        const animate = (currentTime: number) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Cubic ease out
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            
+            const current = easeProgress * (end - start) + start;
+            setDisplayValue(current);
+
+            if (progress < 1) {
+                animationFrame = requestAnimationFrame(animate);
+            }
+        };
+
+        animationFrame = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(animationFrame);
+    }, [numericValue, isLoading]);
+
+    if (isLoading) return null;
+
+    if (isRupiah) return <>{formatRupiah(Math.floor(displayValue))}</>;
+    if (isHari) return <>{Math.floor(displayValue)} Hari</>;
+    if (hasDecimals) return <>{displayValue.toFixed(decimalPlaces)}</>;
+
+    return <>{Math.floor(displayValue)}</>;
+}
