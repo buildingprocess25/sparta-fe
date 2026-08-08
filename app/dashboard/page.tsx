@@ -1657,21 +1657,8 @@ export default function DashboardPage() {
                         selectedBranch={selectedCabang}
                         onBranchChange={setSelectedCabang}
                         isSuperAdmin={canSeeAllMonitoringBranches}
-                        onRefresh={async () => {
-                            await Promise.all([
-                                fetchDashboardData(
-                                    userInfo.cabang,
-                                    canSeeAllMonitoringBranches,
-                                    user?.email ?? '',
-                                    userInfo.namaPt,
-                                    isCompanyScopedUser,
-                                    true,
-                                    userInfo.roles
-                                ),
-                                loadDashboardV2Data(),
-                            ]);
-                        }}
-                        isRefreshing={isDataLoading || dashboardV2Loading}
+                        onRefresh={loadDashboardV2Data}
+                        isRefreshing={dashboardV2Loading}
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
                         jobType={dashboardV2JobType}
