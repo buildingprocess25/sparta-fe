@@ -63,6 +63,12 @@ const iconForCard = (type: DashboardV2CardType) => {
     return Store;
 };
 
+const valueClassForCard = (card: DashboardV2SummaryCard) => {
+    const valueLength = String(card.value ?? '').length;
+    if (card.type === 'TOTAL_DENDA') return valueLength > 16 ? 'text-[28px] leading-[1.08]' : 'text-[32px] leading-none';
+    return valueLength > 12 ? 'text-[30px] leading-[1.08]' : 'text-[32px] leading-none';
+};
+
 export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ cards, isLoading, onCardClick }) => {
     const visibleCards = cards.filter((card) => primaryCards.includes(card.type));
 
@@ -92,7 +98,7 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ cards, isL
                             <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0 space-y-1.5">
                                     <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500">{card.title}</h4>
-                                    <p className={`break-words text-[32px] font-black leading-none tracking-normal ${tone.text}`}>
+                                    <p className={`max-w-[230px] whitespace-normal break-normal font-black tracking-normal [overflow-wrap:normal] ${valueClassForCard(card)} ${tone.text}`}>
                                         {card.value}
                                     </p>
                                 </div>
