@@ -985,23 +985,17 @@ export default function DashboardPage() {
         setExportDialogOpen(true);
     };
 
-    const dashboardV2ActorRoles = useMemo(() => {
-        if (userInfo.roles.length > 0) return userInfo.roles;
-        return Array.isArray(user?.roles) ? user.roles : [];
-    }, [user?.roles, userInfo.roles]);
-
     const dashboardV2ScopeParams = useMemo<DashboardV2ScopeParams>(() => ({
-        actorRole: dashboardV2ActorRoles.join(', '),
+        actorRole: userInfo.roles.join(', '),
         actorCabang: userInfo.cabang || user?.cabang || 'HEAD OFFICE',
         actorCompany: userInfo.namaPt,
         cabang: selectedCabang,
         search: searchQuery,
         jobType: dashboardV2JobType,
-    }), [dashboardV2ActorRoles, dashboardV2JobType, searchQuery, selectedCabang, user?.cabang, userInfo.cabang, userInfo.namaPt]);
+    }), [dashboardV2JobType, searchQuery, selectedCabang, user?.cabang, userInfo.cabang, userInfo.namaPt, userInfo.roles]);
 
     const loadDashboardV2Data = useCallback(async () => {
         if (!userInfo.cabang && !user?.cabang) return;
-        if (!dashboardV2ScopeParams.actorRole.trim()) return;
         setDashboardV2Loading(true);
         try {
             const [summary, charts] = await Promise.all([
