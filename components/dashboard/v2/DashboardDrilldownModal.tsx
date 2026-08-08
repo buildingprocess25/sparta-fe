@@ -112,6 +112,11 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 if (cancelled) return;
                 setRows(response.data);
                 setPagination(response.pagination);
+            } catch (error) {
+                if (cancelled) return;
+                console.error('Failed to load dashboard v2 rows', error);
+                setRows([]);
+                setPagination(null);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -153,6 +158,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             } else {
                 setView('timeline');
             }
+        } catch (error) {
+            console.error('Failed to load dashboard v2 timeline', error);
         } finally {
             setLoading(false);
         }
@@ -165,6 +172,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             const nextDetail = await fetchDashboardV2Detail(timeline.toko_id, node.type, node.raw_id);
             setDetail(nextDetail);
             setView('detail');
+        } catch (error) {
+            console.error('Failed to load dashboard v2 detail', error);
         } finally {
             setLoading(false);
         }
