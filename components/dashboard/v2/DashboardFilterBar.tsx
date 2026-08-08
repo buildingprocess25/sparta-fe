@@ -41,27 +41,31 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
 
     return (
         <form
-            className="sticky top-0 z-30 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"
+            className="relative z-30 mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
             onSubmit={(event) => {
                 event.preventDefault();
                 onSearchSubmit();
             }}
         >
-            <div className="relative min-w-[260px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <div className="relative min-w-[280px] flex-1">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Search className="h-4 w-4" />
+                </span>
                 <input
                     type="search"
+                    name="dashboard-search"
+                    autoComplete="off"
                     placeholder="Cari Proyek, No ULOK, Kontraktor..."
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/10"
+                    className="h-[42px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm font-medium text-slate-700 outline-none transition focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/10"
                     value={searchQuery}
                     onChange={(event) => onSearchChange(event.target.value)}
                 />
             </div>
 
             {showBranchFilter && (
-                <div className="w-[190px] max-w-full">
+                <div className="w-full md:w-64">
                     <Select value={selectedBranch} onValueChange={onBranchChange}>
-                        <SelectTrigger className="h-10 w-full rounded-lg border-slate-200 bg-slate-50 text-sm font-semibold">
+                        <SelectTrigger className="h-[42px] w-full rounded-xl border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
                             <div className="flex min-w-0 items-center gap-2">
                                 <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
                                 <span className="truncate">{selectedBranch === 'ALL' ? 'Semua Cabang' : selectedBranch}</span>
@@ -79,9 +83,9 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                 </div>
             )}
 
-            <div className="w-[150px] max-w-full">
+            <div className="w-full sm:w-44">
                 <Select value={jobType} onValueChange={(value) => onJobTypeChange(value as DashboardV2JobType)}>
-                    <SelectTrigger className="h-10 w-full rounded-lg border-slate-200 bg-slate-50 text-sm font-semibold">
+                    <SelectTrigger className="h-[42px] w-full rounded-xl border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
                         {jobTypeLabels[jobType]}
                     </SelectTrigger>
                     <SelectContent>
@@ -95,7 +99,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
             <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-lg border-slate-200 px-3 text-sm font-bold text-slate-700"
+                className="h-[42px] flex-1 rounded-xl border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 md:flex-none"
                 onClick={onRefresh}
                 disabled={isRefreshing}
             >

@@ -206,22 +206,22 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             : 'Pilih proyek untuk melihat detail';
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-7">
-            <div className="absolute inset-0 bg-slate-950/55" onClick={onClose} />
-            <div className="relative flex h-[90vh] w-full max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-slate-50 shadow-2xl">
-                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-4 md:px-7">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <button type="button" onClick={handleBack} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100">
-                            <ArrowLeft className="h-4 w-4" />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8">
+            <div className="absolute inset-0 bg-slate-900/60" onClick={onClose} />
+            <div className="relative flex h-[90vh] w-full max-w-[1400px] flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-5 md:px-8">
+                    <div className="flex min-w-0 items-center gap-4 md:gap-5">
+                        <button type="button" onClick={handleBack} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 shadow-sm transition hover:bg-red-50 hover:text-red-600">
+                            <ArrowLeft className="h-5 w-5" />
                         </button>
-                        <div className="min-w-0 border-l-4 border-red-600 pl-3">
-                            <h2 className="truncate text-xl font-black text-slate-950">{title}</h2>
-                            <p className="truncate text-xs font-bold text-slate-500">{subtitle}</p>
+                        <div className="min-w-0 border-l-[7px] border-red-600 pl-3">
+                            <h2 className="truncate text-2xl font-black tracking-tight text-slate-950">{title}</h2>
+                            <p className="mt-1 truncate text-sm font-bold text-slate-500">{subtitle}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-4">
                         {(view === 'list' || view === 'stage') && (
-                            <div className="relative hidden w-64 md:block">
+                            <div className="relative hidden w-72 md:block">
                                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                                 <input
                                     value={modalSearch}
@@ -229,18 +229,18 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         setModalSearch(event.target.value);
                                         setPage(1);
                                     }}
-                                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm font-semibold outline-none focus:border-red-500 focus:bg-white"
+                                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm font-semibold text-slate-800 outline-none shadow-sm transition focus:border-red-500 focus:bg-white focus:ring-2 focus:ring-red-500/10"
                                     placeholder="Cari Nama Toko / ULOK..."
                                 />
                             </div>
                         )}
-                        <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                            <X className="h-5 w-5" />
+                        <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+                            <X className="h-6 w-6" />
                         </button>
                     </div>
                 </div>
 
-                <div className="relative flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+                <div className="relative flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
                     {loading && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60">
                             <Loader2 className="h-8 w-8 animate-spin text-red-600" />
@@ -248,12 +248,12 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                     )}
 
                     {view === 'stage' && (
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
                             {stageCounts.map(({ stage, count }) => (
                                 <button
                                     key={stage}
                                     type="button"
-                                    className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                                    className="rounded-3xl border border-slate-200 bg-white p-6 text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:border-red-100 hover:shadow-xl"
                                     onClick={() => {
                                         setSelectedStage(stage);
                                         setView('list');
@@ -269,14 +269,14 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                     )}
 
                     {view === 'list' && (
-                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                             {visibleRows.length === 0 && !loading ? (
                                 <div className="p-8 text-center text-sm font-bold text-slate-400">Tidak ada data pada filter ini.</div>
                             ) : visibleRows.map((row) => (
                                 <button
                                     key={row.key}
                                     type="button"
-                                    className="flex w-full items-center gap-4 border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50"
+                                    className="flex w-full items-center gap-4 border-b border-slate-100 px-5 py-5 text-left transition last:border-b-0 hover:bg-slate-50"
                                     onClick={() => openRow(row)}
                                 >
                                     <div className="min-w-0 flex-1">
@@ -285,7 +285,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             <Badge className="bg-slate-100 font-mono text-slate-600 hover:bg-slate-100">{row.nomor_ulok}</Badge>
                                             <Badge className={getToneClass(row.status_label)}>{row.status_label}</Badge>
                                         </div>
-                                        <p className="mt-1 text-xs font-black uppercase text-slate-400">{row.cabang} - {row.proyek} - {row.lingkup_pekerjaan}</p>
+                                        <p className="mt-2 text-xs font-black uppercase text-slate-400">{row.cabang} - {row.proyek} - {row.lingkup_pekerjaan}</p>
                                     </div>
                                     <div className="hidden min-w-[220px] grid-cols-3 gap-2 md:grid">
                                         {row.metrics.slice(0, 3).map((metric) => (
@@ -295,9 +295,9 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="min-w-[130px] text-right">
+                                    <div className="min-w-[150px] text-right">
                                         <p className="text-[10px] font-black uppercase text-slate-400">Nilai</p>
-                                        <p className="text-sm font-black text-slate-900">{row.value_label}</p>
+                                        <p className="text-base font-black text-slate-900">{row.value_label}</p>
                                     </div>
                                     <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
                                 </button>
@@ -306,17 +306,17 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                     )}
 
                     {view === 'timeline' && (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {filteredTimelineNodes.length === 0 ? (
-                                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm font-bold text-slate-400">Dokumen belum tersedia.</div>
+                                <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-bold text-slate-400">Dokumen belum tersedia.</div>
                             ) : filteredTimelineNodes.map((node) => (
                                 <button
                                     key={node.id}
                                     type="button"
-                                    className="flex w-full items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-red-200 hover:shadow-md"
+                                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-red-200 hover:shadow-md"
                                     onClick={() => openNode(node)}
                                 >
-                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
                                         <FileText className="h-5 w-5" />
                                     </span>
                                     <div className="min-w-0 flex-1">
@@ -324,7 +324,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             <p className="font-black text-slate-900">{node.title}</p>
                                             <Badge className={getToneClass(node.status_label)}>{node.status_label}</Badge>
                                         </div>
-                                        <p className="mt-1 text-xs font-bold text-slate-500">{node.subtitle}</p>
+                                        <p className="mt-2 text-sm font-semibold text-slate-500">{node.subtitle}</p>
                                     </div>
                                     <div className="hidden text-right md:block">
                                         <p className="text-xs font-black text-slate-500">{node.date_label}</p>
@@ -340,29 +340,29 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                         <div className="space-y-4">
                             {detail.pdf_url && (
                                 <div className="flex justify-end">
-                                    <Button type="button" className="rounded-lg bg-slate-900 text-white hover:bg-slate-800" onClick={() => window.open(detail.pdf_url || '', '_blank', 'noopener,noreferrer')}>
+                                    <Button type="button" className="rounded-xl bg-slate-900 text-white hover:bg-slate-800" onClick={() => window.open(detail.pdf_url || '', '_blank', 'noopener,noreferrer')}>
                                         <ExternalLink className="mr-2 h-4 w-4" />
                                         Buka Dokumen
                                     </Button>
                                 </div>
                             )}
-                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                                 {detail.fields.map((field) => (
-                                    <div key={field.label} className="grid grid-cols-1 border-b border-slate-100 px-4 py-3 last:border-b-0 md:grid-cols-[260px_1fr]">
-                                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">{field.label}</p>
+                                    <div key={field.label} className="grid grid-cols-1 border-b border-slate-100 px-6 py-5 last:border-b-0 md:grid-cols-[280px_1fr]">
+                                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">{field.label}</p>
                                         <p className="font-bold text-slate-900">{field.value}</p>
                                     </div>
                                 ))}
                             </div>
                             {detail.items.length > 0 && (
-                                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                                    <div className="border-b border-slate-100 px-4 py-3 text-sm font-black text-slate-900">Item Detail</div>
+                                <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                                    <div className="border-b border-slate-100 px-6 py-4 text-sm font-black text-slate-900">Item Detail</div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full min-w-[720px] text-left text-sm">
                                             <thead className="bg-slate-50 text-xs uppercase text-slate-400">
                                                 <tr>
                                                     {Object.keys(detail.items[0]).map((key) => (
-                                                        <th key={key} className="px-4 py-3 font-black">{key.replace(/_/g, ' ')}</th>
+                                                        <th key={key} className="px-5 py-4 font-black">{key.replace(/_/g, ' ')}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
@@ -370,7 +370,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                                 {detail.items.map((item, index) => (
                                                     <tr key={index} className="border-t border-slate-100">
                                                         {Object.keys(detail.items[0]).map((key) => (
-                                                            <td key={`${index}-${key}`} className="px-4 py-3 font-semibold text-slate-700">{String(item[key] ?? '-')}</td>
+                                                            <td key={`${index}-${key}`} className="px-5 py-4 font-semibold text-slate-700">{String(item[key] ?? '-')}</td>
                                                         ))}
                                                     </tr>
                                                 ))}

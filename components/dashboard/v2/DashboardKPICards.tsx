@@ -10,24 +10,49 @@ interface DashboardKPICardsProps {
 
 const primaryCards: DashboardV2CardType[] = ['TOTAL_TOKO', 'SLA', 'SPK_AKTIF', 'TOTAL_DENDA'];
 
-const toneClass: Record<DashboardV2Tone, string> = {
-    neutral: 'border-slate-200 bg-white text-slate-900',
-    blue: 'border-blue-200 bg-blue-50 text-blue-900',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    yellow: 'border-amber-200 bg-amber-50 text-amber-900',
-    red: 'border-red-200 bg-red-50 text-red-900',
-    purple: 'border-violet-200 bg-violet-50 text-violet-900',
-    orange: 'border-orange-200 bg-orange-50 text-orange-900',
-};
-
-const iconClass: Record<DashboardV2Tone, string> = {
-    neutral: 'bg-slate-100 text-slate-700',
-    blue: 'bg-blue-100 text-blue-700',
-    green: 'bg-emerald-100 text-emerald-700',
-    yellow: 'bg-amber-100 text-amber-700',
-    red: 'bg-red-100 text-red-700',
-    purple: 'bg-violet-100 text-violet-700',
-    orange: 'bg-orange-100 text-orange-700',
+const cardTone: Record<DashboardV2Tone, { bg: string; text: string; glow: string; icon: string }> = {
+    neutral: {
+        bg: 'bg-gradient-to-br from-slate-50 to-white border-slate-200',
+        text: 'text-slate-900',
+        glow: 'shadow-slate-500/10',
+        icon: 'text-slate-700',
+    },
+    blue: {
+        bg: 'bg-gradient-to-br from-indigo-50 to-white border-indigo-100',
+        text: 'text-indigo-900',
+        glow: 'shadow-indigo-500/20',
+        icon: 'text-indigo-600',
+    },
+    green: {
+        bg: 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100',
+        text: 'text-emerald-900',
+        glow: 'shadow-emerald-500/20',
+        icon: 'text-emerald-600',
+    },
+    yellow: {
+        bg: 'bg-gradient-to-br from-amber-50 to-white border-amber-100',
+        text: 'text-amber-900',
+        glow: 'shadow-amber-500/20',
+        icon: 'text-amber-600',
+    },
+    red: {
+        bg: 'bg-gradient-to-br from-rose-50 to-white border-rose-100',
+        text: 'text-rose-900',
+        glow: 'shadow-rose-500/20',
+        icon: 'text-rose-600',
+    },
+    purple: {
+        bg: 'bg-gradient-to-br from-purple-50 to-white border-purple-100',
+        text: 'text-purple-900',
+        glow: 'shadow-purple-500/20',
+        icon: 'text-purple-600',
+    },
+    orange: {
+        bg: 'bg-gradient-to-br from-orange-50 to-white border-orange-100',
+        text: 'text-orange-900',
+        glow: 'shadow-orange-500/20',
+        icon: 'text-orange-600',
+    },
 };
 
 const iconForCard = (type: DashboardV2CardType) => {
@@ -43,36 +68,42 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ cards, isL
 
     if (isLoading) {
         return (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
                 {primaryCards.map((type) => (
-                    <div key={type} className="h-[132px] animate-pulse rounded-xl border border-slate-200 bg-white" />
+                    <div key={type} className="h-[240px] animate-pulse rounded-[24px] border border-slate-200 bg-white shadow-sm" />
                 ))}
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
             {visibleCards.map((card) => {
+                const tone = cardTone[card.tone] ?? cardTone.neutral;
                 const Icon = iconForCard(card.type);
                 return (
                     <button
                         key={card.type}
                         type="button"
                         onClick={() => onCardClick(card.type)}
-                        className={`min-h-[132px] rounded-xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${toneClass[card.tone]}`}
+                        className={`group relative min-h-[240px] overflow-hidden rounded-[24px] border p-6 text-left shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl ${tone.bg} ${tone.glow}`}
                     >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{card.title}</p>
-                                <p className="mt-2 break-words text-3xl font-black leading-none tracking-normal">{card.value}</p>
+                        <div className="relative z-10 flex h-full flex-col justify-between gap-6">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0 space-y-2">
+                                    <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500">{card.title}</h4>
+                                    <p className={`break-words text-4xl font-black leading-none tracking-normal ${tone.text}`}>
+                                        {card.value}
+                                    </p>
+                                </div>
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white shadow-sm transition duration-300 group-hover:scale-105">
+                                    <Icon className={`h-6 w-6 ${tone.icon}`} />
+                                </span>
                             </div>
-                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconClass[card.tone]}`}>
-                                <Icon className="h-5 w-5" />
-                            </span>
-                        </div>
-                        <div className="mt-4 border-t border-current/10 pt-3">
-                            <p className="text-xs font-bold leading-5 text-slate-600">{card.subtitle}</p>
+
+                            <div className="border-t border-slate-200/60 pt-4">
+                                <p className="text-[12px] font-bold leading-relaxed text-slate-600">{card.subtitle}</p>
+                            </div>
                         </div>
                     </button>
                 );
