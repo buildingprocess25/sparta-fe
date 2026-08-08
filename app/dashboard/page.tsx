@@ -990,22 +990,14 @@ export default function DashboardPage() {
         return Array.isArray(user?.roles) ? user.roles : [];
     }, [user?.roles, userInfo.roles]);
 
-    const dashboardV2ActorCompany = useMemo(() => {
-        const isCompanyScoped = dashboardV2ActorRoles.some((role) => {
-            const normalizedRole = role.toUpperCase();
-            return normalizedRole.includes('KONTRAKTOR') || normalizedRole.includes('DIREKTUR');
-        });
-        return isCompanyScoped ? userInfo.namaPt : undefined;
-    }, [dashboardV2ActorRoles, userInfo.namaPt]);
-
     const dashboardV2ScopeParams = useMemo<DashboardV2ScopeParams>(() => ({
         actorRole: dashboardV2ActorRoles.join(', '),
         actorCabang: userInfo.cabang || user?.cabang || 'HEAD OFFICE',
-        actorCompany: dashboardV2ActorCompany,
+        actorCompany: userInfo.namaPt,
         cabang: selectedCabang,
         search: searchQuery,
         jobType: dashboardV2JobType,
-    }), [dashboardV2ActorCompany, dashboardV2ActorRoles, dashboardV2JobType, searchQuery, selectedCabang, user?.cabang, userInfo.cabang]);
+    }), [dashboardV2ActorRoles, dashboardV2JobType, searchQuery, selectedCabang, user?.cabang, userInfo.cabang, userInfo.namaPt]);
 
     const loadDashboardV2Data = useCallback(async () => {
         if (!userInfo.cabang && !user?.cabang) return;
