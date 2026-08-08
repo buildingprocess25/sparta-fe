@@ -74,9 +74,9 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
     };
 
     return (
-        <div className="relative flex h-full w-full flex-col overflow-hidden bg-slate-50">
-            <div className="flex-1 overflow-y-auto px-4 py-6 md:px-8 custom-scrollbar">
-                <div className="mx-auto flex max-w-[1600px] flex-col gap-8">
+        <div className="flex h-full w-full flex-col overflow-hidden bg-slate-50">
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 lg:px-7 custom-scrollbar">
+                <div className="mx-auto flex max-w-[1680px] flex-col gap-4">
                     <DashboardFilterBar
                         searchQuery={searchQuery}
                         onSearchChange={onSearchChange}
