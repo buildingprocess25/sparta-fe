@@ -13,8 +13,8 @@ interface DashboardViewV2Props {
     isSuperAdmin: boolean;
     onRefresh: () => void;
     isRefreshing: boolean;
-    onExport: (format: 'xlsx' | 'csv' | 'pdf') => void;
-    isExporting: boolean;
+    jobType: 'ALL' | 'RENOVASI' | 'REGULER';
+    onJobTypeChange: (val: 'ALL' | 'RENOVASI' | 'REGULER') => void;
     
     // Extracted from page.tsx
     searchQuery: string;
@@ -30,8 +30,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
     isSuperAdmin,
     onRefresh,
     isRefreshing,
-    onExport,
-    isExporting,
+    jobType,
+    onJobTypeChange,
     searchQuery,
     onSearchChange,
     stats
@@ -71,6 +71,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
         let tambahHari = 0;
         let countTambahHari = 0;
+        let stCount = 0;
 
         projects.forEach(p => {
             // Penawaran
@@ -120,21 +121,30 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
             }
 
             // Pengawasan
+            if (p.berkas_serah_terima && p.berkas_serah_terima.length > 0) {
+                stCount++;
+            }
             if (p.gantt && p.gantt.length > 0) {
                 p.gantt.forEach((g: any) => {
-                    if (g.pengawasan_gantt && g.pengawasan_gantt.length > 0) {
-                        g.pengawasan_gantt.forEach((pw: any) => {
-                            const bobot = Number(pw.bobot_realisasi || 0);
-                            if (bobot >= 100) {
-                                pengawasanSelesai++;
-                            } else {
-                                // Dummy logic for terlambat (kalau tgl akhir lewat)
-                                if (new Date(pw.tanggal_akhir || g.end_date) < new Date()) {
-                                    pengawasanTerlambat++;
-                                } else {
-                                    pengawasanProgress++;
-                                }
+                    if (g.pengawasan && g.pengawasan.length > 0) {
+                        const grouped = g.pengawasan.reduce((acc: any, pw: any) => {
+                            let dateKey = pw.tanggal_pengawasan || pw.created_at || 'unknown';
+                            if (typeof dateKey === 'string') {
+                                if (dateKey.includes('T')) dateKey = dateKey.split('T')[0];
+                                else if (dateKey.includes(' ')) dateKey = dateKey.split(' ')[0];
                             }
+                            if (!acc[dateKey]) acc[dateKey] = [];
+                            acc[dateKey].push(pw);
+                            return acc;
+                        }, {});
+
+                        Object.values(grouped).forEach((groupItems: any) => {
+                            const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
+                            const isTerlambat = groupItems.some((i: any) => ['TERLAMBAT', 'LATE'].includes((i.status || '').toUpperCase()));
+                            
+                            if (isSelesai) pengawasanSelesai++;
+                            else if (isTerlambat) pengawasanTerlambat++;
+                            else pengawasanProgress++;
                         });
                     }
                 });
@@ -148,7 +158,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
             pengawasanSelesai, pengawasanProgress, pengawasanTerlambat,
             tambahHariCount: countTambahHari,
             avgTambahHari: countTambahHari > 0 ? Math.round(tambahHari / countTambahHari) : 0,
-            spAktif: stats.attention // fallback
+            spAktif: stats.attention, // fallback
+            stCount
         };
     }, [projects, stats]);
 
@@ -166,11 +177,12 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         selectedBranch={selectedBranch}
                         onBranchChange={onBranchChange}
                         accessibleBranches={accessibleBranches}
+
                         isSuperAdmin={isSuperAdmin}
                         onRefresh={onRefresh}
                         isRefreshing={isRefreshing}
-                        onExport={onExport}
-                        isExporting={isExporting}
+                        jobType={jobType}
+                        onJobTypeChange={onJobTypeChange}
                     />
                     
                     <div className="mt-2">
@@ -188,26 +200,21 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                     />
 
                     {/* Temporary dummy charts, can be updated later if requested */}
-                    <div className="opacity-90">
+                    <div className="opacity-100">
                         <DashboardCharts 
-                            trendData={{
-                                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                                datasets: [{ label: 'Proyek', data: [12, 19, 15, 25, 22, 30], borderColor: '#0ea5e9', backgroundColor: 'rgba(14, 165, 233, 0.1)', fill: true, tension: 0.4 }]
-                            }}
-                            branchData={{
-                                labels: accessibleBranches.slice(0, 5),
-                                datasets: [{ label: 'Proyek', data: [45, 32, 28, 56, 41], backgroundColor: '#1e293b', borderRadius: 6 }]
-                            }}
-                            budgetData={{
-                                labels: ['Reguler', 'Renovasi', 'Relokasi'],
-                                datasets: [{ data: [45, 35, 20], backgroundColor: ['#0ea5e9', '#1e293b', '#e2e8f0'], borderWidth: 0 }]
-                            }}
+                            projects={projects} 
+                            isSuperAdmin={isSuperAdmin} 
+                            accessibleBranches={accessibleBranches}
+                            selectedBranch={selectedBranch}
                         />
                     </div>
 
                     <DashboardDrilldownModal 
                         isOpen={isModalOpen}
-                        onClose={() => setIsModalOpen(false)}
+                        onClose={() => {
+                            setIsModalOpen(false);
+                            onSearchChange('');
+                        }}
                         initialCardType={activeCard}
                         projects={projects} // already filtered by search
                         searchQuery={searchQuery}

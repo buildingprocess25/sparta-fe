@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -6,85 +6,270 @@ import {
     PointElement,
     LineElement,
     BarElement,
-    ArcElement,
     Title,
     Tooltip,
     Legend,
     Filler
 } from 'chart.js';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatRupiah } from '@/lib/utils';
+import { getParentBranch, getSubBranchesForParent } from '@/lib/constants';
+type DashboardData = any;
 
-// Register Chart.js components
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    ArcElement,
-    Title,
-    Tooltip,
-    Legend,
-    Filler
-);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
 
 interface DashboardChartsProps {
-    trendData: {
-        labels: string[];
-        datasets: {
-            label: string;
-            data: number[];
-            borderColor: string;
-            backgroundColor: string;
-            fill: boolean;
-            tension: number;
-        }[];
-    };
-    branchData: {
-        labels: string[];
-        datasets: {
-            label: string;
-            data: number[];
-            backgroundColor: string;
-            borderRadius: number;
-        }[];
-    };
-    budgetData: {
-        labels: string[];
-        datasets: {
-            data: number[];
-            backgroundColor: string[];
-            borderWidth: number;
-        }[];
-    };
+    projects: DashboardData[];
+    isSuperAdmin?: boolean;
+    accessibleBranches?: string[];
+    selectedBranch?: string;
 }
 
-export const DashboardCharts: React.FC<DashboardChartsProps> = ({
-    trendData,
-    branchData,
-    budgetData
-}) => {
-    // Chart Options
-    const lineOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'top' as const, labels: { boxWidth: 10, font: { family: 'Geist' } } },
-            tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: { family: 'Geist' }, bodyFont: { family: 'Geist' } }
-        },
-        scales: {
-            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Geist' } } },
-            x: { grid: { display: false }, ticks: { font: { family: 'Geist' } } }
-        },
-        interaction: { mode: 'index' as const, intersect: false },
+export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSuperAdmin, accessibleBranches, selectedBranch }) => {
+    // Each chart has its own time filter state
+    const [filterRab, setFilterRab] = useState<string>('semua');
+    const [filterSpk, setFilterSpk] = useState<string>('semua');
+    const [filterSt, setFilterSt] = useState<string>('semua');
+    const [filterNilai, setFilterNilai] = useState<string>('semua');
+
+    // Helper to get cutoff date
+    const getCutoffDate = (filter: string) => {
+        if (filter === 'semua') return null;
+        const now = new Date();
+        if (filter === '1') now.setMonth(now.getMonth() - 1);
+        if (filter === '3') now.setMonth(now.getMonth() - 3);
+        if (filter === '6') now.setMonth(now.getMonth() - 6);
+        if (filter === '12') now.setFullYear(now.getFullYear() - 1);
+        return now;
     };
 
-    const barOptions = {
+    const getBaseLabels = (): string[] => {
+        if (!accessibleBranches || accessibleBranches.length === 0) return [];
+        if (selectedBranch === 'ALL' || !selectedBranch) {
+            return accessibleBranches;
+        } else {
+            if (isSuperAdmin) {
+                return getSubBranchesForParent(selectedBranch);
+            } else {
+                return [selectedBranch];
+            }
+        }
+    };
+
+    const getBranchName = (cabang: string | null | undefined, isSuperAdmin: boolean) => {
+        const rawCabang = (cabang || 'UNKNOWN').toUpperCase();
+        if (selectedBranch === 'ALL' || !selectedBranch) {
+            if (isSuperAdmin) return getParentBranch(rawCabang) || rawCabang;
+            return rawCabang;
+        } else {
+            // When filtered to a specific branch group, break it down to sub-branches
+            return rawCabang;
+        }
+    };
+
+    // --- CHART A: RAB Dibuat vs RAB Approved ---
+    const dataRab = useMemo(() => {
+        const cutoff = getCutoffDate(filterRab);
+        const mapDibuat: Record<string, number> = {};
+        const mapApproved: Record<string, number> = {};
+        
+        const baseLabels = getBaseLabels();
+        baseLabels.forEach(l => {
+            mapDibuat[l] = 0;
+            mapApproved[l] = 0;
+        });
+
+        projects.forEach((p: any) => {
+            const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
+
+            p.rab?.forEach((r: any) => {
+                const dateDibuat = r.created_at;
+                const dateApproved = r.waktu_persetujuan_direktur || r.waktu_persetujuan_manager || r.waktu_persetujuan_koordinator || r.waktu_persetujuan || (['DISETUJUI', 'MENUNGGU GANTT CHART'].includes(String(r.status).toUpperCase()) ? r.updated_at : null);
+                
+                if (dateDibuat) {
+                    const d = new Date(dateDibuat);
+                    if (!cutoff || d >= cutoff) {
+                        mapDibuat[branchLabel] = (mapDibuat[branchLabel] || 0) + 1;
+                    }
+                }
+                
+                const status = String(r.status).toUpperCase();
+                if (dateApproved && (status === 'DISETUJUI' || status === 'MENUNGGU GANTT CHART' || status === 'APPROVED')) {
+                    const d = new Date(dateApproved);
+                    if (!cutoff || d >= cutoff) {
+                        mapApproved[branchLabel] = (mapApproved[branchLabel] || 0) + 1;
+                    }
+                }
+            });
+        });
+
+        // Collect all unique labels and sort them
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
+        const labels = Array.from(labelsSet).sort();
+        
+        return {
+            labels,
+            datasets: [
+                { label: 'RAB Dibuat', data: labels.map(l => mapDibuat[l] || 0), backgroundColor: '#cbd5e1', borderRadius: 4 },
+                { label: 'RAB Approved', data: labels.map(l => mapApproved[l] || 0), backgroundColor: '#0ea5e9', borderRadius: 4 }
+            ]
+        };
+    }, [projects, filterRab]);
+
+    // --- CHART B: SPK Dibuat vs SPK Approved ---
+    const dataSpk = useMemo(() => {
+        const cutoff = getCutoffDate(filterSpk);
+        const mapDibuat: Record<string, number> = {};
+        const mapApproved: Record<string, number> = {};
+
+        const baseLabels = getBaseLabels();
+        baseLabels.forEach(l => {
+            mapDibuat[l] = 0;
+            mapApproved[l] = 0;
+        });
+
+        projects.forEach((p: any) => {
+            const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
+
+            p.spk?.forEach((s: any) => {
+                const dateDibuat = s.created_at;
+                const dateApproved = s.waktu_persetujuan || s.updated_at;
+                
+                if (dateDibuat) {
+                    const d = new Date(dateDibuat);
+                    if (!cutoff || d >= cutoff) {
+                        mapDibuat[branchLabel] = (mapDibuat[branchLabel] || 0) + 1;
+                    }
+                }
+                
+                if (dateApproved && ['APPROVED', 'ACTIVE', 'AKTIF', 'SPK_APPROVED', 'SELESAI', 'DISETUJUI'].includes(String(s.status).toUpperCase())) {
+                    const d = new Date(dateApproved);
+                    if (!cutoff || d >= cutoff) {
+                        mapApproved[branchLabel] = (mapApproved[branchLabel] || 0) + 1;
+                    }
+                }
+            });
+        });
+
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
+        const labels = Array.from(labelsSet).sort();
+        
+        return {
+            labels,
+            datasets: [
+                { label: 'SPK Dibuat', data: labels.map(l => mapDibuat[l] || 0), backgroundColor: '#e2e8f0', borderRadius: 4 },
+                { label: 'SPK Approved', data: labels.map(l => mapApproved[l] || 0), backgroundColor: '#10b981', borderRadius: 4 }
+            ]
+        };
+    }, [projects, filterSpk, isSuperAdmin]);
+
+    // --- CHART C: SPK Release vs Serah Terima ---
+    const dataSpkRelease = useMemo(() => {
+        const cutoff = getCutoffDate(filterSt);
+        const mapSpkRelease: Record<string, number> = {};
+        const mapST: Record<string, number> = {};
+
+        const baseLabels = getBaseLabels();
+        baseLabels.forEach(l => {
+            mapSpkRelease[l] = 0;
+            mapST[l] = 0;
+        });
+
+        projects.forEach((p: any) => {
+            const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
+
+            p.spk?.forEach((s: any) => {
+                const dateApproved = s.waktu_persetujuan || s.updated_at;
+                if (dateApproved && ['APPROVED', 'ACTIVE', 'AKTIF', 'SPK_APPROVED', 'SELESAI', 'DISETUJUI'].includes(String(s.status).toUpperCase())) {
+                    const d = new Date(dateApproved);
+                    if (!cutoff || d >= cutoff) {
+                        mapSpkRelease[branchLabel] = (mapSpkRelease[branchLabel] || 0) + 1;
+                    }
+                }
+            });
+
+            p.berkas_serah_terima?.forEach((st: any) => {
+                const dST = st.created_at;
+                if (dST) {
+                    const d = new Date(dST);
+                    if (!cutoff || d >= cutoff) {
+                        mapST[branchLabel] = (mapST[branchLabel] || 0) + 1;
+                    }
+                }
+            });
+        });
+
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapSpkRelease), ...Object.keys(mapST)]);
+        const labels = Array.from(labelsSet).sort();
+        
+        return {
+            labels,
+            datasets: [
+                { label: 'SPK Release', data: labels.map(l => mapSpkRelease[l] || 0), backgroundColor: '#f87171', borderRadius: 4 },
+                { label: 'Serah Terima', data: labels.map(l => mapST[l] || 0), backgroundColor: '#8b5cf6', borderRadius: 4 }
+            ]
+        };
+    }, [projects, filterSt]);
+
+    // --- CHART D: Nilai SPK vs Nilai Grand Opname Final ---
+    const dataNilai = useMemo(() => {
+        const cutoff = getCutoffDate(filterNilai);
+        const mapNilaiSpk: Record<string, number> = {};
+        const mapNilaiOpname: Record<string, number> = {};
+
+        const baseLabels = getBaseLabels();
+        baseLabels.forEach(l => {
+            mapNilaiSpk[l] = 0;
+            mapNilaiOpname[l] = 0;
+        });
+
+        projects.forEach((p: any) => {
+            const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
+            
+            // Opname
+            const opnames = p.opname_final || [];
+            const ofinal = opnames.find((o: any) => o.tipe_opname !== 'OPNAME');
+            
+            // "Nilai SPK vs Nilai opname final, gunakan nilai SPK yang hanya udah Opname final aja, yang belum jangan di bawa bawa"
+            if (!ofinal) return; // Skip entirely if no Opname Final!
+
+            if (ofinal && ofinal.created_at) {
+                const d = new Date(ofinal.created_at);
+                if (!cutoff || d >= cutoff) {
+                    mapNilaiOpname[branchLabel] = (mapNilaiOpname[branchLabel] || 0) + Number(ofinal.grand_total_final || ofinal.grand_total_opname || ofinal.nilai_opname || 0);
+                }
+            }
+
+            // SPK
+            p.spk?.forEach((s: any) => {
+                const dateApproved = s.waktu_persetujuan || s.updated_at;
+                if (dateApproved && ['APPROVED', 'ACTIVE', 'AKTIF', 'SPK_APPROVED', 'SELESAI', 'DISETUJUI'].includes(String(s.status).toUpperCase())) {
+                    const d = new Date(dateApproved);
+                    if (!cutoff || d >= cutoff) {
+                        mapNilaiSpk[branchLabel] = (mapNilaiSpk[branchLabel] || 0) + Number(s.grand_total || 0);
+                    }
+                }
+            });
+        });
+
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapNilaiSpk), ...Object.keys(mapNilaiOpname)]);
+        const labels = Array.from(labelsSet).sort();
+        
+        return {
+            labels,
+            datasets: [
+                { label: 'Nilai SPK', data: labels.map(l => mapNilaiSpk[l] || 0), backgroundColor: '#fbbf24', borderRadius: 4 },
+                { label: 'Nilai Opname Final', data: labels.map(l => mapNilaiOpname[l] || 0), backgroundColor: '#2dd4bf', borderRadius: 4 }
+            ]
+        };
+    }, [projects, filterNilai]);
+
+    const commonOptions = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: false },
+            legend: { position: 'top' as const, labels: { font: { family: 'Geist' }, usePointStyle: true, padding: 20 } },
             tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: { family: 'Geist' }, bodyFont: { family: 'Geist' } }
         },
         scales: {
@@ -93,52 +278,89 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
         }
     };
 
-    const doughnutOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '75%',
+    const currencyOptions = {
+        ...commonOptions,
         plugins: {
-            legend: { position: 'right' as const, labels: { boxWidth: 12, padding: 20, font: { family: 'Geist' } } },
+            ...commonOptions.plugins,
             tooltip: {
-                backgroundColor: '#1e293b',
-                padding: 12,
-                titleFont: { family: 'Geist' },
-                bodyFont: { family: 'Geist' },
+                ...commonOptions.plugins.tooltip,
                 callbacks: {
                     label: function(context: any) {
-                        return ' ' + context.label + ': ' + formatRupiah(context.raw);
+                        return ' ' + context.dataset.label + ': ' + formatRupiah(context.raw);
+                    }
+                }
+            }
+        },
+        scales: {
+            ...commonOptions.scales,
+            y: {
+                ...commonOptions.scales.y,
+                ticks: {
+                    ...commonOptions.scales.y.ticks,
+                    callback: function(value: any) {
+                        if (value >= 1000000000) return 'Rp ' + (value / 1000000000).toFixed(1) + ' M';
+                        if (value >= 1000000) return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
+                        return value;
                     }
                 }
             }
         }
     };
 
+    const FilterDropdown = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => (
+        <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className="w-[140px] h-8 text-xs bg-slate-50 border-slate-200">
+                <SelectValue placeholder="Filter Waktu" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="1">1 Bulan Terakhir</SelectItem>
+                <SelectItem value="3">3 Bulan Terakhir</SelectItem>
+                <SelectItem value="6">6 Bulan Terakhir</SelectItem>
+                <SelectItem value="12">1 Tahun Terakhir</SelectItem>
+                <SelectItem value="semua">Semua Waktu</SelectItem>
+            </SelectContent>
+        </Select>
+    );
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-lg text-slate-800">Trend Pembangunan Bulanan</h3>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <h3 className="font-black text-lg text-slate-800">Perbandingan RAB</h3>
+                    <FilterDropdown value={filterRab} onChange={setFilterRab} />
                 </div>
                 <div className="h-[280px]">
-                    <Line data={trendData} options={lineOptions} />
+                    <Bar data={dataRab} options={commonOptions} />
                 </div>
             </div>
             
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-lg text-slate-800">Distribusi Proyek per Cabang</h3>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <h3 className="font-black text-lg text-slate-800">Perbandingan SPK</h3>
+                    <FilterDropdown value={filterSpk} onChange={setFilterSpk} />
                 </div>
                 <div className="h-[280px]">
-                    <Bar data={branchData} options={barOptions} />
+                    <Bar data={dataSpk} options={commonOptions} />
                 </div>
             </div>
             
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-lg text-slate-800">Proporsi Anggaran Proyek</h3>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <h3 className="font-black text-lg text-slate-800">SPK Release vs Serah Terima</h3>
+                    <FilterDropdown value={filterSt} onChange={setFilterSt} />
                 </div>
-                <div className="h-[300px] flex justify-center">
-                    <Doughnut data={budgetData} options={doughnutOptions} />
+                <div className="h-[280px]">
+                    <Bar data={dataSpkRelease} options={commonOptions} />
+                </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <h3 className="font-black text-lg text-slate-800">Nilai SPK vs Opname Final</h3>
+                    <FilterDropdown value={filterNilai} onChange={setFilterNilai} />
+                </div>
+                <div className="h-[280px]">
+                    <Bar data={dataNilai} options={currencyOptions} />
                 </div>
             </div>
         </div>

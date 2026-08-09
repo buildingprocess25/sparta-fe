@@ -24,37 +24,47 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
         {
             title: 'SLA PERHATIAN',
             value: stats.attention || 0,
-            icon: <AlertTriangle className="w-6 h-6 text-rose-600" />,
-            glow: 'shadow-rose-500/20',
-            bg: 'bg-gradient-to-br from-rose-50 to-white border-rose-100',
-            text: 'text-rose-900',
+            icon: <AlertTriangle className="w-6 h-6 text-yellow-600" />,
+            glow: 'shadow-yellow-500/20',
+            bg: 'bg-gradient-to-br from-yellow-50 to-white border-yellow-100',
+            text: 'text-yellow-900',
             subtext: `PJU: ${stats.miniPerhatian?.['Proses PJU'] || 0} · SPK: ${stats.miniPerhatian?.['Approval SPK'] || 0} · Ongoing: ${stats.miniPerhatian?.['Ongoing'] || 0}`,
             type: 'SLA'
         },
         {
             title: 'SPK AKTIF',
             value: extraStats.spkOngoing || 0,
-            icon: <HardHat className="w-6 h-6 text-orange-600" />,
-            glow: 'shadow-orange-500/20',
-            bg: 'bg-gradient-to-br from-orange-50 to-white border-orange-100',
-            text: 'text-orange-900',
+            icon: <HardHat className="w-6 h-6 text-emerald-600" />,
+            glow: 'shadow-emerald-500/20',
+            bg: 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100',
+            text: 'text-emerald-900',
             subtext: `Dari ${(extraStats.spkOngoing || 0) + (extraStats.spkDone || 0)} total SPK diterbitkan`,
             type: 'SPK'
         },
         {
             title: 'TOTAL DENDA',
             value: formatRupiah(stats.totalDenda || 0),
-            icon: <FileCheck className="w-6 h-6 text-emerald-600" />,
-            glow: 'shadow-emerald-500/20',
-            bg: 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100',
-            text: 'text-emerald-900',
+            icon: <AlertTriangle className="w-6 h-6 text-rose-600" />,
+            glow: 'shadow-rose-500/20',
+            bg: 'bg-gradient-to-br from-rose-50 to-white border-rose-100',
+            text: 'text-rose-900',
             subtext: `${stats.dendaTerlambat || 0} ULOK melampaui batas waktu`,
             type: 'DENDA'
+        },
+        {
+            title: 'SERAH TERIMA',
+            value: extraStats.stCount || 0,
+            icon: <FileCheck className="w-6 h-6 text-teal-600" />,
+            glow: 'shadow-teal-500/20',
+            bg: 'bg-gradient-to-br from-teal-50 to-white border-teal-100',
+            text: 'text-teal-900',
+            subtext: `Dokumen BAST selesai`,
+            type: 'SERAH_TERIMA'
         }
     ];
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
             {cards.map((card, idx) => (
                 <div 
                     key={idx}
@@ -65,10 +75,10 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
                     <div className="absolute -top-12 -right-12 w-32 h-32 bg-white rounded-full opacity-40 blur-2xl group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
                     
                     <div className="relative z-10 flex flex-col h-full justify-between gap-6">
-                        <div className="flex justify-between items-start">
-                            <div className="space-y-1">
-                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500">{card.title}</h4>
-                                <p className={`text-4xl md:text-3xl lg:text-4xl font-black tracking-tighter ${card.text}`}>
+                        <div className="flex justify-between items-start gap-2">
+                            <div className="space-y-1 min-w-0 flex-1">
+                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 truncate">{card.title}</h4>
+                                <p className={`font-black tracking-tighter truncate text-2xl xl:text-[26px] 2xl:text-3xl ${card.text}`}>
                                     {card.value}
                                 </p>
                             </div>

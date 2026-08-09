@@ -13,8 +13,8 @@ interface DashboardFilterBarProps {
     isSuperAdmin: boolean;
     onRefresh: () => void;
     isRefreshing: boolean;
-    onExport: (format: 'xlsx' | 'csv' | 'pdf') => void;
-    isExporting: boolean;
+    jobType: 'ALL' | 'RENOVASI' | 'REGULER';
+    onJobTypeChange: (value: 'ALL' | 'RENOVASI' | 'REGULER') => void;
 }
 
 export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
@@ -26,8 +26,8 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     isSuperAdmin,
     onRefresh,
     isRefreshing,
-    onExport,
-    isExporting
+    jobType,
+    onJobTypeChange
 }) => {
     return (
         <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center relative z-30 mb-6">
@@ -45,22 +45,22 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
             </div>
             
             {accessibleBranches.length > 1 && (
-                <div className="w-full md:w-64">
+                <div className="w-full md:w-56">
                     <Select value={selectedBranch} onValueChange={onBranchChange}>
-                        <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px]">
+                        <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px] focus:ring-1 focus:ring-red-500">
                             <div className="flex items-center gap-2">
                                 <MapPin className="w-4 h-4 text-slate-400" />
-                                <span className="truncate">
+                                <span className="truncate text-sm font-semibold">
                                     {selectedBranch === 'all' ? 'Semua Cabang' : selectedBranch}
                                 </span>
                             </div>
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl">
                             <SelectItem value="all">
-                                <span className="font-semibold text-red-600">Semua Cabang</span>
+                                <span className="font-bold text-red-600">Semua Cabang</span>
                             </SelectItem>
                             {accessibleBranches.map((branch) => (
-                                <SelectItem key={branch} value={branch}>
+                                <SelectItem key={branch} value={branch} className="font-medium text-slate-700">
                                     {branch}
                                 </SelectItem>
                             ))}
@@ -69,37 +69,31 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                 </div>
             )}
 
+            <div className="w-full md:w-48">
+                <Select value={jobType} onValueChange={(val: any) => onJobTypeChange(val)}>
+                    <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px] focus:ring-1 focus:ring-red-500">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            {jobType === 'ALL' ? 'Semua Tipe Proyek' : jobType === 'RENOVASI' ? 'Renovasi' : 'Reguler'}
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        <SelectItem value="ALL"><span className="font-bold text-slate-800">Semua Tipe Proyek</span></SelectItem>
+                        <SelectItem value="RENOVASI"><span className="font-medium text-slate-700">Renovasi</span></SelectItem>
+                        <SelectItem value="REGULER"><span className="font-medium text-slate-700">Reguler</span></SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
             <div className="flex items-center gap-2 ml-auto w-full md:w-auto">
                 <Button 
                     variant="outline" 
-                    className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 h-[42px] flex-1 md:flex-none"
+                    className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 h-[42px] px-6 font-semibold shadow-sm transition-all flex-1 md:flex-none"
                     onClick={onRefresh}
                     disabled={isRefreshing}
                 >
                     <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    Refresh
+                    Segarkan
                 </Button>
-
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 h-[42px] flex-1 md:flex-none">
-                            {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                            Export Data
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-xl p-2">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 pt-1">Format Unduhan</div>
-                        <DropdownMenuItem onClick={() => onExport('xlsx')} className="cursor-pointer rounded-lg py-2">
-                            <span className="font-medium text-green-700">Excel (.xlsx)</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onExport('csv')} className="cursor-pointer rounded-lg py-2">
-                            <span className="font-medium text-slate-700">CSV (.csv)</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onExport('pdf')} className="cursor-pointer rounded-lg py-2">
-                            <span className="font-medium text-red-600">PDF Document</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
             </div>
         </div>
     );

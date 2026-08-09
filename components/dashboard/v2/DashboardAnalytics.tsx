@@ -65,7 +65,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({ stats, e
 
     const costMetrics = [
         { label: 'Terbangun', value: stats.avgCostTerbangun || 0, color: 'bg-gradient-to-r from-emerald-400 to-emerald-500' },
-        { label: 'Bangunan Utama', value: stats.avgCostBangunan || 0, color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
+        { label: 'Bangunan', value: stats.avgCostBangunan || 0, color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
         { label: 'Area Terbuka', value: stats.avgCostTerbuka || 0, color: 'bg-gradient-to-r from-purple-400 to-purple-500' },
     ];
 
