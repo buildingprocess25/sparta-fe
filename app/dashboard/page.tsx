@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useSession } from '@/context/SessionContext';
 
@@ -30,7 +30,7 @@ import AppNavbar from '@/components/AppNavbar';
 
 import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage, BRANCH_TO_ULOK } from '@/lib/constants';
 
-import { formatRupiah, parseCurrency } from '@/lib/utils';
+import { formatRupiah, parseCurrency, cn } from '@/lib/utils';
 
 import { downloadDashboardExport, downloadPengawasanPdf, fetchDashboardAll, fetchRabProjectPlanningRequests, fetchTaskNotifications, viewGeneratedPdfOnline, type DashboardExportFormat } from '@/lib/api';
 
@@ -72,6 +72,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { DashboardViewV2 } from '@/components/dashboard/v2/DashboardViewV2';
+import { DashboardKPI } from '@/components/dashboard/v3/DashboardKPI';
 
 import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
 
@@ -1194,6 +1195,17 @@ const CACHE_TTL = 300_000; // 5 minutes
 
 
 export default function DashboardPage() {
+    const searchParams = useSearchParams();
+    const currentView = searchParams.get('view') || 'monitoring';
+    const [deferredView, setDeferredView] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Defer rendering the non-active view so it loads in background after main view is done
+        const timer = setTimeout(() => {
+            setDeferredView('all');
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, []);
 
     const router = useRouter();
 
@@ -3198,55 +3210,75 @@ export default function DashboardPage() {
 
                 {/* ===================== MAIN â€” Home Portal ===================== */}
 
-                                <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+                <main className="flex-1 flex flex-col overflow-hidden min-w-0">
 
-                    <DashboardViewV2
+                    <div className={cn("h-full w-full", currentView === 'monitoring' ? 'block' : 'hidden')}>
 
-                        projects={filteredProjects}
+                        {(currentView === 'monitoring' || deferredView === 'all') && (
 
-                        accessibleBranches={cabangList}
+                            <DashboardViewV2
 
-                        selectedBranch={selectedCabang}
+                                projects={filteredProjects}
 
-                        onBranchChange={setSelectedCabang}
+                                accessibleBranches={cabangList}
 
-                        isSuperAdmin={canSeeAllMonitoringBranches}
+                                selectedBranch={selectedCabang}
 
-                        onRefresh={() => fetchDashboardData(
+                                onBranchChange={setSelectedCabang}
 
-                            userInfo.cabang,
+                                isSuperAdmin={canSeeAllMonitoringBranches}
 
-                            canSeeAllMonitoringBranches,
+                                onRefresh={() => fetchDashboardData(
 
-                            user?.email ?? '',
+                                    userInfo.cabang,
 
-                            userInfo.namaPt,
+                                    canSeeAllMonitoringBranches,
 
-                            isCompanyScopedUser,
+                                    user?.email ?? '',
 
-                            true,
+                                    userInfo.namaPt,
 
-                            userInfo.roles
+                                    isCompanyScopedUser,
+
+                                    true,
+
+                                    userInfo.roles
+
+                                )}
+
+                                isRefreshing={isDataLoading}
+
+                                searchQuery={searchQuery}
+
+                                onSearchChange={setSearchQuery}
+
+                                stats={stats}
+
+                                jobType={jobType}
+
+                                onJobTypeChange={setJobType}
+
+                            />
 
                         )}
 
-                        isRefreshing={isDataLoading}
+                    </div>
 
-                        searchQuery={searchQuery}
 
-                        onSearchChange={setSearchQuery}
 
-                        stats={stats}
-                        
-                        jobType={jobType}
-                        
-                        onJobTypeChange={setJobType}
+                    <div className={cn("h-full w-full", currentView === 'performance' ? 'block' : 'hidden')}>
 
-                    />
+                        {(currentView === 'performance' || deferredView === 'all') && (
 
-                    
+                            <DashboardKPI userInfo={userInfo} />
+
+                        )}
+
+                    </div>
 
                 </main>
+
+
 
             </div>
 
@@ -5331,8 +5363,6 @@ function AnimatedNumber({ value, isLoading }: { value: string | number, isLoadin
 
 
     const [displayValue, setDisplayValue] = useState(0);
-
-    
 
     const isRupiah = typeof value === 'string' && value.includes('Rp');
 

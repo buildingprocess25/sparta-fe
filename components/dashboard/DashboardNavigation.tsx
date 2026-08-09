@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -202,14 +202,32 @@ export default function DashboardNavigation({
     <div className="flex h-full flex-col bg-white">
       <div className="border-b border-slate-100 px-4 py-4">
         <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">Ruang kerja</p>
-        <Link
-          href="/dashboard"
-          className="mt-2 flex min-h-10 items-center gap-2.5 rounded-lg bg-red-50 px-3 text-[12px] font-semibold text-red-700"
-          onClick={onCloseMobile}
-        >
-          <LayoutDashboard className="h-4 w-4" />
-          Dashboard
-        </Link>
+        
+        <details className="group/nav-dash mt-2 overflow-hidden rounded-xl border border-red-100 bg-white open:shadow-sm" open>
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-red-50 px-3 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-100 [&::-webkit-details-marker]:hidden">
+                <LayoutDashboard className="h-4 w-4" />
+                <span className="flex-1">Dashboard</span>
+                <ChevronDown className="h-3.5 w-3.5 text-red-700 transition-transform group-open/nav-dash:rotate-180" />
+            </summary>
+            <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5 flex flex-col gap-1">
+                <Link
+                    href="/dashboard?view=monitoring"
+                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-all hover:bg-red-50 hover:text-red-700 hover:shadow-[inset_3px_0_0_#dc2626]"
+                    onClick={onCloseMobile}
+                >
+                    <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
+                    <span className="min-w-0 flex-1 leading-snug">Monitoring Tracking</span>
+                </Link>
+                <Link
+                    href="/dashboard?view=performance"
+                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-all hover:bg-red-50 hover:text-red-700 hover:shadow-[inset_3px_0_0_#dc2626]"
+                    onClick={onCloseMobile}
+                >
+                    <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
+                    <span className="min-w-0 flex-1 leading-snug">Performance KPI SAT</span>
+                </Link>
+            </div>
+        </details>
       </div>
 
       <nav className="custom-scrollbar flex-1 overflow-y-auto px-3 py-3">
