@@ -23,7 +23,7 @@ import {
     fetchGanttList, fetchGanttDetailByToko, fetchPengawasanList, fetchInstruksiLapanganList,
     type OpnameItem, type RABDetailItem, type RABDetailToko, type RABListItem,
 } from '@/lib/api';
-import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
+import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, normalizeBranchValue } from '@/lib/constants';
 
 // =============================================================================
 // HELPERS
@@ -1569,7 +1569,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         const q = searchQuery.toLowerCase();
         return tokoGroups.filter(g => {
             if (!isHeadOfficeContractor) {
-                if (g.cabang && !allowedBranches.includes(g.cabang)) return false;
+                if (g.cabang && !allowedBranches.includes(normalizeBranchValue(g.cabang))) return false;
                 if (!g.cabang && allowedBranches.length > 0 && allowedBranches[0] !== '') return false;
             }
             
