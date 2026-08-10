@@ -1,21 +1,20 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { fetchDashboardKpiPerformance, type KpiPerformanceData } from "@/lib/api/kpi-performance";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { fetchDashboardKpiPerformance, type KpiCardType, type KpiPerformanceData } from "@/lib/api/kpi-performance";
 import { KPIFilters } from "./KPIFilters";
 import { KpiDrilldownModal } from "./KpiDrilldownModal";
-
-import { 
-  Building2, 
-  Banknote, 
-  Clock, 
-  AlertTriangle, 
-  TimerReset, 
-  TrendingUp, 
-  TrendingDown, 
-  CheckCircle2, 
-  Activity,
+import {
+  AlertTriangle,
+  Banknote,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   FileText,
+  TimerReset,
+  TrendingDown,
+  TrendingUp,
   UserCheck,
-  ChevronRight
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,23 +22,37 @@ const Skeleton = ({ className }: { className?: string }) => (
   <div className={cn("animate-pulse rounded-md bg-slate-200", className)} />
 );
 
-export function DashboardKPI({ 
-  userInfo 
-}: { 
-  userInfo: { name: string; roles: string[]; cabang: string; namaPt: string } 
+const emptyMeta = { valid_count: 0, incomplete_count: 0 };
+
+const formatRupiah = (val: number) => {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val || 0);
+};
+
+const formatDays = (val: number) => Number(val || 0).toFixed(1);
+
+type MetricCardConfig = {
+  id: KpiCardType;
+  title: string;
+  value: string;
+  unit: string;
+  icon: React.ReactNode;
+  tone: string;
+  helper: string;
+};
+
+export function DashboardKPI({
+  userInfo
+}: {
+  userInfo: { name: string; roles: string[]; cabang: string; namaPt: string }
 }) {
   const [data, setData] = useState<KpiPerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filters state
   const [selectedCabang, setSelectedCabang] = useState("ALL");
   const [selectedCoordinator, setSelectedCoordinator] = useState("ALL");
   const [selectedSupport, setSelectedSupport] = useState("ALL");
-
-  // Modal State
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState("");
+  const [modalType, setModalType] = useState<KpiCardType | "">("");
   const [modalTitle, setModalTitle] = useState("");
 
   const fetchData = useCallback(async () => {
@@ -55,81 +68,180 @@ export function DashboardKPI({
         support: selectedSupport
       });
       setData(res.data);
-    } catch (err: any) {
-      setError(err.message || "Gagal memuat data KPI");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal memuat data KPI ULOK gabungan.");
     } finally {
       setLoading(false);
     }
-  }, [userInfo, selectedCabang, selectedCoordinator, selectedSupport]);
+  }, [selectedCabang, selectedCoordinator, selectedSupport, userInfo]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const openDrilldown = (type: string, title: string) => {
+  const openDrilldown = (type: KpiCardType, title: string) => {
     setModalType(type);
     setModalTitle(title);
     setModalOpen(true);
   };
 
-  const renderMetricCard = (
-    id: string,
-    title: string, 
-    value: string | number, 
-    unit: string, 
-    icon: React.ReactNode, 
-    colorClass: string,
-    loadingState: boolean,
-    hoverClass: string
-  ) => {
-    return (
-      <div 
-        onClick={() => openDrilldown(id, title)}
-        className="group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-xl p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.1)] cursor-pointer"
-      >
-        <div className="flex items-center justify-between relative z-10">
-          <p className="text-sm font-semibold text-slate-500 transition-colors group-hover:text-slate-700">{title}</p>
-          <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-110", colorClass)}>
-            {icon}
-          </div>
-        </div>
-        <div className="mt-5 flex items-baseline gap-2 relative z-10">
-          {loadingState ? (
-            <Skeleton className="h-9 w-28" />
-          ) : (
-            <>
-              <h3 className="text-3xl font-extrabold tracking-tight text-slate-800">{value}</h3>
-              {unit && <span className="text-sm font-semibold text-slate-400">{unit}</span>}
-            </>
-          )}
-        </div>
-        
-        {/* Click indicator */}
-        <div className="absolute right-4 bottom-4 opacity-0 -translate-x-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
-          <div className="p-1.5 rounded-full bg-slate-100/80 text-slate-400 group-hover:text-slate-600">
-            <ChevronRight className="w-4 h-4" />
-          </div>
-        </div>
+  const metricMeta = useCallback((type: KpiCardType) => data?.metrics?.[type] ?? emptyMeta, [data]);
 
-        {/* Dynamic ambient background glow */}
-        <div className={cn("pointer-events-none absolute -bottom-12 -right-12 h-32 w-32 rounded-full opacity-30 blur-3xl transition-opacity duration-500 group-hover:opacity-60", hoverClass)}></div>
+  const cards = useMemo<MetricCardConfig[]>(() => [
+    {
+      id: "cost_m2",
+      title: "Avg Cost/m2",
+      value: formatRupiah(data?.avg_cost_m2 || 0),
+      unit: "/ m2",
+      icon: <Banknote className="h-5 w-5 text-emerald-700" aria-hidden="true" />,
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      helper: "RAB approved dibagi luas bangunan per ULOK"
+    },
+    {
+      id: "jhk",
+      title: "Avg JHK",
+      value: formatDays(data?.avg_jhk || 0),
+      unit: "hari",
+      icon: <Clock className="h-5 w-5 text-blue-700" aria-hidden="true" />,
+      tone: "border-blue-200 bg-blue-50 text-blue-700",
+      helper: "Durasi SPK valid per ULOK"
+    },
+    {
+      id: "denda",
+      title: "Avg Denda",
+      value: formatRupiah(data?.avg_denda || 0),
+      unit: "",
+      icon: <AlertTriangle className="h-5 w-5 text-amber-700" aria-hidden="true" />,
+      tone: "border-amber-200 bg-amber-50 text-amber-700",
+      helper: "Rata-rata nominal denda final"
+    },
+    {
+      id: "keterlambatan",
+      title: "Avg Keterlambatan",
+      value: formatDays(data?.avg_keterlambatan_all || 0),
+      unit: "hari",
+      icon: <TimerReset className="h-5 w-5 text-rose-700" aria-hidden="true" />,
+      tone: "border-rose-200 bg-rose-50 text-rose-700",
+      helper: "Hari terlambat semua kontraktor"
+    },
+    {
+      id: "sla_coord",
+      title: "SLA Coord",
+      value: formatDays(data?.avg_sla_coord || 0),
+      unit: "hari",
+      icon: <UserCheck className="h-5 w-5 text-sky-700" aria-hidden="true" />,
+      tone: "border-sky-200 bg-sky-50 text-sky-700",
+      helper: "Approval tertahan di koordinator"
+    },
+    {
+      id: "sla_bm",
+      title: "SLA B&M Manager",
+      value: formatDays(data?.avg_sla_bm || 0),
+      unit: "hari",
+      icon: <Users className="h-5 w-5 text-indigo-700" aria-hidden="true" />,
+      tone: "border-indigo-200 bg-indigo-50 text-indigo-700",
+      helper: "Approval tertahan di B&M Manager"
+    },
+    {
+      id: "sla_branch_manager",
+      title: "SLA Branch Manager",
+      value: formatDays(data?.avg_sla_branch_manager || 0),
+      unit: "hari",
+      icon: <Building2 className="h-5 w-5 text-cyan-700" aria-hidden="true" />,
+      tone: "border-cyan-200 bg-cyan-50 text-cyan-700",
+      helper: "Approval tertahan di Branch Manager"
+    },
+    {
+      id: "ketepatan_st",
+      title: "Ketepatan Serah Terima",
+      value: formatDays(data?.avg_ketepatan_st || 0),
+      unit: "hari",
+      icon: <CheckCircle2 className="h-5 w-5 text-teal-700" aria-hidden="true" />,
+      tone: "border-teal-200 bg-teal-50 text-teal-700",
+      helper: "Tanggal ST minus akhir SPK+tambah+1"
+    },
+    {
+      id: "sla_ktk",
+      title: "SLA KTK",
+      value: formatDays(data?.avg_sla_ktk || 0),
+      unit: "hari",
+      icon: <FileText className="h-5 w-5 text-violet-700" aria-hidden="true" />,
+      tone: "border-violet-200 bg-violet-50 text-violet-700",
+      helper: "Tanggal final KTK dikurang tanggal ST"
+    },
+    {
+      id: "kerja_tambah",
+      title: "Avg Kerja Tambah",
+      value: formatRupiah(data?.avg_kerja_tambah || 0),
+      unit: "",
+      icon: <TrendingUp className="h-5 w-5 text-emerald-700" aria-hidden="true" />,
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      helper: "Selisih final opname di atas RAB"
+    },
+    {
+      id: "kerja_kurang",
+      title: "Avg Kerja Kurang",
+      value: formatRupiah(data?.avg_kerja_kurang || 0),
+      unit: "",
+      icon: <TrendingDown className="h-5 w-5 text-orange-700" aria-hidden="true" />,
+      tone: "border-orange-200 bg-orange-50 text-orange-700",
+      helper: "Selisih final opname di bawah RAB"
+    }
+  ], [data]);
+
+  const renderMeta = (type: KpiCardType) => {
+    const meta = metricMeta(type);
+    return (
+      <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold">
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">ULOK Gabungan</span>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{meta.valid_count} valid</span>
+        {meta.incomplete_count > 0 && (
+          <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">{meta.incomplete_count} kurang data</span>
+        )}
       </div>
     );
   };
 
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val);
-  };
+  const renderMetricCard = (card: MetricCardConfig) => (
+    <button
+      key={card.id}
+      type="button"
+      onClick={() => openDrilldown(card.id, card.title)}
+      className="group relative min-h-[174px] overflow-hidden rounded-lg border border-slate-200 bg-white p-5 text-left shadow-sm transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+    >
+      <div className="relative z-10 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-slate-700">{card.title}</p>
+          <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-slate-500">{card.helper}</p>
+        </div>
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border", card.tone)}>
+          {card.icon}
+        </div>
+      </div>
+      <div className="relative z-10 mt-4 flex min-w-0 items-baseline gap-2">
+        {loading ? <Skeleton className="h-9 w-32" /> : (
+          <>
+            <h3 className="truncate text-2xl font-extrabold tracking-tight text-slate-950 xl:text-3xl">{card.value}</h3>
+            {card.unit && <span className="shrink-0 text-sm font-semibold text-slate-500">{card.unit}</span>}
+          </>
+        )}
+      </div>
+      {renderMeta(card.id)}
+      <ChevronRight className="absolute bottom-4 right-4 h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-500" aria-hidden="true" />
+    </button>
+  );
 
   return (
-    <div className="flex h-full flex-col space-y-6 overflow-y-auto bg-slate-50/50 p-6 custom-scrollbar">
-      
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex h-full flex-col space-y-6 overflow-y-auto bg-slate-50 p-6 custom-scrollbar">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Performance KPI</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">
-            Monitoring rata-rata performa proyek SAT secara keseluruhan berdasarkan *Real Data*.
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950">Performance KPI SAT</h1>
+          <p className="mt-1 text-sm font-medium text-slate-500">
+            Rapor performa proyek toko berbasis ULOK gabungan, dengan drilldown sampai sumber SIPIL/ME.
           </p>
+        </div>
+        <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+          {data?.total_ulok ?? 0} ULOK dalam scope
         </div>
       </div>
 
@@ -144,153 +256,14 @@ export function DashboardKPI({
       />
 
       {error && (
-        <div className="rounded-xl bg-red-50/80 backdrop-blur-md p-4 text-sm text-red-600 border border-red-200/50 flex items-center gap-2 shadow-sm">
-          <AlertTriangle className="h-5 w-5" />
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm" aria-live="polite">
+          <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           <span className="font-medium">{error}</span>
         </div>
       )}
 
-      {/* Bento Grid Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Financial & General */}
-        <div className="col-span-1 md:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {renderMetricCard(
-            "cost_m2",
-            "Avg Cost/m2", 
-            formatRupiah(data?.avg_cost_m2 || 0), 
-            "/ m2", 
-            <Banknote className="h-5 w-5 text-emerald-600" />, 
-            "bg-emerald-100/50 border border-emerald-200/50",
-            loading,
-            "bg-emerald-400"
-          )}
-          {renderMetricCard(
-            "jhk",
-            "Avg JHK", 
-            Number(data?.avg_jhk || 0).toFixed(1), 
-            "Hari", 
-            <Clock className="h-5 w-5 text-blue-600" />, 
-            "bg-blue-100/50 border border-blue-200/50",
-            loading,
-            "bg-blue-400"
-          )}
-          {renderMetricCard(
-            "denda",
-            "Avg Denda", 
-            formatRupiah(data?.avg_denda || 0), 
-            "", 
-            <AlertTriangle className="h-5 w-5 text-amber-600" />, 
-            "bg-amber-100/50 border border-amber-200/50",
-            loading,
-            "bg-amber-400"
-          )}
-          {renderMetricCard(
-            "keterlambatan",
-            "Avg Keterlambatan", 
-            Number(data?.avg_keterlambatan_all || data?.avg_keterlambatan || 0).toFixed(1), 
-            "Hari", 
-            <TimerReset className="h-5 w-5 text-rose-600" />, 
-            "bg-rose-100/50 border border-rose-200/50",
-            loading,
-            "bg-rose-400"
-          )}
-        </div>
-
-        {/* KTK (Kerja Tambah Kurang) */}
-        <div 
-          onClick={() => openDrilldown("ktk_nominal", "Rincian Kerja Tambah & Kurang")}
-          className="group cursor-pointer col-span-1 md:col-span-2 rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.1)] relative overflow-hidden"
-        >
-          <h2 className="text-base font-bold text-slate-800 mb-6 flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <div className="p-1.5 bg-indigo-100/50 rounded-lg text-indigo-600 group-hover:scale-110 transition-transform"><Activity className="h-4 w-4" /></div>
-              Kerja Tambah & Kurang
-            </span>
-            <ChevronRight className="w-4 h-4 text-slate-300 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-slate-500" />
-          </h2>
-          <div className="grid grid-cols-2 gap-6 relative z-10">
-            <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 group-hover:bg-emerald-50/30 transition-colors">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Avg Tambah</p>
-              {loading ? <Skeleton className="h-8 w-28" /> : (
-                <p className="text-2xl font-extrabold text-slate-800 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-emerald-500" />
-                  {formatRupiah(data?.avg_kerja_tambah || 0)}
-                </p>
-              )}
-            </div>
-            <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 group-hover:bg-rose-50/30 transition-colors">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Avg Kurang</p>
-              {loading ? <Skeleton className="h-8 w-28" /> : (
-                <p className="text-2xl font-extrabold text-slate-800 flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-rose-500" />
-                  {formatRupiah(data?.avg_kerja_kurang || 0)}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-indigo-400 opacity-20 blur-3xl transition-opacity duration-500 group-hover:opacity-40"></div>
-        </div>
-
-        {/* SLA Approvals */}
-        <div 
-          onClick={() => openDrilldown("sla_approval", "Rata-rata Waktu Persetujuan")}
-          className="group cursor-pointer col-span-1 md:col-span-2 lg:col-span-2 rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.1)] relative overflow-hidden"
-        >
-          <h2 className="text-base font-bold text-slate-800 mb-6 flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <div className="p-1.5 bg-sky-100/50 rounded-lg text-sky-600 group-hover:scale-110 transition-transform"><UserCheck className="h-4 w-4" /></div>
-              SLA Approval <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-1">Rata-rata Hari</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-slate-300 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-slate-500" />
-          </h2>
-          <div className="grid grid-cols-3 gap-3 relative z-10">
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-slate-50 transition-colors">
-              <p className="text-xs font-semibold text-slate-500 mb-1">Koordinator</p>
-              {loading ? <Skeleton className="h-8 w-12" /> : (
-                <p className="text-2xl font-extrabold text-slate-800">{Number(data?.avg_sla_coord || 0).toFixed(1)}</p>
-              )}
-            </div>
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-slate-50 transition-colors border-x border-slate-100">
-              <p className="text-xs font-semibold text-slate-500 mb-1">Manager</p>
-              {loading ? <Skeleton className="h-8 w-12" /> : (
-                <p className="text-2xl font-extrabold text-slate-800">{Number(data?.avg_sla_bm || 0).toFixed(1)}</p>
-              )}
-            </div>
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl hover:bg-slate-50 transition-colors">
-              <p className="text-xs font-semibold text-slate-500 mb-1">Branch Mgr</p>
-              {loading ? <Skeleton className="h-8 w-12" /> : (
-                <p className="text-2xl font-extrabold text-slate-800">{Number(data?.avg_sla_branch_manager || 0).toFixed(1)}</p>
-              )}
-            </div>
-          </div>
-          <div className="pointer-events-none absolute -bottom-12 left-12 h-32 w-32 rounded-full bg-sky-400 opacity-20 blur-3xl transition-opacity duration-500 group-hover:opacity-40"></div>
-        </div>
-
-        {/* Serah Terima & KTK SLA */}
-        <div className="col-span-1 md:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
-           {renderMetricCard(
-            "ketepatan_st",
-            "Ketepatan BAST", 
-            Number(data?.avg_ketepatan_st || 0).toFixed(1), 
-            "Hari (Selisih dari Target)", 
-            <CheckCircle2 className="h-5 w-5 text-teal-600" />, 
-            "bg-teal-100/50 border border-teal-200/50",
-            loading,
-            "bg-teal-400"
-          )}
-          {renderMetricCard(
-            "sla_ktk",
-            "SLA KTK", 
-            Number(data?.avg_sla_ktk || 0).toFixed(1), 
-            "Hari (Setelah BAST)", 
-            <FileText className="h-5 w-5 text-violet-600" />, 
-            "bg-violet-100/50 border border-violet-200/50",
-            loading,
-            "bg-violet-400"
-          )}
-        </div>
-
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {cards.map(renderMetricCard)}
       </div>
 
       <KpiDrilldownModal
