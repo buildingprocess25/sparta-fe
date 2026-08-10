@@ -16,7 +16,10 @@ export type DashboardV2CardType =
     | "KERJA_TAMBAH_KURANG"
     | "SERAH_TERIMA"
     | "COST_M2_BANGUNAN"
-    | "COST_M2_TERBUKA";
+    | "COST_M2_TERBUKA"
+    | "JHK_PEKERJAAN"
+    | "KETERLAMBATAN"
+    | "NILAI_SPK";
 
 export type DashboardV2DocumentType =
     | "RAB"
@@ -64,6 +67,24 @@ export type DashboardV2Row = {
     status_label: string;
     value_label: string;
     metrics: DashboardV2Metric[];
+};
+
+export type DashboardV2StageStatus = "RAB" | "GANTT" | "SPK" | "PENGAWASAN" | "OPNAME_PARSIAL" | "OPNAME_FINAL" | "SERAH_TERIMA" | "UNKNOWN";
+export type DashboardV2ProgressStatus = "Done" | "Kerja Tambah Kurang" | "Ongoing" | "Unknown";
+
+export type DashboardV2ScopeSummary = {
+    toko_id: number;
+    lingkup_pekerjaan: string;
+    stage: DashboardV2StageStatus;
+    status: DashboardV2ProgressStatus;
+    value: number;
+};
+
+export type DashboardV2GroupedRow = DashboardV2Row & {
+    row_kind: "ULOK_GROUP" | "SCOPE";
+    scope_count?: number;
+    scope_labels?: string[];
+    scope_breakdown?: DashboardV2ScopeSummary[];
 };
 
 export type DashboardV2Pagination = {

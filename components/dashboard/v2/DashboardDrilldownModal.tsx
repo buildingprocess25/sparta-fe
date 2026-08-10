@@ -7,25 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { viewGeneratedPdfOnline } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 
-const formatDateIndo = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return '-';
-    // Fix standard DB timestamp format
-    const str = String(dateStr).replace('T', ' ').replace(/\.\d+Z?$/, '').replace(/\+.*$/, '');
-    const date = new Date(str.replace(/-/g, '/')); // For cross-browser compatibility
-    if (isNaN(date.getTime())) return String(dateStr);
-    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    
-    let res = `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
-    const hasTime = String(dateStr).includes(':') || str.includes(':');
-    
-    if (hasTime && (date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0 || String(dateStr).match(/\d{2}:\d{2}:\d{2}/))) {
-        const hours = String(date.getHours()).padStart(2, '0');
-        const mins = String(date.getMinutes()).padStart(2, '0');
-        const secs = String(date.getSeconds()).padStart(2, '0');
-        res += ` pukul ${hours}:${mins}:${secs}`;
-    }
-    return res;
-};
+import { formatDateTimeId } from '@/lib/date-format';
+import { DashboardV2UiTable } from './DashboardV2UiTable';
 
 const isDashboardDateEffective = (dateStr: string | null | undefined, now: Date) => {
     return dateStr ? new Date(dateStr) <= now : false;
@@ -60,26 +43,25 @@ const getProjectStage = (project: any): string => {
     return 'Approval RAB';
 };
 
+
 type DrilldownView = 'stage_summary' | 'list_ulok' | 'timeline' | 'detail' | 'cost_m2';
 
 interface DashboardDrilldownModalProps {
     isOpen: boolean;
     onClose: () => void;
     initialCardType: string | null;
-    projects: any[]; 
     searchQuery?: string;
-    stats?: any;
-    extraStats?: any;
+    selectedBranch?: string;
+    jobType?: string;
 }
 
 export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = ({
     isOpen,
     onClose,
     initialCardType,
-    projects,
     searchQuery,
-    stats,
-    extraStats
+    selectedBranch,
+    jobType
 }) => {
     const [view, setView] = useState<DrilldownView>('list_ulok');
     const [selectedProject, setSelectedProject] = useState<any | null>(null);
@@ -117,59 +99,53 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         }
     }, [isOpen, initialCardType, searchQuery, projects]);
 
-    const directToTahap4Types = ['PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'IL', 'INSTRUKSI_LAPANGAN', 'PENGAWASAN', 'ITEM_PENGAWASAN', 'JHK', 'TAMBAH_HARI_SPK', 'ST', 'SERAH_TERIMA', 'DENDA', 'TOTAL_DENDA'];
+    const [rows, setRows] = useState<any[]>([]);
+    const [isLoadingRows, setIsLoadingRows] = useState(false);
 
-    // --- DATA FILTERING ---
-    const displayProjects = useMemo(() => {
-        let filtered = projects;
-
-        // 1. Filter by initial card type
-        if (initialCardType === 'DENDA' || initialCardType === 'TOTAL_DENDA') {
-            filtered = filtered.filter(p => p.opname_final?.some((o: any) => Number(o.hari_denda) > 0 || Number(o.nilai_denda) > 0));
-        } else if (initialCardType === 'PENAWARAN' || initialCardType === 'NILAI_PENAWARAN') {
-            filtered = filtered.filter(p => p.rab && p.rab.length > 0);
-        } else if (initialCardType === 'SPK' || initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK') {
-            filtered = filtered.filter(p => p.spk && p.spk.length > 0);
-            if (initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK') {
-                filtered = filtered.filter(p => p.spk[0]?.pertambahan_spk && p.spk[0].pertambahan_spk.length > 0);
+    useEffect(() => {
+        if (!isOpen || !initialCardType) return;
+        
+        // Fetch rows for the active card
+        const fetchRows = async () => {
+            setIsLoadingRows(true);
+            try {
+                // Call V2 rows API
+                const { fetchDashboardV2CardRows } = await import('@/lib/api');
+                const res = await fetchDashboardV2CardRows(initialCardType, {
+                    branch: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+                    job_type: jobType !== 'ALL' ? jobType : undefined,
+                    search: searchQuery || undefined
+                });
+                if (res?.data?.rows) {
+                    setRows(res.data.rows);
+                }
+            } catch (err) {
+                console.error("Failed to fetch drilldown rows", err);
+            } finally {
+                setIsLoadingRows(false);
             }
-        } else if (initialCardType === 'SPK_AKTIF') {
-            filtered = filtered.filter(p => {
-                const spkArray = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
-                return spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
-            });
-        } else if (initialCardType === 'IL' || initialCardType === 'INSTRUKSI_LAPANGAN') {
-            filtered = filtered.filter(p => p.instruksi_lapangan && p.instruksi_lapangan.length > 0);
-        } else if (initialCardType === 'PENGAWASAN' || initialCardType === 'ITEM_PENGAWASAN') {
-            filtered = filtered.filter(p => p.gantt && p.gantt.some((g: any) => g.pengawasan && g.pengawasan.length > 0));
-        } else if (initialCardType === 'KERJA_TAMBAH_KURANG') {
-            filtered = filtered.filter(p => p.ktk && p.ktk.length > 0);
-        } else if (initialCardType === 'SERAH_TERIMA' || initialCardType === 'ST') {
-            filtered = filtered.filter(p => p.berkas_serah_terima && p.berkas_serah_terima.length > 0);
-        } else if (initialCardType === 'SLA') {
-            const att = stats?.tokoPerhatian || [];
-            filtered = filtered.filter(p => att.includes(p.toko?.nomor_ulok));
+        };
+
+        if (['TOTAL_PROJECT', 'SLA', 'COST_M2'].includes(initialCardType) && !selectedStage) {
+            // Stage summary or cost summary, don't fetch rows yet until a stage is clicked
+            // Actually, if we are in list_ulok view we should fetch
+        } else {
+            fetchRows();
         }
+    }, [isOpen, initialCardType, selectedBranch, jobType, searchQuery, selectedStage]);
 
-        // 2. Filter by stage (if came from Stage Summary)
-        if (selectedStage) {
-            filtered = filtered.filter(p => getProjectStage(p) === selectedStage);
-        }
+    // Simple pagination over the fetched rows
+    const filteredRows = useMemo(() => {
+        if (!modalSearch) return rows;
+        const low = modalSearch.toLowerCase();
+        return rows.filter(r => 
+            r.nama_toko?.toLowerCase().includes(low) || 
+            r.nomor_ulok?.toLowerCase().includes(low)
+        );
+    }, [rows, modalSearch]);
 
-        // 3. Filter by modal search
-        if (modalSearch) {
-            const lowSearch = modalSearch.toLowerCase();
-            filtered = filtered.filter(p => 
-                p.toko?.nomor_ulok?.toLowerCase().includes(lowSearch) ||
-                p.toko?.nama_toko?.toLowerCase().includes(lowSearch)
-            );
-        }
-
-        return filtered;
-    }, [projects, initialCardType, selectedStage, modalSearch, stats]);
-
-    const totalPages = Math.ceil(displayProjects.length / itemsPerPage);
-    const paginatedProjects = displayProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalPages = Math.ceil(filteredRows.length / itemsPerPage);
+    const paginatedRows = filteredRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     // --- STAGE SUMMARY LOGIC ---
     const renderStageSummary = () => {
@@ -245,6 +221,12 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
     };
 
     const handleProjectClick = (project: any) => {
+        if (project._isCombined) {
+            setView('list_ulok');
+            setModalSearch(project.toko?.nomor_ulok || '');
+            return;
+        }
+
         setSelectedProject(project);
         
         if (initialCardType && directToTahap4Types.includes(initialCardType)) {
@@ -257,9 +239,6 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             } else if (['JHK', 'TAMBAH_HARI_SPK'].includes(initialCardType)) {
                 docType = 'Tambah SPK';
                 docData = project.spk?.[0]?.pertambahan_spk?.[0];
-            } else if (['IL', 'INSTRUKSI_LAPANGAN'].includes(initialCardType)) {
-                docType = 'IL';
-                docData = project.instruksi_lapangan?.[0];
             } else if (['PENGAWASAN', 'ITEM_PENGAWASAN'].includes(initialCardType)) {
                 docType = 'PENGAWASAN';
                 docData = {
@@ -362,160 +341,15 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
 
 
     const renderListUlok = () => (
-        <div className="h-full flex flex-col gap-4">
-            {paginatedProjects.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-200 flex flex-col items-center justify-center p-12 shadow-sm">
-                    <Search className="w-12 h-12 text-slate-300 mb-4" />
-                    <p className="text-slate-500 font-bold">Tidak ada data yang sesuai.</p>
-                </div>
-            ) : (
-                <div className="flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                    {paginatedProjects.map((project, idx) => {
-                        const statusTerkini = getProjectStage(project);
-                        const nilaiSPK = formatRupiah(project.spk?.[0]?.grand_total || 0);
-                        const nilaiRAB = formatRupiah(project.rab?.[0]?.grand_total_final || 0);
-                        const denda = formatRupiah(project.opname_final?.[0]?.nilai_denda || 0);
-                        
-                        let tambahHari = 0;
-                        project.spk?.forEach((s:any) => s.pertambahan_spk?.forEach((pt:any) => { if(pt.status_persetujuan === 'APPROVED') tambahHari += Number(pt.pertambahan_hari || 0); }));
-                        
-                        const il = project.instruksi_lapangan?.[0];
-                        const statusIL = il?.status || 'ONGOING';
-                        const nilaiIL = formatRupiah(il?.grand_total || 0);
-
-                        return (
-                            <div 
-                                key={idx} 
-                                className="group bg-white hover:bg-slate-50/80 border-b border-slate-100 last:border-0 p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer transition-all duration-300 relative overflow-hidden"
-                                onClick={() => handleProjectClick(project)}
-                            >
-                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-red-500 transition-colors"></div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h4 className="font-black text-slate-800 text-lg group-hover:text-red-700 truncate">{project.toko?.nama_toko || 'Unknown'}</h4>
-                                        <Badge className="bg-slate-100 text-slate-600 border-none px-2 py-0.5 text-[10px] tracking-widest">{project.toko?.nomor_ulok || 'Unknown'}</Badge>
-                                    </div>
-                                    <div className="text-sm font-bold text-slate-400 tracking-wide flex items-center gap-2">
-                                        <span>{project.toko?.cabang || '-'}</span>
-                                        {['TOTAL_PROJECT', 'SLA', 'PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'KERJA_TAMBAH_KURANG', 'SERAH_TERIMA', 'ST'].includes(initialCardType || '') && (
-                                            <>
-                                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                                <span className="text-indigo-500 uppercase tracking-widest text-[10px] bg-indigo-50 px-2 py-0.5 rounded-full">{statusTerkini}</span>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap md:flex-nowrap items-center gap-6">
-                                    {initialCardType === 'DENDA' && (() => {
-                                        const op = project.opname_final?.[0];
-                                        const hDenda = op?.hari_denda || 0;
-                                        const st = project.berkas_serah_terima?.[0]?.created_at;
-                                        const tgt = project.spk?.[0]?.waktu_selesai; // Approx target ST
-                                        return (
-                                            <div className="flex items-center gap-4 text-right">
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-slate-700">{hDenda} Hari</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target ST</span><span className="text-sm font-black text-slate-700">{tgt ? formatDateIndo(tgt) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tgl ST</span><span className="text-sm font-black text-emerald-600">{st ? formatDateIndo(st) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai Denda</span><span className="text-base font-black text-rose-600">{denda}</span></div>
-                                            </div>
-                                        );
-                                    })()}
-                                    {initialCardType === 'JHK' && (() => {
-                                        const spk = project.spk?.[0];
-                                        const endDate = spk?.waktu_selesai;
-                                        // find approved extension
-                                        let ptAkhir = null;
-                                        spk?.pertambahan_spk?.forEach((pt: any) => {
-                                            if (pt.status_persetujuan === 'APPROVED') ptAkhir = pt.tanggal_akhir_setelah_perpanjangan;
-                                        });
-                                        return (
-                                            <div className="flex items-center gap-4 text-right">
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK</span><span className="text-sm font-black text-slate-700">{endDate ? formatDateIndo(endDate) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK Baru</span><span className="text-sm font-black text-blue-600">{ptAkhir ? formatDateIndo(ptAkhir) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tambah Hari</span><span className="text-base font-black text-blue-600">{tambahHari > 0 ? `${tambahHari} Hari` : '-'}</span></div>
-                                            </div>
-                                        );
-                                    })()}
-                                    {initialCardType === 'SLA' && (
-                                        <div className="flex items-center gap-6 text-right">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span>
-                                                <span className="text-sm font-black text-rose-600">{project._lateDays || 0} Hari melewati SLA</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {initialCardType === 'IL' && (
-                                        <div className="flex items-center gap-6">
-                                            <div className="flex flex-col text-right">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</span>
-                                                <Badge variant="outline" className={`mt-1 ${statusIL === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{statusIL}</Badge>
-                                            </div>
-                                            <div className="flex flex-col text-right">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai IL</span>
-                                                <span className="text-base font-black text-orange-600">{nilaiIL}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {['TOTAL_PROJECT', 'SLA', 'PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'KERJA_TAMBAH_KURANG', 'SERAH_TERIMA', 'ST'].includes(initialCardType || '') && (
-                                        <div className="flex items-center gap-6">
-                                            {initialCardType === 'PENAWARAN' && (
-                                                <div className="flex flex-col text-right">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status RAB</span>
-                                                    <Badge variant="outline" className={`mt-1 border-slate-200`}>{project.rab?.[0]?.status || 'Menunggu Persetujuan'}</Badge>
-                                                </div>
-                                            )}
-                                            <div className="flex flex-col text-right">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai {(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt') ? 'RAB' : 'SPK'}</span>
-                                                <span className="text-base font-black text-slate-700">{(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt') ? nilaiRAB : nilaiSPK}</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {initialCardType === 'PENGAWASAN' && (() => {
-                                        let sel = 0, prog = 0, ter = 0;
-                                        project.gantt?.forEach((g: any) => {
-                                            g.pengawasan?.forEach((p: any) => {
-                                                const st = (p.status || '').toUpperCase();
-                                                if (['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes(st)) sel++;
-                                                else if (['TERLAMBAT', 'LATE'].includes(st)) ter++;
-                                                else prog++;
-                                            });
-                                        });
-                                        return (
-                                            <div className="flex items-center gap-4 text-right">
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selesai</span><span className="text-sm font-black text-emerald-600">{sel}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</span><span className="text-sm font-black text-blue-600">{prog}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-rose-600">{ter}</span></div>
-                                            </div>
-                                        );
-                                    })()}
-                                    
-                                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center group-hover:bg-red-500 group-hover:border-red-500 group-hover:text-white text-slate-400 transition-all shrink-0">
-                                        <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-auto bg-white p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-                    <p className="text-sm font-semibold text-slate-500">
-                        Halaman <span className="text-slate-900 font-black">{currentPage}</span> dari <span className="text-slate-900 font-black">{totalPages}</span>
-                    </p>
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-xl font-bold">
-                            <ChevronLeft className="w-4 h-4 mr-1" /> Prev
-                        </Button>
-                        <Button variant="outline" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-xl font-bold">
-                            Next <ChevronRight className="w-4 h-4 ml-1" />
-                        </Button>
-                    </div>
-                </div>
-            )}
-        </div>
+        <DashboardV2UiTable
+            projects={paginatedProjects}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            onProjectClick={handleProjectClick}
+            initialCardType={initialCardType}
+            getProjectStage={getProjectStage}
+        />
     );
 
     const renderCostM2Cards = () => (
@@ -542,7 +376,15 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                     const avgTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
                     
                     return (
-                        <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between group cursor-pointer" onClick={() => handleProjectClick(p)}>
+                        <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between group cursor-pointer" onClick={() => {
+                            if (p._isCombined) {
+                                // Find SIPIL and ME
+                                setView('list_ulok');
+                                setModalSearch(p.toko?.nomor_ulok);
+                            } else {
+                                handleProjectClick(p);
+                            }
+                        }}>
                             <div>
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100">
@@ -893,7 +735,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         
                                         if (kl.includes('luas')) displayVal = `${valStr} m2`;
                                         if (kl.includes('durasi') || kl === 'hari_denda') displayVal = `${valStr} Hari`;
-                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateIndo(valStr);
+                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateTimeId(valStr);
                                         return (
                                             <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
                                                 <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{k.replace(/_/g, ' ')}</th>
@@ -938,11 +780,11 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     </tr>
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Waktu Selesai</th>
-                                        <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">{wSelesai ? formatDateIndo(wSelesai) : '-'}</td>
+                                        <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">{wSelesai ? formatDateTimeId(wSelesai) : '-'}</td>
                                     </tr>
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Waktu Persetujuan</th>
-                                        <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">{wPersetujuan ? formatDateIndo(wPersetujuan) : '-'}</td>
+                                        <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">{wPersetujuan ? formatDateTimeId(wPersetujuan) : '-'}</td>
                                     </tr>
                                     {keys.map((k, i) => {
                                         const valStr = String(data[k]);
@@ -953,7 +795,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         
                                         if (kl.includes('luas')) displayVal = `${valStr} m2`;
                                         if (kl.includes('durasi') || kl === 'hari_denda') displayVal = `${valStr} Hari`;
-                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateIndo(valStr);
+                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateTimeId(valStr);
                                         return (
                                             <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
                                                 <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{k.replace(/_/g, ' ')}</th>
@@ -998,7 +840,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Target ST</th>
                                         <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">
-                                            {data.target_st_setelah_perpanjangan ? formatDateIndo(data.target_st_setelah_perpanjangan) : '-'} <span className="text-slate-400 font-semibold text-sm ml-2">&middot; SPK +{data.pertambahan_hari || 0} hari</span>
+                                            {data.target_st_setelah_perpanjangan ? formatDateTimeId(data.target_st_setelah_perpanjangan) : '-'} <span className="text-slate-400 font-semibold text-sm ml-2">&middot; SPK +{data.pertambahan_hari || 0} hari</span>
                                         </td>
                                     </tr>
                                     {data.alasan_perpanjangan && (
@@ -1009,7 +851,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     )}
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Waktu Persetujuan</th>
-                                        <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">{data.waktu_persetujuan ? formatDateIndo(data.waktu_persetujuan) : '-'}</td>
+                                        <td className="py-5 px-8 text-base font-bold text-slate-800 align-top">{data.waktu_persetujuan ? formatDateTimeId(data.waktu_persetujuan) : '-'}</td>
                                     </tr>
                                     {data.disetujui_oleh && (
                                         <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
@@ -1026,7 +868,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         
                                         if (kl.includes('luas')) displayVal = `${valStr} m2`;
                                         if (kl.includes('durasi') || kl === 'hari_denda') displayVal = `${valStr} Hari`;
-                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateIndo(valStr);
+                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateTimeId(valStr);
                                         return (
                                             <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
                                                 <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{k.replace(/_/g, ' ')}</th>
@@ -1080,7 +922,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         
                                         if (kl.includes('luas')) displayVal = `${valStr} m2`;
                                         if (kl.includes('durasi') || kl === 'hari_denda') displayVal = `${valStr} Hari`;
-                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateIndo(valStr);
+                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateTimeId(valStr);
                                         return (
                                             <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
                                                 <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{k.replace(/_/g, ' ')}</th>
@@ -1155,7 +997,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                                 <div>
                                                     <h5 className="font-bold text-slate-800">{projectData.nomor_ulok || '-'} <span className="font-normal text-slate-500 mx-2">&middot;</span> {items.length} Item Pekerjaan</h5>
                                                     <p className="text-sm text-slate-500 flex items-center mt-1">
-                                                        <Clock className="w-3.5 h-3.5 mr-1.5" /> Terakhir {firstItem.tanggal_pengawasan ? formatDateIndo(firstItem.tanggal_pengawasan) : formatDateIndo(dateKey)}
+                                                        <Clock className="w-3.5 h-3.5 mr-1.5" /> Terakhir {firstItem.tanggal_pengawasan ? formatDateTimeId(firstItem.tanggal_pengawasan) : formatDateTimeId(dateKey)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1235,7 +1077,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         
                                         if (kl.includes('luas')) displayVal = `${valStr} m2`;
                                         if (kl.includes('durasi') || kl === 'hari_denda') displayVal = `${valStr} Hari`;
-                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateIndo(valStr);
+                                        if (kl.includes('tanggal') || kl.includes('berlaku_polis')) displayVal = formatDateTimeId(valStr);
                                         return (
                                             <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors group">
                                                 <th className="py-5 px-8 text-xs font-black uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{k.replace(/_/g, ' ')}</th>
@@ -1260,8 +1102,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
 
             const dendaRp = opname?.nilai_denda || 0;
             const dendaHari = opname?.hari_denda || 0;
-            const spkAkhir = spk?.waktu_selesai ? formatDateIndo(spk.waktu_selesai) : '-';
-            const stDibuat = data.created_at ? formatDateIndo(data.created_at) : '-';
+            const spkAkhir = spk?.waktu_selesai ? formatDateTimeId(spk.waktu_selesai) : '-';
+            const stDibuat = data.created_at ? formatDateTimeId(data.created_at) : '-';
 
             return (
                 <div className="w-full h-full flex flex-col bg-slate-50/20">
@@ -1456,11 +1298,11 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tanggal Dibuat</p>
-                                    <p className="font-semibold text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-100">{project.created_at ? formatDateIndo(project.created_at) : '-'}</p>
+                                    <p className="font-semibold text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-100">{project.created_at ? formatDateTimeId(project.created_at) : '-'}</p>
                                 </div>
                                 <div>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tanggal Pengawasan</p>
-                                    <p className="font-semibold text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-100">{tgl ? formatDateIndo(tgl) : '-'}</p>
+                                    <p className="font-semibold text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-100">{tgl ? formatDateTimeId(tgl) : '-'}</p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">

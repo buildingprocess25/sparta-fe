@@ -2,7 +2,7 @@
 
 
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -1194,7 +1194,7 @@ const CACHE_TTL = 300_000; // 5 minutes
 
 
 
-export default function DashboardPage() {
+function DashboardPageContent() {
     const searchParams = useSearchParams();
     const currentView = searchParams.get('view') || 'monitoring';
     const [deferredView, setDeferredView] = useState<string | null>(null);
@@ -1846,6 +1846,8 @@ export default function DashboardPage() {
         return projects.filter(p => {
 
             if (isHeadOfficeProject(p)) return false;
+
+
 
             const matchSearch = 
 
@@ -5170,6 +5172,13 @@ export default function DashboardPage() {
 
 // =============================================================================
 
+export default function DashboardPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+            <DashboardPageContent />
+        </Suspense>
+    );
+}
 // SUB-COMPONENTS
 
 // =============================================================================

@@ -3,10 +3,11 @@ import { DashboardFilterBar } from './DashboardFilterBar';
 import { DashboardKPICards } from './DashboardKPICards';
 import { DashboardAnalytics } from './DashboardAnalytics';
 import { DashboardCharts } from './DashboardCharts';
-import { DashboardDrilldownModal } from './DashboardDrilldownModal';
+import { DashboardDrilldownModalV2 } from './DashboardDrilldownModalV2';
+import { fetchDashboardV2Summary } from '@/lib/api';
 
 interface DashboardViewV2Props {
-    projects: any[]; // Ini adalah filteredProjects dari page.tsx
+    projects: any[]; // Deprecated but kept for compatibility
     accessibleBranches: string[];
     selectedBranch: string;
     onBranchChange: (branch: string) => void;
@@ -19,7 +20,7 @@ interface DashboardViewV2Props {
     // Extracted from page.tsx
     searchQuery: string;
     onSearchChange: (val: string) => void;
-    stats: any; // stats asli dari page.tsx
+    stats: any; // Deprecated
 }
 
 export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
@@ -53,115 +54,29 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
         setIsModalOpen(true);
     };
 
-    // 1. Extra logic missing from page.tsx (Penawaran Done/Ongoing, IL, dll)
-    const extraStats = useMemo(() => {
-        let penawaranDone = 0;
-        let penawaranOngoing = 0;
-        
-        let spkDone = 0;
-        let spkOngoing = 0;
-        
-        let totalNilaiIL = 0;
-        let ilDone = 0;
-        let ilOngoing = 0;
+    const [summary, setSummary] = useState<any>(null);
+    const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
-        let pengawasanSelesai = 0;
-        let pengawasanProgress = 0;
-        let pengawasanTerlambat = 0;
-
-        let tambahHari = 0;
-        let countTambahHari = 0;
-        let stCount = 0;
-
-        projects.forEach(p => {
-            // Penawaran
-            if (p.rab && p.rab.length > 0) {
-                const r = p.rab[0];
-                if ((r.status || '').toUpperCase() === 'DISETUJUI') {
-                    penawaranDone++;
-                } else {
-                    penawaranOngoing++;
+    React.useEffect(() => {
+        const fetchSummary = async () => {
+            setIsLoadingSummary(true);
+            try {
+                const res = await fetchDashboardV2Summary({
+                    branch: selectedBranch !== 'ALL' ? selectedBranch : undefined,
+                    job_type: jobType !== 'ALL' ? jobType : undefined,
+                    search: searchQuery || undefined
+                });
+                if (res?.data) {
+                    setSummary(res.data);
                 }
+            } catch (err) {
+                console.error("Failed to fetch v2 summary", err);
+            } finally {
+                setIsLoadingSummary(false);
             }
-
-            // SPK
-            if (p.spk && p.spk.length > 0) {
-                p.spk.forEach((s: any) => {
-                    const status = (s.status || '').toUpperCase();
-                    if (!['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(status)) {
-                        if (['SELESAI', 'CLOSED'].includes(status) || p.berkas_serah_terima?.length > 0) {
-                            spkDone++;
-                        } else {
-                            spkOngoing++;
-                        }
-                    }
-
-                    // Tambah hari
-                    if (s.pertambahan_spk && s.pertambahan_spk.length > 0) {
-                        s.pertambahan_spk.forEach((pt: any) => {
-                            if (['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase())) {
-                                tambahHari += Number(pt.pertambahan_hari || 0);
-                                countTambahHari++;
-                            }
-                        });
-                    }
-                });
-            }
-
-            // Instruksi Lapangan
-            if (p.instruksi_lapangan && p.instruksi_lapangan.length > 0) {
-                p.instruksi_lapangan.forEach((il: any) => {
-                    totalNilaiIL += Number(il.grand_total || 0);
-                    if (il.status === 'APPROVED' || il.status === 'DISETUJUI') {
-                        ilDone++;
-                    } else {
-                        ilOngoing++;
-                    }
-                });
-            }
-
-            // Pengawasan
-            if (p.berkas_serah_terima && p.berkas_serah_terima.length > 0) {
-                stCount++;
-            }
-            if (p.gantt && p.gantt.length > 0) {
-                p.gantt.forEach((g: any) => {
-                    if (g.pengawasan && g.pengawasan.length > 0) {
-                        const grouped = g.pengawasan.reduce((acc: any, pw: any) => {
-                            let dateKey = pw.tanggal_pengawasan || pw.created_at || 'unknown';
-                            if (typeof dateKey === 'string') {
-                                if (dateKey.includes('T')) dateKey = dateKey.split('T')[0];
-                                else if (dateKey.includes(' ')) dateKey = dateKey.split(' ')[0];
-                            }
-                            if (!acc[dateKey]) acc[dateKey] = [];
-                            acc[dateKey].push(pw);
-                            return acc;
-                        }, {});
-
-                        Object.values(grouped).forEach((groupItems: any) => {
-                            const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
-                            const isTerlambat = groupItems.some((i: any) => ['TERLAMBAT', 'LATE'].includes((i.status || '').toUpperCase()));
-                            
-                            if (isSelesai) pengawasanSelesai++;
-                            else if (isTerlambat) pengawasanTerlambat++;
-                            else pengawasanProgress++;
-                        });
-                    }
-                });
-            }
-        });
-
-        return {
-            penawaranDone, penawaranOngoing,
-            spkDone, spkOngoing,
-            totalNilaiIL, ilDone, ilOngoing,
-            pengawasanSelesai, pengawasanProgress, pengawasanTerlambat,
-            tambahHariCount: countTambahHari,
-            avgTambahHari: countTambahHari > 0 ? Math.round(tambahHari / countTambahHari) : 0,
-            spAktif: stats.attention, // fallback
-            stCount
         };
-    }, [projects, stats]);
+        fetchSummary();
+    }, [selectedBranch, jobType, searchQuery, isRefreshing]);
 
     return (
         <div className="w-full h-full flex flex-col bg-slate-50 relative overflow-hidden">
@@ -187,15 +102,15 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                     
                     <div className="mt-2">
                         <DashboardKPICards 
-                            stats={stats}
-                            extraStats={extraStats}
+                            summary={summary}
+                            isLoading={isLoadingSummary}
                             onCardClick={handleCardClick}
                         />
                     </div>
                     
                     <DashboardAnalytics 
-                        stats={stats}
-                        extraStats={extraStats}
+                        summary={summary}
+                        isLoading={isLoadingSummary}
                         onCardClick={handleCardClick}
                     />
 
@@ -209,17 +124,16 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         />
                     </div>
 
-                    <DashboardDrilldownModal 
+                    <DashboardDrilldownModalV2 
                         isOpen={isModalOpen}
                         onClose={() => {
                             setIsModalOpen(false);
-                            onSearchChange('');
+                            setActiveCard(null);
                         }}
                         initialCardType={activeCard}
-                        projects={projects} // already filtered by search
                         searchQuery={searchQuery}
-                        stats={stats}
-                        extraStats={extraStats}
+                        selectedBranch={selectedBranch}
+                        jobType={jobType}
                     />
                 </div>
             </div>

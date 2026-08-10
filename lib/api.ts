@@ -4745,10 +4745,50 @@ export const fetchDashboardSingle = async (params: { search?: string; id?: numbe
  * GET /api/dashboard/all?search=...
  * Mengambil semua data toko + seluruh relasi turunan.
  */
-export const fetchDashboardAll = async (search?: string) => {
+export const fetchDashboardAll = async (search?: string, jobType?: string) => {
     let url = `${API_URL.replace(/\/$/, "")}/api/dashboard/all`;
-    if (search) url += `?search=${encodeURIComponent(search)}`;
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (jobType && jobType !== 'ALL') params.set('job_type', jobType);
+    
+    const queryStr = params.toString();
+    if (queryStr) url += `?${queryStr}`;
+    
     return safeFetchJSON(url);
+};
+
+export const fetchDashboardV2Summary = async (params: { branch?: string; job_type?: string; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params.branch) searchParams.append("branch", params.branch);
+    if (params.job_type) searchParams.append("job_type", params.job_type);
+    if (params.search) searchParams.append("search", params.search);
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dashboard/v2/summary?${searchParams.toString()}`);
+};
+
+export const fetchDashboardV2Charts = async (params: { branch?: string; job_type?: string; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params.branch) searchParams.append("branch", params.branch);
+    if (params.job_type) searchParams.append("job_type", params.job_type);
+    if (params.search) searchParams.append("search", params.search);
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dashboard/v2/charts?${searchParams.toString()}`);
+};
+
+export const fetchDashboardV2CardRows = async (cardType: string, params: { page?: number; limit?: number; branch?: string; job_type?: string; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.append("page", String(params.page));
+    if (params.limit) searchParams.append("limit", String(params.limit));
+    if (params.branch) searchParams.append("branch", params.branch);
+    if (params.job_type) searchParams.append("job_type", params.job_type);
+    if (params.search) searchParams.append("search", params.search);
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dashboard/v2/cards/${cardType}?${searchParams.toString()}`);
+};
+
+export const fetchDashboardV2Timeline = async (tokoId: number) => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dashboard/v2/timeline/${tokoId}`);
+};
+
+export const fetchDashboardV2Detail = async (tokoId: number, documentType: string, rawId: number) => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dashboard/v2/detail/${tokoId}/${documentType}/${rawId}`);
 };
 
 export type DashboardExportFormat = "xlsx" | "csv" | "pdf";

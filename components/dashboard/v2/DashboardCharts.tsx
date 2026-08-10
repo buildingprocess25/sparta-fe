@@ -28,10 +28,10 @@ interface DashboardChartsProps {
 
 export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSuperAdmin, accessibleBranches, selectedBranch }) => {
     // Each chart has its own time filter state
-    const [filterRab, setFilterRab] = useState<string>('semua');
-    const [filterSpk, setFilterSpk] = useState<string>('semua');
-    const [filterSt, setFilterSt] = useState<string>('semua');
-    const [filterNilai, setFilterNilai] = useState<string>('semua');
+    const [filterRab, setFilterRab] = useState<string>('3');
+    const [filterSpk, setFilterSpk] = useState<string>('3');
+    const [filterSt, setFilterSt] = useState<string>('3');
+    const [filterNilai, setFilterNilai] = useState<string>('3');
 
     // Helper to get cutoff date
     const getCutoffDate = (filter: string) => {

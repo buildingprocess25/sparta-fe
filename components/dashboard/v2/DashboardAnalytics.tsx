@@ -1,146 +1,118 @@
 import React from 'react';
-import { Clock, FileText, Search, FileCheck, TrendingUp } from 'lucide-react';
+import { 
+    Clock, FileText, Search, FileCheck, TrendingUp, TrendingDown,
+    Building2, SquareChartGantt, Briefcase, Ruler, LucideIcon
+} from 'lucide-react';
 import { formatRupiah } from '@/lib/utils';
+import { DashboardV2Tone, DashboardV2SummaryCard } from 'sparta-be/src/modules/dashboard/dashboard-v2.types';
 
 interface DashboardAnalyticsProps {
-    stats: any;
-    extraStats: any;
+    summary: any;
+    isLoading: boolean;
     onCardClick: (cardType: string) => void;
 }
 
-export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({ stats, extraStats, onCardClick }) => {
+const TONE_MAP: Record<string, { iconColor: string, badgeBg: string, hoverBorder: string }> = {
+    'blue': { iconColor: 'text-blue-600', badgeBg: 'bg-blue-50 border-blue-100 text-blue-700', hoverBorder: 'hover:border-blue-300 hover:shadow-blue-500/10' },
+    'green': { iconColor: 'text-emerald-600', badgeBg: 'bg-emerald-50 border-emerald-100 text-emerald-700', hoverBorder: 'hover:border-emerald-300 hover:shadow-emerald-500/10' },
+    'yellow': { iconColor: 'text-yellow-600', badgeBg: 'bg-yellow-50 border-yellow-100 text-yellow-700', hoverBorder: 'hover:border-yellow-300 hover:shadow-yellow-500/10' },
+    'red': { iconColor: 'text-rose-600', badgeBg: 'bg-rose-50 border-rose-100 text-rose-700', hoverBorder: 'hover:border-rose-300 hover:shadow-rose-500/10' },
+    'purple': { iconColor: 'text-indigo-600', badgeBg: 'bg-indigo-50 border-indigo-100 text-indigo-700', hoverBorder: 'hover:border-indigo-300 hover:shadow-indigo-500/10' },
+    'orange': { iconColor: 'text-orange-600', badgeBg: 'bg-orange-50 border-orange-100 text-orange-700', hoverBorder: 'hover:border-orange-300 hover:shadow-orange-500/10' },
+    'neutral': { iconColor: 'text-slate-600', badgeBg: 'bg-slate-50 border-slate-200 text-slate-700', hoverBorder: 'hover:border-slate-300 hover:shadow-slate-500/10' }
+};
+
+const ICON_MAP: Record<string, LucideIcon> = {
+    'NILAI_PENAWARAN': FileText,
+    'TAMBAH_HARI_SPK': Clock,
+    'ITEM_PENGAWASAN': Search,
+    'INSTRUKSI_LAPANGAN': FileCheck,
+    'KERJA_TAMBAH_KURANG': TrendingUp,
+    'COST_M2_BANGUNAN': Building2,
+    'COST_M2_TERBUKA': Ruler,
+    'KETERLAMBATAN': Clock,
+    'TOTAL_DENDA': TrendingDown,
+    'JHK_PEKERJAAN': Briefcase
+};
+
+export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({ summary, isLoading, onCardClick }) => {
     
-    const analyticalCards = [
-        {
-            title: 'NILAI PENAWARAN',
-            value: formatRupiah(stats.penawaran || 0),
-            icon: <FileText className="w-5 h-5 text-indigo-500" />,
-            badgeBg: 'bg-indigo-50 border-indigo-100',
-            hoverBorder: 'hover:border-indigo-300',
-            metrics: [
-                { label: 'DISETUJUI', value: extraStats.penawaranDone || 0, color: 'text-indigo-700' },
-                { label: 'ONGOING', value: extraStats.penawaranOngoing || 0, color: 'text-amber-600' }
-            ],
-            type: 'PENAWARAN'
-        },
-        {
-            title: 'RATA-RATA TAMBAH HARI SPK',
-            value: `${extraStats.avgTambahHari || 0} Hari`,
-            icon: <Clock className="w-5 h-5 text-blue-500" />,
-            badgeBg: 'bg-blue-50 border-blue-100',
-            hoverBorder: 'hover:border-blue-300',
-            metrics: [
-                { label: 'JUMLAH TAMBAH SPK', value: extraStats.tambahHariCount || 0, color: 'text-blue-700' },
-                { label: 'DONE', value: extraStats.spkDone || 0, color: 'text-emerald-600' },
-                { label: 'ONGOING', value: extraStats.spkOngoing || 0, color: 'text-amber-600' }
-            ],
-            type: 'JHK'
-        },
-        {
-            title: 'ITEM PENGAWASAN',
-            value: (extraStats.pengawasanSelesai || 0) + (extraStats.pengawasanProgress || 0) + (extraStats.pengawasanTerlambat || 0),
-            icon: <Search className="w-5 h-5 text-purple-500" />,
-            badgeBg: 'bg-purple-50 border-purple-100',
-            hoverBorder: 'hover:border-purple-300',
-            metrics: [
-                { label: 'SELESAI', value: extraStats.pengawasanSelesai || 0, color: 'text-emerald-600' },
-                { label: 'PROGRESS', value: extraStats.pengawasanProgress || 0, color: 'text-blue-600' },
-                { label: 'TERLAMBAT', value: extraStats.pengawasanTerlambat || 0, color: 'text-rose-600' }
-            ],
-            type: 'PENGAWASAN'
-        },
-        {
-            title: 'NILAI INSTRUKSI LAPANGAN',
-            value: formatRupiah(extraStats.totalNilaiIL || 0),
-            icon: <FileCheck className="w-5 h-5 text-orange-500" />,
-            badgeBg: 'bg-orange-50 border-orange-100',
-            hoverBorder: 'hover:border-orange-300',
-            metrics: [
-                { label: 'APPROVED', value: extraStats.ilDone || 0, color: 'text-emerald-600' },
-                { label: 'ONGOING', value: extraStats.ilOngoing || 0, color: 'text-amber-600' }
-            ],
-            type: 'IL'
-        }
-    ];
-
-    const costMetrics = [
-        { label: 'Terbangun', value: stats.avgCostTerbangun || 0, color: 'bg-gradient-to-r from-emerald-400 to-emerald-500' },
-        { label: 'Bangunan', value: stats.avgCostBangunan || 0, color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
-        { label: 'Area Terbuka', value: stats.avgCostTerbuka || 0, color: 'bg-gradient-to-r from-purple-400 to-purple-500' },
-    ];
-
-    return (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
-            
-            {/* Left side: Grid of specific analytical metrics */}
-            <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                {analyticalCards.map((card, idx) => (
-                    <div 
-                        key={idx} 
-                        onClick={() => onCardClick(card.type)}
-                        className={`bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm cursor-pointer transition-all duration-300 flex flex-col justify-between group ${card.hoverBorder} hover:shadow-lg`}
-                    >
-                        <div>
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className={`w-10 h-10 rounded-2xl border ${card.badgeBg} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300`}>
-                                    {card.icon}
-                                </div>
-                                <h3 className="text-[11px] font-black text-slate-500 tracking-widest">{card.title}</h3>
-                            </div>
-                            
-                            <div className="mb-8">
-                                <p className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight transition-colors group-hover:text-slate-950">
-                                    {card.value}
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div className="flex justify-between items-center border-t border-slate-100 pt-5">
-                            {card.metrics.map((m, i) => (
-                                <div key={i} className="flex flex-col">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{m.label}</span>
-                                    <span className={`text-base font-black mt-1 ${m.color}`}>{m.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+    if (isLoading) {
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+                {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-40 bg-slate-200 rounded-[24px] animate-pulse"></div>
                 ))}
             </div>
+        );
+    }
 
-            {/* Right side: Cost / m2 */}
-            <div 
-                className="bg-white rounded-[24px] p-8 border border-slate-200 cursor-pointer shadow-sm hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 transition-all duration-500 flex flex-col justify-center relative overflow-hidden group"
-                onClick={() => onCardClick('COST_M2')}
-            >
-                {/* Decorative Accent */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-50 pointer-events-none group-hover:bg-blue-100 transition-colors duration-700"></div>
+    if (!summary || !summary.cards) return null;
 
-                <div className="relative z-10 flex items-center gap-4 mb-10">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-500">
-                        <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h3 className="text-[11px] font-black text-slate-400 tracking-widest uppercase mb-1">Analitik Biaya</h3>
-                        <p className="text-2xl font-black text-slate-800 tracking-tight">Rata-rata Cost / m²</p>
-                    </div>
-                </div>
+    const TOP_CARDS = ['TOTAL_TOKO', 'SLA', 'SPK_AKTIF', 'NILAI_SPK', 'SERAH_TERIMA'];
+    const analyticalCards = summary.cards.filter((c: any) => !TOP_CARDS.includes(c.type));
 
-                <div className="space-y-8 relative z-10">
-                    {costMetrics.map((cost, idx) => (
-                        <div key={idx} className="relative group/bar">
-                            <div className="flex justify-between items-end mb-3">
-                                <p className="text-xs font-bold text-slate-500 tracking-wide">{cost.label}</p>
-                                <p className="text-lg font-black tracking-tighter text-slate-800">{formatRupiah(cost.value)}</p>
+    return (
+        <div className="mt-8">
+            <h3 className="text-xl font-black text-slate-800 tracking-tight mb-6 px-1 flex items-center gap-3">
+                <SquareChartGantt className="w-6 h-6 text-indigo-500" />
+                Analytical Insights
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {analyticalCards.map((card: DashboardV2SummaryCard, idx: number) => {
+                    const styles = TONE_MAP[card.tone] || TONE_MAP['neutral'];
+                    const Icon = ICON_MAP[card.type] || FileText;
+
+                    return (
+                        <div 
+                            key={idx}
+                            onClick={() => onCardClick(card.type)}
+                            className={`group flex flex-col justify-between bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm hover:shadow-xl ${styles.hoverBorder} transition-all duration-300 cursor-pointer relative overflow-hidden`}
+                        >
+                            <div className="flex items-start justify-between mb-8 relative z-10">
+                                <div className={`p-3 rounded-2xl ${styles.badgeBg} group-hover:scale-110 transition-transform duration-300`}>
+                                    <Icon className={`w-5 h-5 ${styles.iconColor}`} />
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                                    Metrics
+                                </span>
                             </div>
-                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                    className={`h-full ${cost.color} rounded-full transition-all duration-1000 ease-out`} 
-                                    style={{ width: `${Math.min(100, Math.max(15, (cost.value / 8000000) * 100))}%` }}
-                                />
+
+                            <div className="relative z-10">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{card.title}</h4>
+                                <p className="text-2xl font-black text-slate-800 tracking-tight">
+                                    {typeof card.value === 'number' && card.value > 100000 
+                                            ? formatRupiah(card.value) 
+                                            : card.value}
+                                </p>
                             </div>
+
+                            {/* Submetrics / Progress Line */}
+                            <div className="mt-6 pt-5 border-t border-slate-100 relative z-10">
+                                <div className="flex items-center gap-3 w-full">
+                                    {card.metrics?.map((metric: any, i: number) => (
+                                        <div key={i} className="flex-1">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1 truncate">{metric.label}</p>
+                                            <p className={`text-sm font-bold truncate ${TONE_MAP[metric.tone]?.iconColor || 'text-slate-700'}`}>
+                                                {metric.value}
+                                            </p>
+                                        </div>
+                                    ))}
+                                    {(!card.metrics || card.metrics.length === 0) && (
+                                        <div className="flex-1">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                                            <p className="text-sm font-bold text-slate-700 truncate">{card.subtitle}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Subtle Background Accent */}
+                            <div className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full opacity-[0.03] group-hover:scale-150 transition-transform duration-700 pointer-events-none bg-current ${styles.iconColor}`}></div>
                         </div>
-                    ))}
-                </div>
+                    );
+                })}
             </div>
 
         </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Loader2, Download, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,26 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     jobType,
     onJobTypeChange
 }) => {
+    const [localSearch, setLocalSearch] = useState(searchQuery);
+
+    useEffect(() => {
+        setLocalSearch(searchQuery);
+    }, [searchQuery]);
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            onSearchChange(localSearch);
+        }
+    };
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setLocalSearch(val);
+        if (val === '') {
+            onSearchChange('');
+        }
+    };
+
     return (
         <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center relative z-30 mb-6">
             <div className="flex-1 min-w-[250px] relative">
@@ -37,10 +57,11 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                 </span>
                 <input 
                     type="text" 
-                    placeholder="Cari Proyek, No ULOK, Kontraktor..." 
+                    placeholder="Cari Proyek, No ULOK, Kontraktor... (Tekan Enter)" 
                     className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition text-slate-700"
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
+                    value={localSearch}
+                    onChange={handleSearchChange}
+                    onKeyDown={handleSearchKeyDown}
                 />
             </div>
             
@@ -51,12 +72,12 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                             <div className="flex items-center gap-2">
                                 <MapPin className="w-4 h-4 text-slate-400" />
                                 <span className="truncate text-sm font-semibold">
-                                    {selectedBranch === 'all' ? 'Semua Cabang' : selectedBranch}
+                                    {selectedBranch === 'ALL' ? 'Semua Cabang' : selectedBranch}
                                 </span>
                             </div>
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
-                            <SelectItem value="all">
+                            <SelectItem value="ALL">
                                 <span className="font-bold text-red-600">Semua Cabang</span>
                             </SelectItem>
                             {accessibleBranches.map((branch) => (
