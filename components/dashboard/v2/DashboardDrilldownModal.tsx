@@ -406,18 +406,18 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     </div>
                                 </div>
 
-                                <div className="flex flex-wrap md:flex-nowrap items-center gap-6">
+                                <div className="flex flex-wrap md:flex-nowrap items-center">
                                     {initialCardType === 'DENDA' && (() => {
                                         const op = project.opname_final?.[0];
                                         const hDenda = op?.hari_denda || 0;
                                         const st = project.berkas_serah_terima?.[0]?.created_at;
                                         const tgt = project.spk?.[0]?.waktu_selesai; // Approx target ST
                                         return (
-                                            <div className="flex items-center gap-4 text-right">
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-slate-700">{hDenda} Hari</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target ST</span><span className="text-sm font-black text-slate-700">{tgt ? formatDateIndo(tgt) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tgl ST</span><span className="text-sm font-black text-emerald-600">{st ? formatDateIndo(st) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai Denda</span><span className="text-base font-black text-rose-600">{denda}</span></div>
+                                            <div className="flex items-center">
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[120px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-slate-700">{hDenda} Hari</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[120px] hidden md:flex"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target ST</span><span className="text-sm font-black text-slate-700">{tgt ? formatDateIndo(tgt) : '-'}</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[120px] hidden md:flex"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tgl ST</span><span className="text-sm font-black text-emerald-600">{st ? formatDateIndo(st) : '-'}</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[140px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai Denda</span><span className="text-base font-black text-rose-600">{denda}</span></div>
                                             </div>
                                         );
                                     })()}
@@ -430,42 +430,46 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             if (pt.status_persetujuan === 'APPROVED') ptAkhir = pt.tanggal_akhir_setelah_perpanjangan;
                                         });
                                         return (
-                                            <div className="flex items-center gap-4 text-right">
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK</span><span className="text-sm font-black text-slate-700">{endDate ? formatDateIndo(endDate) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK Baru</span><span className="text-sm font-black text-blue-600">{ptAkhir ? formatDateIndo(ptAkhir) : '-'}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tambah Hari</span><span className="text-base font-black text-blue-600">{tambahHari > 0 ? `${tambahHari} Hari` : '-'}</span></div>
+                                            <div className="flex items-center">
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[130px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK</span><span className="text-sm font-black text-slate-700">{endDate ? formatDateIndo(endDate) : '-'}</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[130px] hidden md:flex"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK Baru</span><span className="text-sm font-black text-blue-600">{ptAkhir ? formatDateIndo(ptAkhir) : '-'}</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[130px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tambah Hari</span><span className="text-base font-black text-blue-600">{tambahHari > 0 ? `${tambahHari} Hari` : '-'}</span></div>
                                             </div>
                                         );
                                     })()}
                                     {initialCardType === 'SLA' && (
-                                        <div className="flex items-center gap-6 text-right">
-                                            <div className="flex flex-col">
+                                        <div className="flex items-center">
+                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[180px]">
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span>
                                                 <span className="text-sm font-black text-rose-600">{project._lateDays || 0} Hari melewati SLA</span>
                                             </div>
                                         </div>
                                     )}
                                     {initialCardType === 'IL' && (
-                                        <div className="flex items-center gap-6">
-                                            <div className="flex flex-col text-right">
+                                        <div className="flex items-center">
+                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[140px]">
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</span>
-                                                <Badge variant="outline" className={`mt-1 ${statusIL === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{statusIL}</Badge>
+                                                <div className="mt-1 flex justify-end">
+                                                    <Badge variant="outline" className={`${statusIL === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{statusIL}</Badge>
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col text-right">
+                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[160px]">
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai IL</span>
                                                 <span className="text-base font-black text-orange-600">{nilaiIL}</span>
                                             </div>
                                         </div>
                                     )}
-                                    {['TOTAL_PROJECT', 'SLA', 'PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'KERJA_TAMBAH_KURANG', 'SERAH_TERIMA', 'ST'].includes(initialCardType || '') && (
-                                        <div className="flex items-center gap-6">
+                                    {(!initialCardType || ['TOTAL_PROJECT', 'SLA', 'PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'KERJA_TAMBAH_KURANG', 'SERAH_TERIMA', 'ST'].includes(initialCardType)) && (
+                                        <div className="flex items-center">
                                             {initialCardType === 'PENAWARAN' && (
-                                                <div className="flex flex-col text-right">
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[140px]">
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status RAB</span>
-                                                    <Badge variant="outline" className={`mt-1 border-slate-200`}>{project.rab?.[0]?.status || 'Menunggu Persetujuan'}</Badge>
+                                                    <div className="mt-1 flex justify-end">
+                                                        <Badge variant="outline" className="border-slate-200">{project.rab?.[0]?.status || 'Menunggu Persetujuan'}</Badge>
+                                                    </div>
                                                 </div>
                                             )}
-                                            <div className="flex flex-col text-right">
+                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[160px]">
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai {(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? 'RAB' : 'SPK'}</span>
                                                 <span className="text-base font-black text-slate-700">{(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? nilaiRAB : nilaiSPK}</span>
                                             </div>
@@ -482,10 +486,10 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             });
                                         });
                                         return (
-                                            <div className="flex items-center gap-4 text-right">
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selesai</span><span className="text-sm font-black text-emerald-600">{sel}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</span><span className="text-sm font-black text-blue-600">{prog}</span></div>
-                                                <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-rose-600">{ter}</span></div>
+                                            <div className="flex items-center">
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[100px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selesai</span><span className="text-sm font-black text-emerald-600">{sel}</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[100px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</span><span className="text-sm font-black text-blue-600">{prog}</span></div>
+                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[100px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-rose-600">{ter}</span></div>
                                             </div>
                                         );
                                     })()}
@@ -519,63 +523,70 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
     );
 
     const renderCostM2Cards = () => (
-        <div className="h-full flex flex-col gap-4">
-            {paginatedProjects.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-200 flex flex-col items-center justify-center p-12 shadow-sm">
-                    <Search className="w-12 h-12 text-slate-300 mb-4" />
-                    <p className="text-slate-500 font-bold">Tidak ada data yang sesuai.</p>
-                </div>
-            ) : (
-                <div className="flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex-1 overflow-y-auto custom-scrollbar">
-                    {paginatedProjects.map((p, idx) => {
-                        const rab = p.rab?.[0];
-                        const luasTerbangun = Number(rab?.luas_terbangun || 1);
-                        const costTerbangun = Number(rab?.grand_total_final || 0);
-                        const avg = costTerbangun / luasTerbangun;
-                        
-                        const lingkup = (p.toko?.lingkup_pekerjaan || 'UNKNOWN').toUpperCase();
-                        let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                        if (lingkup.includes('ME') && lingkup.includes('SIPIL')) badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                        else if (lingkup.includes('ME')) badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
-                        else if (lingkup.includes('SIPIL')) badgeColor = 'bg-orange-50 text-orange-700 border-orange-200';
+        <div className="h-full flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar flex-1 pb-4">
+                {paginatedProjects.map((p, idx) => {
+                    const rab = p.rab?.[0];
+                    const luasTerbangun = Number(rab?.luas_terbangun || 1);
+                    const costTerbangun = Number(rab?.grand_total_final || 0);
+                    const avg = costTerbangun / luasTerbangun;
+                    
+                    const lingkup = (p.toko?.lingkup_pekerjaan || 'UNKNOWN').toUpperCase();
+                    let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                    if (lingkup.includes('ME') && lingkup.includes('SIPIL')) badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                    else if (lingkup.includes('ME')) badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+                    else if (lingkup.includes('SIPIL')) badgeColor = 'bg-orange-50 text-orange-700 border-orange-200';
 
-                        const costBangunan = Number(rab?.cost_bangunan || costTerbangun);
-                        const luasBangunan = Number(rab?.luas_terbangun || rab?.luas_bangunan || luasTerbangun);
-                        const avgBangunan = luasBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
-                        
-                        const costTerbuka = Number(rab?.cost_terbuka || 0);
-                        const luasTerbuka = Number(rab?.luas_area_terbuka || 1);
-                        const avgTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
-                        
-                        return (
-                            <div key={idx} className="group bg-white hover:bg-slate-50/80 border-b border-slate-100 last:border-0 p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer transition-all duration-300 relative overflow-hidden" onClick={() => handleProjectClick(p)}>
-                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-red-500 transition-colors"></div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h4 className="font-black text-slate-800 text-lg group-hover:text-red-700 truncate">{p.toko?.nama_toko || 'Unknown'}</h4>
-                                        <Badge className="bg-slate-100 text-slate-600 border-none px-2 py-0.5 text-[10px] tracking-widest">{p.toko?.nomor_ulok || 'Unknown'}</Badge>
-                                        <Badge variant="outline" className={`${badgeColor} font-black text-[10px] tracking-widest ml-auto md:ml-0 hidden md:flex`}>{lingkup}</Badge>
+                    const costBangunan = Number(rab?.cost_bangunan || costTerbangun);
+                    const luasBangunan = Number(rab?.luas_terbangun || rab?.luas_bangunan || luasTerbangun);
+                    const avgBangunan = luasBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
+                    
+                    const costTerbuka = Number(rab?.cost_terbuka || 0);
+                    const luasTerbuka = Number(rab?.luas_area_terbuka || 1);
+                    const avgTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
+                    
+                    return (
+                        <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between group cursor-pointer" onClick={() => handleProjectClick(p)}>
+                            <div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                                        <Layers className="w-4 h-4 text-emerald-600" />
                                     </div>
-                                    <div className="text-sm font-bold text-slate-400 tracking-wide flex items-center gap-2">
-                                        <span>{p.toko?.cabang || '-'}</span>
-                                        <Badge variant="outline" className={`${badgeColor} font-black text-[10px] tracking-widest md:hidden`}>{lingkup}</Badge>
+                                    <Badge variant="outline" className={`${badgeColor} font-black text-[10px] tracking-widest`}>{lingkup}</Badge>
+                                </div>
+                                <h3 className="font-black text-slate-800 text-lg group-hover:text-red-600 transition-colors">{p.toko?.nama_toko}</h3>
+                            </div>
+                            
+                            <div className="mt-6 flex flex-col gap-4">
+                                <div className="flex justify-between items-end border-b border-slate-100 pb-2">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Terbangun</p>
+                                        <p className="text-xs font-semibold text-slate-400">{luasTerbangun} m²</p>
                                     </div>
+                                    <p className="text-xl font-black text-emerald-700 text-right">{formatRupiah(Math.round(avg))} <span className="text-[10px] text-slate-400">/m²</span></p>
+                                </div>
+                                <div className="flex justify-between items-end border-b border-slate-100 pb-2">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Bangunan</p>
+                                        <p className="text-xs font-semibold text-slate-400">{luasBangunan} m²</p>
+                                    </div>
+                                    <p className="text-xl font-black text-blue-600 text-right">{formatRupiah(avgBangunan)} <span className="text-[10px] text-slate-400">/m²</span></p>
                                 </div>
                                 
-                                <div className="flex flex-wrap md:flex-nowrap items-center gap-6 mt-4 md:mt-0">
-                                    <div className="flex items-center gap-4 text-right">
-                                        <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terbangun</span><span className="text-sm font-black text-emerald-700">{formatRupiah(Math.round(avg))} <span className="text-[10px] text-slate-400 font-normal">/m²</span></span></div>
-                                        <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Bangunan</span><span className="text-sm font-black text-blue-600">{formatRupiah(avgBangunan)} <span className="text-[10px] text-slate-400 font-normal">/m²</span></span></div>
-                                        {costTerbuka > 0 && <div className="flex flex-col"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terbuka</span><span className="text-sm font-black text-purple-600">{formatRupiah(avgTerbuka)} <span className="text-[10px] text-slate-400 font-normal">/m²</span></span></div>}
+                                {costTerbuka > 0 && (
+                                    <div className="flex justify-between items-end pb-1">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Area Terbuka</p>
+                                            <p className="text-xs font-semibold text-slate-400">{luasTerbuka} m²</p>
+                                        </div>
+                                        <p className="text-xl font-black text-purple-600 text-right">{formatRupiah(avgTerbuka)} <span className="text-[10px] text-slate-400">/m²</span></p>
                                     </div>
-                                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center group-hover:bg-red-500 group-hover:border-red-500 group-hover:text-white text-slate-400 transition-all shrink-0">
-                                        <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
-                                    </div>
-                                </div>
+                                )}
                             </div>
-                        );
-                    })}
-                </div>
+                        </div>
+                    );
+                })}
+            </div>
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0">
