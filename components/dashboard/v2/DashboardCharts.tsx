@@ -323,46 +323,56 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
     );
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+        <div className="grid grid-cols-1 gap-8 mb-8">
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <h3 className="font-black text-lg text-slate-800">Perbandingan RAB</h3>
+                    <h3 className="font-black text-xl text-slate-800 tracking-tight">Perbandingan RAB</h3>
                     <FilterDropdown value={filterRab} onChange={setFilterRab} />
                 </div>
-                <div className="h-[280px]">
-                    <Bar data={dataRab} options={commonOptions} />
+                <div className="w-full overflow-x-auto custom-scrollbar pb-4">
+                    <div className="h-[350px] md:h-[400px] min-w-[800px] xl:min-w-[1000px]">
+                        <Bar data={dataRab} options={commonOptions} />
+                    </div>
                 </div>
             </div>
             
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <h3 className="font-black text-lg text-slate-800">Perbandingan SPK</h3>
+                    <h3 className="font-black text-xl text-slate-800 tracking-tight">Perbandingan SPK</h3>
                     <FilterDropdown value={filterSpk} onChange={setFilterSpk} />
                 </div>
-                <div className="h-[280px]">
-                    <Bar data={dataSpk} options={commonOptions} />
+                <div className="w-full overflow-x-auto custom-scrollbar pb-4">
+                    <div className="h-[350px] md:h-[400px] min-w-[800px] xl:min-w-[1000px]">
+                        <Bar data={dataSpk} options={commonOptions} />
+                    </div>
                 </div>
             </div>
             
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <h3 className="font-black text-lg text-slate-800">SPK Release vs Serah Terima</h3>
+                    <h3 className="font-black text-xl text-slate-800 tracking-tight">SPK Release vs Serah Terima</h3>
                     <FilterDropdown value={filterSt} onChange={setFilterSt} />
                 </div>
-                <div className="h-[280px]">
-                    <Bar data={dataSpkRelease} options={commonOptions} />
+                <div className="w-full overflow-x-auto custom-scrollbar pb-4">
+                    <div className="h-[350px] md:h-[400px] min-w-[800px] xl:min-w-[1000px]">
+                        <Bar data={dataSpkRelease} options={commonOptions} />
+                    </div>
                 </div>
             </div>
             
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 elegant-shadow">
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <h3 className="font-black text-lg text-slate-800">Nilai SPK vs Opname Final</h3>
+                    <h3 className="font-black text-xl text-slate-800 tracking-tight">Nilai SPK vs Opname Final</h3>
                     <FilterDropdown value={filterNilai} onChange={setFilterNilai} />
                 </div>
-                <div className="h-[280px]">
-                    <Bar data={dataNilai} options={currencyOptions} />
+                <div className="w-full overflow-x-auto custom-scrollbar pb-4">
+                    <div className="h-[350px] md:h-[400px] min-w-[800px] xl:min-w-[1000px]">
+                        <Bar data={dataNilai} options={currencyOptions} />
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
+
+
