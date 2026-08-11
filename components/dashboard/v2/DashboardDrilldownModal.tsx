@@ -148,7 +148,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             filtered = filtered.filter(p => p.berkas_serah_terima && p.berkas_serah_terima.length > 0);
         } else if (initialCardType === 'SLA') {
             const att = stats?.tokoPerhatian || [];
-            filtered = filtered.filter(p => att.includes(p.toko?.nomor_ulok));
+            filtered = filtered.filter(p => att.includes(p.id));
         }
 
         // 2. Filter by stage (if came from Stage Summary)
