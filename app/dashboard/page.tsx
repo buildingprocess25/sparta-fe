@@ -2161,7 +2161,7 @@ export default function DashboardPage() {
 
         let miniPerhatian = { 'Proses Gantt': 0, 'Approval RAB': 0, 'Proses PJU': 0, 'Approval SPK': 0, 'Ongoing': 0, 'Kerja Tambah Kurang': 0 };
 
-        let tokoPerhatian: string[] = [];
+        let tokoPerhatian: number[] = [];
 
 
 
@@ -2205,8 +2205,8 @@ export default function DashboardPage() {
 
                 }
 
-                if (p.toko?.nomor_ulok) {
-                    tokoPerhatian.push(p.toko.nomor_ulok);
+                if (p.toko?.id) {
+                    tokoPerhatian.push(p.toko.id);
                 }
                 const elapsed = getProjectStageElapsedDays(p, cat);
                 if (cat === 'Ongoing') p._lateDays = Math.max(0, elapsed - getProjectAllowedDays(p));
