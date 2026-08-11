@@ -87,7 +87,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
                             <SelectItem value="all">
-                                <span className="font-bold text-red-600">Semua Cabang</span>
+                                <span className="font-semibold text-red-600">Semua Cabang</span>
                             </SelectItem>
                             {accessibleBranches.map((branch) => (
                                 <SelectItem key={branch} value={branch} className="font-medium text-slate-700">
@@ -107,7 +107,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                         </div>
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                        <SelectItem value="ALL"><span className="font-bold text-slate-800">Semua Tipe Proyek</span></SelectItem>
+                        <SelectItem value="ALL"><span className="font-semibold text-slate-800">Semua Tipe Proyek</span></SelectItem>
                         <SelectItem value="RENOVASI"><span className="font-medium text-slate-700">Renovasi</span></SelectItem>
                         <SelectItem value="REGULER"><span className="font-medium text-slate-700">Reguler</span></SelectItem>
                     </SelectContent>

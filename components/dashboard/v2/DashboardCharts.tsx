@@ -326,7 +326,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         <div className="grid grid-cols-1 gap-8 mb-8">
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                    <h3 className="font-black text-xl text-slate-800 tracking-tight">Perbandingan RAB</h3>
+                    <h3 className="font-bold text-xl text-slate-800 tracking-tight">Perbandingan RAB</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                         <FilterDropdown value={filterRab} onChange={setFilterRab} />
                     </div>
@@ -340,7 +340,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                    <h3 className="font-black text-xl text-slate-800 tracking-tight">Perbandingan SPK</h3>
+                    <h3 className="font-bold text-xl text-slate-800 tracking-tight">Perbandingan SPK</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                         <FilterDropdown value={filterSpk} onChange={setFilterSpk} />
                     </div>
@@ -354,7 +354,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                    <h3 className="font-black text-xl text-slate-800 tracking-tight">SPK Release vs Serah Terima</h3>
+                    <h3 className="font-bold text-xl text-slate-800 tracking-tight">SPK Release vs Serah Terima</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                         <FilterDropdown value={filterSt} onChange={setFilterSt} />
                     </div>
@@ -368,7 +368,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                    <h3 className="font-black text-xl text-slate-800 tracking-tight">Nilai SPK vs Opname Final</h3>
+                    <h3 className="font-bold text-xl text-slate-800 tracking-tight">Nilai SPK vs Opname Final</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                         <FilterDropdown value={filterNilai} onChange={setFilterNilai} />
                     </div>

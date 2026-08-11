@@ -4860,11 +4860,11 @@ export default function DashboardPage() {
 
                                                                         <td colSpan={2} className="px-4 py-4">
 
-                                                                            <div className="flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                                                            <div className="space-y-3">
 
                                                                                 {(pK.stores || []).map((st: any, idx: number) => (
 
-                                                                                    <div key={idx} className="bg-white hover:bg-slate-50/80 p-3 border-b border-slate-100 last:border-0 transition-colors flex items-center justify-between">
+                                                                                    <div key={idx} className="bg-white rounded-xl p-3 border border-slate-300 shadow-sm flex items-center justify-between">
 
                                                                                         <div>
 

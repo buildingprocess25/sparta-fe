@@ -33,23 +33,23 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
         },
         {
             title: 'SPK AKTIF',
-            value: extraStats.spkOngoing || 0,
+            value: extraStats.spkDone || 0,
             icon: <HardHat className="w-6 h-6 text-emerald-600" />,
             glow: 'shadow-emerald-500/20',
             bg: 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100',
             text: 'text-emerald-900',
             subtext: `Dari ${(extraStats.spkOngoing || 0) + (extraStats.spkDone || 0)} total SPK diterbitkan`,
-            type: 'SPK'
+            type: 'SPK_AKTIF'
         },
         {
-            title: 'TOTAL DENDA',
-            value: formatRupiah(stats.totalDenda || 0),
-            icon: <AlertTriangle className="w-6 h-6 text-rose-600" />,
-            glow: 'shadow-rose-500/20',
-            bg: 'bg-gradient-to-br from-rose-50 to-white border-rose-100',
-            text: 'text-rose-900',
-            subtext: `${stats.dendaTerlambat || 0} ULOK melampaui batas waktu`,
-            type: 'DENDA'
+            title: 'JHK PEKERJAAN',
+            value: extraStats.stCount || 0, // Number of STs is base count for Gantt view
+            icon: <Store className="w-6 h-6 text-purple-600" />, // using Store or Calendar
+            glow: 'shadow-purple-500/20',
+            bg: 'bg-gradient-to-br from-purple-50 to-white border-purple-100',
+            text: 'text-purple-900',
+            subtext: `Grafik Durasi SPK s.d Serah Terima`,
+            type: 'JHK_PEKERJAAN'
         },
         {
             title: 'SERAH TERIMA',
@@ -77,8 +77,8 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
                     <div className="relative z-10 flex flex-col h-full justify-between gap-6">
                         <div className="flex justify-between items-start gap-2">
                             <div className="space-y-1 min-w-0 flex-1">
-                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 truncate">{card.title}</h4>
-                                <p className={`font-black tracking-tighter truncate text-2xl xl:text-[26px] 2xl:text-3xl ${card.text}`}>
+                                <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 truncate">{card.title}</h4>
+                                <p className={`font-bold tracking-tighter truncate text-2xl xl:text-[26px] 2xl:text-3xl ${card.text}`}>
                                     {card.value}
                                 </p>
                             </div>
@@ -88,7 +88,7 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
                         </div>
                         
                         <div className="pt-4 border-t border-slate-200/50">
-                            <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+                            <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
                                 {card.subtext}
                             </p>
                         </div>

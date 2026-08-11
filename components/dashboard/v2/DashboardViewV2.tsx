@@ -60,6 +60,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
         
         let spkDone = 0;
         let spkOngoing = 0;
+        let totalNilaiSPK = 0;
         
         let totalNilaiIL = 0;
         let ilDone = 0;
@@ -70,8 +71,11 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
         let pengawasanTerlambat = 0;
 
         let tambahHari = 0;
-        let countTambahHari = 0;
+        let tambahHariDone = 0;
+        let tambahHariOngoing = 0;
         let stCount = 0;
+        let keterlambatanCount = 0;
+        const now = new Date();
 
         projects.forEach(p => {
             // Penawaran
@@ -88,20 +92,23 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
             if (p.spk && p.spk.length > 0) {
                 p.spk.forEach((s: any) => {
                     const status = (s.status || '').toUpperCase();
-                    if (!['REJECTED', 'REJECT', 'CANCELLED', 'CANCEL'].includes(status)) {
-                        if (['SELESAI', 'CLOSED'].includes(status) || p.berkas_serah_terima?.length > 0) {
-                            spkDone++;
-                        } else {
-                            spkOngoing++;
-                        }
+                    totalNilaiSPK += Number(s.grand_total || 0);
+
+                    if (['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status)) {
+                        spkDone++;
+                    } else if (!['REJECTED', 'REJECT', 'DITOLAK', 'CANCELLED', 'CANCEL'].includes(status)) {
+                        spkOngoing++;
                     }
 
                     // Tambah hari
                     if (s.pertambahan_spk && s.pertambahan_spk.length > 0) {
                         s.pertambahan_spk.forEach((pt: any) => {
-                            if (['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt?.status_persetujuan || '').toUpperCase())) {
+                            const statusPt = String(pt?.status_persetujuan || '').toUpperCase();
+                            if (['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(statusPt)) {
                                 tambahHari += Number(pt.pertambahan_hari || 0);
-                                countTambahHari++;
+                                tambahHariDone++;
+                            } else if (!['REJECTED', 'REJECT', 'DITOLAK'].includes(statusPt)) {
+                                tambahHariOngoing++;
                             }
                         });
                     }
@@ -112,7 +119,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
             if (p.instruksi_lapangan && p.instruksi_lapangan.length > 0) {
                 p.instruksi_lapangan.forEach((il: any) => {
                     totalNilaiIL += Number(il.grand_total || 0);
-                    if (il.status === 'APPROVED' || il.status === 'DISETUJUI') {
+                    const statusIL = String(il.status || '').toUpperCase();
+                    if (['APPROVED', 'DISETUJUI', 'DISETUJUI BM', 'SELESAI', 'CLOSED', 'DONE', 'SPK_APPROVED'].includes(statusIL)) {
                         ilDone++;
                     } else {
                         ilOngoing++;
@@ -124,42 +132,68 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
             if (p.berkas_serah_terima && p.berkas_serah_terima.length > 0) {
                 stCount++;
             }
-            if (p.gantt && p.gantt.length > 0) {
-                p.gantt.forEach((g: any) => {
-                    if (g.pengawasan && g.pengawasan.length > 0) {
-                        const grouped = g.pengawasan.reduce((acc: any, pw: any) => {
-                            let dateKey = pw.tanggal_pengawasan || pw.created_at || 'unknown';
-                            if (typeof dateKey === 'string') {
-                                if (dateKey.includes('T')) dateKey = dateKey.split('T')[0];
-                                else if (dateKey.includes(' ')) dateKey = dateKey.split(' ')[0];
-                            }
-                            if (!acc[dateKey]) acc[dateKey] = [];
-                            acc[dateKey].push(pw);
-                            return acc;
-                        }, {});
+            
+            const groupedPengawasan = (p.gantt || []).reduce((acc: any, g: any) => {
+                if (g.pengawasan && Array.isArray(g.pengawasan)) {
+                    g.pengawasan.forEach((pw: any) => {
+                        let dateKey = pw.tanggal_pengawasan || pw.created_at || 'unknown';
+                        if (typeof dateKey === 'string') {
+                            if (dateKey.includes('T')) dateKey = dateKey.split('T')[0];
+                            else if (dateKey.includes(' ')) dateKey = dateKey.split(' ')[0];
+                        }
+                        if (!acc[dateKey]) acc[dateKey] = [];
+                        acc[dateKey].push(pw);
+                    });
+                }
+                return acc;
+            }, {});
 
-                        Object.values(grouped).forEach((groupItems: any) => {
-                            const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
-                            const isTerlambat = groupItems.some((i: any) => ['TERLAMBAT', 'LATE'].includes((i.status || '').toUpperCase()));
+            Object.values(groupedPengawasan).forEach((groupItems: any) => {
+                const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
+                const isTerlambat = groupItems.some((i: any) => ['TERLAMBAT', 'LATE'].includes((i.status || '').toUpperCase()));
+                
+                if (isSelesai) pengawasanSelesai++;
+                else if (isTerlambat) pengawasanTerlambat++;
+                else pengawasanProgress++;
+            });
+
+            // Keterlambatan calculation (belum ST tapi lewat batas)
+            if ((!p.berkas_serah_terima || p.berkas_serah_terima.length === 0) && p.spk && p.spk.length > 0) {
+                const spk = p.spk[0];
+                const status = (spk.status || '').toUpperCase();
+                // Only for active SPKs
+                if (['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status)) {
+                    const spkDateStr = spk.created_at || spk.waktu_persetujuan;
+                    if (spkDateStr) {
+                        const spkDate = new Date(spkDateStr);
+                        if (!isNaN(spkDate.getTime())) {
+                            const durasi = Number(spk.durasi) || 0;
+                            const tsArray = spk.pertambahan_spk || [];
+                            const tsDays = tsArray.reduce((acc: number, curr: any) => acc + (Number(curr.pertambahan_hari) || 0), 0);
                             
-                            if (isSelesai) pengawasanSelesai++;
-                            else if (isTerlambat) pengawasanTerlambat++;
-                            else pengawasanProgress++;
-                        });
+                            const targetDate = new Date(spkDate);
+                            targetDate.setDate(targetDate.getDate() + durasi + tsDays);
+                            
+                            if (now > targetDate) {
+                                keterlambatanCount++;
+                            }
+                        }
                     }
-                });
+                }
             }
         });
 
         return {
             penawaranDone, penawaranOngoing,
-            spkDone, spkOngoing,
+            spkDone, spkOngoing, totalNilaiSPK,
             totalNilaiIL, ilDone, ilOngoing,
             pengawasanSelesai, pengawasanProgress, pengawasanTerlambat,
-            tambahHariCount: countTambahHari,
-            avgTambahHari: countTambahHari > 0 ? Math.round(tambahHari / countTambahHari) : 0,
+            tambahHariDone, tambahHariOngoing,
+            tambahHariCount: tambahHariDone + tambahHariOngoing,
+            avgTambahHari: tambahHariDone > 0 ? Math.round(tambahHari / tambahHariDone) : 0,
             spAktif: stats.attention, // fallback
-            stCount
+            stCount,
+            keterlambatanCount
         };
     }, [projects, stats]);
 
