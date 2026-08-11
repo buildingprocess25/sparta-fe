@@ -65,8 +65,7 @@ const dataTypeOptions: DataTypeOption[] = [
     { id: "instruksi_lapangan", label: "Instruksi Lapangan", desc: "Detail item pekerjaan, status, dan tanggal instruksi lapangan." },
     { id: "serah_terima", label: "Serah Terima", desc: "Tanggal serah terima dan link dokumen BAST." },
     { id: "ktk_opname_final", label: "KTK (Opname Final)", desc: "Opname final, denda, serah terima, dan grand total nilai toko." },
-    { id: "project_planning", label: "Project Planning", desc: "Informasi estimasi biaya, luasan, jenis pengajuan, dan status approval PP." },
-    { id: "user", label: "Data User", desc: "Nama, email, role, cabang, dan login terakhir user." }
+    { id: "project_planning", label: "Project Planning", desc: "Informasi estimasi biaya, luasan, jenis pengajuan, dan status approval PP." }
 ];
 
 const formatOptions: Array<{ id: DashboardExportFormat; label: string; helper: string }> = [
@@ -145,7 +144,8 @@ export default function TarikanDataPage() {
     const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set([new Date().getMonth() + 1]));
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [periodMode, setPeriodMode] = useState<PeriodMode>("ytd");
-    const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set(dataTypeOptions.filter((item) => item.id !== "user").map((item) => item.id)));
+    const [selectedDataTypes, setSelectedDataTypes] = useState<Set<string>>(new Set());
+    const [downloadUser, setDownloadUser] = useState(false);
     const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
     const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
@@ -265,8 +265,15 @@ export default function TarikanDataPage() {
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
     const selectedProjects = useMemo(() => projects.filter((project) => selectedIds.has(projectId(project))), [projects, selectedIds]);
-    const isUserOnlyExport = selectedDataTypes.size === 1 && selectedDataTypes.has("user") && selectedJobTypes.size === 0;
-    const canExport = (isUserOnlyExport || selectedIds.size > 0) && (selectedDataTypes.size > 0 || selectedJobTypes.size > 0) && !exporting;
+    const hasOtherDataSelected = selectedDataTypes.size > 0 || selectedJobTypes.size > 0;
+    const isUserOnlyExport = downloadUser && !hasOtherDataSelected;
+    const canExport = !exporting && (isUserOnlyExport || (hasOtherDataSelected && selectedIds.size > 0));
+
+    useEffect(() => {
+        if (isUserOnlyExport && selectedIds.size > 0) {
+            setSelectedIds(new Set());
+        }
+    }, [isUserOnlyExport, selectedIds.size]);
 
     const toggleSetValue = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
         setter((current) => {
@@ -304,6 +311,11 @@ export default function TarikanDataPage() {
                 cabangsPayload = isHOUser ? [] : allowedBranches;
             }
 
+            const dataTypesPayload = Array.from(selectedDataTypes);
+            if (downloadUser) {
+                dataTypesPayload.push("user");
+            }
+
             await downloadDashboardExport({
                 format,
                 actorRole: roles.join(", ") || "UNKNOWN",
@@ -312,7 +324,7 @@ export default function TarikanDataPage() {
                 months: Array.from(selectedMonths),
                 year: selectedYear,
                 periodMode,
-                dataTypes: Array.from(selectedDataTypes),
+                dataTypes: dataTypesPayload,
                 jobTypes: Array.from(selectedJobTypes),
                 cabangs: cabangsPayload,
                 spkStatus,
@@ -323,7 +335,7 @@ export default function TarikanDataPage() {
         } finally {
             setExporting(null);
         }
-    }, [allowedBranches, canExport, isHOUser, isUserOnlyExport, periodMode, roles, selectedBranches, selectedDataTypes, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
+    }, [allowedBranches, canExport, isHOUser, isUserOnlyExport, periodMode, roles, selectedBranches, selectedDataTypes, downloadUser, selectedIds, selectedJobTypes, selectedMonths, selectedYear, spkStatus, user]);
 
     const monthLabel = periodMode === "ytd"
         ? `YTD ${selectedYear}`
@@ -499,17 +511,47 @@ export default function TarikanDataPage() {
                     <div className="grid gap-4 p-5 lg:grid-cols-[360px_1fr]">
                         <aside className="rounded-lg border border-slate-200 bg-white p-4">
                             <div className="flex items-center gap-2 text-sm font-bold text-slate-900"><FileText className="h-4 w-4 text-red-600" />Jenis data</div>
-                            <div className="mt-3 space-y-2">
-                                {dataTypeOptions.map((item) => (
-                                    <label key={item.id} className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 p-3 hover:border-red-200 hover:bg-red-50/40">
-                                        <Checkbox checked={selectedDataTypes.has(item.id)} onCheckedChange={() => toggleSetValue(setSelectedDataTypes, item.id)} />
+                            <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                <label className="flex cursor-pointer items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2.5 hover:bg-red-50/40">
+                                    <span className="flex min-w-0 items-center gap-2">
+                                        <Checkbox
+                                            checked={selectedDataTypes.size === dataTypeOptions.length && dataTypeOptions.length > 0}
+                                            onCheckedChange={(checked) => {
+                                                if (checked) setSelectedDataTypes(new Set(dataTypeOptions.map(item => item.id)));
+                                                else setSelectedDataTypes(new Set());
+                                            }}
+                                        />
+                                        <span className="text-xs font-medium uppercase text-slate-700">Pilih semua jenis data</span>
+                                    </span>
+                                    <span className="shrink-0 text-xs text-slate-500">{selectedDataTypes.size}/{dataTypeOptions.length}</span>
+                                </label>
+                                <div className="p-1.5 space-y-1 max-h-60 overflow-y-auto">
+                                    {dataTypeOptions.map((item) => (
+                                        <label key={item.id} className="flex cursor-pointer gap-3 rounded-lg p-2.5 hover:bg-red-50/50">
+                                            <Checkbox checked={selectedDataTypes.has(item.id)} onCheckedChange={() => toggleSetValue(setSelectedDataTypes, item.id)} className="mt-1" />
+                                            <span>
+                                                <span className="block text-sm font-bold text-slate-900">{item.label}</span>
+                                                <span className="block text-xs text-slate-600">{item.desc}</span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="mt-5 border-t border-slate-100 pt-4">
+                                <div className="flex items-center gap-2 text-sm font-bold text-slate-900"><FileText className="h-4 w-4 text-red-600" />Data User</div>
+                                <div className="mt-3 space-y-2">
+                                    <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 p-3 hover:border-red-200 hover:bg-red-50/40">
+                                        <Checkbox checked={downloadUser} onCheckedChange={(checked) => setDownloadUser(!!checked)} />
                                         <span>
-                                            <span className="block text-sm font-bold text-slate-900">{item.label}</span>
-                                            <span className="block text-xs text-slate-600">{item.desc}</span>
+                                            <span className="block text-sm font-bold text-slate-900">Download Data User</span>
+                                            <span className="block text-xs text-slate-600">Nama, email, role, cabang, dan login terakhir user.</span>
                                         </span>
                                     </label>
-                                ))}
+                                </div>
+                                <p className="mt-2 text-xs text-slate-500">Dapat ditarik tanpa memilih ULOK.</p>
                             </div>
+                            
                             <div className="mt-5 border-t border-slate-100 pt-4">
                                 <div className="flex items-center gap-2 text-sm font-bold text-slate-900"><FileText className="h-4 w-4 text-red-600" />Item pekerjaan</div>
                                 <div className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
@@ -568,6 +610,7 @@ export default function TarikanDataPage() {
                                     <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
                                         <label className="flex cursor-pointer items-center gap-2 text-xs font-medium uppercase text-slate-600 hover:text-slate-900">
                                             <Checkbox 
+                                                disabled={isUserOnlyExport}
                                                 checked={selectedVisibleCount === filteredProjects.length && filteredProjects.length > 0} 
                                                 onCheckedChange={(checked) => {
                                                     if (checked) selectVisible();
@@ -585,8 +628,8 @@ export default function TarikanDataPage() {
                                             const id = projectId(project);
                                             const checked = selectedIds.has(id);
                                             return (
-                                                <label key={id || `${project?.toko?.nomor_ulok}-${project?.toko?.lingkup_pekerjaan}`} className={`flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-red-50/40 ${checked ? "bg-red-50/60" : "bg-white"}`}>
-                                                    <Checkbox checked={checked} onCheckedChange={() => toggleSetValue(setSelectedIds, id)} className="mt-1" />
+                                                <label key={id || `${project?.toko?.nomor_ulok}-${project?.toko?.lingkup_pekerjaan}`} className={`flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-red-50/40 ${checked ? "bg-red-50/60" : "bg-white"} ${isUserOnlyExport ? "opacity-50 pointer-events-none" : ""}`}>
+                                                    <Checkbox disabled={isUserOnlyExport} checked={checked} onCheckedChange={() => toggleSetValue(setSelectedIds, id)} className="mt-1" />
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <p className="truncate text-sm font-bold text-slate-950">{project?.toko?.nama_toko || "-"}</p>
