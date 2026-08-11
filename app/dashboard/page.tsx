@@ -2210,10 +2210,10 @@ export default function DashboardPage() {
                 }
                 const elapsed = getProjectStageElapsedDays(p, cat);
                 if (cat === 'Ongoing') p._lateDays = Math.max(0, elapsed - getProjectAllowedDays(p));
-                else if (cat === 'Approval SPK') p._lateDays = Math.max(0, elapsed);
-                else if (cat === 'Approval RAB') p._lateDays = Math.max(0, elapsed);
-                else if (cat === 'Proses PJU') p._lateDays = Math.max(0, elapsed);
-                else if (cat === 'Kerja Tambah Kurang') p._lateDays = Math.max(0, elapsed);
+                else if (cat === 'Approval SPK') p._lateDays = Math.max(0, elapsed - 2);
+                else if (cat === 'Approval RAB') p._lateDays = Math.max(0, elapsed - 2);
+                else if (cat === 'Proses PJU') p._lateDays = Math.max(0, elapsed - 10);
+                else if (cat === 'Kerja Tambah Kurang') p._lateDays = Math.max(0, elapsed - 14);
                 else p._lateDays = 0;
 
             }
