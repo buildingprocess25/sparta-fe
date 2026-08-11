@@ -405,20 +405,19 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         )}
                                     </div>
                                 </div>
-
-                                <div className="flex flex-wrap md:flex-nowrap items-center">
+                                <div className="flex items-stretch divide-x divide-slate-100 border-l border-slate-100 ml-4">
                                     {initialCardType === 'DENDA' && (() => {
                                         const op = project.opname_final?.[0];
                                         const hDenda = op?.hari_denda || 0;
                                         const st = project.berkas_serah_terima?.[0]?.created_at;
                                         const tgt = project.spk?.[0]?.waktu_selesai; // Approx target ST
                                         return (
-                                            <div className="flex items-center">
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[120px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-slate-700">{hDenda} Hari</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[120px] hidden md:flex"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target ST</span><span className="text-sm font-black text-slate-700">{tgt ? formatDateIndo(tgt) : '-'}</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[120px] hidden md:flex"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tgl ST</span><span className="text-sm font-black text-emerald-600">{st ? formatDateIndo(st) : '-'}</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[140px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai Denda</span><span className="text-base font-black text-rose-600">{denda}</span></div>
-                                            </div>
+                                            <>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[100px] md:w-[120px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Terlambat</span><span className="text-xs md:text-sm font-bold text-slate-700">{hDenda} Hari</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Target ST</span><span className="text-xs md:text-sm font-bold text-slate-700 leading-tight">{tgt ? formatDateIndo(tgt) : '-'}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Tgl ST</span><span className="text-xs md:text-sm font-bold text-emerald-600 leading-tight">{st ? formatDateIndo(st) : '-'}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[120px] md:w-[150px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Nilai Denda</span><span className="text-sm md:text-base font-black text-rose-600">{denda}</span></div>
+                                            </>
                                         );
                                     })()}
                                     {initialCardType === 'JHK' && (() => {
@@ -430,50 +429,46 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             if (pt.status_persetujuan === 'APPROVED') ptAkhir = pt.tanggal_akhir_setelah_perpanjangan;
                                         });
                                         return (
-                                            <div className="flex items-center">
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[130px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK</span><span className="text-sm font-black text-slate-700">{endDate ? formatDateIndo(endDate) : '-'}</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[130px] hidden md:flex"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Akhir SPK Baru</span><span className="text-sm font-black text-blue-600">{ptAkhir ? formatDateIndo(ptAkhir) : '-'}</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[130px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tambah Hari</span><span className="text-base font-black text-blue-600">{tambahHari > 0 ? `${tambahHari} Hari` : '-'}</span></div>
-                                            </div>
+                                            <>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[130px] md:w-[160px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Akhir SPK</span><span className="text-xs md:text-sm font-bold text-slate-700 leading-tight">{endDate ? formatDateIndo(endDate) : '-'}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[130px] md:w-[160px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Akhir SPK Baru</span><span className="text-xs md:text-sm font-bold text-blue-600 leading-tight">{ptAkhir ? formatDateIndo(ptAkhir) : '-'}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[110px] md:w-[130px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Tambah Hari</span><span className="text-sm md:text-base font-black text-blue-600">{tambahHari > 0 ? `${tambahHari} Hari` : '-'}</span></div>
+                                            </>
                                         );
                                     })()}
                                     {initialCardType === 'SLA' && (
-                                        <div className="flex items-center">
-                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[180px]">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span>
-                                                <span className="text-sm font-black text-rose-600">{project._lateDays || 0} Hari melewati SLA</span>
+                                        <>
+                                            <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0">
+                                                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Terlambat</span>
+                                                <span className="text-sm md:text-base font-bold text-rose-600">{project._lateDays || 0} Hari</span>
                                             </div>
-                                        </div>
+                                        </>
                                     )}
                                     {initialCardType === 'IL' && (
-                                        <div className="flex items-center">
-                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[140px]">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</span>
-                                                <div className="mt-1 flex justify-end">
-                                                    <Badge variant="outline" className={`${statusIL === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{statusIL}</Badge>
-                                                </div>
+                                        <>
+                                            <div className="flex flex-col justify-center px-4 md:px-5 w-[120px] md:w-[140px] text-right shrink-0 items-end">
+                                                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Status</span>
+                                                <Badge variant="outline" className={`mt-0.5 ${statusIL === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{statusIL}</Badge>
                                             </div>
-                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[160px]">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai IL</span>
-                                                <span className="text-base font-black text-orange-600">{nilaiIL}</span>
+                                            <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[160px] text-right shrink-0">
+                                                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Nilai IL</span>
+                                                <span className="text-sm md:text-base font-black text-orange-600">{nilaiIL}</span>
                                             </div>
-                                        </div>
+                                        </>
                                     )}
                                     {(!initialCardType || ['TOTAL_PROJECT', 'SLA', 'PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'KERJA_TAMBAH_KURANG', 'SERAH_TERIMA', 'ST'].includes(initialCardType)) && (
-                                        <div className="flex items-center">
+                                        <>
                                             {initialCardType === 'PENAWARAN' && (
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[140px]">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status RAB</span>
-                                                    <div className="mt-1 flex justify-end">
-                                                        <Badge variant="outline" className="border-slate-200">{project.rab?.[0]?.status || 'Menunggu Persetujuan'}</Badge>
-                                                    </div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[160px] text-right shrink-0 items-end">
+                                                    <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Status RAB</span>
+                                                    <Badge variant="outline" className="mt-0.5 border-slate-200 shadow-sm">{project.rab?.[0]?.status || 'Menunggu Persetujuan'}</Badge>
                                                 </div>
                                             )}
-                                            <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[160px]">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai {(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? 'RAB' : 'SPK'}</span>
-                                                <span className="text-base font-black text-slate-700">{(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? nilaiRAB : nilaiSPK}</span>
+                                            <div className="flex flex-col justify-center px-4 md:px-5 w-[150px] md:w-[180px] text-right shrink-0">
+                                                <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Nilai {(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? 'RAB' : 'SPK'}</span>
+                                                <span className="text-sm md:text-base font-black text-slate-700">{(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? nilaiRAB : nilaiSPK}</span>
                                             </div>
-                                        </div>
+                                        </>
                                     )}
                                     {initialCardType === 'PENGAWASAN' && (() => {
                                         let sel = 0, prog = 0, ter = 0;
@@ -486,14 +481,15 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             });
                                         });
                                         return (
-                                            <div className="flex items-center">
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[100px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selesai</span><span className="text-sm font-black text-emerald-600">{sel}</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[100px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</span><span className="text-sm font-black text-blue-600">{prog}</span></div>
-                                                <div className="flex flex-col text-right px-4 md:px-6 border-l border-slate-100 min-w-[100px]"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terlambat</span><span className="text-sm font-black text-rose-600">{ter}</span></div>
-                                            </div>
+                                            <>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[90px] md:w-[110px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Selesai</span><span className="text-xs md:text-sm font-bold text-emerald-600">{sel}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[90px] md:w-[110px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Progress</span><span className="text-xs md:text-sm font-bold text-blue-600">{prog}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[90px] md:w-[110px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Terlambat</span><span className="text-xs md:text-sm font-bold text-rose-600">{ter}</span></div>
+                                            </>
                                         );
                                     })()}
-                                    
+                                </div>
+                                <div className="pl-4 md:pl-5 flex items-center justify-center">     
                                     <div className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center group-hover:bg-red-500 group-hover:border-red-500 group-hover:text-white text-slate-400 transition-all shrink-0">
                                         <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
                                     </div>
