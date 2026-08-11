@@ -32,10 +32,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
     const [filterSpk, setFilterSpk] = useState<string>('semua');
     const [filterSt, setFilterSt] = useState<string>('semua');
     const [filterNilai, setFilterNilai] = useState<string>('semua');
-    const [branchRab, setBranchRab] = useState<string>('semua');
-    const [branchSpk, setBranchSpk] = useState<string>('semua');
-    const [branchSt, setBranchSt] = useState<string>('semua');
-    const [branchNilai, setBranchNilai] = useState<string>('semua');
 
     // Helper to get cutoff date
     const getCutoffDate = (filter: string) => {
@@ -78,18 +74,14 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         const mapDibuat: Record<string, number> = {};
         const mapApproved: Record<string, number> = {};
         
-        const chartLabels = branchRab === 'semua' ? baseLabels : baseLabels.filter(b => b === branchRab);
-        chartLabels.forEach(l => {
+        baseLabels.forEach(l => {
             mapDibuat[l] = 0;
             mapApproved[l] = 0;
         });
 
         projects.forEach((p: any) => {
             const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
-            if (branchNilai !== 'semua' && branchLabel !== branchNilai) return;
-            if (branchSt !== 'semua' && branchLabel !== branchSt) return;
-            if (branchSpk !== 'semua' && branchLabel !== branchSpk) return;
-            if (branchRab !== 'semua' && branchLabel !== branchRab) return;
+            if (!baseLabels.includes(branchLabel)) return;
 
             p.rab?.forEach((r: any) => {
                 const dateDibuat = r.created_at;
@@ -113,7 +105,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         });
 
         // Collect all unique labels and sort them
-        const labelsSet = new Set([...chartLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
         const labels = Array.from(labelsSet).sort();
         
         return {
@@ -131,14 +123,14 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         const mapDibuat: Record<string, number> = {};
         const mapApproved: Record<string, number> = {};
 
-        const chartLabels = branchSpk === 'semua' ? baseLabels : baseLabels.filter(b => b === branchSpk);
-        chartLabels.forEach(l => {
+        baseLabels.forEach(l => {
             mapDibuat[l] = 0;
             mapApproved[l] = 0;
         });
 
         projects.forEach((p: any) => {
             const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
+            if (!baseLabels.includes(branchLabel)) return;
 
             p.spk?.forEach((s: any) => {
                 const dateDibuat = s.created_at;
@@ -160,7 +152,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             });
         });
 
-        const labelsSet = new Set([...chartLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
         const labels = Array.from(labelsSet).sort();
         
         return {
@@ -178,14 +170,14 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         const mapSpkRelease: Record<string, number> = {};
         const mapST: Record<string, number> = {};
 
-        const chartLabels = branchSt === 'semua' ? baseLabels : baseLabels.filter(b => b === branchSt);
-        chartLabels.forEach(l => {
+        baseLabels.forEach(l => {
             mapSpkRelease[l] = 0;
             mapST[l] = 0;
         });
 
         projects.forEach((p: any) => {
             const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
+            if (!baseLabels.includes(branchLabel)) return;
 
             p.spk?.forEach((s: any) => {
                 const dateApproved = s.waktu_persetujuan || s.updated_at;
@@ -208,7 +200,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             });
         });
 
-        const labelsSet = new Set([...chartLabels, ...Object.keys(mapSpkRelease), ...Object.keys(mapST)]);
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapSpkRelease), ...Object.keys(mapST)]);
         const labels = Array.from(labelsSet).sort();
         
         return {
@@ -226,15 +218,15 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         const mapNilaiSpk: Record<string, number> = {};
         const mapNilaiOpname: Record<string, number> = {};
 
-        const chartLabels = branchNilai === 'semua' ? baseLabels : baseLabels.filter(b => b === branchNilai);
-        chartLabels.forEach(l => {
+        baseLabels.forEach(l => {
             mapNilaiSpk[l] = 0;
             mapNilaiOpname[l] = 0;
         });
 
         projects.forEach((p: any) => {
             const branchLabel = getBranchName(p.toko?.cabang, !!isSuperAdmin);
-            
+            if (!baseLabels.includes(branchLabel)) return;
+
             // Opname
             const opnames = p.opname_final || [];
             const ofinal = opnames.find((o: any) => o.tipe_opname !== 'OPNAME');
@@ -261,7 +253,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             });
         });
 
-        const labelsSet = new Set([...chartLabels, ...Object.keys(mapNilaiSpk), ...Object.keys(mapNilaiOpname)]);
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapNilaiSpk), ...Object.keys(mapNilaiOpname)]);
         const labels = Array.from(labelsSet).sort();
         
         return {
@@ -315,20 +307,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         }
     };
 
-    const BranchDropdown = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => (
-        <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="w-[140px] h-8 text-xs bg-slate-50 border-slate-200">
-                <SelectValue placeholder="Pilih Cabang" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="semua">Semua Cabang</SelectItem>
-                {baseLabels.map(b => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
-    );
-
     const FilterDropdown = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => (
         <Select value={value} onValueChange={onChange}>
             <SelectTrigger className="w-[140px] h-8 text-xs bg-slate-50 border-slate-200">
@@ -350,7 +328,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                     <h3 className="font-black text-xl text-slate-800 tracking-tight">Perbandingan RAB</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <BranchDropdown value={branchRab} onChange={setBranchRab} />
                         <FilterDropdown value={filterRab} onChange={setFilterRab} />
                     </div>
                 </div>
@@ -365,7 +342,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                     <h3 className="font-black text-xl text-slate-800 tracking-tight">Perbandingan SPK</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <BranchDropdown value={branchSpk} onChange={setBranchSpk} />
                         <FilterDropdown value={filterSpk} onChange={setFilterSpk} />
                     </div>
                 </div>
@@ -380,7 +356,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                     <h3 className="font-black text-xl text-slate-800 tracking-tight">SPK Release vs Serah Terima</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <BranchDropdown value={branchSt} onChange={setBranchSt} />
                         <FilterDropdown value={filterSt} onChange={setFilterSt} />
                     </div>
                 </div>
@@ -395,7 +370,6 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                     <h3 className="font-black text-xl text-slate-800 tracking-tight">Nilai SPK vs Opname Final</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <BranchDropdown value={branchNilai} onChange={setBranchNilai} />
                         <FilterDropdown value={filterNilai} onChange={setFilterNilai} />
                     </div>
                 </div>
