@@ -117,7 +117,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         }
     }, [isOpen, initialCardType, searchQuery, projects]);
 
-    const directToTahap4Types = ['PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'IL', 'INSTRUKSI_LAPANGAN', 'PENGAWASAN', 'ITEM_PENGAWASAN', 'JHK', 'TAMBAH_HARI_SPK', 'ST', 'SERAH_TERIMA', 'DENDA', 'TOTAL_DENDA'];
+    const directToTahap4Types = ['PENAWARAN', 'NILAI_PENAWARAN', 'SPK', 'SPK_AKTIF', 'IL', 'INSTRUKSI_LAPANGAN', 'PENGAWASAN', 'ITEM_PENGAWASAN', 'JHK', 'TAMBAH_HARI_SPK', 'ST', 'SERAH_TERIMA'];
 
     // --- DATA FILTERING ---
     const displayProjects = useMemo(() => {
