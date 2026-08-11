@@ -466,8 +466,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                                 </div>
                                             )}
                                             <div className="flex flex-col text-right">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai {(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt') ? 'RAB' : 'SPK'}</span>
-                                                <span className="text-base font-black text-slate-700">{(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt') ? nilaiRAB : nilaiSPK}</span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nilai {(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? 'RAB' : 'SPK'}</span>
+                                                <span className="text-base font-black text-slate-700">{(initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt' || statusTerkini === 'Proses PJU') ? nilaiRAB : nilaiSPK}</span>
                                             </div>
                                         </div>
                                     )}
