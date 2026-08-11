@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Loader2, Download, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -29,19 +29,49 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     jobType,
     onJobTypeChange
 }) => {
+    const [localSearch, setLocalSearch] = useState(searchQuery);
+
+    useEffect(() => {
+        setLocalSearch(searchQuery);
+    }, [searchQuery]);
+
+    const handleSearch = () => {
+        onSearchChange(localSearch);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    };
+
     return (
         <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center relative z-30 mb-6">
             <div className="flex-1 min-w-[250px] relative">
-                <span className="absolute left-3.5 top-2.5 text-slate-400 mt-0.5">
+                <button 
+                    className="absolute left-3.5 top-2.5 text-slate-400 mt-0.5 hover:text-red-500 focus:outline-none transition-colors"
+                    onClick={handleSearch}
+                    title="Klik untuk mencari"
+                >
                     <Search className="w-4 h-4" />
-                </span>
+                </button>
                 <input 
                     type="text" 
-                    placeholder="Cari Proyek, No ULOK, Kontraktor..." 
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition text-slate-700"
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
+                    placeholder="Cari Proyek, No ULOK, Kontraktor... (Tekan Enter)" 
+                    className="w-full pl-10 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition text-slate-700"
+                    value={localSearch}
+                    onChange={(e) => setLocalSearch(e.target.value)}
+                    onKeyDown={handleKeyDown}
                 />
+                {localSearch && (
+                    <button 
+                        onClick={() => { setLocalSearch(''); onSearchChange(''); }}
+                        className="absolute right-3.5 top-2.5 text-slate-400 hover:text-red-500 mt-0.5 focus:outline-none transition-colors"
+                        title="Hapus pencarian"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                )}
             </div>
             
             {accessibleBranches.length > 1 && (
