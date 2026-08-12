@@ -3217,6 +3217,24 @@ function GanttBoard() {
                                 </div>
                             )}
 
+                            {(() => {
+                                const stCheckpoint = supervisionWorkspace?.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === showTargetStModal.dateString);
+                                if (!stCheckpoint) return null;
+                                return (
+                                    <Button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowTargetStModal(null);
+                                            openUnifiedCheckpoint(stCheckpoint as any, showTargetStModal.dayIndex);
+                                        }}
+                                        className="flex h-11 w-full items-center justify-center rounded-md bg-blue-600 px-4 font-bold text-white transition hover:bg-blue-500 shadow-sm"
+                                    >
+                                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                                        Buka Form Pengawasan / Opname
+                                    </Button>
+                                );
+                            })()}
+
                             {handoverReadiness.isGenerated && masterHandoverId && (
                                 <Button
                                     type="button"
@@ -3948,8 +3966,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }));
     };
 
-    const isLastSupervisionDay = useMemo(() => {
-        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) return false;
+    const { isLastSupervisionDay, lastSupervisionDateNumeric } = useMemo(() => {
+        if (!pengawasanHistory || pengawasanHistory.length === 0 || (!spkInfo && !projectData) || !activeHeaderClick) {
+            return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
+        }
 
         const datesInNumeric = pengawasanHistory
             .map((p: any) => p.tanggal_pengawasan)
@@ -3964,7 +3984,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             .filter((val: number) => val > 0)
             .sort((a: number, b: number) => a - b);
 
-        if (datesInNumeric.length === 0) return false;
+        if (datesInNumeric.length === 0) return { isLastSupervisionDay: false, lastSupervisionDateNumeric: 0 };
         const maxDate = datesInNumeric[datesInNumeric.length - 1];
 
         const effectiveStart = getEffectiveWorkStart();
@@ -3983,10 +4003,27 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const dd = String(dDate.getDate()).padStart(2, '0');
         const currentNumeric = parseInt(`${yyyy}${mm}${dd}`, 10);
 
-        return maxDate === currentNumeric;
+        return {
+            isLastSupervisionDay: maxDate === currentNumeric,
+            lastSupervisionDateNumeric: maxDate
+        };
     }, [pengawasanHistory, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
 
-    const canCreateNextHandover = isLastSupervisionDay && hasLateItems;
+    const canCreateNextHandover = useMemo(() => {
+        if (!hasLateItems) return false;
+        if (isLastSupervisionDay) return true;
+
+        if (minNextHandoverDate && lastSupervisionDateNumeric > 0) {
+            const parts = minNextHandoverDate.split('-');
+            if (parts.length === 3) {
+                const minNextNumeric = parseInt(`${parts[0]}${parts[1]}${parts[2]}`, 10);
+                if (minNextNumeric > lastSupervisionDateNumeric) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }, [hasLateItems, isLastSupervisionDay, minNextHandoverDate, lastSupervisionDateNumeric]);
 
     useEffect(() => {
         if (!canCreateNextHandover || !minNextHandoverDate) return;
