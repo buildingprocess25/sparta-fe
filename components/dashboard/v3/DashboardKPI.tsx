@@ -1,37 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchDashboardKpiPerformance, type KpiCardType, type KpiPerformanceData } from "@/lib/api/kpi-performance";
+import { fetchPerformanceSummary, type PerformanceSummaryData, type PerformanceCardType } from "@/lib/api/performance-v3";
 import { KPIFilters } from "./KPIFilters";
 import { KpiDrilldownModal } from "./KpiDrilldownModal";
+import { KpiSupportTable } from "./KpiSupportTable";
 import {
   AlertTriangle,
   Banknote,
-  Building2,
   CheckCircle2,
   ChevronRight,
   Clock,
   FileText,
-  TimerReset,
   TrendingDown,
   TrendingUp,
-  UserCheck,
-  Users
+  UserCheck
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatRupiah } from "@/lib/utils";
 
 const Skeleton = ({ className }: { className?: string }) => (
   <div className={cn("animate-pulse rounded-md bg-slate-200", className)} />
 );
 
-const emptyMeta = { valid_count: 0, incomplete_count: 0 };
-
-const formatRupiah = (val: number) => {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val || 0);
-};
-
 const formatDays = (val: number) => Number(val || 0).toFixed(1);
 
 type MetricCardConfig = {
-  id: KpiCardType;
+  id: PerformanceCardType;
   title: string;
   value: string;
   unit: string;
@@ -45,23 +37,23 @@ export function DashboardKPI({
 }: {
   userInfo: { name: string; roles: string[]; cabang: string; namaPt: string }
 }) {
-  const [data, setData] = useState<KpiPerformanceData | null>(null);
+  const [data, setData] = useState<PerformanceSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCabang, setSelectedCabang] = useState("ALL");
   const [selectedCoordinator, setSelectedCoordinator] = useState("ALL");
   const [selectedSupport, setSelectedSupport] = useState("ALL");
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<KpiCardType | "">("");
+  const [modalType, setModalType] = useState<PerformanceCardType | "">("");
   const [modalTitle, setModalTitle] = useState("");
+  const [filterOptions, setFilterOptions] = useState<{coordinators: string[], supports: string[]}>({ coordinators: [], supports: [] });
 
   const fetchData = useCallback(async () => {
     if (!userInfo) return;
     try {
       setLoading(true);
       setError(null);
-      const res = await fetchDashboardKpiPerformance({
-        actor_role: userInfo.roles[0] || "",
+      const res = await fetchPerformanceSummary({
         actor_cabang: userInfo.cabang || "",
         cabang: selectedCabang,
         coordinator: selectedCoordinator,
@@ -79,15 +71,22 @@ export function DashboardKPI({
     fetchData();
   }, [fetchData]);
 
-  const openDrilldown = (type: KpiCardType, title: string) => {
+  const openDrilldown = (type: PerformanceCardType, title: string) => {
     setModalType(type);
     setModalTitle(title);
     setModalOpen(true);
   };
 
-  const metricMeta = useCallback((type: KpiCardType) => data?.metrics?.[type] ?? emptyMeta, [data]);
-
   const cards = useMemo<MetricCardConfig[]>(() => [
+    {
+      id: "sla",
+      title: "SLA Approval SAT",
+      value: formatDays((data?.avg_sla_coord || 0) + (data?.avg_sla_manager || 0) + (data?.avg_sla_bm || 0)),
+      unit: "hari (total)",
+      icon: <UserCheck className="h-5 w-5 text-indigo-700" aria-hidden="true" />,
+      tone: "border-indigo-200 bg-indigo-50 text-indigo-700",
+      helper: "Total rata-rata SLA semua role"
+    },
     {
       id: "cost_m2",
       title: "Avg Cost/m2",
@@ -95,7 +94,7 @@ export function DashboardKPI({
       unit: "/ m2",
       icon: <Banknote className="h-5 w-5 text-emerald-700" aria-hidden="true" />,
       tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      helper: "RAB approved dibagi luas bangunan per ULOK"
+      helper: "RAB approved dibagi luas bangunan"
     },
     {
       id: "jhk",
@@ -104,7 +103,7 @@ export function DashboardKPI({
       unit: "hari",
       icon: <Clock className="h-5 w-5 text-blue-700" aria-hidden="true" />,
       tone: "border-blue-200 bg-blue-50 text-blue-700",
-      helper: "Durasi SPK valid per ULOK"
+      helper: "Durasi valid SPK"
     },
     {
       id: "denda",
@@ -116,66 +115,12 @@ export function DashboardKPI({
       helper: "Rata-rata nominal denda final"
     },
     {
-      id: "keterlambatan",
-      title: "Avg Keterlambatan",
-      value: formatDays(data?.avg_keterlambatan_all || 0),
-      unit: "hari",
-      icon: <TimerReset className="h-5 w-5 text-rose-700" aria-hidden="true" />,
-      tone: "border-rose-200 bg-rose-50 text-rose-700",
-      helper: "Hari terlambat semua kontraktor"
-    },
-    {
-      id: "sla_coord",
-      title: "SLA Coord",
-      value: formatDays(data?.avg_sla_coord || 0),
-      unit: "hari",
-      icon: <UserCheck className="h-5 w-5 text-sky-700" aria-hidden="true" />,
-      tone: "border-sky-200 bg-sky-50 text-sky-700",
-      helper: "Approval tertahan di koordinator"
-    },
-    {
-      id: "sla_bm",
-      title: "SLA B&M Manager",
-      value: formatDays(data?.avg_sla_bm || 0),
-      unit: "hari",
-      icon: <Users className="h-5 w-5 text-indigo-700" aria-hidden="true" />,
-      tone: "border-indigo-200 bg-indigo-50 text-indigo-700",
-      helper: "Approval tertahan di B&M Manager"
-    },
-    {
-      id: "sla_branch_manager",
-      title: "SLA Branch Manager",
-      value: formatDays(data?.avg_sla_branch_manager || 0),
-      unit: "hari",
-      icon: <Building2 className="h-5 w-5 text-cyan-700" aria-hidden="true" />,
-      tone: "border-cyan-200 bg-cyan-50 text-cyan-700",
-      helper: "Approval tertahan di Branch Manager"
-    },
-    {
-      id: "ketepatan_st",
-      title: "Ketepatan Serah Terima",
-      value: formatDays(data?.avg_ketepatan_st || 0),
-      unit: "hari",
-      icon: <CheckCircle2 className="h-5 w-5 text-teal-700" aria-hidden="true" />,
-      tone: "border-teal-200 bg-teal-50 text-teal-700",
-      helper: "Tanggal ST minus akhir SPK+tambah+1"
-    },
-    {
-      id: "sla_ktk",
-      title: "SLA KTK",
-      value: formatDays(data?.avg_sla_ktk || 0),
-      unit: "hari",
-      icon: <FileText className="h-5 w-5 text-violet-700" aria-hidden="true" />,
-      tone: "border-violet-200 bg-violet-50 text-violet-700",
-      helper: "Tanggal final KTK dikurang tanggal ST"
-    },
-    {
       id: "kerja_tambah",
       title: "Avg Kerja Tambah",
       value: formatRupiah(data?.avg_kerja_tambah || 0),
       unit: "",
-      icon: <TrendingUp className="h-5 w-5 text-emerald-700" aria-hidden="true" />,
-      tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      icon: <TrendingUp className="h-5 w-5 text-teal-700" aria-hidden="true" />,
+      tone: "border-teal-200 bg-teal-50 text-teal-700",
       helper: "Selisih final opname di atas RAB"
     },
     {
@@ -186,21 +131,26 @@ export function DashboardKPI({
       icon: <TrendingDown className="h-5 w-5 text-orange-700" aria-hidden="true" />,
       tone: "border-orange-200 bg-orange-50 text-orange-700",
       helper: "Selisih final opname di bawah RAB"
+    },
+    {
+      id: "ketepatan_st",
+      title: "Ketepatan Serah Terima",
+      value: formatDays(data?.avg_ketepatan_st || 0),
+      unit: "hari keterlambatan",
+      icon: <CheckCircle2 className="h-5 w-5 text-cyan-700" aria-hidden="true" />,
+      tone: "border-cyan-200 bg-cyan-50 text-cyan-700",
+      helper: "Tanggal ST minus (akhir SPK + 1)"
+    },
+    {
+      id: "sla_ktk",
+      title: "SLA Kerja Tambah Kurang",
+      value: formatDays(data?.avg_sla_ktk || 0),
+      unit: "hari",
+      icon: <FileText className="h-5 w-5 text-violet-700" aria-hidden="true" />,
+      tone: "border-violet-200 bg-violet-50 text-violet-700",
+      helper: "Tanggal final KTK dikurang tanggal ST"
     }
   ], [data]);
-
-  const renderMeta = (type: KpiCardType) => {
-    const meta = metricMeta(type);
-    return (
-      <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold">
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">ULOK Gabungan</span>
-        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{meta.valid_count} valid</span>
-        {meta.incomplete_count > 0 && (
-          <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">{meta.incomplete_count} kurang data</span>
-        )}
-      </div>
-    );
-  };
 
   const renderMetricCard = (card: MetricCardConfig) => (
     <button
@@ -226,7 +176,6 @@ export function DashboardKPI({
           </>
         )}
       </div>
-      {renderMeta(card.id)}
       <ChevronRight className="absolute bottom-4 right-4 h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-red-500" aria-hidden="true" />
     </button>
   );
@@ -237,7 +186,7 @@ export function DashboardKPI({
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-950">Performance KPI SAT</h1>
           <p className="mt-1 text-sm font-medium text-slate-500">
-            Rapor performa proyek toko berbasis ULOK gabungan, dengan drilldown sampai sumber SIPIL/ME.
+            Rapor performa proyek, click pada card untuk melihat detail drilldown.
           </p>
         </div>
         <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
@@ -253,6 +202,7 @@ export function DashboardKPI({
         onCabangChange={setSelectedCabang}
         onCoordinatorChange={setSelectedCoordinator}
         onSupportChange={setSelectedSupport}
+        onFiltersLoaded={setFilterOptions}
       />
 
       {error && (
@@ -266,6 +216,13 @@ export function DashboardKPI({
         {cards.map(renderMetricCard)}
       </div>
 
+      <KpiSupportTable
+        userInfo={userInfo}
+        selectedCabang={selectedCabang}
+        selectedCoordinator={selectedCoordinator}
+        selectedSupport={selectedSupport}
+      />
+
       <KpiDrilldownModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -276,6 +233,8 @@ export function DashboardKPI({
         cabangFilter={selectedCabang}
         coordinatorFilter={selectedCoordinator}
         supportFilter={selectedSupport}
+        availableCoordinators={filterOptions.coordinators}
+        availableSupports={filterOptions.supports}
       />
     </div>
   );

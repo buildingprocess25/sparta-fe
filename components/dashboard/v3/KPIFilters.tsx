@@ -17,6 +17,7 @@ interface KPIFiltersProps {
   onCabangChange: (val: string) => void;
   onCoordinatorChange: (val: string) => void;
   onSupportChange: (val: string) => void;
+  onFiltersLoaded?: (filters: {coordinators: string[], supports: string[]}) => void;
 }
 
 const emptyFilters: KpiFiltersData = { cabangs: [], coordinators: [], supports: [] };
@@ -29,7 +30,8 @@ export function KPIFilters({
   selectedSupport,
   onCabangChange,
   onCoordinatorChange,
-  onSupportChange
+  onSupportChange,
+  onFiltersLoaded
 }: KPIFiltersProps) {
   const [filtersData, setFiltersData] = useState<KpiFiltersData>(emptyFilters);
   const [loading, setLoading] = useState(true);
@@ -69,6 +71,7 @@ export function KPIFilters({
           supports: res.data.supports || []
         };
         setFiltersData(next);
+        if (onFiltersLoaded) onFiltersLoaded(next);
 
         if (selectedCabang !== "ALL" && !hasOption(next.cabangs, selectedCabang)) onCabangChange("ALL");
         if (!isCoordinator && selectedCoordinator !== "ALL" && !hasOption(next.coordinators, selectedCoordinator)) onCoordinatorChange("ALL");
