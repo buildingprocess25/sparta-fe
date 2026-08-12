@@ -65,7 +65,7 @@ export function KpiSupportTable({
   }, [search, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, userInfo.cabang, userInfo.roles]);
 
   if (loading) {
-    return <div className="flex h-64 items-center justify-center rounded-lg border border-slate-200 bg-white"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div>;
+    return <section className="min-h-72 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" aria-label="Tabel Performance Branch Building Support"><div className="mb-4 h-6 w-80 animate-pulse rounded-md bg-slate-200" /><div className="flex h-48 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div></section>;
   }
 
   if (error) {
@@ -74,10 +74,10 @@ export function KpiSupportTable({
 
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" aria-label="Tabel Performance Branch Building Support">
-      <div className="border-b border-slate-200 bg-white px-5 py-4">
+      <div className="border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-black text-slate-950"><Users className="h-5 w-5 text-red-600" aria-hidden="true" />Tabel Performance Branch Building Support</h3>
-          <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{data.length} support</span>
+          <h3 className="flex items-center gap-2 text-lg font-black text-white"><Users className="h-5 w-5 text-red-300" aria-hidden="true" />Tabel Performance Branch Building Support</h3><p className="mt-1 text-sm font-semibold text-slate-300">Klik nama support atau metrik untuk drilldown ULOK dan detail.</p>
+          <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white ring-1 ring-white/20">{data.length} support</span>
         </div>
       </div>
       <div className="overflow-x-auto">

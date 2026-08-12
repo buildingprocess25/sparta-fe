@@ -264,16 +264,6 @@ export function DashboardKPI({
         </div>
       )}
 
-      {loading && !data ? (
-        <div className="flex h-56 items-center justify-center rounded-lg border border-slate-200 bg-white">
-          <Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" />
-        </div>
-      ) : (
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Kartu KPI Performance SAT">
-          {cards.map(renderCard)}
-        </section>
-      )}
-
       <KpiSupportTable
         userInfo={userInfo}
         selectedCabang={selectedCabang}
@@ -284,6 +274,16 @@ export function DashboardKPI({
         search={search}
         onMetricClick={(support, metric, label) => setModalState({ type: "sla_ktk", title: label, support, supportMetric: metric })}
       />
+
+      {loading && !data ? (
+        <div className="flex h-56 items-center justify-center rounded-lg border border-slate-200 bg-white">
+          <Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" />
+        </div>
+      ) : (
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Kartu KPI Performance SAT">
+          {cards.map(renderCard)}
+        </section>
+      )}
 
       <KpiDrilldownModal
         isOpen={Boolean(modalState)}

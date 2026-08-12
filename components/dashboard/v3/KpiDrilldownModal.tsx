@@ -280,11 +280,23 @@ export function KpiDrilldownModal({
               <thead className="bg-slate-50 text-xs font-black uppercase tracking-normal text-slate-500"><tr><th className="px-4 py-3">ULOK</th><th className="px-4 py-3">Cabang</th><th className="px-4 py-3">Nilai</th><th className="px-4 py-3">Status</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => (
-                  <tr key={row.nomor_ulok}>
-                    <td className="px-4 py-3"><button type="button" onClick={() => openDetail(row)} className="text-left font-black text-slate-950 underline-offset-4 hover:text-red-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">{row.nomor_ulok}<span className="block text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span></button></td>
-                    <td className="px-4 py-3 font-bold text-slate-700">{row.cabang ?? "-"}</td>
-                    <td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-800">{row.value_label}</span></td>
-                    <td className="px-4 py-3 text-xs font-bold text-slate-500">{row.secondary_label}</td>
+                  <tr key={row.nomor_ulok} className="group hover:bg-red-50/50">
+                    <td className="p-0" colSpan={4}>
+                      <button
+                        type="button"
+                        onClick={() => openDetail(row)}
+                        className="grid w-full grid-cols-[minmax(260px,2fr)_minmax(140px,1fr)_minmax(120px,160px)_minmax(160px,1fr)] items-center gap-4 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-500"
+                        aria-label={`Buka detail KPI ${row.nomor_ulok} ${row.nama_toko ?? ""}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-black text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">{row.nomor_ulok}</span>
+                          <span className="block truncate text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span>
+                        </span>
+                        <span className="font-bold text-slate-700">{row.cabang ?? "-"}</span>
+                        <span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-800">{row.value_label}</span></span>
+                        <span className="text-xs font-bold text-slate-500">{row.secondary_label}</span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!rows.length && <tr><td colSpan={4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
@@ -319,14 +331,14 @@ export function KpiDrilldownModal({
       {selectedUlok && (
         <div className="fixed inset-0 z-[100] isolate overflow-hidden">
           <button type="button" aria-label="Tutup detail KPI" className="absolute inset-0 z-0 bg-slate-950/30" onClick={() => setSelectedUlok(null)} />
-          <aside className="absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-2xl flex-col bg-slate-50 shadow-2xl">
+          <aside className="absolute inset-y-0 right-0 z-10 flex h-dvh min-h-0 w-full max-w-2xl flex-col bg-slate-50 shadow-2xl">
             <header className="border-b border-slate-200 bg-white px-5 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div><p className="text-xs font-black uppercase tracking-normal text-red-600">Detail KPI {selectedUlok.nomor_ulok}</p><h3 className="mt-1 text-xl font-black text-slate-950">{selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}</h3></div>
                 <button type="button" aria-label="Tutup panel detail" onClick={() => setSelectedUlok(null)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X className="h-5 w-5" aria-hidden="true" /></button>
               </div>
             </header>
-            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 custom-scrollbar">
               {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : detail ? <><KpiDetailSections detail={detail} /><div className="mt-4"><KpiDocuments documents={detail.documents} /></div></> : <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">Detail tidak bisa dimuat.</div>}
             </div>
           </aside>
