@@ -1194,7 +1194,7 @@ const CACHE_TTL = 300_000; // 5 minutes
 
 
 
-export default function DashboardPage() {
+function DashboardPageContent() {
     const searchParams = useSearchParams();
     const currentView = searchParams.get('view') || 'monitoring';
     const [deferredView, setDeferredView] = useState<string | null>(null);
@@ -5454,3 +5454,22 @@ function AnimatedNumber({ value, isLoading }: { value: string | number, isLoadin
 
 }
 
+
+
+import { Suspense } from 'react';
+
+
+
+export default function DashboardPage() {
+
+    return (
+
+        <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading dashboard...</div>}>
+
+            <DashboardPageContent />
+
+        </Suspense>
+
+    );
+
+}

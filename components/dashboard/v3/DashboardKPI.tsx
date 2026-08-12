@@ -11,6 +11,7 @@ import {
 import { KPIFilters } from "./KPIFilters";
 import { KpiDrilldownModal } from "./KpiDrilldownModal";
 import { KpiSupportTable } from "./KpiSupportTable";
+import { KpiSupportMetricModal } from "./KpiSupportMetricModal";
 import { formatNumberKpi, formatRupiahKpi, formatSignedDays } from "./kpi-formatters";
 import { AlertTriangle, Banknote, CheckCircle2, Clock3, FileText, Gauge, Loader2, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ export function DashboardKPI({
   const [selectedJobType, setSelectedJobType] = useState<PerformanceJobType>("ALL");
   const [search, setSearch] = useState("");
   const [modalState, setModalState] = useState<ModalState>(null);
+  const [selectedSupportRow, setSelectedSupportRow] = useState<any | null>(null);
   const [filterOptions, setFilterOptions] = useState<PerformanceFiltersData>({ cabangs: [], coordinators: [], supports: [] });
 
   const role = userInfo.roles[0] || "USER";
@@ -264,16 +266,7 @@ export function DashboardKPI({
         </div>
       )}
 
-      <KpiSupportTable
-        userInfo={userInfo}
-        selectedCabang={selectedCabang}
-        selectedCoordinator={selectedCoordinator}
-        selectedSupport={selectedSupport}
-        selectedPeriod={selectedPeriod}
-        selectedJobType={selectedJobType}
-        search={search}
-        onMetricClick={(support, metric, label) => setModalState({ type: "sla_ktk", title: label, support, supportMetric: metric })}
-      />
+
 
       {loading && !data ? (
         <div className="flex h-56 items-center justify-center rounded-lg border border-slate-200 bg-white">
@@ -284,6 +277,33 @@ export function DashboardKPI({
           {cards.map(renderCard)}
         </section>
       )}
+
+      <KpiSupportTable
+        userInfo={userInfo}
+        selectedCabang={selectedCabang}
+        selectedCoordinator={selectedCoordinator}
+        selectedSupport={selectedSupport}
+        selectedPeriod={selectedPeriod}
+        selectedJobType={selectedJobType}
+        search={search}
+        onSupportClick={(row) => setSelectedSupportRow(row)}
+      />
+
+      <KpiSupportMetricModal
+        isOpen={Boolean(selectedSupportRow)}
+        onClose={() => setSelectedSupportRow(null)}
+        supportRow={selectedSupportRow}
+        onMetricClick={(support, metric, label) => {
+          setSelectedSupportRow(null); // Close the intermediate modal
+          
+          let cardType: PerformanceCardType = "sla_ktk";
+          if (metric === "ketepatan_st") cardType = "ketepatan_st";
+          // Jika suatu saat JHK dan lain-lain diaktifkan, map ke sini:
+          // else if (metric === "jhk_notaris_to_end_spk") cardType = "jhk";
+          
+          setModalState({ type: cardType, title: label, support, supportMetric: metric });
+        }}
+      />
 
       <KpiDrilldownModal
         isOpen={Boolean(modalState)}

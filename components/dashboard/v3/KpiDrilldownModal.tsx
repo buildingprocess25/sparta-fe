@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   Building2,
   ChevronLeft,
@@ -329,20 +330,31 @@ export function KpiDrilldownModal({
       </Dialog>
 
       {selectedUlok && (
-        <div className="fixed inset-0 z-[100] isolate overflow-hidden">
-          <button type="button" aria-label="Tutup detail KPI" className="absolute inset-0 z-0 bg-slate-950/30" onClick={() => setSelectedUlok(null)} />
-          <aside className="absolute inset-y-0 right-0 z-10 flex h-dvh min-h-0 w-full max-w-2xl flex-col bg-slate-50 shadow-2xl">
-            <header className="border-b border-slate-200 bg-white px-5 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div><p className="text-xs font-black uppercase tracking-normal text-red-600">Detail KPI {selectedUlok.nomor_ulok}</p><h3 className="mt-1 text-xl font-black text-slate-950">{selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}</h3></div>
-                <button type="button" aria-label="Tutup panel detail" onClick={() => setSelectedUlok(null)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X className="h-5 w-5" aria-hidden="true" /></button>
-              </div>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 custom-scrollbar">
-              {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : detail ? <><KpiDetailSections detail={detail} /><div className="mt-4"><KpiDocuments documents={detail.documents} /></div></> : <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">Detail tidak bisa dimuat.</div>}
+        <DialogPrimitive.Root open={!!selectedUlok} onOpenChange={(open) => !open && setSelectedUlok(null)}>
+          <DialogPrimitive.Portal>
+            <div className="fixed inset-0 z-[100] isolate overflow-hidden">
+              <DialogPrimitive.Overlay className="absolute inset-0 z-0 bg-slate-950/30" />
+              <DialogPrimitive.Content aria-describedby={undefined} className="absolute inset-y-0 right-0 z-10 flex h-dvh min-h-0 w-full max-w-2xl flex-col bg-slate-50 shadow-2xl focus-visible:outline-none">
+                <header className="border-b border-slate-200 bg-white px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-normal text-red-600">Detail KPI {selectedUlok.nomor_ulok}</p>
+                      <DialogPrimitive.Title asChild>
+                        <h3 className="mt-1 text-xl font-black text-slate-950">{selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}</h3>
+                      </DialogPrimitive.Title>
+                    </div>
+                    <DialogPrimitive.Close className="rounded-md p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                      <X className="h-5 w-5" aria-hidden="true" />
+                    </DialogPrimitive.Close>
+                  </div>
+                </header>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 custom-scrollbar">
+                  {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : detail ? <><KpiDetailSections detail={detail} /><div className="mt-4"><KpiDocuments documents={detail.documents} /></div></> : <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">Detail tidak bisa dimuat.</div>}
+                </div>
+              </DialogPrimitive.Content>
             </div>
-          </aside>
-        </div>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
       )}
     </>
   );
