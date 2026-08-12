@@ -1,9 +1,34 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronRight, ChevronLeft, Building2, UserCheck, Users, FileText, CheckCircle2, Clock, X, CircleDollarSign, Loader2, AlertTriangle, TimerReset, ReceiptText, CalendarDays } from "lucide-react";
-import { cn, formatRupiah } from "@/lib/utils";
-import type { PerformanceCardType, PerformanceDrilldownItem } from "@/lib/api/performance-v3";
-import { fetchPerformanceDrilldown } from "@/lib/api/performance-v3";
+import {
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  CircleDollarSign,
+  FileText,
+  Loader2,
+  ReceiptText,
+  UserCheck,
+  Users,
+  Wrench,
+  X
+} from "lucide-react";
+import {
+  fetchPerformanceDetail,
+  fetchPerformanceDrilldown,
+  type PerformanceCardType,
+  type PerformanceDetailData,
+  type PerformanceDocument,
+  type PerformanceDrilldownItem,
+  type PerformanceJobType,
+  type PerformancePeriod,
+  type PerformancePersonRole,
+  type PerformanceSlaRole,
+  type PerformanceTableMetric
+} from "@/lib/api/performance-v3";
+import { KpiDetailSections } from "./kpi-detail-sections";
+import { KpiDocuments } from "./kpi-documents";
+import { cn } from "@/lib/utils";
 
 interface KpiDrilldownModalProps {
   isOpen: boolean;
@@ -15,23 +40,32 @@ interface KpiDrilldownModalProps {
   cabangFilter: string;
   coordinatorFilter: string;
   supportFilter: string;
+  period: PerformancePeriod;
+  jobType: PerformanceJobType;
+  search: string;
+  supportMetric?: PerformanceTableMetric;
   availableCoordinators?: string[];
   availableSupports?: string[];
 }
 
 type DrilldownStep = "select_role" | "select_doc" | "select_name" | "list_ulok";
 
-const ROLE_OPTIONS = [
-  { id: "coord", label: "Koordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200" },
-  { id: "manager", label: "B&M Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200" },
-  { id: "bm", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200" },
-  { id: "support", label: "Support Building", icon: FileText, tone: "text-emerald-700 bg-emerald-50 border-emerald-200" }
+const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string }> = [
+  { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  { id: "coordinator", label: "Branch Building Coordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200" },
+  { id: "bm_manager", label: "Branch Building & Maintenance Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+  { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200" }
 ];
 
-const DOC_OPTIONS = [
-  { id: "rab", label: "RAB", icon: ReceiptText },
-  { id: "ktk", label: "Opname Final (KTK)", icon: CircleDollarSign },
+const docOptions: Array<{ id: PerformanceDocument; label: string; roles: PerformanceSlaRole[]; icon: React.ElementType }> = [
+  { id: "rab", label: "RAB", roles: ["coordinator", "bm_manager"], icon: ReceiptText },
+  { id: "spk", label: "SPK", roles: ["branch_manager"], icon: FileText },
+  { id: "tambah_spk", label: "Tambah SPK", roles: ["branch_manager"], icon: FileText },
+  { id: "il", label: "Instruksi Lapangan", roles: ["coordinator", "bm_manager"], icon: FileText },
+  { id: "ktk", label: "KTK / Opname Final", roles: ["support", "coordinator", "bm_manager"], icon: CircleDollarSign }
 ];
+
+const roleLabel = (role?: string | null) => roleOptions.find((item) => item.id === role)?.label ?? "-";
 
 export function KpiDrilldownModal({
   isOpen,
@@ -43,188 +77,193 @@ export function KpiDrilldownModal({
   cabangFilter,
   coordinatorFilter,
   supportFilter,
+  period,
+  jobType,
+  search,
+  supportMetric,
   availableCoordinators = [],
   availableSupports = []
 }: KpiDrilldownModalProps) {
   const [step, setStep] = useState<DrilldownStep>("select_role");
-  
-  // Selection States
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
-  const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<PerformanceSlaRole | PerformancePersonRole | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<PerformanceDocument | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
-  
-  // Data States
-  const [data, setData] = useState<PerformanceDrilldownItem[]>([]);
+  const [rows, setRows] = useState<PerformanceDrilldownItem[]>([]);
+  const [meta, setMeta] = useState<{ total: number; page: number; limit: number; totalPages: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUlok, setSelectedUlok] = useState<PerformanceDrilldownItem | null>(null);
+  const [detail, setDetail] = useState<PerformanceDetailData | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  // Initialize flow based on card type
+  const normalizedActor = actorRole.toUpperCase();
+  const isSupportUser = normalizedActor.includes("SUPPORT") || normalizedActor.includes("PENGAWAS");
+  const isCoordinatorUser = normalizedActor.includes("KOORDINATOR") || normalizedActor.includes("COORD");
+
   useEffect(() => {
-    if (!isOpen) return;
-    
-    // Reset state
-    setSelectedRole(null);
+    if (!isOpen || !kpiType) return;
+    setRows([]);
+    setMeta(null);
+    setError(null);
+    setSelectedUlok(null);
+    setDetail(null);
     setSelectedDoc(null);
     setSelectedName(null);
-    setSelectedUlok(null);
-    setData([]);
-    
-    // Determine starting step based on Card Type & Actor Role
-    if (kpiType === "sla") {
-      setStep("select_role"); // SLA starts by selecting role
-    } else if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") {
-      setStep("select_name");
-      setSelectedRole("support"); // Forced to support
-    } else {
-      setStep("select_role"); // Cost, JHK, Denda, KTK can be coord/support
-    }
-    
-    // Auto-skip logic for Support/Coord users can be added here
-    if (actorRole.includes("SUPPORT")) {
-      setSelectedRole("support");
-      setSelectedName("SELF");
-      setStep(kpiType === "sla" ? "select_doc" : "list_ulok");
-    }
-  }, [isOpen, kpiType, actorRole]);
 
-  // Fetch data when reaching list_ulok step
-  useEffect(() => {
-    if (step === "list_ulok" && isOpen) {
-      const loadData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const res = await fetchPerformanceDrilldown({
-            actor_cabang: actorCabang,
-            cabang: cabangFilter,
-            coordinator: coordinatorFilter,
-            support: supportFilter,
-            card_type: kpiType,
-            sla_role: selectedRole as any,
-            sla_doc: selectedDoc as any,
-            person_role: selectedRole as any,
-            person_name: selectedName || undefined,
-            page: 1,
-            limit: 50
-          });
-          setData(res.data || []);
-        } catch (err: any) {
-          setError(err.message || "Gagal memuat data ULOK.");
-        } finally {
-          setLoading(false);
-        }
-      };
-      loadData();
+    if (supportMetric) {
+      setSelectedRole("support");
+      setSelectedName(supportFilter === "ALL" ? null : supportFilter);
+      setStep("list_ulok");
+      return;
     }
-  }, [step, isOpen, kpiType, actorCabang, cabangFilter, coordinatorFilter, supportFilter, selectedRole, selectedDoc, selectedName]);
+    if (isSupportUser) {
+      setSelectedRole("support");
+      setSelectedName(actorRole);
+      setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok");
+      return;
+    }
+    if (isCoordinatorUser && kpiType !== "sla_approval") {
+      setSelectedRole("support");
+      setStep("select_name");
+      return;
+    }
+    if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") {
+      setSelectedRole("support");
+      setStep("select_name");
+      return;
+    }
+    setStep("select_role");
+  }, [actorRole, isCoordinatorUser, isOpen, isSupportUser, kpiType, supportFilter, supportMetric]);
+
+  const allowedRoles = useMemo(() => {
+    if (!kpiType) return [];
+    if (kpiType === "sla_approval") return roleOptions;
+    if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") return roleOptions.filter((role) => role.id === "support");
+    return roleOptions.filter((role) => role.id === "coordinator" || role.id === "support");
+  }, [kpiType]);
+
+  const loadRows = useCallback(async (page = 1) => {
+    if (!kpiType) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchPerformanceDrilldown({
+        actor_role: actorRole || "USER",
+        actor_cabang: actorCabang,
+        cabang: cabangFilter,
+        coordinator: coordinatorFilter,
+        support: supportFilter,
+        job_type: jobType,
+        period,
+        search,
+        card_type: kpiType,
+        sla_role: kpiType === "sla_approval" ? selectedRole as PerformanceSlaRole : undefined,
+        sla_doc: selectedDoc ?? undefined,
+        person_role: kpiType !== "sla_approval" ? selectedRole as PerformancePersonRole : undefined,
+        person_name: selectedName ?? undefined,
+        support_metric: supportMetric,
+        page,
+        limit: 25
+      });
+      setRows(res.data || []);
+      setMeta(res.meta);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal memuat list ULOK.");
+    } finally {
+      setLoading(false);
+    }
+  }, [actorCabang, actorRole, cabangFilter, coordinatorFilter, jobType, kpiType, period, search, selectedDoc, selectedName, selectedRole, supportFilter, supportMetric]);
+
+  useEffect(() => { if (isOpen && step === "list_ulok") loadRows(1); }, [isOpen, step, loadRows]);
+
+  const openDetail = async (row: PerformanceDrilldownItem) => {
+    if (!kpiType) return;
+    setSelectedUlok(row);
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      const res = await fetchPerformanceDetail({
+        actor_role: actorRole || "USER",
+        actor_cabang: actorCabang,
+        cabang: cabangFilter,
+        coordinator: coordinatorFilter,
+        support: supportFilter,
+        job_type: jobType,
+        period,
+        search,
+        nomor_ulok: row.nomor_ulok,
+        card_type: kpiType,
+        sla_role: kpiType === "sla_approval" ? selectedRole as PerformanceSlaRole : undefined,
+        sla_doc: selectedDoc ?? undefined,
+        person_role: kpiType !== "sla_approval" ? selectedRole as PerformancePersonRole : undefined,
+        person_name: selectedName ?? undefined,
+        support_metric: supportMetric
+      });
+      setDetail(res.data);
+    } catch {
+      setDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   const goBack = () => {
     if (step === "list_ulok") {
-      if (kpiType === "sla") setStep("select_doc");
-      else setStep("select_name");
-    } else if (step === "select_name" || step === "select_doc") {
-      setStep("select_role");
+      if (supportMetric) return onClose();
+      setStep(kpiType === "sla_approval" ? "select_doc" : "select_name");
+      return;
     }
+    if (step === "select_doc" || step === "select_name") setStep("select_role");
   };
 
-  const renderSelectRole = () => {
-    let availableRoles = ROLE_OPTIONS;
-    if (kpiType === "sla") {
-      availableRoles = ROLE_OPTIONS.filter(r => r.id !== "support");
-    } else if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") {
-      availableRoles = ROLE_OPTIONS.filter(r => r.id === "support");
-    } else {
-      availableRoles = ROLE_OPTIONS.filter(r => r.id === "coord" || r.id === "support");
-    }
-
-    const isSupport = actorRole.toUpperCase().includes("SUPPORT") || actorRole.toUpperCase().includes("PENGAWAS");
-    const isManager = actorRole.toUpperCase().includes("MANAGER") || actorRole.toUpperCase().includes("DIREKTUR") || actorRole.toUpperCase().includes("SUPER") || actorCabang.toUpperCase() === "HEAD OFFICE";
-    const isCoordinator = !isManager && !isSupport && (actorRole.toUpperCase().includes("KOORDINATOR") || actorRole.toUpperCase().includes("COORD"));
-
-    if (isSupport) {
-      availableRoles = availableRoles.filter(r => r.id === "support");
-    } else if (isCoordinator) {
-      availableRoles = availableRoles.filter(r => r.id === "coord");
-    }
-
-    return (
-      <div className="p-8">
-        <h3 className="mb-6 text-lg font-extrabold text-slate-800">Pilih Role Evaluasi</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {availableRoles.map(r => (
-            <button
-              key={r.id}
-              onClick={() => {
-                setSelectedRole(r.id);
-                setStep(kpiType === "sla" ? "select_doc" : "select_name");
-              }}
-              className={cn("flex flex-col items-center justify-center gap-3 rounded-xl border p-6 text-center transition-all hover:-translate-y-1 hover:shadow-md", r.tone)}
-            >
-              <r.icon className="h-10 w-10" />
-              <span className="font-bold">{r.label}</span>
+  const renderRole = () => (
+    <div className="p-6">
+      <h3 className="text-lg font-black text-slate-900">Pilih role KPI</h3>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {allowedRoles.map((role) => {
+          const Icon = role.icon;
+          return (
+            <button key={role.id} type="button" onClick={() => { setSelectedRole(role.id); setStep(kpiType === "sla_approval" ? "select_doc" : "select_name"); }} className={cn("rounded-lg border p-4 text-left transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500", role.tone)}>
+              <Icon className="h-6 w-6" aria-hidden="true" />
+              <span className="mt-3 block text-sm font-black">{role.label}</span>
             </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderSelectDoc = () => (
-    <div className="p-8">
-      <h3 className="mb-6 text-lg font-extrabold text-slate-800">Pilih Tipe Dokumen ({ROLE_OPTIONS.find(r => r.id === selectedRole)?.label})</h3>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {DOC_OPTIONS.map(d => (
-          <button
-            key={d.id}
-            onClick={() => {
-              setSelectedDoc(d.id);
-              setStep("list_ulok");
-            }}
-            className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-1 hover:border-red-200 hover:shadow-md"
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
-              <d.icon className="h-5 w-5" />
-            </div>
-            <span className="font-bold text-slate-700">{d.label}</span>
-          </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 
-  const renderSelectName = () => {
-    let nameList: string[] = [];
-    if (selectedRole === "coord") {
-      nameList = [...availableCoordinators];
-    } else if (selectedRole === "support") {
-      nameList = [...availableSupports];
-    } else {
-      nameList = ["SEMUA PERSONIL"];
-    }
-
-    if (nameList.length === 0) {
-      nameList = ["SEMUA PERSONIL"];
-    }
-
-    // Filter out duplicates and empty strings
-    nameList = Array.from(new Set(nameList)).filter(Boolean);
-
+  const renderDoc = () => {
+    const docs = docOptions.filter((doc) => selectedRole && doc.roles.includes(selectedRole as PerformanceSlaRole));
     return (
-      <div className="p-8">
-        <h3 className="mb-6 text-lg font-extrabold text-slate-800">Pilih Personil ({ROLE_OPTIONS.find(r => r.id === selectedRole)?.label})</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 max-h-[60vh] overflow-y-auto pr-2">
-          {nameList.map((name, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                setSelectedName(name === "SEMUA PERSONIL" ? null : name);
-                setStep("list_ulok");
-              }}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <span className="truncate">{name}</span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+      <div className="p-6">
+        <h3 className="text-lg font-black text-slate-900">Pilih dokumen untuk {roleLabel(selectedRole)}</h3>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {docs.map((doc) => {
+            const Icon = doc.icon;
+            return (
+              <button key={doc.id} type="button" onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-left font-black text-slate-800 transition-[border-color,box-shadow] hover:border-red-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                <Icon className="h-5 w-5 text-red-600" aria-hidden="true" /> {doc.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderName = () => {
+    const names = Array.from(new Set((selectedRole === "coordinator" ? availableCoordinators : availableSupports).filter(Boolean)));
+    return (
+      <div className="p-6">
+        <h3 className="text-lg font-black text-slate-900">Pilih personil {roleLabel(selectedRole)}</h3>
+        <div className="mt-4 grid max-h-[56vh] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+          <button type="button" onClick={() => { setSelectedName(null); setStep("list_ulok"); }} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+            Semua Personil <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+          {names.map((name) => (
+            <button key={name} type="button" onClick={() => { setSelectedName(name); setStep("list_ulok"); }} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+              <span className="truncate">{name}</span><ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -232,206 +271,65 @@ export function KpiDrilldownModal({
     );
   };
 
-  const renderListUlok = () => (
+  const renderList = () => (
     <div className="flex h-full flex-col overflow-hidden bg-slate-50">
-      <div className="flex-1 overflow-y-auto p-6">
-        {loading ? (
-          <div className="flex h-40 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-red-600" />
-          </div>
-        ) : error ? (
-          <div className="rounded-lg bg-red-50 p-4 text-red-700">{error}</div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex-1 overflow-y-auto p-5">
+        {loading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : (
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">ULOK</th>
-                  <th className="px-4 py-3">Cabang</th>
-                  <th className="px-4 py-3">Nilai KPI</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
+              <thead className="bg-slate-50 text-xs font-black uppercase tracking-normal text-slate-500"><tr><th className="px-4 py-3">ULOK</th><th className="px-4 py-3">Cabang</th><th className="px-4 py-3">Nilai</th><th className="px-4 py-3">Status</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {data.map((item, idx) => (
-                  <tr 
-                    key={idx} 
-                    onClick={() => setSelectedUlok(item)}
-                    className={cn(
-                      "cursor-pointer transition-colors hover:bg-red-50/50",
-                      selectedUlok?.nomor_ulok === item.nomor_ulok && "bg-red-50"
-                    )}
-                  >
-                    <td className="px-4 py-4">
-                      <p className="font-extrabold text-slate-900">{item.nomor_ulok}</p>
-                      <p className="text-xs font-medium text-slate-500">{item.nama_toko}</p>
-                    </td>
-                    <td className="px-4 py-4 font-semibold text-slate-700">{item.cabang}</td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800">
-                        {item.value_label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <ChevronRight className="inline-block h-4 w-4 text-slate-400" />
-                    </td>
+                {rows.map((row) => (
+                  <tr key={row.nomor_ulok}>
+                    <td className="px-4 py-3"><button type="button" onClick={() => openDetail(row)} className="text-left font-black text-slate-950 underline-offset-4 hover:text-red-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">{row.nomor_ulok}<span className="block text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span></button></td>
+                    <td className="px-4 py-3 font-bold text-slate-700">{row.cabang ?? "-"}</td>
+                    <td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-800">{row.value_label}</span></td>
+                    <td className="px-4 py-3 text-xs font-bold text-slate-500">{row.secondary_label}</td>
                   </tr>
                 ))}
-                {data.length === 0 && (
-                  <tr><td colSpan={4} className="p-8 text-center text-slate-500 font-medium">Tidak ada data.</td></tr>
-                )}
+                {!rows.length && <tr><td colSpan={4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
               </tbody>
             </table>
           </div>
         )}
       </div>
+      {meta && meta.totalPages > 1 && <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600"><span>Page {meta.page} dari {meta.totalPages}</span><div className="flex gap-2"><button type="button" disabled={meta.page <= 1} onClick={() => loadRows(meta.page - 1)} className="rounded-md border px-3 py-1 disabled:opacity-40">Prev</button><button type="button" disabled={meta.page >= meta.totalPages} onClick={() => loadRows(meta.page + 1)} className="rounded-md border px-3 py-1 disabled:opacity-40">Next</button></div></div>}
     </div>
   );
-
-  // CONTEXTUAL DETAIL RENDERER (Crucial requirement)
-  const renderDetailPane = () => {
-    if (!selectedUlok) return null;
-    
-    return (
-      <aside className="fixed inset-y-0 right-0 z-[110] flex h-[100svh] w-full max-w-lg flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
-        <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-6 py-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase text-slate-500">Detail Informasi</p>
-              <h3 className="mt-1 text-xl font-extrabold text-slate-900">{selectedUlok.nomor_ulok}</h3>
-              <p className="text-sm font-semibold text-slate-600">{selectedUlok.nama_toko}</p>
-            </div>
-            <button onClick={() => setSelectedUlok(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-200">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-          {kpiType === "sla" && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h4 className="mb-4 text-sm font-extrabold text-slate-800">Timeline Approval {DOC_OPTIONS.find(d=>d.id===selectedDoc)?.label}</h4>
-              {/* Timeline mockup */}
-              <div className="relative pl-4 border-l-2 border-slate-200 space-y-6">
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-white" />
-                  <p className="text-xs font-bold text-slate-500">Dokumen Dibuat</p>
-                  <p className="font-semibold text-slate-900">12 Aug 2026</p>
-                </div>
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-red-500 ring-4 ring-white" />
-                  <p className="text-xs font-bold text-slate-500">Approved {ROLE_OPTIONS.find(r=>r.id===selectedRole)?.label}</p>
-                  <p className="font-semibold text-slate-900">15 Aug 2026</p>
-                  <p className="mt-1 text-xs font-bold text-red-600 bg-red-50 inline-block px-2 py-1 rounded">Bottleneck: 3 Hari</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {kpiType === "cost_m2" && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-              <h4 className="text-sm font-extrabold text-slate-800">Breakdown Finansial & Luas</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <p className="text-xs font-bold text-slate-500">Grand Total RAB</p>
-                  <p className="font-extrabold text-slate-900">Rp 150.000.000</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <p className="text-xs font-bold text-slate-500">Luas Bangunan</p>
-                  <p className="font-extrabold text-slate-900">120 m2</p>
-                </div>
-              </div>
-              <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100 mt-2">
-                <p className="text-xs font-bold text-emerald-700">Cost per m2</p>
-                <p className="text-2xl font-black text-emerald-800">Rp 1.250.000</p>
-              </div>
-            </div>
-          )}
-
-          {(kpiType === "kerja_tambah" || kpiType === "kerja_kurang") && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-              <h4 className="text-sm font-extrabold text-slate-800">Deviasi Final RAB vs Opname</h4>
-              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <div>
-                  <p className="text-xs font-bold text-slate-500">RAB Approved</p>
-                  <p className="font-semibold text-slate-700">Rp 100.000.000</p>
-                </div>
-                <ChevronRight className="text-slate-300" />
-                <div className="text-right">
-                  <p className="text-xs font-bold text-slate-500">Opname Final</p>
-                  <p className="font-semibold text-slate-700">Rp 115.000.000</p>
-                </div>
-              </div>
-              <div className="bg-red-50 p-4 rounded-lg border border-red-100">
-                <p className="text-xs font-bold text-red-700">Kerja Tambah (Deviasi)</p>
-                <p className="text-xl font-black text-red-800">+ Rp 15.000.000</p>
-              </div>
-            </div>
-          )}
-
-          {/* Fallback for others */}
-          {kpiType !== "sla" && kpiType !== "cost_m2" && kpiType !== "kerja_tambah" && kpiType !== "kerja_kurang" && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h4 className="text-sm font-extrabold text-slate-800 mb-2">Detail Metadata</h4>
-              <pre className="text-xs text-slate-500 bg-slate-50 p-3 rounded overflow-x-auto">
-                {JSON.stringify(selectedUlok.detail, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-      </aside>
-    );
-  };
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="flex max-h-[85vh] h-[85vh] max-w-5xl flex-col overflow-hidden border-slate-200 bg-slate-50/50 p-0 shadow-2xl">
-          <DialogHeader className="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
+        <DialogContent className="flex h-[86vh] max-h-[86vh] max-w-6xl flex-col overflow-hidden border-slate-200 bg-slate-50 p-0 shadow-2xl">
+          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4">
             <div className="flex items-center gap-3">
-              {step !== "select_role" && (
-                <button onClick={goBack} className="rounded-full bg-slate-100 p-1.5 text-slate-600 hover:bg-slate-200">
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-              )}
-              <DialogTitle className="text-xl font-extrabold text-slate-900">
-                Drilldown: {kpiTitle}
-              </DialogTitle>
-            </div>
-            
-            {/* Breadcrumb Steps */}
-            <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-400">
-              <span className={cn(step === "select_role" ? "text-red-600" : (selectedRole ? "text-slate-700" : ""))}>Role</span>
-              <ChevronRight className="h-3 w-3" />
-              {kpiType === "sla" ? (
-                <>
-                  <span className={cn(step === "select_doc" ? "text-red-600" : (selectedDoc ? "text-slate-700" : ""))}>Dokumen</span>
-                  <ChevronRight className="h-3 w-3" />
-                </>
-              ) : (
-                <>
-                  <span className={cn(step === "select_name" ? "text-red-600" : (selectedName ? "text-slate-700" : ""))}>Personil</span>
-                  <ChevronRight className="h-3 w-3" />
-                </>
-              )}
-              <span className={cn(step === "list_ulok" ? "text-red-600" : "")}>List ULOK</span>
+              {step !== "select_role" && <button type="button" aria-label="Kembali" onClick={goBack} className="rounded-md bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>}
+              <div><DialogTitle className="text-xl font-black text-slate-950">{kpiTitle}</DialogTitle><p className="mt-1 text-xs font-bold text-slate-500">{roleLabel(selectedRole)} {selectedDoc ? `- ${selectedDoc.toUpperCase()}` : ""}</p></div>
             </div>
           </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto">
-            {step === "select_role" && renderSelectRole()}
-            {step === "select_doc" && renderSelectDoc()}
-            {step === "select_name" && renderSelectName()}
-            {step === "list_ulok" && renderListUlok()}
+          <div className="flex-1 overflow-hidden">
+            {step === "select_role" && renderRole()}
+            {step === "select_doc" && renderDoc()}
+            {step === "select_name" && renderName()}
+            {step === "list_ulok" && renderList()}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Detail Slide Over */}
       {selectedUlok && (
         <div className="fixed inset-0 z-[100] isolate overflow-hidden">
-          <button className="absolute inset-0 z-0 bg-slate-950/25 backdrop-blur-sm" onClick={() => setSelectedUlok(null)} />
-          {renderDetailPane()}
+          <button type="button" aria-label="Tutup detail KPI" className="absolute inset-0 z-0 bg-slate-950/30" onClick={() => setSelectedUlok(null)} />
+          <aside className="absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-2xl flex-col bg-slate-50 shadow-2xl">
+            <header className="border-b border-slate-200 bg-white px-5 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="text-xs font-black uppercase tracking-normal text-red-600">Detail KPI {selectedUlok.nomor_ulok}</p><h3 className="mt-1 text-xl font-black text-slate-950">{selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}</h3></div>
+                <button type="button" aria-label="Tutup panel detail" onClick={() => setSelectedUlok(null)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X className="h-5 w-5" aria-hidden="true" /></button>
+              </div>
+            </header>
+            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+              {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : detail ? <><KpiDetailSections detail={detail} /><div className="mt-4"><KpiDocuments documents={detail.documents} /></div></> : <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">Detail tidak bisa dimuat.</div>}
+            </div>
+          </aside>
         </div>
       )}
     </>
