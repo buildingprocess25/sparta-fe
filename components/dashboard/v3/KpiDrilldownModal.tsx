@@ -47,6 +47,7 @@ interface KpiDrilldownModalProps {
   supportMetric?: PerformanceTableMetric;
   availableCoordinators?: string[];
   availableSupports?: string[];
+  approvalActors?: Record<PerformanceSlaRole, string[]>;
 }
 
 type DrilldownStep = "select_role" | "select_doc" | "select_name" | "list_ulok";
@@ -83,7 +84,8 @@ export function KpiDrilldownModal({
   search,
   supportMetric,
   availableCoordinators = [],
-  availableSupports = []
+  availableSupports = [],
+  approvalActors
 }: KpiDrilldownModalProps) {
   const [step, setStep] = useState<DrilldownStep>("select_role");
   const [selectedRole, setSelectedRole] = useState<PerformanceSlaRole | PerformancePersonRole | null>(null);
@@ -117,10 +119,13 @@ export function KpiDrilldownModal({
       setStep("list_ulok");
       return;
     }
-    if (isSupportUser) {
+    
+    // Auto-select support for support users ONLY IF the support role is actually allowed for this KPI
+    const isSupportAllowed = kpiType !== "sla_approval" && (kpiType === "ketepatan_st" || kpiType === "sla_ktk" || true);
+    if (isSupportUser && kpiType !== "sla_approval") {
       setSelectedRole("support");
       setSelectedName(actorRole);
-      setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok");
+      setStep("list_ulok");
       return;
     }
     if (isCoordinatorUser && kpiType !== "sla_approval") {
@@ -138,7 +143,7 @@ export function KpiDrilldownModal({
 
   const allowedRoles = useMemo(() => {
     if (!kpiType) return [];
-    if (kpiType === "sla_approval") return roleOptions;
+    if (kpiType === "sla_approval") return roleOptions.filter((role) => role.id !== "support");
     if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") return roleOptions.filter((role) => role.id === "support");
     return roleOptions.filter((role) => role.id === "coordinator" || role.id === "support");
   }, [kpiType]);
@@ -214,19 +219,31 @@ export function KpiDrilldownModal({
       setStep(kpiType === "sla_approval" ? "select_doc" : "select_name");
       return;
     }
-    if (step === "select_doc" || step === "select_name") setStep("select_role");
+    if (step === "select_doc") {
+      setStep(kpiType === "sla_approval" ? "select_name" : "select_role");
+      return;
+    }
+    if (step === "select_name") {
+      setStep("select_role");
+      return;
+    }
   };
 
   const renderRole = () => (
-    <div className="p-6">
-      <h3 className="text-lg font-black text-slate-900">Pilih role KPI</h3>
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="flex flex-col items-center justify-center p-8 lg:p-12">
+      <div className="mb-10 text-center">
+        <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Role KPI</h3>
+        <p className="mt-2 text-sm font-bold text-slate-500">Tentukan perspektif evaluasi performa</p>
+      </div>
+      <div className="grid w-full max-w-xl grid-cols-1 gap-5 sm:grid-cols-2">
         {allowedRoles.map((role) => {
           const Icon = role.icon;
           return (
-            <button key={role.id} type="button" onClick={() => { setSelectedRole(role.id); setStep(kpiType === "sla_approval" ? "select_doc" : "select_name"); }} className={cn("rounded-lg border p-4 text-left transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500", role.tone)}>
-              <Icon className="h-6 w-6" aria-hidden="true" />
-              <span className="mt-3 block text-sm font-black">{role.label}</span>
+            <button key={role.id} type="button" onClick={() => { setSelectedRole(role.id); setStep("select_name"); }} className="group relative flex flex-col items-center gap-4 rounded-[24px] border border-slate-200/60 bg-white/50 p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+              <div className={cn("flex h-16 w-16 items-center justify-center rounded-2xl ring-1 ring-inset transition-transform duration-300 group-hover:scale-110", role.tone)}>
+                <Icon className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <span className="text-sm font-bold tracking-tight text-slate-800">{role.label}</span>
             </button>
           );
         })}
@@ -237,14 +254,20 @@ export function KpiDrilldownModal({
   const renderDoc = () => {
     const docs = docOptions.filter((doc) => selectedRole && doc.roles.includes(selectedRole as PerformanceSlaRole));
     return (
-      <div className="p-6">
-        <h3 className="text-lg font-black text-slate-900">Pilih dokumen untuk {roleLabel(selectedRole)}</h3>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col items-center justify-center p-8 lg:p-12">
+        <div className="mb-10 text-center">
+          <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Dokumen</h3>
+          <p className="mt-2 text-sm font-bold text-slate-500">Evaluasi SLA untuk {roleLabel(selectedRole)}</p>
+        </div>
+        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {docs.map((doc) => {
             const Icon = doc.icon;
             return (
-              <button key={doc.id} type="button" onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-left font-black text-slate-800 transition-[border-color,box-shadow] hover:border-red-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                <Icon className="h-5 w-5 text-red-600" aria-hidden="true" /> {doc.label}
+              <button key={doc.id} type="button" onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }} className="group flex items-center gap-4 rounded-2xl border border-slate-200/60 bg-white/50 p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.06)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-inset ring-red-100 transition-transform duration-300 group-hover:scale-110 group-hover:bg-red-100">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <span className="font-bold tracking-tight text-slate-800">{doc.label}</span>
               </button>
             );
           })}
@@ -254,17 +277,27 @@ export function KpiDrilldownModal({
   };
 
   const renderName = () => {
-    const names = Array.from(new Set((selectedRole === "coordinator" ? availableCoordinators : availableSupports).filter(Boolean)));
+    let names: string[] = [];
+    if (kpiType === "sla_approval") {
+      names = approvalActors?.[selectedRole as PerformanceSlaRole] || [];
+    } else {
+      names = Array.from(new Set((selectedRole === "coordinator" ? availableCoordinators : availableSupports).filter(Boolean)));
+    }
+
     return (
-      <div className="p-6">
-        <h3 className="text-lg font-black text-slate-900">Pilih personil {roleLabel(selectedRole)}</h3>
-        <div className="mt-4 grid max-h-[56vh] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
-          <button type="button" onClick={() => { setSelectedName(null); setStep("list_ulok"); }} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-            Semua Personil <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      <div className="flex flex-col items-center justify-center p-8 lg:p-12">
+        <div className="mb-8 text-center">
+          <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Personil</h3>
+          <p className="mt-2 text-sm font-bold text-slate-500">Pilih spesifik personil {roleLabel(selectedRole)}</p>
+        </div>
+        <div className="grid max-h-[50vh] w-full max-w-4xl grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3 custom-scrollbar">
+          <button type="button" onClick={() => { setSelectedName(null); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+            Semua Personil <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
           </button>
           {names.map((name) => (
-            <button key={name} type="button" onClick={() => { setSelectedName(name); setStep("list_ulok"); }} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-              <span className="truncate">{name}</span><ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <button key={name} type="button" onClick={() => { setSelectedName(name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+              <span className="truncate">{name}</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -273,12 +306,12 @@ export function KpiDrilldownModal({
   };
 
   const renderList = () => (
-    <div className="flex h-full flex-col overflow-hidden bg-slate-50">
+    <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-slate-50">
       <div className="flex-1 overflow-y-auto p-5">
         {loading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : (
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-black uppercase tracking-normal text-slate-500"><tr><th className="px-4 py-3">ULOK</th><th className="px-4 py-3">Cabang</th><th className="px-4 py-3">Nilai</th><th className="px-4 py-3">Status</th></tr></thead>
+              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-normal text-slate-500"><tr><th className="px-4 py-3">ULOK</th><th className="px-4 py-3">Cabang</th><th className="px-4 py-3">Nilai</th><th className="px-4 py-3">Status</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => (
                   <tr key={row.nomor_ulok} className="group hover:bg-red-50/50">
@@ -290,11 +323,11 @@ export function KpiDrilldownModal({
                         aria-label={`Buka detail KPI ${row.nomor_ulok} ${row.nama_toko ?? ""}`}
                       >
                         <span className="min-w-0">
-                          <span className="block font-black text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">{row.nomor_ulok}</span>
+                          <span className="block font-bold text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">{row.nomor_ulok}</span>
                           <span className="block truncate text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span>
                         </span>
                         <span className="font-bold text-slate-700">{row.cabang ?? "-"}</span>
-                        <span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-800">{row.value_label}</span></span>
+                        <span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800">{row.value_label}</span></span>
                         <span className="text-xs font-bold text-slate-500">{row.secondary_label}</span>
                       </button>
                     </td>
@@ -306,21 +339,47 @@ export function KpiDrilldownModal({
           </div>
         )}
       </div>
-      {meta && meta.totalPages > 1 && <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600"><span>Page {meta.page} dari {meta.totalPages}</span><div className="flex gap-2"><button type="button" disabled={meta.page <= 1} onClick={() => loadRows(meta.page - 1)} className="rounded-md border px-3 py-1 disabled:opacity-40">Prev</button><button type="button" disabled={meta.page >= meta.totalPages} onClick={() => loadRows(meta.page + 1)} className="rounded-md border px-3 py-1 disabled:opacity-40">Next</button></div></div>}
+      {meta && meta.totalPages > 1 && (
+        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4 text-sm font-bold text-slate-600 shadow-[0_-4px_20px_rgb(0,0,0,0.02)] relative z-10">
+          <span>Page {meta.page} dari {meta.totalPages}</span>
+          <div className="flex gap-2">
+            <button type="button" disabled={meta.page <= 1} onClick={() => loadRows(meta.page - 1)} className="rounded-md border border-slate-200 bg-white px-4 py-1.5 text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-40 disabled:hover:bg-white">Prev</button>
+            <button type="button" disabled={meta.page >= meta.totalPages} onClick={() => loadRows(meta.page + 1)} className="rounded-md border border-slate-200 bg-white px-4 py-1.5 text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-40 disabled:hover:bg-white">Next</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="flex h-[86vh] max-h-[86vh] max-w-6xl flex-col overflow-hidden border-slate-200 bg-slate-50 p-0 shadow-2xl">
-          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4">
-            <div className="flex items-center gap-3">
-              {step !== "select_role" && <button type="button" aria-label="Kembali" onClick={goBack} className="rounded-md bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>}
-              <div><DialogTitle className="text-xl font-black text-slate-950">{kpiTitle}</DialogTitle><p className="mt-1 text-xs font-bold text-slate-500">{roleLabel(selectedRole)} {selectedDoc ? `- ${selectedDoc.toUpperCase()}` : ""}</p></div>
+        <DialogContent className={cn(
+          "!flex flex-col gap-0 overflow-hidden border border-white/60 bg-[#f8fafc]/95 p-0 shadow-2xl backdrop-blur-3xl transition-all duration-500 sm:rounded-[32px] max-h-[90dvh]",
+          step === "list_ulok" ? "w-[95vw] sm:max-w-5xl" : "w-[95vw] sm:max-w-4xl"
+        )}>
+          <DialogHeader className="relative z-10 flex shrink-0 flex-col justify-center border-b border-slate-200/50 bg-white/40 px-6 py-5 backdrop-blur-xl">
+            <div className="flex items-center gap-4">
+              {step !== "select_role" && (
+                <button 
+                  type="button" 
+                  aria-label="Kembali" 
+                  onClick={goBack} 
+                  className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  <ChevronLeft className="h-5 w-5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="truncate text-2xl font-bold tracking-tight text-slate-900">{kpiTitle}</DialogTitle>
+                <p className="mt-1 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                  <span className="flex h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                  <span className="truncate">{roleLabel(selectedRole)} {selectedDoc ? `\u2022 ${selectedDoc.toUpperCase()}` : ""}</span>
+                </p>
+              </div>
             </div>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-transparent">
             {step === "select_role" && renderRole()}
             {step === "select_doc" && renderDoc()}
             {step === "select_name" && renderName()}
@@ -333,23 +392,44 @@ export function KpiDrilldownModal({
         <DialogPrimitive.Root open={!!selectedUlok} onOpenChange={(open) => !open && setSelectedUlok(null)}>
           <DialogPrimitive.Portal>
             <div className="fixed inset-0 z-[100] isolate overflow-hidden">
-              <DialogPrimitive.Overlay className="absolute inset-0 z-0 bg-slate-950/30" />
-              <DialogPrimitive.Content aria-describedby={undefined} className="absolute inset-y-0 right-0 z-10 flex h-dvh min-h-0 w-full max-w-2xl flex-col bg-slate-50 shadow-2xl focus-visible:outline-none">
-                <header className="border-b border-slate-200 bg-white px-5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-normal text-red-600">Detail KPI {selectedUlok.nomor_ulok}</p>
+              <DialogPrimitive.Overlay className="absolute inset-0 z-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 data-[state=closed]:opacity-0" />
+              <DialogPrimitive.Content 
+                aria-describedby={undefined} 
+                className="fixed !right-0 !top-0 !left-auto !bottom-auto !translate-x-0 !translate-y-0 z-[110] flex h-dvh w-full max-w-2xl flex-col border-l border-white/60 bg-[#f8fafc] shadow-2xl duration-500 data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right focus-visible:outline-none"
+              >
+                <header className="sticky top-0 z-10 shrink-0 border-b border-slate-200/50 bg-white/70 px-6 py-5 backdrop-blur-xl">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-red-600">
+                        <span className="flex h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
+                        Detail ULOK {selectedUlok.nomor_ulok}
+                      </p>
                       <DialogPrimitive.Title asChild>
-                        <h3 className="mt-1 text-xl font-black text-slate-950">{selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}</h3>
+                        <h3 className="mt-1.5 truncate text-2xl font-bold tracking-tight text-slate-900">
+                          {selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}
+                        </h3>
                       </DialogPrimitive.Title>
                     </div>
-                    <DialogPrimitive.Close className="rounded-md p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                      <X className="h-5 w-5" aria-hidden="true" />
+                    <DialogPrimitive.Close className="group rounded-full bg-slate-100 p-2.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                      <X className="h-5 w-5 transition-transform group-hover:rotate-90" aria-hidden="true" />
                     </DialogPrimitive.Close>
                   </div>
                 </header>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 custom-scrollbar">
-                  {detailLoading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : detail ? <><KpiDetailSections detail={detail} /><div className="mt-4"><KpiDocuments documents={detail.documents} /></div></> : <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">Detail tidak bisa dimuat.</div>}
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 custom-scrollbar bg-transparent">
+                  {detailLoading ? (
+                    <div className="flex h-64 items-center justify-center rounded-3xl border border-white bg-white/40 shadow-sm backdrop-blur-md">
+                      <Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" />
+                    </div>
+                  ) : detail ? (
+                    <div className="flex flex-col gap-6">
+                      <KpiDetailSections detail={detail} />
+                      <KpiDocuments documents={detail.documents} />
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-red-200 bg-red-50/80 p-5 text-sm font-bold text-red-700 shadow-sm backdrop-blur-sm">
+                      Detail tidak bisa dimuat.
+                    </div>
+                  )}
                 </div>
               </DialogPrimitive.Content>
             </div>

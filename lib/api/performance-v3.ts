@@ -53,6 +53,7 @@ export type PerformanceFiltersData = {
   cabangs: string[];
   coordinators: string[];
   supports: string[];
+  approvalActors?: Record<PerformanceSlaRole, string[]>;
 };
 
 export type PerformanceDrilldownItem = {
