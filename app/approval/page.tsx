@@ -2810,10 +2810,14 @@ function ApprovalPageContent() {
                                 {/* Info Card */}
                                 <Card className="mb-6 shadow-sm border-slate-200 bg-slate-50">
                                     <CardContent className="p-6 rounded-xl">
-                                        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                                            <div className="flex-1">
+                                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                            <div className="flex-1 w-full">
                                                 <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                                    <h2 className="text-xl font-bold text-slate-800">{selectedDetail.nama_toko}</h2>
+                                                    <h2 className="text-xl font-bold text-slate-800">
+                                                        {selectedDetail.nama_toko === '-' && selectedDetail.tipe === 'SURAT_PERINGATAN' 
+                                                            ? `Surat Peringatan (${selectedDetail.nomor_ulok})` 
+                                                            : selectedDetail.nama_toko}
+                                                    </h2>
                                                     <ApprovalBadge status={selectedDetail.status} />
                                                     {selectedDetail.durasi && (
                                                         <span className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-bold text-slate-700 ring-1 ring-inset ring-slate-200 shadow-sm whitespace-nowrap">
@@ -3139,7 +3143,7 @@ function ApprovalPageContent() {
                                                 <AlertTriangle className="w-4 h-4 text-red-600" />
                                                 Detail Surat Peringatan
                                             </h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status SP</p>
                                                     <p className="text-sm font-semibold text-slate-800">{selectedDetail._raw?.status || '-'}</p>
@@ -3155,10 +3159,6 @@ function ApprovalPageContent() {
                                                             {selectedDetail._raw.catatan}
                                                         </div>
                                                     )}
-                                                </div>
-                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai Denda</p>
-                                                    <p className="text-sm font-semibold text-slate-800">{formatRupiah(selectedDetail.total_nilai)}</p>
                                                 </div>
                                             </div>
                                             {/* Lampiran links */}
@@ -3180,7 +3180,7 @@ function ApprovalPageContent() {
                                 )}
 
                                 {/* Tabel Rincian */}
-                                {selectedDetail.items.length > 0 ? (
+                                {selectedDetail.items && selectedDetail.items.length > 0 ? (
                                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
                                         <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-200">
                                             <h3 className="font-bold text-slate-700 text-sm">Rincian Pekerjaan</h3>
@@ -3309,9 +3309,9 @@ function ApprovalPageContent() {
                                             </table>
                                         </div>
                                     </div>
-                                ) : selectedDetail.tipe !== 'SPK' && selectedDetail.tipe !== 'PERTAMBAHAN_SPK' ? (
+                                ) : selectedDetail.tipe !== 'SPK' && selectedDetail.tipe !== 'PERTAMBAHAN_SPK' && selectedDetail.tipe !== 'SURAT_PERINGATAN' ? (
                                     <div className="py-10 text-center bg-white rounded-xl border border-slate-200 text-slate-400 text-sm mb-6">
-                                        Tidak ada rincian item tersedia.
+                                        Tidak ada rincian item
                                     </div>
                                 ) : null}
 
