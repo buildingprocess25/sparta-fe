@@ -17,11 +17,14 @@ import {
 import {
   fetchPerformanceDetail,
   fetchPerformanceDrilldown,
+  fetchPerformanceOptionStats,
   type PerformanceCardType,
   type PerformanceDetailData,
   type PerformanceDocument,
   type PerformanceDrilldownItem,
   type PerformanceJobType,
+  type PerformanceOptionStat,
+  type PerformanceOptionStatsData,
   type PerformancePeriod,
   type PerformancePersonRole,
   type PerformanceSlaRole,
@@ -29,6 +32,7 @@ import {
 } from "@/lib/api/performance-v3";
 import { KpiDetailSections } from "./kpi-detail-sections";
 import { KpiDocuments } from "./kpi-documents";
+import { formatNumberKpi, formatRupiahKpi } from "./kpi-formatters";
 import { cn } from "@/lib/utils";
 
 interface KpiDrilldownModalProps {
@@ -37,6 +41,7 @@ interface KpiDrilldownModalProps {
   kpiType: PerformanceCardType | null;
   kpiTitle: string;
   actorRole: string;
+  actorName: string;
   actorCabang: string;
   cabangFilter: string;
   coordinatorFilter: string;
@@ -68,6 +73,22 @@ const docOptions: Array<{ id: PerformanceDocument; label: string; roles: Perform
 ];
 
 const roleLabel = (role?: string | null) => roleOptions.find((item) => item.id === role)?.label ?? "-";
+const statLabel = (stat: PerformanceOptionStat | undefined, kpiType: PerformanceCardType | null) => {
+  if (stat?.value === null || stat?.value === undefined) return "-";
+  if (kpiType === "cost_m2" || kpiType === "kerja_tambah" || kpiType === "kerja_kurang" || kpiType === "denda") {
+    return formatRupiahKpi(stat.value);
+  }
+  return formatNumberKpi(stat.value, " hari");
+};
+const mergeStats = (items: PerformanceOptionStat[]): PerformanceOptionStat | undefined => {
+  const validItems = items.filter((item) => item.value !== null && item.value !== undefined && item.count > 0);
+  const count = items.reduce((sum, item) => sum + item.count, 0);
+  if (!items.length) return undefined;
+  const weight = validItems.reduce((sum, item) => sum + item.count, 0);
+  const value = weight > 0 ? validItems.reduce((sum, item) => sum + (item.value ?? 0) * item.count, 0) / weight : null;
+  return { id: "all", label: "Semua", value, count, incomplete_count: items.reduce((sum, item) => sum + (item.incomplete_count ?? 0), 0) };
+};
+const isAllValue = (value?: string | null) => !value || value.toUpperCase() === "ALL" || value.toUpperCase() === "SEMUA" || value.toUpperCase() === "SEMUA CABANG";
 
 export function KpiDrilldownModal({
   isOpen,
@@ -75,6 +96,7 @@ export function KpiDrilldownModal({
   kpiType,
   kpiTitle,
   actorRole,
+  actorName,
   actorCabang,
   cabangFilter,
   coordinatorFilter,
@@ -98,10 +120,14 @@ export function KpiDrilldownModal({
   const [selectedUlok, setSelectedUlok] = useState<PerformanceDrilldownItem | null>(null);
   const [detail, setDetail] = useState<PerformanceDetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [optionStats, setOptionStats] = useState<PerformanceOptionStatsData>({ roles: [], people: [], documents: [] });
+  const [optionStatsLoading, setOptionStatsLoading] = useState(false);
 
   const normalizedActor = actorRole.toUpperCase();
   const isSupportUser = normalizedActor.includes("SUPPORT") || normalizedActor.includes("PENGAWAS");
   const isCoordinatorUser = normalizedActor.includes("KOORDINATOR") || normalizedActor.includes("COORD");
+  const supportPersonName = !isAllValue(supportFilter) ? supportFilter : actorName;
+  const coordinatorPersonName = !isAllValue(coordinatorFilter) ? coordinatorFilter : actorName;
 
   useEffect(() => {
     if (!isOpen || !kpiType) return;
@@ -115,39 +141,91 @@ export function KpiDrilldownModal({
 
     if (supportMetric) {
       setSelectedRole("support");
-      setSelectedName(supportFilter === "ALL" ? null : supportFilter);
+      setSelectedName(!isAllValue(supportFilter) ? supportFilter : null);
       setStep("list_ulok");
       return;
     }
-    
-    // Auto-select support for support users ONLY IF the support role is actually allowed for this KPI
-    const isSupportAllowed = kpiType !== "sla_approval" && (kpiType === "ketepatan_st" || kpiType === "sla_ktk" || true);
-    if (isSupportUser && kpiType !== "sla_approval") {
+
+    if (isSupportUser) {
       setSelectedRole("support");
-      setSelectedName(actorRole);
+      setSelectedName(supportPersonName || null);
+      if (kpiType === "sla_approval") setSelectedDoc("ktk");
       setStep("list_ulok");
       return;
     }
-    if (isCoordinatorUser && kpiType !== "sla_approval") {
+
+    if (isCoordinatorUser) {
+      if (kpiType === "sla_approval") {
+        setSelectedRole("coordinator");
+        setSelectedName(coordinatorPersonName || null);
+        setStep("select_doc");
+        return;
+      }
       setSelectedRole("support");
       setStep("select_name");
       return;
     }
+
     if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") {
       setSelectedRole("support");
       setStep("select_name");
       return;
     }
+
     setStep("select_role");
-  }, [actorRole, isCoordinatorUser, isOpen, isSupportUser, kpiType, supportFilter, supportMetric]);
+  }, [actorName, actorCabang, actorRole, coordinatorPersonName, isCoordinatorUser, isOpen, isSupportUser, kpiType, supportFilter, supportMetric, supportPersonName]);
 
   const allowedRoles = useMemo(() => {
     if (!kpiType) return [];
+    if (isSupportUser) return roleOptions.filter((role) => role.id === "support");
+    if (isCoordinatorUser) return kpiType === "sla_approval"
+      ? roleOptions.filter((role) => role.id === "coordinator")
+      : roleOptions.filter((role) => role.id === "support");
     if (kpiType === "sla_approval") return roleOptions.filter((role) => role.id !== "support");
     if (kpiType === "ketepatan_st" || kpiType === "sla_ktk") return roleOptions.filter((role) => role.id === "support");
     return roleOptions.filter((role) => role.id === "coordinator" || role.id === "support");
-  }, [kpiType]);
+  }, [isCoordinatorUser, isSupportUser, kpiType]);
 
+
+  const statById = useCallback((items: PerformanceOptionStat[], id?: string | null) => items.find((item) => item.id === id || item.label === id), []);
+  const allPeopleStat = useMemo(() => mergeStats(optionStats.people), [optionStats.people]);
+
+  const renderOptionStat = (stat?: PerformanceOptionStat) => (
+    <span className="mt-2 flex w-full flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-500">
+      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-800">Avg {optionStatsLoading ? "..." : statLabel(stat, kpiType)}</span>
+      <span className="rounded-full bg-white px-2.5 py-1 text-slate-500 ring-1 ring-slate-200">{optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}</span>
+    </span>
+  );
+
+  useEffect(() => {
+    if (!isOpen || !kpiType) return;
+    let ignore = false;
+    async function loadOptionStats() {
+      setOptionStatsLoading(true);
+      try {
+        const res = await fetchPerformanceOptionStats({
+          actor_role: actorRole || "USER",
+          actor_cabang: actorCabang,
+          cabang: cabangFilter,
+          coordinator: coordinatorFilter,
+          support: supportFilter,
+          job_type: jobType,
+          period,
+          search,
+          card_type: kpiType,
+          selected_role: selectedRole ?? undefined,
+          selected_name: selectedName ?? undefined
+        });
+        if (!ignore) setOptionStats(res.data || { roles: [], people: [], documents: [] });
+      } catch {
+        if (!ignore) setOptionStats({ roles: [], people: [], documents: [] });
+      } finally {
+        if (!ignore) setOptionStatsLoading(false);
+      }
+    }
+    loadOptionStats();
+    return () => { ignore = true; };
+  }, [actorCabang, actorRole, cabangFilter, coordinatorFilter, jobType, isOpen, kpiType, period, search, selectedName, selectedRole, supportFilter]);
   const loadRows = useCallback(async (page = 1) => {
     if (!kpiType) return;
     setLoading(true);
@@ -244,6 +322,7 @@ export function KpiDrilldownModal({
                 <Icon className="h-7 w-7" aria-hidden="true" />
               </div>
               <span className="text-sm font-bold tracking-tight text-slate-800">{role.label}</span>
+              {renderOptionStat(statById(optionStats.roles, role.id))}
             </button>
           );
         })}
@@ -267,7 +346,10 @@ export function KpiDrilldownModal({
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-inset ring-red-100 transition-transform duration-300 group-hover:scale-110 group-hover:bg-red-100">
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <span className="font-bold tracking-tight text-slate-800">{doc.label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold tracking-tight text-slate-800">{doc.label}</span>
+                  {renderOptionStat(statById(optionStats.documents, doc.id))}
+                </span>
               </button>
             );
           })}
@@ -292,11 +374,14 @@ export function KpiDrilldownModal({
         </div>
         <div className="grid max-h-[50vh] w-full max-w-4xl grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3 custom-scrollbar">
           <button type="button" onClick={() => { setSelectedName(null); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-            Semua Personil <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+            <span className="min-w-0"><span className="block">Semua Personil</span><span className="mt-1 block text-[11px] text-slate-500">Avg {optionStatsLoading ? "..." : statLabel(allPeopleStat, kpiType)} - {optionStatsLoading ? "..." : `${allPeopleStat?.count ?? 0} data`}</span></span> <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
           </button>
           {names.map((name) => (
             <button key={name} type="button" onClick={() => { setSelectedName(name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-              <span className="truncate">{name}</span>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block truncate">{name}</span>
+                {renderOptionStat(statById(optionStats.people, name))}
+              </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
             </button>
           ))}

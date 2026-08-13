@@ -89,9 +89,14 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
 
       {detail.selected_card === "jhk" && (
         <section>
-          <SectionHeader title="Durasi JHK" badge={formatNumberKpi(section.jhk.avg_days, " hari")} />
+          <SectionHeader title="Durasi JHK" badge={`Actual ${formatNumberKpi(section.jhk.avg_days, " hari")} / Target ${formatNumberKpi(section.jhk.avg_target_days, " hari")}`} />
           <div className="grid grid-cols-1 gap-3">
-            {section.jhk.scopes.map((scope, index) => <Field key={index} label={String(scope.lingkup ?? "Lingkup")} value={`${formatDateKpi(scope.spk_start)} s/d ${formatDateKpi(scope.st_date)} (+${scope.extension_days ?? 0} hari)`} />)}
+            {section.jhk.scopes.map((scope, index) => {
+              const isTarget = !scope.st_date && scope.target_st_date;
+              const endDate = isTarget ? scope.target_st_date : scope.st_date;
+              const days = isTarget ? scope.jhk_target_days : scope.jhk_actual_days;
+              return <Field key={index} label={`${String(scope.lingkup ?? "Lingkup")} ${isTarget ? "Target" : "Actual"}`} value={`${formatDateKpi(scope.spk_start)} s/d ${formatDateKpi(endDate)} (${formatNumberKpi(Number(days ?? 0), " hari")})`} />;
+            })}
           </div>
         </section>
       )}

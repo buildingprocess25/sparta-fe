@@ -224,7 +224,7 @@ export default function DashboardNavigation({
                     onClick={onCloseMobile}
                 >
                     <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
-                    <span className="min-w-0 flex-1 leading-snug">Performance KPI SAT</span>
+                    <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
                 </Link>
             </div>
         </details>

@@ -88,7 +88,7 @@ export function KPIFilters({
         if (!isCoordinator && selectedCoordinator !== "ALL" && !hasOption(next.coordinators, selectedCoordinator)) onCoordinatorChange("ALL");
         if (!isSupport && selectedSupport !== "ALL" && !hasOption(next.supports, selectedSupport)) onSupportChange("ALL");
       } catch (error) {
-        console.error("Failed to load Performance KPI SAT filters", error);
+        console.error("Failed to load Performance Internal SAT filters", error);
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -108,7 +108,7 @@ export function KPIFilters({
   }, [filtersData.supports, isSupport, userName]);
 
   return (
-    <section className="relative z-20 rounded-2xl border border-white/60 bg-white/70 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl" aria-label="Filter Performance KPI SAT">
+    <section className="relative z-20 rounded-2xl border border-white/60 bg-white/70 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl" aria-label="Filter Performance Internal SAT">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
         
         {/* Search */}
@@ -133,7 +133,7 @@ export function KPIFilters({
                 <SelectValue placeholder="Job Type" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-                <SelectItem value="ALL" className="rounded-lg cursor-pointer">Semua Job</SelectItem>
+                <SelectItem value="ALL" className="rounded-lg cursor-pointer">Semua Proyek</SelectItem>
                 <SelectItem value="REGULER" className="rounded-lg cursor-pointer">Reguler</SelectItem>
                 <SelectItem value="RENOVASI" className="rounded-lg cursor-pointer">Renovasi</SelectItem>
               </SelectContent>

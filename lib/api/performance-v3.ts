@@ -39,10 +39,10 @@ export type PerformanceSummaryData = {
   cards: {
     sla_approval: { value: number | null; count: number; roles: Record<PerformanceSlaRole, number | null> };
     cost_m2: { terbangun: number | null; bangunan: number | null; area_terbuka: number | null; count: number };
-    jhk: { value: number | null; count: number };
-    denda: { value: number | null; count: number };
-    kerja_tambah: { value: number | null; count: number };
-    kerja_kurang: { value: number | null; count: number };
+    jhk: { value: number | null; count: number; target_value: number | null; target_count: number };
+    denda: { value: number | null; count: number; sum_value?: number | null };
+    kerja_tambah: { value: number | null; count: number; sum_value?: number | null };
+    kerja_kurang: { value: number | null; count: number; sum_value?: number | null };
     ketepatan_st: { value: number | null; count: number };
     sla_ktk: { value: number | null; count: number };
   };
@@ -100,7 +100,7 @@ export type PerformanceDetailData = {
   selected_value: number | null;
   sections: {
     cost_m2: { terbangun: number | null; bangunan: number | null; area_terbuka: number | null; formula: string };
-    jhk: { avg_days: number | null; scopes: Array<Record<string, unknown>> };
+    jhk: { avg_days: number | null; avg_target_days: number | null; scopes: Array<Record<string, unknown>> };
     denda: { value: number | null; policy: string; scopes: Array<Record<string, unknown>> };
     kerja_tambah_kurang: { kerja_tambah: number | null; kerja_kurang: number | null; formula: string; scopes: Array<Record<string, unknown>> };
     ketepatan_st: { days: number | null; formula: string; scopes: Array<Record<string, unknown>> };
@@ -112,6 +112,20 @@ export type PerformanceDetailData = {
   data_quality: string[];
 };
 
+
+export type PerformanceOptionStat = {
+  id: string;
+  label: string;
+  value: number | null;
+  count: number;
+  incomplete_count?: number;
+};
+
+export type PerformanceOptionStatsData = {
+  roles: PerformanceOptionStat[];
+  people: PerformanceOptionStat[];
+  documents: PerformanceOptionStat[];
+};
 export type PerformanceTableRow = Record<PerformanceTableMetric, number | null> & {
   nama_support: string;
   total_ulok: number;
@@ -139,6 +153,18 @@ export const fetchPerformanceFilters = async (params: PerformanceQueryParams, op
   return safeFetchJSON(`${base}/api/dashboard/performance/filters?${query}`, options) as Promise<{ status: string; data: PerformanceFiltersData }>;
 };
 
+
+export const fetchPerformanceOptionStats = async (
+  params: PerformanceQueryParams & {
+    card_type: PerformanceCardType;
+    selected_role?: PerformanceSlaRole | PerformancePersonRole;
+    selected_name?: string;
+  },
+  options?: ApiRequestOptions
+): Promise<{ status: string; data: PerformanceOptionStatsData }> => {
+  const query = appendParams(params);
+  return safeFetchJSON(`${base}/api/dashboard/performance/options-stats?${query}`, options) as Promise<{ status: string; data: PerformanceOptionStatsData }>;
+};
 export const fetchPerformanceDrilldown = async (
   params: PerformanceQueryParams & {
     card_type: PerformanceCardType;

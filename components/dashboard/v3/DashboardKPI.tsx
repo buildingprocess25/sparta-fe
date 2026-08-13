@@ -30,6 +30,7 @@ type MetricCardConfig = {
   title: string;
   kicker: string;
   value: string;
+  sumValue?: string;
   unit?: string;
   helper: string;
   count: number;
@@ -77,7 +78,7 @@ export function DashboardKPI({
       });
       setData(res.data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal memuat data Performance KPI SAT.");
+      setError(err instanceof Error ? err.message : "Gagal memuat data Performance Internal SAT.");
     } finally {
       setLoading(false);
     }
@@ -122,10 +123,14 @@ export function DashboardKPI({
         title: "Avg JHK",
         kicker: "Durasi Pekerjaan",
         value: formatNumberKpi(summary?.jhk.value, " hari"),
-        helper: "Durasi dari mulai SPK sampai serah terima, termasuk tambah SPK.",
+        helper: "Actual memakai ST aktual; Target memakai ST ideal saat belum ST.",
         count: summary?.jhk.count ?? 0,
         icon: Clock3,
-        tone: "text-sky-600 bg-sky-500/10 ring-sky-500/20"
+        tone: "text-sky-600 bg-sky-500/10 ring-sky-500/20",
+        subvalues: [
+          { label: `Actual (${summary?.jhk.count ?? 0})`, value: formatNumberKpi(summary?.jhk.value, " hari"), accent: "bg-sky-500" },
+          { label: `Target (${summary?.jhk.target_count ?? 0})`, value: formatNumberKpi(summary?.jhk.target_value, " hari"), accent: "bg-amber-500" }
+        ]
       },
       {
         id: "ketepatan_st",
@@ -140,8 +145,9 @@ export function DashboardKPI({
       {
         id: "denda",
         title: "Avg Denda",
-        kicker: "Hanya yang terkena denda",
+        kicker: "",
         value: formatRupiahKpi(summary?.denda.value),
+        sumValue: formatRupiahKpi(summary?.denda.sum_value),
         helper: "Nilai representatif denda terkecil positif antar lingkup pekerjaan.",
         count: summary?.denda.count ?? 0,
         icon: AlertTriangle,
@@ -150,8 +156,9 @@ export function DashboardKPI({
       {
         id: "kerja_tambah",
         title: "Avg Kerja Tambah",
-        kicker: "Final KTK vs SPK",
+        kicker: "",
         value: formatRupiahKpi(summary?.kerja_tambah.value),
+        sumValue: formatRupiahKpi(summary?.kerja_tambah.sum_value),
         helper: "Selisih final opname di atas nilai awal SPK.",
         count: summary?.kerja_tambah.count ?? 0,
         icon: TrendingUp,
@@ -160,8 +167,9 @@ export function DashboardKPI({
       {
         id: "kerja_kurang",
         title: "Avg Kerja Kurang",
-        kicker: "Final KTK vs SPK",
+        kicker: "",
         value: formatRupiahKpi(summary?.kerja_kurang.value),
+        sumValue: formatRupiahKpi(summary?.kerja_kurang.sum_value),
         helper: "Selisih final opname di bawah nilai awal SPK.",
         count: summary?.kerja_kurang.count ?? 0,
         icon: TrendingDown,
@@ -194,8 +202,7 @@ export function DashboardKPI({
             <div className="flex h-full w-full flex-col justify-between">
                <div className="flex items-start justify-between">
                  <div>
-                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.kicker}</p>
-                   <h3 className="mt-1 text-lg font-bold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
+                   <h3 className="text-lg font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
                    <p className="mt-1.5 max-w-sm text-xs font-medium leading-relaxed text-slate-500">{card.helper}</p>
                  </div>
                  <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 backdrop-blur-md transition-transform duration-300 group-hover:scale-110", card.tone)}>
@@ -209,9 +216,9 @@ export function DashboardKPI({
                      <div key={item.label} className="flex flex-col">
                        <div className="mb-1.5 flex items-center gap-1.5">
                          <span className={cn("h-1.5 w-1.5 rounded-full", item.accent)} />
-                         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{item.label}</span>
+                         <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</span>
                        </div>
-                       {loading ? <Skeleton className="h-6 w-24" /> : <span className="text-lg font-bold tracking-tight text-slate-800">{item.value}</span>}
+                       {loading ? <Skeleton className="h-6 w-24" /> : <span className="text-lg font-semibold tracking-tight text-slate-800">{item.value}</span>}
                      </div>
                    ))}
                  </div>
@@ -225,15 +232,27 @@ export function DashboardKPI({
             <div className="flex h-full w-full flex-col justify-between">
               <div className="flex items-start justify-between">
                  <div>
-                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.kicker}</p>
-                   <h3 className="mt-1 text-base font-bold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
+                   <h3 className="text-base font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
                  </div>
                  <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md transition-transform duration-300 group-hover:scale-110", card.tone)}>
                    <Icon className="h-4 w-4" aria-hidden="true" />
                  </div>
                </div>
                <div className="mt-6 flex-1">
-                 {loading ? <Skeleton className="h-10 w-32" /> : <p className="text-4xl font-black tracking-tighter text-slate-800 drop-shadow-sm">{card.value}</p>}
+                 {loading ? <Skeleton className="h-10 w-32" /> : <p className="text-4xl font-bold tracking-tighter text-slate-800 drop-shadow-sm">{card.value}</p>}
+                 {card.id === "jhk" && card.subvalues && !loading && (
+                   <div className="mt-3 grid grid-cols-2 gap-2">
+                     {card.subvalues.map((item) => (
+                       <div key={item.label} className="rounded-xl bg-white/60 px-2.5 py-2 ring-1 ring-slate-100">
+                         <div className="mb-1 flex items-center gap-1.5">
+                           <span className={cn("h-1.5 w-1.5 rounded-full", item.accent)} />
+                           <span className="truncate text-[9px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</span>
+                         </div>
+                         <span className="text-xs font-bold text-slate-700">{item.value}</span>
+                       </div>
+                     ))}
+                   </div>
+                 )}
                </div>
             </div>
           );
@@ -246,13 +265,12 @@ export function DashboardKPI({
                    <Icon className="h-4 w-4" aria-hidden="true" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.kicker}</p>
-                   <h3 className="text-sm font-bold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
+                   <h3 className="text-sm font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
                  </div>
               </div>
               <div className="mt-5 flex-1">
                  {loading ? <Skeleton className="h-8 w-24" /> : (
-                   <span className={cn("inline-flex items-center rounded-xl px-3 py-1.5 text-lg font-bold tracking-tight ring-1", 
+                   <span className={cn("inline-flex items-center rounded-xl px-3 py-1.5 text-lg font-semibold tracking-tight ring-1", 
                      card.value.includes("+") || card.value.includes("lambat") ? "bg-red-50 text-red-700 ring-red-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200"
                    )}>
                      {card.value}
@@ -266,12 +284,14 @@ export function DashboardKPI({
           return (
             <div className="flex h-full w-full flex-col justify-between">
               <div>
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{card.kicker}</p>
-                 <h3 className="mt-0.5 text-base font-semibold tracking-tight text-slate-800">{card.title}</h3>
+                 <h3 className="text-base font-semibold tracking-tight text-slate-800">{card.title}</h3>
               </div>
               <div className="mt-4 flex items-end justify-between">
-                <div>
-                  {loading ? <Skeleton className="h-8 w-24" /> : <p className="text-2xl font-bold tracking-tight text-slate-800">{card.value}</p>}
+                <div className="flex flex-col gap-1">
+                  {loading ? <Skeleton className="h-8 w-24" /> : <p className="text-2xl font-semibold tracking-tight text-slate-800">{card.value}</p>}
+                  {card.sumValue && card.sumValue !== "-" && !loading && (
+                    <p className="text-xs font-semibold text-slate-500">Sum {card.sumValue}</p>
+                  )}
                 </div>
                 <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md transition-transform duration-300 group-hover:-rotate-6", card.tone)}>
                    <Icon className="h-4 w-4" aria-hidden="true" />
@@ -294,11 +314,11 @@ export function DashboardKPI({
         {renderContent()}
 
         <div className="mt-5 flex w-full items-center justify-between border-t border-slate-200/40 pt-4">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-500 ring-1 ring-slate-200/60">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500 ring-1 ring-slate-200/60">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             {card.count} Data Valid
           </div>
-          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-red-600 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2">
+          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-red-600 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2">
             Lihat Detail <ArrowRight className="h-3 w-3" />
           </div>
         </div>
@@ -317,29 +337,18 @@ export function DashboardKPI({
       {/* Header */}
       <header className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-600 shadow-sm ring-1 ring-slate-200/60">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-red-600 shadow-sm ring-1 ring-slate-200/60">
             <Gauge className="h-3.5 w-3.5" aria-hidden="true" /> Live Dashboard
           </div>
-          <h1 className="mt-4 text-4xl lg:text-5xl font-black tracking-tighter text-slate-900 drop-shadow-sm">Performance KPI SAT</h1>
+          <h1 className="mt-4 text-4xl lg:text-5xl font-semibold tracking-tighter text-slate-900 drop-shadow-sm">Performance Internal SAT</h1>
           <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
-            Monitor dan evaluasi ringkasan KPI ULOK secara komprehensif. Menampilkan analitik biaya, durasi pekerjaan, denda, dan efisiensi serah terima proyek.
+            Monitor dan evaluasi ringkasan ULOK secara komprehensif. Menampilkan analitik biaya, durasi pekerjaan, denda, dan efisiensi serah terima proyek.
           </p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="group relative flex min-w-[120px] flex-col items-end justify-center rounded-2xl bg-white/70 px-5 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.03)] ring-1 ring-slate-200/60 backdrop-blur-xl transition-all hover:ring-red-200">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total ULOK</p>
-            <p className="text-2xl font-black tracking-tighter text-slate-900">{data?.meta.total_ulok ?? 0}</p>
-          </div>
-          <div className="group relative flex min-w-[120px] flex-col items-end justify-center rounded-2xl bg-white/70 px-5 py-3 shadow-[0_4px_20px_rgb(0,0,0,0.03)] ring-1 ring-slate-200/60 backdrop-blur-xl transition-all hover:ring-amber-200">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Catatan</p>
-            <p className="text-2xl font-black tracking-tighter text-amber-600">{data?.meta.incomplete_ulok ?? 0}</p>
-          </div>
-          <div className="flex min-w-[120px] flex-col items-end justify-center rounded-2xl bg-slate-900/5 px-5 py-3 shadow-inner ring-1 ring-slate-900/10">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Periode</p>
-            <p className="text-xl font-black tracking-tighter text-slate-900">{selectedPeriod.toUpperCase()}</p>
-          </div>
+        <div className="hidden">
         </div>
+        
       </header>
 
       {/* Filters */}
@@ -433,6 +442,7 @@ export function DashboardKPI({
         kpiType={modalState?.type ?? null}
         kpiTitle={modalState?.title ?? ""}
         actorRole={role}
+        actorName={userInfo.name || ""}
         actorCabang={userInfo.cabang || ""}
         cabangFilter={selectedCabang}
         coordinatorFilter={selectedCoordinator}
