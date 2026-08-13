@@ -2798,17 +2798,6 @@ function GanttBoard() {
 
                 {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
-                        {!isScopeSpkApproved && projectData && (
-                            <div className="bg-amber-50 border-b border-amber-200 p-4">
-                                <div className="flex items-start gap-3 text-amber-800">
-                                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-                                    <div>
-                                        <p className="font-bold">SPK Belum Disetujui</p>
-                                        <p className="text-sm mt-1">Anda dapat membuat dan menyimpan jadwal, namun belum dapat mengisi form pengawasan fisik atau memproses Serah Terima karena SPK belum disetujui (Approved).</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                         <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
                             <div>
                                 <h2 className="font-bold text-slate-800 text-lg">Input Jadwal & Keterikatan (Dependencies)</h2>

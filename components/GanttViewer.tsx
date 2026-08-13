@@ -127,6 +127,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
     timelineDuration?: number;
     syncScrollGroup?: string;
     isBelumSpk?: boolean;
+    hideLegend?: boolean;
 }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState('');
@@ -494,7 +495,7 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
                     </div>
                 </div>
             )}
-            {!hideDateHeader && (
+            {!hideDateHeader && !hideLegend && (
                 <GanttStatusLegend
                     isBelumSpk={isBelumSpk}
                     hasExtension={projectData?.hasExtension}

@@ -2815,6 +2815,11 @@ function ApprovalPageContent() {
                                                 <div className="flex items-center gap-3 mb-2 flex-wrap">
                                                     <h2 className="text-xl font-bold text-slate-800">{selectedDetail.nama_toko}</h2>
                                                     <ApprovalBadge status={selectedDetail.status} />
+                                                    {selectedDetail.durasi && (
+                                                        <span className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-bold text-slate-700 ring-1 ring-inset ring-slate-200 shadow-sm whitespace-nowrap">
+                                                            {selectedDetail.durasi} hari
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 {selectedDetail.alamat && (
                                                     <p className="text-sm text-slate-500 mb-2">{selectedDetail.alamat}</p>
@@ -3043,6 +3048,7 @@ function ApprovalPageContent() {
                                             isBelumSpk={selectedDetail.tipe === 'RAB'}
                                             spkStartDate={selectedDetail.tipe === 'SPK' ? selectedDetail.waktu_mulai : undefined}
                                             spkDuration={selectedDetail.tipe === 'SPK' ? selectedDetail.durasi : undefined}
+                                            hideLegend={true}
                                         />
                                     </div>
                                 )}
