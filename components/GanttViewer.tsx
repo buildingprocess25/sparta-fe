@@ -111,7 +111,7 @@ function mapIlCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: 
         .map((kategori_pekerjaan) => ({ kategori_pekerjaan }));
 }
 
-export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false }: {
+export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false, hideLegend = false }: {
     nomorUlok: string;
     idToko?: number;
     spkStartDate?: string;          // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
