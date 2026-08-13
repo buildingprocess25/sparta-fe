@@ -576,6 +576,17 @@ export const getRabPriceBranch = (branch?: string | null): string => {
     return normalized;
 };
 
+export const SUPPORTED_PRICE_BRANCHES = [
+    "ACEH", "BALARAJA", "BALI", "BANDUNG RAYA", "BANGKA", "BANJARMASIN",
+    "BATAM", "BEKASI", "BELITUNG", "BENGKULU", "BOGOR", "CIANJUR",
+    "CIKOKOL", "BINTAN", "CILACAP", "CILEUNGSI", "GORONTALO", "JAMBI",
+    "JEMBER", "KARAWANG", "KLATEN", "KOTABUMI", "LAMPUNG", "LOMBOK",
+    "LUWU", "MADIUN", "MAKASSAR", "MALANG", "MANADO", "MANOKWARI",
+    "MEDAN", "NTT", "PALEMBANG", "PARUNG", "PEKANBARU", "PLUMBON",
+    "PONTIANAK", "REMBANG", "SEMARANG", "SERANG", "SIDOARJO",
+    "SIDOARJO BPN SMD", "SORONG", "SUMBAWA", "TEGAL", "HEAD OFFICE"
+];
+
 /**
  * Expand a parent branch name to all sub-branches.
  * E.g. "CIKOKOL" → ["CIKOKOL", "PARUNG", "BALARAJA", "SERANG", "BINTAN"]

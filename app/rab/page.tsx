@@ -21,7 +21,7 @@ import {
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download, ClipboardList, ArrowRight } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
-import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser } from '@/lib/constants';
+import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser, SUPPORTED_PRICE_BRANCHES } from '@/lib/constants';
 import {
   checkRevisionStatus,
   fetchPricesData,
@@ -95,7 +95,7 @@ const normalizeBranchName = (value?: string | null) =>
 
 const usesRabParentPrice = (branch?: string | null) => {
   const priceBranch = getRabPriceBranch(branch);
-  return priceBranch === 'CIKOKOL' || priceBranch === 'CILEUNGSI';
+  return SUPPORTED_PRICE_BRANCHES.includes(priceBranch);
 };
 
 const normalizeJobName = (value?: string | null) =>
