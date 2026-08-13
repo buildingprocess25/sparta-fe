@@ -325,20 +325,20 @@ function ReviewSelect({
   onChange: (value: "APPROVE" | "REJECT") => void;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
       <Label className="text-xs font-semibold text-slate-600">{label}</Label>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex gap-2 shrink-0">
         <button
           type="button"
           onClick={() => onChange("APPROVE")}
-          className={`h-9 rounded-md border text-sm font-semibold ${value === "APPROVE" ? "bg-green-600 text-white border-green-600" : "bg-white text-slate-600 border-slate-200"}`}
+          className={`h-9 px-6 rounded-md border text-sm font-semibold ${value === "APPROVE" ? "bg-green-600 text-white border-green-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
         >
           Approve
         </button>
         <button
           type="button"
           onClick={() => onChange("REJECT")}
-          className={`h-9 rounded-md border text-sm font-semibold ${value === "REJECT" ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200"}`}
+          className={`h-9 px-6 rounded-md border text-sm font-semibold ${value === "REJECT" ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
         >
           Reject
         </button>
@@ -937,7 +937,7 @@ export default function DetailProjekPlanning() {
     data.link_gambar_kerja_final_sipil ? "gambar_kerja_final_sipil" : null,
     data.link_gambar_kerja_final_me ? "gambar_kerja_final_me" : null,
   ].filter(Boolean) as string[];
-  const requiredFields = isPPMgr && data.status === "WAITING_PP_MANAGER_APPROVAL"
+  const requiredFields = (isPPMgr && data.status === "WAITING_PP_MANAGER_APPROVAL") || (isBMRegional && data.status === "WAITING_BM_REGIONAL_APPROVAL")
     ? [...ppSpecialistFields, ...rabFinalFields]
     : [...coordinatorFields, ...ppSpecialistFields, ...rabFinalFields];
   const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
@@ -1334,10 +1334,6 @@ export default function DetailProjekPlanning() {
                   <span className="italic">"{bmNote}"</span>
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded" />
-                <label htmlFor="need3d" className="text-sm">Butuh Desain 3D</label>
-              </div>
               <div className="flex gap-3">
                 <Button onClick={() => { setPendingAction("pp1"); setShowRejectDialog(true); }} className="flex-1 bg-white hover:bg-slate-50 text-red-600 border border-red-200 shadow-sm" disabled={actionLoading || !allLinksOpened}>
                   <XCircle className="w-4 h-4 mr-1.5" /> Tolak
@@ -1874,6 +1870,12 @@ export default function DetailProjekPlanning() {
             <AlertDialogDescription>Catatan approval bersifat opsional. Kosongkan jika tidak ada catatan tambahan.</AlertDialogDescription>
           </AlertDialogHeader>
           <Textarea value={approvalNote} onChange={e => setApprovalNote(e.target.value)} placeholder="Catatan approval (opsional)..." rows={3} />
+          {pendingAction === "pp1" && (
+            <div className="flex items-center gap-2 mt-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
+              <input type="checkbox" id="need3d" checked={need3d} onChange={e => setNeed3d(e.target.checked)} className="rounded w-4 h-4 text-purple-600 focus:ring-purple-500 border-purple-300" />
+              <label htmlFor="need3d" className="text-sm font-semibold text-purple-900 cursor-pointer select-none">Butuh Desain 3D sebelum lanjut ke RAB</label>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={() => handleApprove(pendingAction)} disabled={actionLoading || !pendingAction}

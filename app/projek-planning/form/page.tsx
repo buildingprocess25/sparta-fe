@@ -702,10 +702,11 @@ function FormProjekPlanningInner() {
                         <Label className="text-sm font-bold text-slate-700">Proyek *</Label>
                         <select value={f.jenis_proyek} onChange={e => set("jenis_proyek", e.target.value)} required className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
                           <option value="">Pilih proyek...</option>
-                          <option value="Renovasi">Renovasi</option>
-                          <option value="Perpanjangan">Perpanjangan</option>
-                          <option value="Peremajaan/Perbaikan">Peremajaan/Perbaikan</option>
-                          <option value="Perluasan">Perluasan</option>
+                          <option value="Renovasi">Renovasi (Umum)</option>
+                          <option value="Renovasi Perluasan">Renovasi Perluasan</option>
+                          <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
+                          <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
+                          <option value="Renovasi Peremajaan">Renovasi Peremajaan</option>
                         </select>
                       </div>
                     </div>
