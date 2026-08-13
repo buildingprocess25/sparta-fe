@@ -58,23 +58,23 @@ const decimalPayloadValue = (value: string) => String(parseDecimalInput(value));
 const normalizeVolumeInput = (value: string) => {
   const normalized = value.replace(/\./g, ',').replace(/[^\d,]/g, '');
   const [head, ...tail] = normalized.split(',');
-  return tail.length > 0 ? `${head || '0'},${tail.join('')}` : head;
+  const cleanHead = head.replace(/^0+(?=\d)/, '');
+  return tail.length > 0 ? `${cleanHead || '0'},${tail.join('')}` : cleanHead;
 };
 
 const normalizeVolumeOnBlur = (value: string) => {
   const normalized = normalizeVolumeInput(value);
-  if (!normalized || normalized === '0') return '';
+  if (!normalized) return '';
   return normalized.endsWith(',') ? normalized.slice(0, -1) : normalized;
 };
 
 const volumeToNumber = (value: number | string | null | undefined) => {
   const parsed = parseFloat(String(value ?? '').replace(',', '.'));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
 
 const volumeToInputValue = (value: number | string | null | undefined) => {
   if (value === null || value === undefined || value === '') return '';
-  if (volumeToNumber(value) === 0) return '';
   return String(value).replace('.', ',');
 };
 
