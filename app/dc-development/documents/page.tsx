@@ -353,6 +353,16 @@ export default function DcDocumentsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 bg-slate-50 p-8">
             <button
+              onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/PEMBANGUNAN`)}
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
+            >
+              <div className="mb-4 inline-flex rounded-2xl bg-red-50 p-4 text-red-600 transition-transform group-hover:scale-110">
+                <Building2 className="h-8 w-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">Pembangunan</h3>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
+            </button>
+            <button
               onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/RENOVASI`)}
               className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
             >
@@ -370,16 +380,6 @@ export default function DcDocumentsPage() {
                 <Maximize className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Perluasan</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
-            </button>
-            <button
-              onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/PEMBANGUNAN`)}
-              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
-            >
-              <div className="mb-4 inline-flex rounded-2xl bg-red-50 p-4 text-red-600 transition-transform group-hover:scale-110">
-                <Building2 className="h-8 w-8" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800">Pembangunan</h3>
               <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
             </button>
           </div>
