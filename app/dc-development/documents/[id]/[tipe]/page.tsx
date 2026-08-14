@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -23,8 +24,9 @@ import { useSession } from "@/context/SessionContext";
 import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, type DcArchiveProject, type DcDocument } from "@/lib/api";
 import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, type DokumenUtama } from "@/lib/dc-document.config";
 
-export default function DcDocumentDetailPage({ params }: { params: { id: string; tipe: string } }) {
+export default function DcDocumentDetailPage() {
   const router = useRouter();
+  const { id, tipe } = useParams() as { id: string; tipe: string };
   const { user, isLoading } = useSession();
   
   const [archive, setArchive] = useState<DcArchiveProject | null>(null);
@@ -47,7 +49,7 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
         actor_role: actor.actor_role,
       }, { suppressGlobalError: true });
       
-      const currentArchive = (archRes.data ?? []).find(a => a.id === parseInt(params.id));
+      const currentArchive = (archRes.data ?? []).find(a => a.id === parseInt(id));
       if (!currentArchive) {
         throw new Error("Arsip tidak ditemukan");
       }
@@ -59,7 +61,7 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
         actor_role: actor.actor_role,
         project_id: currentArchive.project_id,
         entity_type: "DC_ARCHIVE_PROJECT",
-        stage: params.tipe,
+        stage: tipe,
       }, { suppressGlobalError: true });
       
       setDocuments(docsRes.data ?? []);
@@ -68,18 +70,18 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
     } finally {
       setLoading(false);
     }
-  }, [actor.actor_email, actor.actor_role, params.id, params.tipe]);
+  }, [actor.actor_email, actor.actor_role, id, tipe]);
 
   useEffect(() => {
     if (!isLoading && user) loadData();
   }, [isLoading, user, loadData]);
 
   const docConfig = useMemo(() => {
-    if (params.tipe === "RENOVASI") {
+    if (tipe === "RENOVASI") {
       return DC_DOCUMENT_CONFIG.filter(u => RENOVASI_ALLOWED_UTAMA.includes(u.title));
     }
     return DC_DOCUMENT_CONFIG;
-  }, [params.tipe]);
+  }, [tipe]);
   
   const formatKey = (jenisKey: string, type: string) => `${jenisKey}__${type.replace(/\//g, '_')}`;
 
@@ -95,7 +97,7 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
         project_id: archive.project_id,
         entity_type: "DC_ARCHIVE_PROJECT",
         document_type: compositeKey,
-        stage: params.tipe,
+        stage: tipe,
       }, [file]);
       
       // Reload docs
@@ -144,7 +146,7 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
     );
   }
 
-  const tipeLabel = params.tipe.charAt(0) + params.tipe.slice(1).toLowerCase();
+  const tipeLabel = tipe.charAt(0) + tipe.slice(1).toLowerCase();
 
   return (
     <main className="min-h-screen bg-[#f4f7f9] text-slate-900 pb-20 [font-family:var(--font-sans)]">
@@ -156,6 +158,8 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
           <Link href="/dc-development/documents" className="group flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white hover:text-red-700" title="Kembali">
             <ArrowLeft className="h-5 w-5 transition-transform group-hover:-translate-x-1" />
           </Link>
+          <Image src="/assets/Alfamart-Emblem.png" alt="Alfamart" width={94} height={42} className="h-[42px] w-auto drop-shadow-md brightness-0 invert" priority />
+          <div className="h-8 w-px bg-white/20" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold tracking-tight text-white">{archive.archive_name}</h1>
             <p className="text-xs font-medium text-red-100 flex items-center gap-2">
