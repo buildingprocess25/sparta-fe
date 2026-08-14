@@ -39,8 +39,9 @@ export default function DcDocumentsPage() {
   const { user, isLoading } = useSession();
   const [archives, setArchives] = useState<DcArchiveProject[]>([]);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [branchFilter, setBranchFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "lengkap" | "belum">("all");
+  const [tipeDcFilter, setTipeDcFilter] = useState("all"); // 'all', 'dc', 'warehouse'
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [message, setMessage] = useState("");
   
@@ -73,7 +74,7 @@ export default function DcDocumentsPage() {
               actor_role: actor.actor_role,
               search: query.trim() || undefined,
               branch_name: sub,
-              status: statusFilter,
+              status: statusFilter as any,
             }, { suppressGlobalError: true }).then((res) => res.data ?? [])
           )
         );
@@ -84,7 +85,7 @@ export default function DcDocumentsPage() {
           actor_role: actor.actor_role,
           search: query.trim() || undefined,
           branch_name: branchFilter === "all" ? undefined : branchFilter,
-          status: statusFilter,
+          status: statusFilter as any,
         }, { suppressGlobalError: true });
         data = res.data ?? [];
       }
@@ -104,23 +105,41 @@ export default function DcDocumentsPage() {
   const branchOptions = useMemo(() => {
     const branches = new Set<string>();
     archives.forEach((archive) => {
-      if (archive.branch_name) branches.add(isHOUser ? getParentBranch(archive.branch_name) : archive.branch_name);
+      if (archive.branch_name) branches.add(getParentBranch(archive.branch_name));
     });
-    if (branchFilter !== "all") branches.add(isHOUser ? getParentBranch(branchFilter) : branchFilter);
     return Array.from(branches).sort((a, b) => a.localeCompare(b));
-  }, [archives, branchFilter, isHOUser]);
+  }, [archives]);
+
+  const filteredArchives = useMemo(() => {
+    return archives.filter((item) => {
+      const isWarehouse = tipeDcFilter === "warehouse";
+      const searchTipe = isWarehouse ? "wh" : tipeDcFilter.toLowerCase();
+      
+      const matchesTipe = tipeDcFilter === "all" 
+        ? true 
+        : item.archive_name.toLowerCase().includes(searchTipe);
+      const matchesStatus = statusFilter === "all"
+        ? true
+        : (statusFilter === "lengkap" ? item.jumlah_dokumen > 0 : item.jumlah_dokumen === 0);
+      const matchesBranch = branchFilter === "all"
+        ? true
+        : getParentBranch(item.branch_name) === branchFilter;
+      
+      return matchesTipe && matchesStatus && matchesBranch;
+    });
+  }, [archives, tipeDcFilter, statusFilter, branchFilter]);
 
   const totals = useMemo(() => {
-    const complete = archives.filter(a => a.jumlah_dokumen > 0).length; // Simplify check for now
-    const branches = new Set(archives.map((item) => item.branch_name).filter(Boolean));
+    const complete = filteredArchives.filter(a => a.jumlah_dokumen > 0).length;
+    const branches = new Set(filteredArchives.map((item) => getParentBranch(item.branch_name)).filter(Boolean));
     return {
-      total: archives.length,
+      total: filteredArchives.length,
       complete,
-      incomplete: archives.length - complete,
+      incomplete: filteredArchives.length - complete,
       branches: branches.size,
-      progress: archives.length > 0 ? Math.round((complete / archives.length) * 100) : 0,
+      progress: filteredArchives.length > 0 ? Math.round((complete / filteredArchives.length) * 100) : 0,
     };
-  }, [archives]);
+  }, [filteredArchives]);
 
   if (isLoading || !user) {
     return (
@@ -171,19 +190,29 @@ export default function DcDocumentsPage() {
 
           {/* FILTER & TOOLS */}
           <section className="rounded-2xl border border-slate-200/60 bg-white/60 p-5 shadow-sm backdrop-blur-xl">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-              <div className="relative min-w-[280px] flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  className="h-11 rounded-xl border-slate-200 bg-white pl-11 shadow-sm transition-colors focus-visible:ring-red-500"
                   placeholder="Cari kode, nama DC, atau lokasi..."
+                  className="h-11 w-full rounded-xl border-slate-200 bg-white pl-10 pr-4 shadow-sm focus:border-red-500 focus:ring-red-500"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Select value={statusFilter} onValueChange={(value: "all" | "lengkap" | "belum") => setStatusFilter(value)}>
-                  <SelectTrigger className="h-11 w-full rounded-xl border-slate-200 bg-white shadow-sm lg:w-[180px]">
+              <div className="flex shrink-0 items-center gap-3">
+                <Select value={tipeDcFilter} onValueChange={setTipeDcFilter}>
+                  <SelectTrigger className="h-11 w-[160px] rounded-xl border-slate-200 bg-white shadow-sm">
+                    <SelectValue placeholder="Tipe Gedung" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Tipe</SelectItem>
+                    <SelectItem value="dc">DC</SelectItem>
+                    <SelectItem value="warehouse">Warehouse</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-11 w-[160px] rounded-xl border-slate-200 bg-white shadow-sm">
                     <SelectValue placeholder="Semua Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -223,7 +252,7 @@ export default function DcDocumentsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {archives.map((archive, index) => {
+                  {filteredArchives.map((archive, index) => {
                     const hasDocs = archive.jumlah_dokumen > 0;
                     return (
                       <tr key={archive.id} className="group transition-colors hover:bg-red-50/40">

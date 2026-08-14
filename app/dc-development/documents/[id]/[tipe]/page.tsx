@@ -158,7 +158,7 @@ export default function DcDocumentDetailPage() {
           <Link href="/dc-development/documents" className="group flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white hover:text-red-700" title="Kembali">
             <ArrowLeft className="h-5 w-5 transition-transform group-hover:-translate-x-1" />
           </Link>
-          <Image src="/assets/Alfamart-Emblem.png" alt="Alfamart" width={94} height={42} className="h-[42px] w-auto drop-shadow-md brightness-0 invert" priority />
+          <Image src="/assets/Alfamart-Emblem.png" alt="Alfamart" width={94} height={42} className="h-[42px] w-auto drop-shadow-md" priority />
           <div className="h-8 w-px bg-white/20" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold tracking-tight text-white">{archive.archive_name}</h1>
