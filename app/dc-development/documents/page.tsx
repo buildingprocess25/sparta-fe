@@ -138,7 +138,7 @@ export default function DcDocumentsPage() {
           <Link href="/dc-development" className="group flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white hover:text-red-700" title="Kembali">
             <ArrowLeft className="h-5 w-5 transition-transform group-hover:-translate-x-1" />
           </Link>
-          <Image src="/assets/Alfamart-Emblem.png" alt="Alfamart" width={94} height={42} className="h-[42px] w-auto drop-shadow-md brightness-0 invert" priority />
+          <Image src="/assets/Alfamart-Emblem.png" alt="Alfamart" width={94} height={42} className="h-[42px] w-auto drop-shadow-md" priority />
           <div className="h-8 w-px bg-white/20" />
           <h1 className="text-xl font-bold tracking-tight text-white lg:text-2xl">Penyimpanan Dokumen DC</h1>
           <Button
@@ -285,42 +285,41 @@ export default function DcDocumentsPage() {
       {/* SELECTION MODAL */}
       <Dialog open={!!selectedArchiveForType} onOpenChange={(open) => !open && setSelectedArchiveForType(null)}>
         <DialogContent className="max-w-3xl overflow-hidden rounded-[2rem] border-0 p-0 shadow-2xl">
-          <div className="bg-slate-900 p-8 text-center text-white relative overflow-hidden">
-            <div className="absolute -left-12 -top-12 h-40 w-40 rounded-full bg-red-600/30 blur-3xl"></div>
-            <div className="absolute -bottom-12 -right-12 h-40 w-40 rounded-full bg-blue-600/30 blur-3xl"></div>
-            <h2 className="relative z-10 text-2xl font-bold tracking-tight">{selectedArchiveForType?.archive_name}</h2>
-            <p className="relative z-10 mt-2 text-slate-300">Pilih tipe pekerjaan untuk mengelola dokumen terkait.</p>
+          <div className="bg-gradient-to-br from-red-700 to-red-600 p-8 text-center text-white relative overflow-hidden">
+            <div className="absolute inset-0 bg-[url('/assets/pattern-light.svg')] opacity-10"></div>
+            <h2 className="relative z-10 text-3xl font-black tracking-tight">{selectedArchiveForType?.archive_name}</h2>
+            <p className="relative z-10 mt-2 text-red-100 font-medium">Pilih tipe pekerjaan untuk mengelola dokumen terkait.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 bg-slate-50 p-8">
             <button
               onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/RENOVASI`)}
-              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
             >
-              <div className="mb-4 inline-flex rounded-2xl bg-amber-100 p-4 text-amber-600 transition-transform group-hover:scale-110">
+              <div className="mb-4 inline-flex rounded-2xl bg-red-50 p-4 text-red-600 transition-transform group-hover:scale-110">
                 <Hammer className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Renovasi</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500">4 Kategori Utama</p>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">4 Kategori Utama</p>
             </button>
             <button
               onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/PERLUASAN`)}
-              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
             >
-              <div className="mb-4 inline-flex rounded-2xl bg-blue-100 p-4 text-blue-600 transition-transform group-hover:scale-110">
+              <div className="mb-4 inline-flex rounded-2xl bg-red-50 p-4 text-red-600 transition-transform group-hover:scale-110">
                 <Maximize className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Perluasan</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500">Semua Kategori</p>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
             </button>
             <button
               onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/PEMBANGUNAN`)}
-              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-100 bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-red-500 hover:shadow-xl focus:outline-none"
             >
-              <div className="mb-4 inline-flex rounded-2xl bg-emerald-100 p-4 text-emerald-600 transition-transform group-hover:scale-110">
+              <div className="mb-4 inline-flex rounded-2xl bg-red-50 p-4 text-red-600 transition-transform group-hover:scale-110">
                 <Building2 className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Pembangunan</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500">Semua Kategori</p>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
             </button>
           </div>
         </DialogContent>

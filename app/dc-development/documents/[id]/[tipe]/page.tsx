@@ -180,12 +180,12 @@ export default function DcDocumentDetailPage() {
               <AccordionItem key={utama.id} value={utama.id} className="border-0 rounded-2xl bg-white shadow-sm overflow-hidden">
                 <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
                   <div className="flex items-center gap-4 text-left">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 font-black shrink-0">
-                      {utama.id}
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 font-black shrink-0 text-lg">
+                      {uIdx + 1}
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-slate-800">{utama.title}</h2>
-                      <p className="text-xs text-slate-500 font-medium">Kategori Dokumen Utama</p>
+                      <h3 className="text-lg font-bold text-slate-800 uppercase tracking-tight">{utama.title}</h3>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5 uppercase tracking-wider">Kategori Dokumen Utama</p>
                     </div>
                   </div>
                 </AccordionTrigger>
@@ -252,32 +252,29 @@ export default function DcDocumentDetailPage() {
           
         </div>
 
-        {/* RIGHT SIDEBAR - LEGEND */}
-        <div className="w-full lg:w-[320px] shrink-0 sticky top-[112px]">
-          <Card className="border-0 bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-xl rounded-2xl overflow-hidden">
-            <div className="p-5 border-b border-white/10 flex items-center gap-3">
-              <div className="rounded-lg bg-white/10 p-2">
-                <Info className="h-5 w-5 text-blue-300" />
+        {/* RIGHT SIDEBAR / LEGEND */}
+        <div className="w-full lg:w-80 shrink-0">
+          <div className="sticky top-28 rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+            <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="rounded-xl bg-red-50 p-2.5">
+                <Info className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <h3 className="font-bold">Legenda Singkatan</h3>
-                <p className="text-xs text-slate-400">Panduan arti singkatan dokumen</p>
+                <h3 className="font-bold text-slate-900">Legenda Singkatan</h3>
+                <p className="text-xs font-medium text-slate-500 mt-0.5">Panduan arti singkatan dokumen</p>
               </div>
             </div>
-            <CardContent className="p-0">
-              <div className="max-h-[calc(100vh-250px)] overflow-y-auto px-5 py-2 custom-scrollbar">
-                <ul className="space-y-3 py-3">
-                  {DC_DOCUMENT_LEGENDS.map((leg, idx) => (
-                    <li key={idx} className="text-sm">
-                      <span className="font-bold text-blue-300 block">{leg.abbrev}</span>
-                      <span className="text-slate-300 text-xs leading-relaxed">{leg.meaning}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+              {DC_DOCUMENT_LEGENDS.map(leg => (
+                <div key={leg.abbrev}>
+                  <div className="font-bold text-red-600">{leg.abbrev}</div>
+                  <div className="text-sm leading-tight text-slate-600 mt-1">{leg.meaning}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+
       </div>
     </main>
   );
