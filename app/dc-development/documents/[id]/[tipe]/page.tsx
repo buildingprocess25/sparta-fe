@@ -208,7 +208,7 @@ export default function DcDocumentDetailPage() {
           <div className="ml-auto flex items-center gap-4">
             <div className="flex flex-col items-end">
               <span className="text-[11px] font-medium text-red-200 uppercase tracking-wider">Progress Dokumen</span>
-              <span className="text-lg font-bold text-white">{documents.length} / {getTotalRequiredDcDocumentSlots(tipe)}</span>
+              <span className="text-lg font-bold text-white">{new Set(documents.map(d => (d.document_type || "").split('__')[0])).size} / {getTotalRequiredDcDocumentSlots(tipe)}</span>
             </div>
           </div>
         </div>

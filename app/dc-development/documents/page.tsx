@@ -35,6 +35,29 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+const MiniProgress = ({ label, current, total }: { label: string; current: number; total: number }) => {
+  const isZero = current === 0;
+  const isComplete = current === total && total > 0;
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  
+  return (
+    <div className={`flex items-center gap-2.5 transition-opacity ${isZero ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}>
+      <span className="w-[85px] text-[10px] font-bold tracking-wider uppercase text-slate-500 truncate" title={label}>
+        {label}
+      </span>
+      <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+        <div 
+          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-emerald-500' : 'bg-red-500'}`} 
+          style={{ width: `${pct}%` }} 
+        />
+      </div>
+      <span className={`w-9 text-right text-[10px] font-bold ${isZero ? 'text-slate-400' : 'text-slate-800'}`}>
+        {current}/{total}
+      </span>
+    </div>
+  );
+};
+
 export default function DcDocumentsPage() {
   const router = useRouter();
   const { user, isLoading } = useSession();
@@ -270,19 +293,22 @@ export default function DcDocumentsPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-5">
-                          <div className="flex flex-col gap-1.5 min-w-[140px]">
-                            <div className="flex items-center justify-between text-[11px] font-medium">
-                              <span className="text-slate-500">Pembangunan</span>
-                              <span className={archive.docs_pembangunan > 0 ? "text-emerald-600 font-bold" : "text-slate-400"}>{archive.docs_pembangunan || 0}/{getTotalRequiredDcDocumentSlots('Pembangunan')}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] font-medium">
-                              <span className="text-slate-500">Renovasi</span>
-                              <span className={archive.docs_renovasi > 0 ? "text-emerald-600 font-bold" : "text-slate-400"}>{archive.docs_renovasi || 0}/{getTotalRequiredDcDocumentSlots('Renovasi')}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] font-medium">
-                              <span className="text-slate-500">Perluasan</span>
-                              <span className={archive.docs_perluasan > 0 ? "text-emerald-600 font-bold" : "text-slate-400"}>{archive.docs_perluasan || 0}/{getTotalRequiredDcDocumentSlots('Perluasan')}</span>
-                            </div>
+                          <div className="flex flex-col gap-2 min-w-[170px]">
+                            <MiniProgress 
+                              label="Pembangunan" 
+                              current={archive.docs_pembangunan || 0} 
+                              total={getTotalRequiredDcDocumentSlots('Pembangunan')} 
+                            />
+                            <MiniProgress 
+                              label="Renovasi" 
+                              current={archive.docs_renovasi || 0} 
+                              total={getTotalRequiredDcDocumentSlots('Renovasi')} 
+                            />
+                            <MiniProgress 
+                              label="Perluasan" 
+                              current={archive.docs_perluasan || 0} 
+                              total={getTotalRequiredDcDocumentSlots('Perluasan')} 
+                            />
                           </div>
                         </td>
                         <td className="px-6 py-5 text-right">

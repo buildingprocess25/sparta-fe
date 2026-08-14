@@ -304,7 +304,7 @@ export const getTotalRequiredDcDocumentSlots = (tipe: "Renovasi" | "Pembangunan"
     }
     utama.details.forEach(detail => {
       detail.jenis.forEach(j => {
-        total += j.slots.length;
+        total += 1; // Count unique items (jenis), not individual upload slots
       });
     });
   });
