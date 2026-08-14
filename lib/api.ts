@@ -5725,3 +5725,28 @@ export const processPpApproval2 = async (id: number, payload: {
     return result;
 };
 
+
+export const exportDcData = async (id: number, format: "csv" | "excel" | "pdf", actorRole: string, actorEmail: string): Promise<boolean> => {
+    const params = new URLSearchParams({ actor_role: actorRole, actor_email: actorEmail });
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${id}/export/${format}?${params}`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Gagal mengunduh laporan");
+    }
+    const disposition = res.headers.get("Content-Disposition");
+    let filename = `Laporan_DC.${format === "excel" ? "xlsx" : format}`;
+    if (disposition) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+    }
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+    return true;
+};

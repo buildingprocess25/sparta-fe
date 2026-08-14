@@ -17,15 +17,20 @@ import {
   Eye,
   Info,
   Trash2,
-  MessageSquare
+  MessageSquare,
+  DownloadCloud,
+  FileText,
+  FileSpreadsheet,
+  File
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, type DcArchiveProject, type DcDocument } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, type DcArchiveProject, type DcDocument } from "@/lib/api";
 import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, getTotalRequiredDcDocumentSlots, type DokumenUtama } from "@/lib/dc-document.config";
 
 export default function DcDocumentDetailPage() {
@@ -173,6 +178,15 @@ export default function DcDocumentDetailPage() {
     );
   }
 
+  const handleExport = async (format: "csv" | "excel" | "pdf") => {
+    try {
+      await exportDcData(Number(id), format, user?.role || "", user?.email || "");
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Gagal mengunduh laporan");
+    }
+  };
+
   if (!archive) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
@@ -205,7 +219,30 @@ export default function DcDocumentDetailPage() {
               {archive.branch_name}
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-red-400 bg-red-700/50 text-white hover:bg-red-700 hover:text-white transition-colors">
+                  <DownloadCloud className="mr-2 h-4 w-4" />
+                  Ekspor Laporan
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-white border-slate-200 shadow-xl">
+                <DropdownMenuItem onClick={() => handleExport("csv")} className="cursor-pointer hover:bg-slate-50 font-medium text-slate-700">
+                  <FileText className="mr-2 h-4 w-4 text-slate-500" />
+                  Unduh CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("excel")} className="cursor-pointer hover:bg-slate-50 font-medium text-slate-700">
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                  Unduh Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="cursor-pointer hover:bg-slate-50 font-medium text-slate-700">
+                  <File className="mr-2 h-4 w-4 text-red-500" />
+                  Unduh PDF (Laporan)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <div className="flex flex-col items-end">
               <span className="text-[11px] font-medium text-red-200 uppercase tracking-wider">Progress Dokumen</span>
               <span className="text-lg font-bold text-white">{new Set(documents.map(d => (d.document_type || "").split('__')[0])).size} / {getTotalRequiredDcDocumentSlots(tipe)}</span>
