@@ -15,13 +15,14 @@ import {
   Loader2,
   UploadCloud,
   Eye,
-  Info
+  Info,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, type DcArchiveProject, type DcDocument } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, type DcArchiveProject, type DcDocument } from "@/lib/api";
 import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, type DokumenUtama } from "@/lib/dc-document.config";
 
 export default function DcDocumentDetailPage() {
@@ -120,10 +121,21 @@ export default function DcDocumentDetailPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && activeUploadContext) {
-      handleFileUpload(activeUploadContext.key, activeUploadContext.type, file);
+    if (!file || !activeUploadContext) return;
+    handleFileUpload(activeUploadContext.key, activeUploadContext.type, file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDelete = async (docId: number) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus dokumen ini?")) return;
+    try {
+      await deleteDcDocument(docId, actor);
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Gagal menghapus dokumen.");
     }
   };
 
@@ -217,13 +229,17 @@ export default function DcDocumentDetailPage() {
                                   const isUploading = uploadingKey === compKey;
                                   
                                   return (
-                                    <div key={compKey} className="relative group/slot">
+                                    <div key={compKey} className="relative group/slot flex items-center">
                                       {existingDoc ? (
-                                        <a href={existingDoc.link_dokumen ?? "#"} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                                          <CheckCircle2 className="h-4 w-4" />
-                                          {slot.type}
-                                          <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></div>
-                                        </a>
+                                        <div className="flex items-center gap-1.5">
+                                          <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            {slot.type}
+                                          </a>
+                                          <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
+                                            <Trash2 className="h-4 w-4" />
+                                          </button>
+                                        </div>
                                       ) : isUploading ? (
                                         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -253,25 +269,23 @@ export default function DcDocumentDetailPage() {
         </div>
 
         {/* RIGHT SIDEBAR / LEGEND */}
-        <div className="w-full lg:w-80 shrink-0">
-          <div className="sticky top-28 rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
-            <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="rounded-xl bg-red-50 p-2.5">
-                <Info className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900">Legenda Singkatan</h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">Panduan arti singkatan dokumen</p>
-              </div>
+        <div className="w-full lg:w-80 shrink-0 sticky top-28 rounded-2xl bg-white p-6 shadow-xl border border-slate-200 h-fit">
+          <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4">
+            <div className="rounded-xl bg-red-50 p-2.5">
+              <Info className="h-5 w-5 text-red-600" />
             </div>
-            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-              {DC_DOCUMENT_LEGENDS.map(leg => (
-                <div key={leg.abbrev}>
-                  <div className="font-bold text-red-600">{leg.abbrev}</div>
-                  <div className="text-sm leading-tight text-slate-600 mt-1">{leg.meaning}</div>
-                </div>
-              ))}
+            <div>
+              <h3 className="font-bold text-slate-900">Legenda Singkatan</h3>
+              <p className="text-xs font-medium text-slate-500 mt-0.5">Panduan arti singkatan dokumen</p>
             </div>
+          </div>
+          <div className="space-y-4 max-h-[calc(100vh-250px)] overflow-y-auto pr-2 custom-scrollbar">
+            {DC_DOCUMENT_LEGENDS.map(leg => (
+              <div key={leg.abbrev}>
+                <div className="font-bold text-red-600">{leg.abbrev}</div>
+                <div className="text-sm leading-tight text-slate-600 mt-1">{leg.meaning}</div>
+              </div>
+            ))}
           </div>
         </div>
 
