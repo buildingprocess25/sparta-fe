@@ -295,3 +295,18 @@ export const RENOVASI_ALLOWED_UTAMA = [
   'PEKERJAAN MEZANIN',
   'PEKERJAAN HYDRANT'
 ];
+
+export const getTotalRequiredDcDocumentSlots = (tipe: "Renovasi" | "Pembangunan" | "Perluasan" | string): number => {
+  let total = 0;
+  DC_DOCUMENT_CONFIG.forEach(utama => {
+    if (tipe === "Renovasi" && !RENOVASI_ALLOWED_UTAMA.includes(utama.title)) {
+      return;
+    }
+    utama.details.forEach(detail => {
+      detail.jenis.forEach(j => {
+        total += j.slots.length;
+      });
+    });
+  });
+  return total;
+};

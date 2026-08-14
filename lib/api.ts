@@ -333,6 +333,9 @@ export type DcArchiveProject = {
     created_at: string;
     updated_at: string;
     jumlah_dokumen: number;
+    docs_pembangunan: number;
+    docs_renovasi: number;
+    docs_perluasan: number;
     kategori_counts?: Record<string, number>;
 };
 

@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSession } from "@/context/SessionContext";
 import { fetchDcArchiveProjects, type DcArchiveProject } from "@/lib/api";
+import { getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 import { canViewAllBranches, getParentBranch, getSubBranchesForParent } from "@/lib/constants";
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -269,15 +270,20 @@ export default function DcDocumentsPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-5">
-                          {hasDocs ? (
-                            <Badge className="rounded-md border-transparent bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
-                              Ada Dokumen
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="rounded-md border-amber-200 bg-amber-50 text-amber-600">
-                              Kosong
-                            </Badge>
-                          )}
+                          <div className="flex flex-col gap-1.5 min-w-[140px]">
+                            <div className="flex items-center justify-between text-[11px] font-medium">
+                              <span className="text-slate-500">Pembangunan</span>
+                              <span className={archive.docs_pembangunan > 0 ? "text-emerald-600 font-bold" : "text-slate-400"}>{archive.docs_pembangunan || 0}/{getTotalRequiredDcDocumentSlots('Pembangunan')}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-medium">
+                              <span className="text-slate-500">Renovasi</span>
+                              <span className={archive.docs_renovasi > 0 ? "text-emerald-600 font-bold" : "text-slate-400"}>{archive.docs_renovasi || 0}/{getTotalRequiredDcDocumentSlots('Renovasi')}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-medium">
+                              <span className="text-slate-500">Perluasan</span>
+                              <span className={archive.docs_perluasan > 0 ? "text-emerald-600 font-bold" : "text-slate-400"}>{archive.docs_perluasan || 0}/{getTotalRequiredDcDocumentSlots('Perluasan')}</span>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-5 text-right">
                           <Button size="sm" className="rounded-lg bg-white font-semibold text-red-600 shadow-sm border border-red-100 transition-all hover:bg-red-600 hover:text-white" onClick={() => setSelectedArchiveForType(archive)}>

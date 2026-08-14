@@ -16,14 +16,17 @@ import {
   UploadCloud,
   Eye,
   Info,
-  Trash2
+  Trash2,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, type DcArchiveProject, type DcDocument } from "@/lib/api";
-import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, type DokumenUtama } from "@/lib/dc-document.config";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, type DcArchiveProject, type DcDocument } from "@/lib/api";
+import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, getTotalRequiredDcDocumentSlots, type DokumenUtama } from "@/lib/dc-document.config";
 
 export default function DcDocumentDetailPage() {
   const router = useRouter();
@@ -34,6 +37,11 @@ export default function DcDocumentDetailPage() {
   const [documents, setDocuments] = useState<DcDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [editingNoteDoc, setEditingNoteDoc] = useState<DcDocument | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
   
   const actor = useMemo(() => ({
     actor_email: user?.email || "",
@@ -139,7 +147,25 @@ export default function DcDocumentDetailPage() {
     }
   };
 
-  if (isLoading || (loading && !archive)) {
+  const handleSaveNote = async () => {
+    if (!editingNoteDoc) return;
+    setSavingNote(true);
+    try {
+      await updateDcDocument(editingNoteDoc.id, {
+        ...actor,
+        notes: noteText
+      });
+      await loadData();
+      setNoteModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Gagal menyimpan catatan.");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
         <Loader2 className="h-8 w-8 animate-spin text-red-600" />
@@ -178,6 +204,12 @@ export default function DcDocumentDetailPage() {
               <span className="bg-red-800/50 px-2 py-0.5 rounded uppercase tracking-wider">{tipeLabel}</span>
               {archive.branch_name}
             </p>
+          </div>
+          <div className="ml-auto flex items-center gap-4">
+            <div className="flex flex-col items-end">
+              <span className="text-[11px] font-medium text-red-200 uppercase tracking-wider">Progress Dokumen</span>
+              <span className="text-lg font-bold text-white">{documents.length} / {getTotalRequiredDcDocumentSlots(tipe)}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -229,16 +261,26 @@ export default function DcDocumentDetailPage() {
                                   const isUploading = uploadingKey === compKey;
                                   
                                   return (
-                                    <div key={compKey} className="relative group/slot flex items-center">
+                                    <div key={compKey} className="relative group/slot flex flex-col items-end gap-1">
                                       {existingDoc ? (
-                                        <div className="flex items-center gap-1.5">
-                                          <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                            {slot.type}
-                                          </a>
-                                          <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
-                                            <Trash2 className="h-4 w-4" />
-                                          </button>
+                                        <div className="flex flex-col gap-1 w-full items-end">
+                                          <div className="flex items-center gap-1.5">
+                                            <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
+                                              <CheckCircle2 className="h-4 w-4" />
+                                              {slot.type}
+                                            </a>
+                                            <button onClick={() => { setEditingNoteDoc(existingDoc); setNoteText(existingDoc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
+                                              <MessageSquare className="h-4 w-4" />
+                                            </button>
+                                            <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                          </div>
+                                          {existingDoc.notes && (
+                                            <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1 max-w-[200px] truncate" title={existingDoc.notes}>
+                                              <span className="font-semibold text-slate-600">Catatan:</span> {existingDoc.notes}
+                                            </div>
+                                          )}
                                         </div>
                                       ) : isUploading ? (
                                         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
@@ -290,6 +332,31 @@ export default function DcDocumentDetailPage() {
         </div>
 
       </div>
+
+      {/* DIALOG CATATAN */}
+      <Dialog open={noteModalOpen} onOpenChange={setNoteModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Catatan Dokumen</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Textarea 
+              placeholder="Tulis catatan opsional..."
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              className="min-h-[120px] resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteModalOpen(false)}>Batal</Button>
+            <Button onClick={handleSaveNote} disabled={savingNote} className="bg-red-600 hover:bg-red-700 text-white">
+              {savingNote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </main>
   );
 }
