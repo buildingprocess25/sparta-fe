@@ -202,7 +202,7 @@ export default function DcDocumentDetailPage({ params }: { params: { id: string;
                           {detail.jenis.map((jenis, jIdx) => (
                             <div key={jenis.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:border-slate-200 hover:bg-white">
                               <div className="flex items-start gap-3">
-                                <span className="mt-0.5 text-sm font-bold text-slate-400 w-6 shrink-0">{jenis.no}.</span>
+                                <span className="mt-0.5 text-sm font-bold text-slate-400 w-6 shrink-0">{jIdx + 1}.</span>
                                 <p className="font-semibold text-slate-700 leading-tight">{jenis.title}</p>
                               </div>
                               
