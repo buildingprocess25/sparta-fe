@@ -5763,7 +5763,8 @@ export async function exportGlobalDcData(
   params.append('actor_email', actor.actor_email);
   params.append('actor_role', actor.actor_role);
 
-  const url = `${API_URL}/dc-development/archive-projects/export/${format}?${params.toString()}`;
+  const base = API_URL.replace(/\/$/, "");
+  const url = `${base}/api/dc-development/archive-projects/export/${format}?${params.toString()}`;
   
   const response = await fetch(url, {
     method: 'GET',
