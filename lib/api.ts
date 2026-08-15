@@ -5766,7 +5766,7 @@ export async function exportGlobalDcData(
   const base = API_URL.replace(/\/$/, "");
   const url = `${base}/api/dc-development/archive-projects/export/${format}?${params.toString()}`;
   
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method: 'GET',
     headers: {
       'Accept': format === 'csv' ? 'text/csv' : format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
