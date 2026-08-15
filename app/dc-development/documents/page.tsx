@@ -26,8 +26,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, type DcArchiveProject } from "@/lib/api";
+import { fetchDcArchiveProjects, exportGlobalDcData, type DcArchiveProject } from "@/lib/api";
 import { getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 import { canViewAllBranches, getParentBranch, getSubBranchesForParent } from "@/lib/constants";
 
@@ -75,6 +76,22 @@ export default function DcDocumentsPage() {
     actor_email: user?.email || "",
     actor_role: user?.role || "",
   }), [user]);
+
+  
+  const handleExportGlobal = async (format: 'csv' | 'excel' | 'pdf') => {
+    if (!actor.actor_email || !actor.actor_role) return;
+    try {
+      const queryParams: any = {
+        search: query.trim() || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        branch_name: branchFilter !== 'all' ? branchFilter : undefined,
+      };
+      
+      await exportGlobalDcData(queryParams, actor, format);
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Gagal mengunduh file ekspor"));
+    }
+  };
 
   const isHOUser = useMemo(() => (
     canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || user?.cabang?.toUpperCase() === "HEAD OFFICE"
@@ -256,6 +273,29 @@ export default function DcDocumentsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-11 rounded-xl border-slate-200 bg-white font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:text-red-600">
+                      <Download className="mr-2 h-4 w-4" />
+                      Ekspor Data
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[180px] rounded-xl">
+                    <DropdownMenuItem onClick={() => handleExportGlobal('csv')} className="cursor-pointer gap-2 py-2">
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      Unduh CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportGlobal('excel')} className="cursor-pointer gap-2 py-2">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                      Unduh Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportGlobal('pdf')} className="cursor-pointer gap-2 py-2">
+                      <FileDown className="h-4 w-4 text-red-500" />
+                      Unduh PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </section>
