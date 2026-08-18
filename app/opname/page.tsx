@@ -229,6 +229,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [instruksiToast, setInstruksiToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [submittingItemId, setSubmittingItemId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [opnameItemSearchQuery, setOpnameItemSearchQuery] = useState('');
     const [activeView, setActiveView] = useState<'form' | 'history'>('form');
     const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
     const [notificationTarget, setNotificationTarget] = useState<OpnameNotificationTarget | null>(null);
@@ -345,7 +346,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     const itemKey = getWorkItemKey(item);
                     const ex = existingData.filter(o => getOpnameItemKey(o) === itemKey).sort((a,b) => Number(b.id) - Number(a.id))[0];
                     initialInputs[item.id] = {
-                        volume_akhir: ex ? String(ex.volume_akhir) : String(item.volume || 0),
+                        volume_akhir: ex ? String(ex.volume_akhir) : "0",
                         desain: ex?.desain || '',
                         kualitas: ex?.kualitas || '',
                         spesifikasi: ex?.spesifikasi || '',
@@ -500,6 +501,18 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         });
         return Array.from(map.entries()).map(([name, items]) => ({ name, items })).filter(g => g.items.length > 0);
     }, [rabItems, existingOpname]);
+
+    const filteredGroupedItems = useMemo(() => {
+        if (!opnameItemSearchQuery.trim()) return groupedItems;
+        const term = opnameItemSearchQuery.toLowerCase();
+        return groupedItems.map(g => {
+            const matchCat = g.name.toLowerCase().includes(term);
+            const filteredItems = g.items.filter(item => 
+                item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
+            );
+            return { ...g, items: filteredItems };
+        }).filter(g => g.items.length > 0);
+    }, [groupedItems, opnameItemSearchQuery]);
 
     // Helper: check if an item was previously rejected
     const getRejectedOpname = (rabItemId: number) => {
@@ -1095,14 +1108,34 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             )}
                                         </div>
 
+                                        {groupedItems.length > 0 && (
+                                            <div className="relative group mb-4">
+                                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Cari kategori atau item pekerjaan..."
+                                                    value={opnameItemSearchQuery}
+                                                    onChange={(e) => setOpnameItemSearchQuery(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm font-medium transition-all"
+                                                />
+                                            </div>
+                                        )}
+
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
                                                 <Info className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                                <p className="font-medium">Tidak ada item pekerjaan.</p>
+                                                <h4 className="font-bold text-slate-600">Semua Item Selesai</h4>
+                                                <p className="text-sm mt-1">Tidak ada item yang perlu diisi volume akhirnya saat ini.</p>
+                                            </div>
+                                        ) : filteredGroupedItems.length === 0 ? (
+                                            <div className="py-12 text-center text-slate-400">
+                                                <Search className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                                                <h4 className="font-bold text-slate-600">Pencarian Tidak Ditemukan</h4>
+                                                <p className="text-sm mt-1">Tidak ada item yang cocok dengan "{opnameItemSearchQuery}".</p>
                                             </div>
                                         ) : (
-                                            <div className="space-y-3">
-                                                {groupedItems.map((group, gi) => {
+                                            <div className="space-y-4">
+                                                {filteredGroupedItems.map((group, gi) => {
                                                     const isExpanded = expandedCats.has(group.name);
                                                     const isIlGroup = group.name.startsWith('[IL]');
                                                     return (

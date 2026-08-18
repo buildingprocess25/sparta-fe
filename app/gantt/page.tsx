@@ -4742,6 +4742,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     const [opnameInputs, setOpnameInputs] = useState<Record<string, any>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasOpnameFinal, setHasOpnameFinal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
     const [completedPengawasanCount, setCompletedPengawasanCount] = useState(0);
     const isLastDay = spkInfo && activeHeaderClick && (activeHeaderClick.dayIndex + 1 >= spkInfo.duration);
     const canGenerateSerahTerima = hasOpnameFinal && completedItems.length === 0;
@@ -4918,7 +4919,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         const key = item.source_key || item.id;
                         const ex = item.existing_opname;
                         inputs[key] = {
-                            volume_akhir: ex ? String(ex.volume_akhir) : String(item.volume_rab),
+                            volume_akhir: ex ? String(ex.volume_akhir) : "0",
                             desain: ex?.desain || '',
                             kualitas: ex?.kualitas || '',
                             spesifikasi: ex?.spesifikasi || '',
@@ -4962,6 +4963,18 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         });
         return Array.from(map.entries()).map(([name, items]) => ({ name, items }));
     }, [completedItems]);
+
+    const filteredGroupedByCategory = useMemo(() => {
+        if (!searchQuery.trim()) return groupedByCategory;
+        const term = searchQuery.toLowerCase();
+        return groupedByCategory.map(group => {
+            const matchCat = group.name.toLowerCase().includes(term);
+            const filteredItems = group.items.filter((item: any) => 
+                item.jenis_pekerjaan?.toLowerCase().includes(term) || matchCat
+            );
+            return { ...group, items: filteredItems };
+        }).filter(group => group.items.length > 0);
+    }, [groupedByCategory, searchQuery]);
 
     // Tambahan Validasi isSubmitValid
     const isSubmitValid = useMemo(() => {
@@ -5144,6 +5157,17 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {!isLoading && groupedByCategory.length > 0 && (
+                        <div className="relative group sticky top-0 z-20">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
+                            <Input 
+                                placeholder="Cari kategori atau item pekerjaan..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-12 pr-4 py-3.5 h-auto w-full bg-white/80 backdrop-blur-md border-slate-200/60 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:border-blue-500 transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-medium"
+                            />
+                        </div>
+                    )}
                     {isLoading ? (
                         <div className="py-20 flex flex-col items-center justify-center text-slate-500">
                             <Loader2 className="w-10 h-10 animate-spin text-slate-400 mb-2" />
@@ -5174,8 +5198,14 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                 </>
                             )}
                         </div>
+                    ) : filteredGroupedByCategory.length === 0 ? (
+                        <div className="py-20 flex flex-col items-center justify-center text-slate-500 text-center">
+                            <Search className="w-12 h-12 mb-3 text-slate-300" />
+                            <p className="font-semibold text-lg text-slate-800">Pencarian Tidak Ditemukan</p>
+                            <p className="text-sm mt-2">Tidak ada item yang cocok dengan "{searchQuery}".</p>
+                        </div>
                     ) : (
-                        groupedByCategory.map((category, i) => {
+                        filteredGroupedByCategory.map((category, i) => {
                             const isIlCategory = String(category.name || '').startsWith('[IL]');
                             return (
                                 <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden mb-6 ${isIlCategory ? 'border-indigo-200' : 'border-slate-200'}`}>
