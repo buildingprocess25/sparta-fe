@@ -3461,6 +3461,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [nextHandoverDate, setNextHandoverDate] = useState('');
     const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const getEffectiveWorkStart = useCallback(() => {
         const spkStart = parseDateAny(spkInfo?.startDate || '');
@@ -3890,6 +3891,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             };
         }).filter((d: any) => d.items.length > 0);
     }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys, getEffectiveWorkStart]);
+
+    const filteredMemoConfig = useMemo(() => {
+        if (!searchQuery.trim()) return memoConfig;
+        const term = searchQuery.toLowerCase();
+        return memoConfig.map((d: any) => {
+            const matchCat = d.category.name.toLowerCase().includes(term);
+            const filteredItems = d.items.filter((item: any) => 
+                item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
+            );
+            return { ...d, items: filteredItems };
+        }).filter((d: any) => d.items.length > 0);
+    }, [memoConfig, searchQuery]);
+
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
@@ -4415,6 +4429,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {!isLoadingHistory && memoConfig.length > 0 && (
+                            <div className="relative group sticky top-0 z-20">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
+                                <Input 
+                                    placeholder="Cari kategori atau item pekerjaan..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-12 pr-4 py-3.5 h-auto w-full bg-white/80 backdrop-blur-md border-slate-200/60 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:border-blue-500 transition-all text-sm font-semibold text-slate-700 placeholder:text-slate-400 placeholder:font-medium"
+                                />
+                            </div>
+                        )}
                         {isLoadingHistory ? (
                             <div className="flex flex-col items-center justify-center text-slate-400 py-12">
                                 <Loader2 className="w-10 h-10 animate-spin mb-3 text-blue-500" />
@@ -4444,9 +4469,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     <p className="font-medium">Tidak ada kategori pekerjaan yang sedang aktif pada hari ini.</p>
                                 </div>
                             )
+                        ) : filteredMemoConfig.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                                <Search className="w-12 h-12 mb-3 text-slate-300" />
+                                <h3 className="text-base font-bold text-slate-600 mb-1">Pencarian Tidak Ditemukan</h3>
+                                <p className="font-medium text-sm">Tidak ada item atau kategori yang cocok dengan "{searchQuery}".</p>
+                            </div>
                         ) : (
-                            memoConfig.map((d: any, i: number) => (
-                                <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                            filteredMemoConfig.map((d: any, i: number) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-300">
                                     <div className="bg-slate-100 px-5 py-3 border-b flex justify-between items-center">
                                         <h3 className="font-bold text-slate-800">{d.category.name}</h3>
                                         {d.category.isLastDay && <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none">Hari Terakhir Target!</Badge>}
