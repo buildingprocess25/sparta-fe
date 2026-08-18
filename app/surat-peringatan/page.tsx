@@ -785,6 +785,14 @@ export default function SuratPeringatanPage() {
                                         <p className="font-medium text-slate-800">{selectedDetailGroup.latest.nomor_ulok ? selectedDetailGroup.latest.nomor_ulok : "-"}</p>
                                     </div>
                                     <div>
+                                        <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Tanggal SPK</Label>
+                                        <p className="font-medium text-slate-800">
+                                            {(selectedDetailGroup.latest.tanggal_spk || selectedDetailGroup.latest.tanggal_spk_selesai) 
+                                                ? `${selectedDetailGroup.latest.tanggal_spk ? new Date(selectedDetailGroup.latest.tanggal_spk).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-"} s/d ${selectedDetailGroup.latest.tanggal_spk_selesai ? new Date(selectedDetailGroup.latest.tanggal_spk_selesai).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "-"}` 
+                                                : "-"}
+                                        </p>
+                                    </div>
+                                    <div>
                                         <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Alasan SP</Label>
                                         <p className="font-medium text-slate-800">
                                             {SP_REASON_LABELS[selectedDetailGroup.latest.alasan_sp ?? "KETERLAMBATAN"]}

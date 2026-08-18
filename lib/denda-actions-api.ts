@@ -48,6 +48,7 @@ export type DendaAction = {
     nama_kontraktor: string | null;
     nomor_spk: string | null;
     tanggal_spk?: string | null;
+    tanggal_spk_selesai?: string | null;
     nilai_spk?: string | number | null;
     action_type: DendaActionType;
     status: DendaActionStatus;
