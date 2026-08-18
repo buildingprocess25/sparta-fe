@@ -3185,7 +3185,9 @@ function ApprovalPageContent() {
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tanggal SPK</p>
                                                     <p className="text-sm font-semibold text-slate-800">
-                                                        {formatDate(selectedDetail._raw?.tanggal_spk)}
+                                                        {(selectedDetail._raw?.tanggal_spk || selectedDetail._raw?.tanggal_spk_selesai)
+                                                            ? `${formatDate(selectedDetail._raw?.tanggal_spk)} s/d ${formatDate(selectedDetail._raw?.tanggal_spk_selesai)}`
+                                                            : '-'}
                                                     </p>
                                                 </div>
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
