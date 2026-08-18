@@ -590,6 +590,14 @@ const getStatusLabel = (status: string) => {
     const upper = status.toUpperCase();
     if (upper === 'PENDING_GANTT') return 'Belum terhubung Gantt';
     
+    if (upper === 'WAITING_MANAGER') return 'Menunggu Manager';
+    if (upper === 'REJECTED_BY_MANAGER') return 'Ditolak Manager';
+    if (upper === 'SENT_TO_CONTRACTOR') return 'Terkirim ke Kontraktor';
+    if (upper === 'VIEWED_BY_CONTRACTOR') return 'Dilihat Kontraktor';
+    if (upper === 'ACKNOWLEDGED_BY_CONTRACTOR') return 'Disetujui Kontraktor';
+    if (upper === 'EXPIRED') return 'Expired';
+    if (upper === 'CANCELLED') return 'Dibatalkan';
+
     if (upper.includes('TOLAK') || upper === 'REJECTED' || upper === 'SPK_REJECTED') {
         if (upper.includes('KOORDINATOR')) return 'Ditolak Koord.';
         if (upper.includes('MANAGER') || upper.includes('MANAJER')) return 'Ditolak Mgr.';
@@ -697,7 +705,10 @@ const getDocumentContextBadges = (doc: Pick<NormalizedDoc, 'proyek' | 'lingkup_p
         });
     }
     if (lingkup && lingkup !== '-') {
-        badges.push({ label: lingkup, className: 'bg-cyan-100 text-cyan-700 border-cyan-200' });
+        const uniqueScopes = Array.from(new Set(lingkup.split(/[\s,+]+/).map(s => s.trim().toUpperCase()).filter(Boolean)));
+        if (uniqueScopes.length > 0) {
+            badges.push({ label: uniqueScopes.join(' + '), className: 'bg-cyan-100 text-cyan-700 border-cyan-200' });
+        }
     }
     if ((doc.tipe === 'OPNAME' || doc.tipe === 'OPNAME_FINAL') && String(doc.status ?? '').toUpperCase().includes('DISETUJUI')) {
         badges.push({ label: 'KTK', className: 'bg-orange-100 text-orange-700 border-orange-200' });

@@ -47,6 +47,8 @@ export type DendaAction = {
     cabang: string | null;
     nama_kontraktor: string | null;
     nomor_spk: string | null;
+    tanggal_spk?: string | null;
+    nilai_spk?: string | number | null;
     action_type: DendaActionType;
     status: DendaActionStatus;
     sp_level: number | null;
@@ -209,5 +211,12 @@ export const regenerateSpPdf = async (
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal generate ulang PDF.");
+    return result;
+};
+
+export const fetchDendaActionHistory = async (id: number): Promise<{ status: string; data: any[] }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/denda/actions/${id}/history`);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal mengambil history Surat Peringatan.");
     return result;
 };

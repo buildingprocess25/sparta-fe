@@ -1117,7 +1117,7 @@ function ApprovalPageContent() {
                         id: action.id,
                         tipe: 'SURAT_PERINGATAN' as ApprovalType,
                         nomor_ulok: action.nomor_ulok || '-',
-                        nama_toko: '-',
+                        nama_toko: action.nama_toko || '-',
                         cabang: action.cabang || '-',
                         status: action.status,
                         total_nilai: Number(action.nilai_denda || 0),
@@ -2260,6 +2260,27 @@ function ApprovalPageContent() {
                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                                 Catatan bersifat opsional dan akan tersimpan sebagai catatan approval role Anda.
                             </div>
+                            {approveModal.tipe === 'SURAT_PERINGATAN' && (
+                                <div className="rounded-xl border border-red-100 bg-red-50/50 p-3 space-y-3">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Detail Surat Peringatan</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="space-y-1 text-xs font-semibold text-slate-700">
+                                            <span>Nama Toko</span>
+                                            <div className="text-sm font-normal">{approveModal.nama_toko}</div>
+                                        </div>
+                                        <div className="space-y-1 text-xs font-semibold text-slate-700">
+                                            <span>Tanggal SPK</span>
+                                            <div className="text-sm font-normal">{approveModal._raw?.tanggal_spk ? formatDate(approveModal._raw.tanggal_spk) : '-'}</div>
+                                        </div>
+                                        <div className="space-y-1 text-xs font-semibold text-slate-700">
+                                            <span>Nilai SPK</span>
+                                            <div className="text-sm font-normal">{parseCurrency(approveModal._raw?.nilai_spk ?? 0)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {approveModal.tipe === 'RAB' && jabatan === 'KOORDINATOR' && (
                                 <div className="rounded-xl border border-green-100 bg-green-50/50 p-3 space-y-3">
                                     <div>

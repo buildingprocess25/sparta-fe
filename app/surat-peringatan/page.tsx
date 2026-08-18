@@ -543,8 +543,8 @@ export default function SuratPeringatanPage() {
                                                                     "Pilih kontraktor terlebih dahulu"
                                                                 ) : String(reason) === "__NONE__" ? (
                                                                     <>
-                                                                        <div className="mb-2">❌ Tidak ada ULOK yang terlambat</div>
-                                                                        <div className="text-xs text-slate-400">Kontraktor ini tidak memiliki ULOK dengan keterlambatan saat ini</div>
+                                                                        <div className="mb-2">❌ Tidak ada kandidat ULOK</div>
+                                                                        <div className="text-xs text-slate-400">Kontraktor ini tidak memiliki kandidat ULOK saat ini</div>
                                                                     </>
                                                                 ) : (
                                                                     <>
