@@ -164,9 +164,8 @@ export default function SuratPeringatanPage() {
                 if (!user.isHO && !canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage())) return;
             }
             
-            // Group by kontraktor scope (MANIPULASI/LAINNYA) or ULOK+reason
-            // sp_level is NOT part of the key — SP 1 and SP 2 for same entity belong to same thread
-            const key = `kontraktor-${normalize(action.nama_kontraktor)}`;
+            // Each action is a distinct process, no need to group multiple distinct ULOKs for the same contractor
+            const key = action.id.toString();
             if (!map.has(key)) map.set(key, []);
             map.get(key)!.push(action);
         });

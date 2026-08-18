@@ -1508,8 +1508,7 @@ export default function DaftarDokumenPage() {
                 const map = new Map<string, DendaAction[]>();
                 if (Array.isArray(spData?.data)) {
                     spData.data.forEach((action: DendaAction) => {
-                        const normalize = (str?: string | null) => (str || '').trim().toUpperCase();
-                        const key = `kontraktor-${normalize(action.nama_kontraktor)}`;
+                        const key = action.id.toString();
                         if (!map.has(key)) map.set(key, []);
                         map.get(key)!.push(action);
                     });
@@ -1529,7 +1528,7 @@ export default function DaftarDokumenPage() {
                         nomor_ulok: isKontraktorScope ? `SP ${latest.alasan_sp}` : (latest.nomor_ulok || '-'),
                         nama_toko: isKontraktorScope ? (latest.nama_kontraktor || '-') : (anyItem.toko?.nama_toko || '-'),
                         cabang: latest.cabang || '-',
-                        proyek: latest.lingkup_pekerjaan || '-',
+                        proyek: '-', // SPs don't have a distinct proyek name, prevent duplicate badge with lingkup_pekerjaan
                         email_pembuat: anyItem.submitted_by_email || '-',
                         total_nilai: 0,
                         link_pdf: latest.link_pdf || null,
