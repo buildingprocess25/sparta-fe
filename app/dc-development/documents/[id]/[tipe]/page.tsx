@@ -45,6 +45,7 @@ export default function DcDocumentDetailPage() {
   
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [editingNoteDoc, setEditingNoteDoc] = useState<DcDocument | null>(null);
+  const [noteUploadContext, setNoteUploadContext] = useState<{key: string, type: string} | null>(null);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   
@@ -153,13 +154,27 @@ export default function DcDocumentDetailPage() {
   };
 
   const handleSaveNote = async () => {
-    if (!editingNoteDoc) return;
+    if (!actor.actor_email) return;
     setSavingNote(true);
     try {
-      await updateDcDocument(editingNoteDoc.id, {
-        ...actor,
-        notes: noteText
-      });
+      if (editingNoteDoc) {
+        await updateDcDocument(editingNoteDoc.id, {
+          ...actor,
+          notes: noteText
+        });
+      } else if (noteUploadContext) {
+        if (!archive) throw new Error("Arsip tidak ditemukan");
+        const compositeKey = formatKey(noteUploadContext.key, noteUploadContext.type);
+        await uploadDcDocuments({
+          actor_email: actor.actor_email,
+          actor_role: actor.actor_role,
+          project_id: archive.project_id,
+          entity_type: "DC_ARCHIVE_PROJECT",
+          document_type: compositeKey,
+          stage: tipe,
+          notes: noteText
+        }, []);
+      }
       await loadData();
       setNoteModalOpen(false);
     } catch (err: any) {
@@ -302,11 +317,18 @@ export default function DcDocumentDetailPage() {
                                       {existingDoc ? (
                                         <div className="flex flex-col gap-1 w-full items-end">
                                           <div className="flex items-center gap-1.5">
-                                            <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                                              <CheckCircle2 className="h-4 w-4" />
-                                              {slot.type}
-                                            </a>
-                                            <button onClick={() => { setEditingNoteDoc(existingDoc); setNoteText(existingDoc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
+                                            {(existingDoc as any).drive_file_id || (existingDoc as any).file_name ? (
+                                              <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
+                                                <CheckCircle2 className="h-4 w-4" />
+                                                {slot.type}
+                                              </a>
+                                            ) : (
+                                              <button onClick={() => triggerUpload(jenis.key, slot.type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
+                                                <UploadCloud className="h-4 w-4" />
+                                                Upload {slot.type}
+                                              </button>
+                                            )}
+                                            <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(existingDoc); setNoteText(existingDoc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
                                               <MessageSquare className="h-4 w-4" />
                                             </button>
                                             <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
@@ -325,10 +347,15 @@ export default function DcDocumentDetailPage() {
                                           Uploading...
                                         </div>
                                       ) : (
-                                        <button onClick={() => triggerUpload(jenis.key, slot.type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-                                          <UploadCloud className="h-4 w-4" />
-                                          {slot.type}
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                          <button onClick={() => { setEditingNoteDoc(null); setNoteUploadContext({ key: jenis.key, type: slot.type }); setNoteText(""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Tambah Catatan">
+                                            <MessageSquare className="h-4 w-4" />
+                                          </button>
+                                          <button onClick={() => triggerUpload(jenis.key, slot.type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
+                                            <UploadCloud className="h-4 w-4" />
+                                            {slot.type}
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                   );

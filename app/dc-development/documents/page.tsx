@@ -18,8 +18,9 @@ import {
   Loader2,
   RefreshCw,
   Search,
-  Maximize
-} from "lucide-react";
+  Maximize,
+  MessageSquare,
+  FileText} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, exportGlobalDcData, type DcArchiveProject } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, exportGlobalDcData, type DcArchiveProject, type DcDocument } from "@/lib/api";
 import { getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 import { canViewAllBranches, getParentBranch, getSubBranchesForParent } from "@/lib/constants";
 
@@ -71,6 +72,9 @@ export default function DcDocumentsPage() {
   const [message, setMessage] = useState("");
   
   const [selectedArchiveForType, setSelectedArchiveForType] = useState<DcArchiveProject | null>(null);
+  const [selectedArchiveForNotes, setSelectedArchiveForNotes] = useState<DcArchiveProject | null>(null);
+  const [projectNotes, setProjectNotes] = useState<DcDocument[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
 
   const actor = useMemo(() => ({
     actor_email: user?.email || "",
@@ -92,6 +96,28 @@ export default function DcDocumentsPage() {
       setMessage(getErrorMessage(error, "Gagal mengunduh file ekspor"));
     }
   };
+
+  const handleOpenNotes = useCallback(async (archive: DcArchiveProject) => {
+    if (!actor.actor_email) return;
+    setSelectedArchiveForNotes(archive);
+    setLoadingNotes(true);
+    setProjectNotes([]);
+    try {
+      const res = await fetchDcDocuments({
+        actor_email: actor.actor_email,
+        actor_role: actor.actor_role,
+        project_id: archive.project_id,
+        entity_type: "DC_ARCHIVE_PROJECT"
+      }, { suppressGlobalError: true });
+      const docs = res.data ?? [];
+      const withNotes = docs.filter(d => !!d.notes);
+      setProjectNotes(withNotes);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingNotes(false);
+    }
+  }, [actor]);
 
   const isHOUser = useMemo(() => (
     canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || user?.cabang?.toUpperCase() === "HEAD OFFICE"
@@ -173,11 +199,28 @@ export default function DcDocumentsPage() {
   const totals = useMemo(() => {
     const complete = filteredArchives.filter(a => a.jumlah_dokumen > 0).length;
     const branches = new Set(filteredArchives.map((item) => getParentBranch(item.branch_name)).filter(Boolean));
+    const totalDc = filteredArchives.filter(a => !a.archive_name.toLowerCase().includes('wh') && !a.archive_name.toLowerCase().includes('warehouse')).length;
+    const totalWarehouse = filteredArchives.filter(a => a.archive_name.toLowerCase().includes('wh') || a.archive_name.toLowerCase().includes('warehouse')).length;
+    const completeDc = filteredArchives.filter(a => a.jumlah_dokumen > 0 && !a.archive_name.toLowerCase().includes('wh') && !a.archive_name.toLowerCase().includes('warehouse')).length;
+    const completeWarehouse = filteredArchives.filter(a => a.jumlah_dokumen > 0 && (a.archive_name.toLowerCase().includes('wh') || a.archive_name.toLowerCase().includes('warehouse'))).length;
+    
+    // Hitung progress berdasarkan persentase aktual tiap slot jika memungkinkan, atau berdasarkan jumlah dokumen
+    // Sebagai estimasi sederhana yang informatif:
+    const totalDocsAll = filteredArchives.reduce((sum, a) => sum + (a.jumlah_dokumen || 0), 0);
+    const estimatedTotalRequired = filteredArchives.length * 15; // Estimasi rata-rata slot per lokasi jika tidak punya angka pastinya. (Akan lebih baik jika ada API atau perhitungan detail).
+    // Alternatif yang lebih aman dan akurat berdasarkan data yang ada: Rata-rata dari "progress per project" (0-100%).
+    // Namun karena kita belum fetch detail dokumen, kita bisa gunakan jumlah_dokumen.
+    
     return {
       total: filteredArchives.length,
       complete,
       incomplete: filteredArchives.length - complete,
       branches: branches.size,
+      totalDc,
+      totalWarehouse,
+      completeDc,
+      completeWarehouse,
+      totalDocs: totalDocsAll,
       progress: filteredArchives.length > 0 ? Math.round((complete / filteredArchives.length) * 100) : 0,
     };
   }, [filteredArchives]);
@@ -222,11 +265,25 @@ export default function DcDocumentsPage() {
 
         <div className="space-y-6">
           {/* DASHBOARD WIDGETS */}
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Total Cabang & Warehouse" value={totals.total} icon={<Building2 className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Area Coverage" value={totals.branches} tone="red" filled />
-            <MetricCard title="Sudah Mulai Upload" value={totals.complete} tone="green" icon={<CheckCircle2 className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Progress Keseluruhan" value={`${totals.progress}%`} subtitle={`${totals.complete} dari ${totals.total} lokasi`} progress={totals.progress} />
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <MetricCard title="Total Cabang & WH" value={totals.total} icon={<Building2 className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Total DC" value={totals.totalDc} icon={<Building2 className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Total Warehouse" value={totals.totalWarehouse} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            
+            <MetricCard 
+              title="Sudah Mulai Upload" 
+              value={totals.complete} 
+              tone="green" 
+              subtitle={`${totals.completeDc} DC, ${totals.completeWarehouse} WH`}
+              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />} 
+            />
+            
+            <MetricCard 
+              title="Progress Lokasi" 
+              value={`${totals.progress}%`} 
+              subtitle={`${totals.complete} dari ${totals.total} lokasi lengkap`} 
+              progress={totals.progress} 
+            />
           </section>
 
           {/* FILTER & TOOLS */}
@@ -352,10 +409,15 @@ export default function DcDocumentsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-5 text-right">
-                          <Button size="sm" className="rounded-lg bg-white font-semibold text-red-600 shadow-sm border border-red-100 transition-all hover:bg-red-600 hover:text-white" onClick={() => setSelectedArchiveForType(archive)}>
-                            Kelola Dokumen
-                            <ChevronRight className="ml-1.5 h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" variant="outline" className="rounded-lg border-slate-200 bg-white font-medium text-slate-500 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-700" onClick={() => handleOpenNotes(archive)} title="Lihat Catatan">
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" className="rounded-lg bg-white font-semibold text-red-600 shadow-sm border border-red-100 transition-all hover:bg-red-600 hover:text-white" onClick={() => setSelectedArchiveForType(archive)}>
+                              Kelola Dokumen
+                              <ChevronRight className="ml-1.5 h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -422,6 +484,70 @@ export default function DcDocumentsPage() {
               <h3 className="text-xl font-bold text-slate-800">Perluasan</h3>
               <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NOTES MODAL */}
+      <Dialog open={!!selectedArchiveForNotes} onOpenChange={(open) => !open && setSelectedArchiveForNotes(null)}>
+        <DialogContent className="max-w-2xl bg-slate-50 border-0 rounded-[1.5rem] p-0 shadow-2xl overflow-hidden">
+          <div className="bg-white p-6 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-red-500" />
+                Catatan Proyek
+              </DialogTitle>
+              <DialogDescription className="mt-1 font-medium text-slate-500">
+                {selectedArchiveForNotes?.archive_name} - {selectedArchiveForNotes?.branch_name}
+              </DialogDescription>
+            </div>
+          </div>
+          <div className="p-6 max-h-[60vh] overflow-y-auto">
+            {loadingNotes ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                <Loader2 className="h-8 w-8 animate-spin mb-4 text-red-500" />
+                <p className="font-medium">Memuat catatan...</p>
+              </div>
+            ) : projectNotes.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                <FileText className="h-12 w-12 mb-4 opacity-20" />
+                <p className="font-medium">Belum ada catatan pada proyek ini.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {projectNotes.map(note => {
+                  const labelParts = (note.document_type || "").split('__');
+                  const stage = note.stage || "UMUM";
+                  const tipe = labelParts[0] || "Unknown";
+                  const namaFile = labelParts[1] ? labelParts[1].replace(/_/g, '/') : "Unknown";
+                  return (
+                    <div key={note.id} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative group overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                            {stage}
+                          </Badge>
+                          <span className="text-xs font-bold text-slate-700 bg-red-50 text-red-700 px-2 py-0.5 rounded uppercase tracking-wider">{tipe}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500 truncate max-w-[200px]" title={namaFile}>
+                          {namaFile}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 border border-slate-100 font-medium leading-relaxed">
+                        {note.notes}
+                      </div>
+                      <div className="mt-2 text-[10px] text-slate-400 font-medium">
+                        Oleh: {note.created_by_email || "Unknown"} &bull; {new Date(note.created_at || "").toLocaleDateString('id-ID')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="bg-white p-4 border-t border-slate-100 flex justify-end">
+            <Button variant="outline" className="rounded-xl font-medium" onClick={() => setSelectedArchiveForNotes(null)}>Tutup</Button>
           </div>
         </DialogContent>
       </Dialog>

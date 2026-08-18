@@ -556,7 +556,7 @@ export const uploadDcDocuments = async (
     });
     const result = await res.json();
     if (res.status === 403) throw new Error(result.message || "Anda tidak memiliki akses ke dokumen DC ini.");
-    if (res.status === 400) throw new Error(result.message || "Dokumen wajib diupload.");
+    if (res.status === 400) throw new Error(result.message || "Dokumen wajib diupload atau catatan wajib diisi.");
     if (res.status === 404) throw new Error(result.message || "Project DC tidak ditemukan.");
     if (!res.ok) throw new Error(result.message || "Gagal mengupload dokumen DC.");
     return result;
