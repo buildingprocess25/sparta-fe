@@ -3146,7 +3146,32 @@ function ApprovalPageContent() {
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status SP</p>
-                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail._raw?.status || '-'}</p>
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {{
+                                                            'WAITING_MANAGER': 'Menunggu Approval Manager',
+                                                            'APPROVED_BY_MANAGER': 'Disetujui Manager',
+                                                            'REJECTED_BY_MANAGER': 'Ditolak Manager',
+                                                            'SENT_TO_CONTRACTOR': 'Terkirim ke Kontraktor',
+                                                            'VIEWED_BY_CONTRACTOR': 'Dilihat oleh Kontraktor',
+                                                            'ACKNOWLEDGED_BY_CONTRACTOR': 'Disetujui Kontraktor'
+                                                        }[selectedDetail._raw?.status as string] || selectedDetail._raw?.status || '-'}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nama Toko</p>
+                                                    <p className="text-sm font-semibold text-slate-800">{selectedDetail._raw?.nama_toko || '-'}</p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tanggal SPK</p>
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {formatDate(selectedDetail._raw?.tanggal_spk)}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai SPK</p>
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {selectedDetail._raw?.nilai_spk ? formatRupiah(Number(selectedDetail._raw.nilai_spk)) : '-'}
+                                                    </p>
                                                 </div>
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 md:col-span-2">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Alasan SP</p>
