@@ -7,6 +7,7 @@ import { DashboardDrilldownModal } from './DashboardDrilldownModal';
 
 interface DashboardViewV2Props {
     projects: any[]; // Ini adalah filteredProjects dari page.tsx
+    allProjects?: any[];
     accessibleBranches: string[];
     selectedBranch: string;
     onBranchChange: (branch: string) => void;
@@ -24,6 +25,7 @@ interface DashboardViewV2Props {
 
 export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
     projects,
+    allProjects,
     accessibleBranches,
     selectedBranch,
     onBranchChange,
@@ -251,6 +253,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         }}
                         initialCardType={activeCard}
                         projects={projects} // already filtered by search
+                        allProjects={allProjects}
                         searchQuery={searchQuery}
                         stats={stats}
                         extraStats={extraStats}

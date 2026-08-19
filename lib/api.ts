@@ -81,6 +81,9 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
         headers.set("Authorization", `Bearer ${token}`);
     }
 
+    // Bypass dev tunnel and ngrok warning pages
+    headers.set("ngrok-skip-browser-warning", "69420");
+
     const response = await globalThis.fetch(input, {
         ...init,
         headers

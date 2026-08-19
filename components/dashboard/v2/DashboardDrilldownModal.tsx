@@ -88,6 +88,7 @@ interface DashboardDrilldownModalProps {
     onClose: () => void;
     initialCardType: string | null;
     projects: any[]; 
+    allProjects?: any[];
     searchQuery?: string;
     stats?: any;
     extraStats?: any;
@@ -98,6 +99,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
     onClose,
     initialCardType,
     projects,
+    allProjects,
     searchQuery,
     stats,
     extraStats
@@ -281,18 +283,19 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         }
         // 4. GROUP BY ULOK (Global)
         const isStageSummary = !selectedStage && (initialCardType === 'TOTAL_PROJECT' || initialCardType === 'SLA');
-        if (!isStageSummary && initialCardType !== 'COST_M2') {
+        if (!isStageSummary) {
             const grouped = new Map();
             filtered.forEach(p => {
                 const ulok = p.toko?.nomor_ulok;
                 if (!ulok) {
-                    grouped.set(p.id || Math.random(), { ...p, _jhk_lingkup_gabungan: p._jhk_lingkup_gabungan || (p.toko?.lingkup_pekerjaan ? [p.toko.lingkup_pekerjaan] : []) });
+                    grouped.set(p.toko?.id || Math.random(), { ...p, _jhk_lingkup_gabungan: p._jhk_lingkup_gabungan || (p.toko?.lingkup_pekerjaan ? [p.toko.lingkup_pekerjaan] : []), _all_projects_for_ulok: [p] });
                     return;
                 }
                 if (!grouped.has(ulok)) {
-                    grouped.set(ulok, { ...p, _jhk_lingkup_gabungan: p._jhk_lingkup_gabungan || (p.toko?.lingkup_pekerjaan ? [p.toko.lingkup_pekerjaan] : []) });
+                    grouped.set(ulok, { ...p, _jhk_lingkup_gabungan: p._jhk_lingkup_gabungan || (p.toko?.lingkup_pekerjaan ? [p.toko.lingkup_pekerjaan] : []), _all_projects_for_ulok: [p] });
                 } else {
                     const existing = grouped.get(ulok);
+                    existing._all_projects_for_ulok.push(p);
                     if (p.toko?.lingkup_pekerjaan && !existing._jhk_lingkup_gabungan.includes(p.toko.lingkup_pekerjaan)) {
                         existing._jhk_lingkup_gabungan.push(p.toko.lingkup_pekerjaan);
                         existing._jhk_lingkup_gabungan.sort((a: string, b: string) => a === 'SIPIL' ? -1 : 1);
@@ -399,7 +402,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
     };
 
     const handleProjectClick = (project: any, skipLingkupCheck = false) => {
-        if (!skipLingkupCheck && (view === 'list_ulok' || view === 'jhk_pekerjaan_list' || view === 'keterlambatan_list')) {
+        const isJhkOrTambahHari = initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK';
+        if (!skipLingkupCheck && !isJhkOrTambahHari && (view === 'list_ulok' || view === 'jhk_pekerjaan_list' || view === 'keterlambatan_list' || view === 'cost_m2')) {
             const scopes = project._jhk_lingkup_gabungan || [];
             if (scopes.length > 1) {
                 setSelectedGroupedUlok(project.toko?.nomor_ulok);
@@ -419,7 +423,23 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 docData = project.spk?.[0];
             } else if (['JHK', 'TAMBAH_HARI_SPK'].includes(initialCardType)) {
                 docType = 'Tambah SPK';
-                docData = project.spk?.[0]?.pertambahan_spk?.[0];
+                let ptSpk = project.spk?.[0]?.pertambahan_spk?.[0];
+                if (!ptSpk) {
+                    const projectListToSearch = allProjects || projects;
+                    const counterpart = projectListToSearch.find((p: any) => {
+                        if (p.toko?.nomor_ulok !== project.toko?.nomor_ulok) return false;
+                        const pSpk = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
+                        if (pSpk.length === 0) return false;
+                        const pPt = Array.isArray(pSpk[0].pertambahan_spk) ? pSpk[0].pertambahan_spk : (pSpk[0].pertambahan_spk ? [pSpk[0].pertambahan_spk] : []);
+                        return pPt.length > 0;
+                    });
+                    if (counterpart) {
+                        const pSpk = Array.isArray(counterpart.spk) ? counterpart.spk : [counterpart.spk];
+                        const pPt = Array.isArray(pSpk[0]?.pertambahan_spk) ? pSpk[0].pertambahan_spk : (pSpk[0]?.pertambahan_spk ? [pSpk[0].pertambahan_spk] : []);
+                        ptSpk = pPt[0];
+                    }
+                }
+                docData = ptSpk;
             } else if (['IL', 'INSTRUKSI_LAPANGAN'].includes(initialCardType)) {
                 docType = 'IL';
                 docData = project.instruksi_lapangan?.[0];
@@ -660,15 +680,17 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         <h4 className="font-bold text-slate-800 text-lg group-hover:text-red-700 truncate">{project.toko?.nama_toko || 'Unknown'}</h4>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <Badge className="bg-slate-100 text-slate-600 border-none px-2 py-0.5 text-[10px] tracking-widest font-semibold">{project.toko?.nomor_ulok || 'Unknown'}</Badge>
-                                            {project._jhk_lingkup_gabungan && project._jhk_lingkup_gabungan.length > 0 ? (
-                                                <Badge className={`border-none px-2 py-0.5 text-[10px] font-semibold tracking-widest shadow-sm ${(project._jhk_lingkup_gabungan || []).length > 1 ? 'bg-indigo-50 text-indigo-700' : String(project._jhk_lingkup_gabungan[0]).toUpperCase() === 'ME' ? 'bg-cyan-50 text-cyan-700' : 'bg-orange-50 text-orange-700'}`}>
-                                                    {project._jhk_lingkup_gabungan.join(' & ')}
-                                                </Badge>
-                                            ) : project.toko?.lingkup_pekerjaan ? (
-                                                <Badge className={`border-none px-2 py-0.5 text-[10px] font-semibold tracking-widest shadow-sm ${(project._jhk_lingkup_gabungan || []).length > 1 ? 'bg-indigo-50 text-indigo-700' : String(project.toko?.lingkup_pekerjaan).toUpperCase() === 'ME' ? 'bg-cyan-50 text-cyan-700' : 'bg-orange-50 text-orange-700'}`}>
-                                                    {project.toko?.lingkup_pekerjaan}
-                                                </Badge>
-                                            ) : null}
+                                            {(initialCardType !== 'JHK' && initialCardType !== 'TAMBAH_HARI_SPK') && (
+                                                project._jhk_lingkup_gabungan && project._jhk_lingkup_gabungan.length > 0 ? (
+                                                    <Badge className={`border-none px-2 py-0.5 text-[10px] font-semibold tracking-widest shadow-sm ${(project._jhk_lingkup_gabungan || []).length > 1 ? 'bg-indigo-50 text-indigo-700' : String(project._jhk_lingkup_gabungan[0]).toUpperCase() === 'ME' ? 'bg-cyan-50 text-cyan-700' : 'bg-orange-50 text-orange-700'}`}>
+                                                        {project._jhk_lingkup_gabungan.join(' & ')}
+                                                    </Badge>
+                                                ) : project.toko?.lingkup_pekerjaan ? (
+                                                    <Badge className={`border-none px-2 py-0.5 text-[10px] font-semibold tracking-widest shadow-sm ${(project._jhk_lingkup_gabungan || []).length > 1 ? 'bg-indigo-50 text-indigo-700' : String(project.toko?.lingkup_pekerjaan).toUpperCase() === 'ME' ? 'bg-cyan-50 text-cyan-700' : 'bg-orange-50 text-orange-700'}`}>
+                                                        {project.toko?.lingkup_pekerjaan}
+                                                    </Badge>
+                                                ) : null
+                                            )}
                                         </div>
                                     </div>
                                     <div className="text-sm font-semibold text-slate-400 tracking-wide flex items-center gap-2">
@@ -698,20 +720,38 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         return (
                                             <>
                                                 <div className="flex flex-col justify-center px-4 md:px-5 w-[100px] md:w-[120px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Terlambat</span><span className="text-xs md:text-sm font-semibold text-slate-700">{hDenda} Hari</span></div>
-                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Target ST</span><span className="text-xs md:text-sm font-semibold text-slate-700 leading-tight">{tgt ? formatDateIndo(tgt) : '-'}</span></div>
-                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Tgl ST</span><span className="text-xs md:text-sm font-semibold text-emerald-600 leading-tight">{st ? formatDateIndo(st) : '-'}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Target ST</span><span className="text-xs md:text-sm font-semibold text-slate-700 leading-tight">{tgt ? formatDateIndo(tgt).replace(/ pukul.*$/, '') : '-'}</span></div>
+                                                <div className="flex flex-col justify-center px-4 md:px-5 w-[140px] md:w-[180px] text-right shrink-0 hidden md:flex"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Tgl ST</span><span className="text-xs md:text-sm font-semibold text-emerald-600 leading-tight">{st ? formatDateIndo(st).replace(/ pukul.*$/, '') : '-'}</span></div>
                                                 <div className="flex flex-col justify-center px-4 md:px-5 w-[120px] md:w-[150px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Nilai Denda</span><span className="text-sm md:text-base font-bold text-rose-600">{denda}</span></div>
                                             </>
                                         );
                                     })()}
-                                    {initialCardType === 'JHK' && (() => {
-                                        const spk = project.spk?.[0];
-                                        const endDate = spk?.waktu_selesai;
+                                    {(initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK') && (() => {
+                                        let spk = project.spk?.[0];
+                                        let endDate = spk?.waktu_selesai;
                                         
                                         // Find latest extension regardless of status
                                         let latestPt = null;
-                                        if (spk?.pertambahan_spk && spk.pertambahan_spk.length > 0) {
-                                            const sorted = [...spk.pertambahan_spk].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                                        let allPt = spk?.pertambahan_spk || [];
+
+                                        if (allPt.length === 0) {
+                                            const projectListToSearch = allProjects || projects;
+                                            const counterpart = projectListToSearch.find((p: any) => {
+                                                if (p.toko?.nomor_ulok !== project.toko?.nomor_ulok) return false;
+                                                const pSpk = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
+                                                if (pSpk.length === 0) return false;
+                                                const pPt = Array.isArray(pSpk[0].pertambahan_spk) ? pSpk[0].pertambahan_spk : (pSpk[0].pertambahan_spk ? [pSpk[0].pertambahan_spk] : []);
+                                                return pPt.length > 0;
+                                            });
+                                            if (counterpart) {
+                                                const cSpk = Array.isArray(counterpart.spk) ? counterpart.spk[0] : counterpart.spk;
+                                                if (!endDate) endDate = cSpk?.waktu_selesai;
+                                                allPt = Array.isArray(cSpk?.pertambahan_spk) ? cSpk.pertambahan_spk : (cSpk?.pertambahan_spk ? [cSpk.pertambahan_spk] : []);
+                                            }
+                                        }
+
+                                        if (allPt.length > 0) {
+                                            const sorted = [...allPt].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                                             latestPt = sorted[0];
                                         }
 
@@ -730,11 +770,11 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             <>
                                                 <div className="flex flex-col justify-center px-4 md:px-5 w-[120px] md:w-[140px] text-right shrink-0">
                                                     <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Akhir SPK</span>
-                                                    <span className="text-xs md:text-sm font-semibold text-slate-700 leading-tight">{endDate ? formatDateIndo(endDate) : '-'}</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-slate-700 leading-tight">{endDate ? formatDateIndo(endDate).replace(/ pukul.*$/, '') : '-'}</span>
                                                 </div>
                                                 <div className="flex flex-col justify-center px-4 md:px-5 w-[120px] md:w-[140px] text-right shrink-0 hidden md:flex">
                                                     <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Akhir SPK Baru</span>
-                                                    <span className="text-xs md:text-sm font-semibold text-blue-600 leading-tight">{ptAkhir ? formatDateIndo(ptAkhir) : '-'}</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-blue-600 leading-tight">{ptAkhir ? formatDateIndo(ptAkhir).replace(/ pukul.*$/, '') : '-'}</span>
                                                 </div>
                                                 <div className="flex flex-col justify-center px-4 md:px-5 w-[100px] md:w-[120px] text-right shrink-0">
                                                     <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Tambah Hari</span>
@@ -834,24 +874,65 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         <div className="h-full flex flex-col">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar flex-1 pb-4">
                 {paginatedProjects.map((p, idx) => {
-                    const rab = p.rab?.[0];
-                    const luasTerbangun = Number(rab?.luas_terbangun || 1);
-                    const costTerbangun = Number(rab?.grand_total_final || 0);
-                    const avg = costTerbangun / luasTerbangun;
+                    const projectsForUlok = p._all_projects_for_ulok || [p];
+                    const isGabungan = projectsForUlok.length > 1;
+
+                    let sumAvgTerbangun = 0;
+                    let sumAvgBangunan = 0;
+                    let sumAvgTerbuka = 0;
+
+                    let countTerbangun = 0;
+                    let countBangunan = 0;
+                    let countTerbuka = 0;
                     
-                    const lingkup = (p.toko?.lingkup_pekerjaan || 'UNKNOWN').toUpperCase();
+                    let refLuasTerbangun = 0;
+                    let refLuasBangunan = 0;
+                    let refLuasTerbuka = 0;
+
+                    projectsForUlok.forEach((proj: any) => {
+                        const rab = proj.rab?.[0];
+                        const luasTerbangun = Number(rab?.luas_terbangun || 1);
+                        const costTerbangun = Number(rab?.grand_total_final || 0);
+                        if (costTerbangun > 0) {
+                            sumAvgTerbangun += (costTerbangun / luasTerbangun);
+                            countTerbangun++;
+                            if (luasTerbangun > refLuasTerbangun) refLuasTerbangun = luasTerbangun;
+                        }
+
+                        const costBangunan = Number(rab?.cost_bangunan || costTerbangun);
+                        const luasBangunan = Number(rab?.luas_terbangun || rab?.luas_bangunan || luasTerbangun);
+                        if (costBangunan > 0) {
+                            sumAvgBangunan += (costBangunan / luasBangunan);
+                            countBangunan++;
+                            if (luasBangunan > refLuasBangunan) refLuasBangunan = luasBangunan;
+                        }
+
+                        const costTerbuka = Number(rab?.cost_terbuka || 0);
+                        const luasTerbuka = Number(rab?.luas_area_terbuka || 1);
+                        if (costTerbuka > 0) {
+                            sumAvgTerbuka += (costTerbuka / luasTerbuka);
+                            countTerbuka++;
+                            if (luasTerbuka > refLuasTerbuka) refLuasTerbuka = luasTerbuka;
+                        }
+                    });
+
+                    // "di jumlah bagi 2 kalau ada sipil + me kalau nggak ya data itu sendiri"
+                    const avg = isGabungan ? (sumAvgTerbangun / 2) : (countTerbangun > 0 ? sumAvgTerbangun : 0);
+                    const avgBangunan = isGabungan ? (sumAvgBangunan / 2) : (countBangunan > 0 ? sumAvgBangunan : 0);
+                    const avgTerbuka = isGabungan ? (sumAvgTerbuka / 2) : (countTerbuka > 0 ? sumAvgTerbuka : 0);
+                    
+                    const luasTerbangun = refLuasTerbangun || 1;
+                    const luasBangunan = refLuasBangunan || 1;
+                    const luasTerbuka = refLuasTerbuka || 1;
+                    const costTerbukaExists = countTerbuka > 0;
+
+                    const lingkupArray = p._jhk_lingkup_gabungan || [(p.toko?.lingkup_pekerjaan || 'UNKNOWN').toUpperCase()];
+                    const lingkup = lingkupArray.join(' & ');
+                    
                     let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                     if (lingkup.includes('ME') && lingkup.includes('SIPIL')) badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                     else if (lingkup.includes('ME')) badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
                     else if (lingkup.includes('SIPIL')) badgeColor = 'bg-orange-50 text-orange-700 border-orange-200';
-
-                    const costBangunan = Number(rab?.cost_bangunan || costTerbangun);
-                    const luasBangunan = Number(rab?.luas_terbangun || rab?.luas_bangunan || luasTerbangun);
-                    const avgBangunan = luasBangunan > 0 ? Math.round(costBangunan / luasBangunan) : 0;
-                    
-                    const costTerbuka = Number(rab?.cost_terbuka || 0);
-                    const luasTerbuka = Number(rab?.luas_area_terbuka || 1);
-                    const avgTerbuka = luasTerbuka > 0 && costTerbuka > 0 ? Math.round(costTerbuka / luasTerbuka) : 0;
                     
                     return (
                         <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between group cursor-pointer" onClick={() => handleProjectClick(p)}>
@@ -884,13 +965,13 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     <p className="text-xl font-bold text-blue-600 text-right">{formatRupiah(avgBangunan)} <span className="text-[10px] text-slate-400">/m²</span></p>
                                 </div>
                                 
-                                {costTerbuka > 0 && (
+                                {costTerbukaExists && (
                                     <div className="flex justify-between items-end pb-1">
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Area Terbuka</p>
                                             <p className="text-xs font-semibold text-slate-400">{luasTerbuka} m²</p>
                                         </div>
-                                        <p className="text-xl font-bold text-purple-600 text-right">{formatRupiah(avgTerbuka)} <span className="text-[10px] text-slate-400">/m²</span></p>
+                                        <p className="text-xl font-bold text-purple-600 text-right">{formatRupiah(Math.round(avgTerbuka))} <span className="text-[10px] text-slate-400">/m²</span></p>
                                     </div>
                                 )}
                             </div>
@@ -1178,17 +1259,19 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         // 3. Tambah SPK (Only if exists)
         let spkTs = hasSpk ? proj.spk[0].pertambahan_spk : null;
         let tsSuffix = suffix;
-        if ((!spkTs || spkTs.length === 0) && projects) {
-            const counterpart = projects.find(p => 
-                p.toko?.nomor_ulok === proj.toko?.nomor_ulok && 
-                p.id !== proj.id && 
-                p.spk && 
-                p.spk.length > 0 && 
-                p.spk[0].pertambahan_spk && 
-                p.spk[0].pertambahan_spk.length > 0
-            );
+        const projectListToSearch = allProjects || projects;
+        if ((!spkTs || spkTs.length === 0) && projectListToSearch) {
+            const counterpart = projectListToSearch.find((p: any) => {
+                if (p.toko?.nomor_ulok !== proj.toko?.nomor_ulok || p.toko?.id === proj.toko?.id) return false;
+                const pSpk = Array.isArray(p.spk) ? p.spk : (p.spk ? [p.spk] : []);
+                if (pSpk.length === 0) return false;
+                const pPt = Array.isArray(pSpk[0].pertambahan_spk) ? pSpk[0].pertambahan_spk : (pSpk[0].pertambahan_spk ? [pSpk[0].pertambahan_spk] : []);
+                return pPt.length > 0;
+            });
             if (counterpart) {
-                spkTs = counterpart.spk[0].pertambahan_spk;
+                const counterpartSpk = Array.isArray(counterpart.spk) ? counterpart.spk : [counterpart.spk];
+                const counterpartPt = Array.isArray(counterpartSpk[0]?.pertambahan_spk) ? counterpartSpk[0].pertambahan_spk : (counterpartSpk[0]?.pertambahan_spk ? [counterpartSpk[0].pertambahan_spk] : []);
+                spkTs = counterpartPt;
                 const counterpartScope = counterpart.toko?.lingkup_pekerjaan || '';
                 tsSuffix = counterpartScope ? ` (${counterpartScope})` : '';
             }
@@ -1439,7 +1522,10 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
 
         const renderStandardTokoInfo = () => {
             const tk = data.toko || selectedProject?.toko || {};
-            const lingkupGabungan = selectedProject?._jhk_lingkup_gabungan ? selectedProject._jhk_lingkup_gabungan.join(' & ') : tk.lingkup_pekerjaan || '-';
+            let lingkupGabungan = selectedProject?._jhk_lingkup_gabungan ? selectedProject._jhk_lingkup_gabungan.join(' & ') : tk.lingkup_pekerjaan || '-';
+        if (initialCardType === 'JHK' || initialCardType === 'TAMBAH_HARI_SPK') {
+            lingkupGabungan = 'SIPIL + ME';
+        }
 
             return (
                 <>
@@ -1637,7 +1723,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Target ST</th>
                                         <td className="py-5 px-8 text-base font-semibold text-slate-800 align-top">
-                                            {data.target_st_setelah_perpanjangan ? formatDateIndo(data.target_st_setelah_perpanjangan).replace(/ pukul.*$/, '') : '-'} <span className="text-slate-400 font-semibold text-sm ml-2">&middot; Sesuai Aturan ST (+{data.pertambahan_hari || 0} hari SPK)</span>
+                                            {data.tanggal_spk_akhir_setelah_perpanjangan ? formatDateIndo(data.tanggal_spk_akhir_setelah_perpanjangan).replace(/ pukul.*$/, '') : '-'} <span className="text-slate-400 font-semibold text-sm ml-2">&middot; Sesuai Aturan ST (+{data.pertambahan_hari || 0} hari SPK)</span>
                                         </td>
                                     </tr>
                                     {data.alasan_perpanjangan && (
@@ -1968,7 +2054,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                 <h4 className="text-lg font-bold text-slate-800 tracking-tight">Serah Terima Selesai</h4>
                                 <p className="text-sm text-slate-500 font-medium">Ringkasan final proyek & serah terima</p>
                             </div>
-                            {renderMainPdfButton(data.link_pdf, data.id, 'BERKAS_SERAH_TERIMA')}
+                            {renderMainPdfButton(data.link_pdf, undefined, undefined, 'Lihat PDF Serah Terima')}
                         </div>
                     </div>
                     <div className="p-8 md:p-10 pt-4 flex-1 overflow-y-auto custom-scrollbar">
@@ -1990,10 +2076,19 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                 <p className="text-lg font-semibold text-slate-800">{stDibuat}</p>
                             </div>
                             <div className="space-y-1 border-b border-slate-100 pb-4 md:border-0 md:pb-0">
-                                <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Selisih (Tambah / Kurang)</p>
-                                <p className={`text-lg font-bold ${(nilaiOpnameFinal - Number(spk?.grand_total || 0)) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                                    {fR(nilaiOpnameFinal - Number(spk?.grand_total || 0))}
-                                </p>
+                                {(() => {
+                                    const selisih = nilaiOpnameFinal - Number(spk?.grand_total || 0);
+                                    const selisihLabel = selisih > 0 ? 'Selisih (Kerja Tambah)' : selisih < 0 ? 'Selisih (Kerja Kurang)' : 'Selisih';
+                                    const textColor = selisih > 0 ? 'text-amber-600' : selisih < 0 ? 'text-emerald-600' : 'text-slate-800';
+                                    return (
+                                        <>
+                                            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">{selisihLabel}</p>
+                                            <p className={`text-lg font-bold ${textColor}`}>
+                                                {fR(selisih)}
+                                            </p>
+                                        </>
+                                    );
+                                })()}
                             </div>
                             <div className="space-y-1 border-b border-slate-100 pb-4 md:border-0 md:pb-0">
                                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Nilai Penawaran</p>
@@ -2291,3 +2386,5 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         document.body
     );
 };
+
+export default DashboardDrilldownModal;

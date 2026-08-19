@@ -3226,6 +3226,8 @@ function DashboardPageContent() {
 
                                 projects={filteredProjects}
 
+                                allProjects={projects || []}
+
                                 accessibleBranches={cabangList}
 
                                 selectedBranch={selectedCabang}
