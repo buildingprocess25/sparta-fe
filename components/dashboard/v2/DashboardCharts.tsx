@@ -106,7 +106,13 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
 
         // Collect all unique labels and sort them
         const labelsSet = new Set([...baseLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
-        const labels = Array.from(labelsSet).sort();
+        const labels = Array.from(labelsSet)
+            .filter(l => !['TERISI', 'TESTING'].includes(l.toUpperCase()))
+            .sort((a, b) => {
+                const sumA = (mapDibuat[a] || 0) + (mapApproved[a] || 0);
+                const sumB = (mapDibuat[b] || 0) + (mapApproved[b] || 0);
+                return sumB - sumA;
+            });
         
         return {
             labels,
@@ -153,7 +159,13 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         });
 
         const labelsSet = new Set([...baseLabels, ...Object.keys(mapDibuat), ...Object.keys(mapApproved)]);
-        const labels = Array.from(labelsSet).sort();
+        const labels = Array.from(labelsSet)
+            .filter(l => !['TERISI', 'TESTING'].includes(l.toUpperCase()))
+            .sort((a, b) => {
+                const sumA = (mapDibuat[a] || 0) + (mapApproved[a] || 0);
+                const sumB = (mapDibuat[b] || 0) + (mapApproved[b] || 0);
+                return sumB - sumA;
+            });
         
         return {
             labels,
@@ -169,10 +181,13 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         const cutoff = getCutoffDate(filterSt);
         const mapSpkRelease: Record<string, number> = {};
         const mapST: Record<string, number> = {};
+        const mapHabisDurasi: Record<string, number> = {};
+        const now = new Date();
 
         baseLabels.forEach(l => {
             mapSpkRelease[l] = 0;
             mapST[l] = 0;
+            mapHabisDurasi[l] = 0;
         });
 
         projects.forEach((p: any) => {
@@ -185,6 +200,38 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                     const d = new Date(dateApproved);
                     if (!cutoff || d >= cutoff) {
                         mapSpkRelease[branchLabel] = (mapSpkRelease[branchLabel] || 0) + 1;
+                        
+                        // Cek Habis Durasi
+                        const hasST = p.berkas_serah_terima && p.berkas_serah_terima.length > 0;
+                        if (!hasST) {
+                            // Menggunakan waktu_selesai asli dari DB sebagai base date
+                            const baseEndDate = s.waktu_selesai || s.created_at || s.waktu_persetujuan;
+                            if (baseEndDate) {
+                                const targetDate = new Date(baseEndDate);
+                                if (!isNaN(targetDate.getTime())) {
+                                    // Tambahkan total hari dari adendum/pertambahan SPK yang di-approve
+                                    const tsArray = s.pertambahan_spk || [];
+                                    const tsDays = tsArray.reduce((acc: number, curr: any) => {
+                                        if(['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(curr.status_persetujuan || '').toUpperCase())) {
+                                            return acc + (Number(curr.pertambahan_hari) || 0);
+                                        }
+                                        return acc;
+                                    }, 0);
+                                    
+                                    // Jika waktu_selesai tidak ada, fallback hitung manual durasi
+                                    if (!s.waktu_selesai) {
+                                        const durasi = Number(s.durasi) || 0;
+                                        targetDate.setDate(targetDate.getDate() + durasi);
+                                    }
+                                    
+                                    targetDate.setDate(targetDate.getDate() + tsDays);
+                                    
+                                    if (now > targetDate) {
+                                        mapHabisDurasi[branchLabel] = (mapHabisDurasi[branchLabel] || 0) + 1;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -200,14 +247,21 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             });
         });
 
-        const labelsSet = new Set([...baseLabels, ...Object.keys(mapSpkRelease), ...Object.keys(mapST)]);
-        const labels = Array.from(labelsSet).sort();
+        const labelsSet = new Set([...baseLabels, ...Object.keys(mapSpkRelease), ...Object.keys(mapST), ...Object.keys(mapHabisDurasi)]);
+        const labels = Array.from(labelsSet)
+            .filter(l => !['TERISI', 'TESTING'].includes(l.toUpperCase()))
+            .sort((a, b) => {
+                const sumA = (mapSpkRelease[a] || 0) + (mapST[a] || 0) + (mapHabisDurasi[a] || 0);
+                const sumB = (mapSpkRelease[b] || 0) + (mapST[b] || 0) + (mapHabisDurasi[b] || 0);
+                return sumB - sumA;
+            });
         
         return {
             labels,
             datasets: [
                 { label: 'SPK Release', data: labels.map(l => mapSpkRelease[l] || 0), backgroundColor: '#f87171', borderRadius: 4 },
-                { label: 'Serah Terima', data: labels.map(l => mapST[l] || 0), backgroundColor: '#8b5cf6', borderRadius: 4 }
+                { label: 'Serah Terima', data: labels.map(l => mapST[l] || 0), backgroundColor: '#8b5cf6', borderRadius: 4 },
+                { label: 'SPK Habis Durasi', data: labels.map(l => mapHabisDurasi[l] || 0), backgroundColor: '#fbbf24', borderRadius: 4 }
             ]
         };
     }, [projects, filterSt]);
@@ -254,7 +308,13 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         });
 
         const labelsSet = new Set([...baseLabels, ...Object.keys(mapNilaiSpk), ...Object.keys(mapNilaiOpname)]);
-        const labels = Array.from(labelsSet).sort();
+        const labels = Array.from(labelsSet)
+            .filter(l => !['TERISI', 'TESTING'].includes(l.toUpperCase()))
+            .sort((a, b) => {
+                const sumA = (mapNilaiSpk[a] || 0) + (mapNilaiOpname[a] || 0);
+                const sumB = (mapNilaiSpk[b] || 0) + (mapNilaiOpname[b] || 0);
+                return sumB - sumA;
+            });
         
         return {
             labels,

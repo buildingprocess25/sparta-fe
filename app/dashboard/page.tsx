@@ -28,7 +28,7 @@ import {
 
 import AppNavbar from '@/components/AppNavbar';
 
-import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getAccessibleBranchesForUser, getSessionBranchCoverage, BRANCH_TO_ULOK } from '@/lib/constants';
+import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getSubBranchesForParent, getAccessibleBranchesForUser, getSessionBranchCoverage, BRANCH_TO_ULOK } from '@/lib/constants';
 
 import { formatRupiah, parseCurrency, cn } from '@/lib/utils';
 
@@ -1254,7 +1254,7 @@ function DashboardPageContent() {
 
     const [selectedCabang, setSelectedCabang] = useState('ALL');
 
-    const [selectedProyek, setSelectedProyek] = useState('ALL');
+
 
     const [cabangList, setCabangList] = useState<string[]>([]);
 
@@ -1863,17 +1863,23 @@ function DashboardPageContent() {
 
             const canSeeAllBranches = canViewAllBranches(userInfo?.roles, user?.isSuperHuman);
 
-            // HO: match by parent cabang group. User cabang/branch: match exact sub-cabang
+            let matchCabang = true;
 
-            const matchCabang = selectedCabang === 'ALL'
+            if (selectedCabang !== 'ALL') {
 
-                ? true
+                if (canSeeAllBranches) {
 
-                : canSeeAllBranches
+                    const targetSubBranches = getSubBranchesForParent(selectedCabang);
 
-                    ? getParentBranch(pCabang) === selectedCabang
+                    matchCabang = targetSubBranches.includes(pCabang);
 
-                    : pCabang === selectedCabang;
+                } else {
+
+                    matchCabang = pCabang === selectedCabang;
+
+                }
+
+            }
 
             
 
@@ -1881,11 +1887,11 @@ function DashboardPageContent() {
 
             const matchProyek = 
 
-                selectedProyek === 'ALL' ? true :
+                jobType === 'ALL' ? true :
 
-                selectedProyek === 'RENOVASI' ? pProyek.includes('RENOVASI') || pProyek.includes('PERBAIKAN') || pProyek.includes('PEREMAJAAN') :
+                jobType === 'RENOVASI' ? pProyek.includes('RENOVASI') || pProyek.includes('PERBAIKAN') || pProyek.includes('PEREMAJAAN') :
 
-                selectedProyek === 'REGULER' ? pProyek === 'REGULER' || pProyek === 'ALFAMART REGULER' :
+                jobType === 'REGULER' ? pProyek === 'REGULER' || pProyek === 'ALFAMART REGULER' :
 
                 false;
 
@@ -1895,7 +1901,7 @@ function DashboardPageContent() {
 
         });
 
-    }, [projects, searchQuery, selectedCabang, selectedProyek, userInfo?.roles, user?.isSuperHuman]);
+    }, [projects, searchQuery, selectedCabang, jobType, userInfo?.roles, user?.isSuperHuman]);
 
 
 
@@ -2656,9 +2662,9 @@ function DashboardPageContent() {
 
             
 
-            // ✅ Take MINIMUM penalty (peer yang selesai duluan menentukan denda)
+            // ✅ Take MAXIMUM penalty (peer yang memiliki denda terbesar menentukan denda ULOK)
 
-            if (!existing || penalty.amount < existing.amount) {
+            if (!existing || penalty.amount > existing.amount) {
 
                 penaltyByUlok.set(ulokKey, penalty);
 

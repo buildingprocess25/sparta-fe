@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Loader2, Download, RefreshCw } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -80,13 +80,15 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                         <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px] focus:ring-1 focus:ring-red-500">
                             <div className="flex items-center gap-2">
                                 <MapPin className="w-4 h-4 text-slate-400" />
-                                <span className="truncate text-sm font-semibold">
-                                    {selectedBranch === 'all' ? 'Semua Cabang' : selectedBranch}
-                                </span>
+                                <SelectValue>
+                                    <span className="truncate text-sm font-semibold">
+                                        {selectedBranch.toUpperCase() === 'ALL' ? 'Semua Cabang' : selectedBranch}
+                                    </span>
+                                </SelectValue>
                             </div>
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
-                            <SelectItem value="all">
+                            <SelectItem value="ALL">
                                 <span className="font-semibold text-red-600">Semua Cabang</span>
                             </SelectItem>
                             {accessibleBranches.map((branch) => (
@@ -102,9 +104,11 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
             <div className="w-full md:w-48">
                 <Select value={jobType} onValueChange={(val: any) => onJobTypeChange(val)}>
                     <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px] focus:ring-1 focus:ring-red-500">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                            {jobType === 'ALL' ? 'Semua Tipe Proyek' : jobType === 'RENOVASI' ? 'Renovasi' : 'Reguler'}
-                        </div>
+                        <SelectValue>
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                {jobType === 'ALL' ? 'Semua Tipe Proyek' : jobType === 'RENOVASI' ? 'Renovasi' : 'Reguler'}
+                            </div>
+                        </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                         <SelectItem value="ALL"><span className="font-semibold text-slate-800">Semua Tipe Proyek</span></SelectItem>
