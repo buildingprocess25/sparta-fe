@@ -1010,7 +1010,7 @@ function SpecializedDetailContent({
       const existing = penaltyByUlok.get(ulokKey);
 
       // ✅ Take MINIMUM penalty (peer yang selesai duluan) among SIPIL+ME
-      if (!existing || penalty.amount < existing.penalty.amount) {
+      if (!existing || penalty.amount > existing.penalty.amount) {
         penaltyByUlok.set(ulokKey, { penalty, project: row });
       }
     });
@@ -1077,7 +1077,7 @@ function SpecializedDetailContent({
 
       const ulokKey = row?.toko?.nomor_ulok || `TOKO_${row?.toko?.id}`;
       const existing = officialPenaltyByUlok.get(ulokKey);
-      if (!existing || penalty.amount < existing.amount) {
+      if (!existing || penalty.amount > existing.amount) {
         officialPenaltyByUlok.set(ulokKey, penalty);
       }
     });
@@ -1465,16 +1465,16 @@ export default function DashboardCommandWorkspace({
         const stage = getStage(project);
         if (detail.subContext && stage !== detail.subContext) return;
         if (detail.subContext && !isStageVisibleInDetail(project, stage)) return;
-        
+
         const key = getProjectStorePenaltyKey(project);
         const penalty = getPenalty(project);
         const existing = byStore.get(key);
-        
+
         const currentLingkup = project?.toko?.lingkup_pekerjaan || "";
         const allLingkup = existing ? existing.allLingkup : new Set<string>();
         if (currentLingkup) allLingkup.add(currentLingkup.toUpperCase());
-        
-        if (!existing || penalty.amount < existing.penalty.amount) {
+
+        if (!existing || penalty.amount > existing.penalty.amount) {
           byStore.set(key, { project, penalty, allLingkup });
         } else {
           existing.allLingkup = allLingkup;
