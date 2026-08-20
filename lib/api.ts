@@ -4472,17 +4472,22 @@ export const viewGeneratedPdfOnline = async (
     } as const;
 
     const endpoint = endpointByType[tipe];
-    const res = await apiFetch(`${base}${endpoint}`);
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Gagal membuka PDF (${res.status}): ${text.substring(0, 100)}`);
-    }
+    try {
+        const res = await apiFetch(`${base}${endpoint}`);
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Gagal membuka PDF (${res.status}): ${text.substring(0, 100)}`);
+        }
 
-    const blob = await res.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    popup.location.href = blobUrl;
-    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
-    return true;
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        popup.location.href = blobUrl;
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+        return true;
+    } catch (err) {
+        popup.close();
+        throw err;
+    }
 };
 
 // =============================================================================
