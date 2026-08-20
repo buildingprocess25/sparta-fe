@@ -641,7 +641,8 @@ function GanttBoard() {
 
 
 
-        if (checkpoint.total_items > 0 && checkpoint.ready_opname_items === 0 && checkpoint.opname_items > 0) {
+        const scopeMissingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
+        if (checkpoint.total_items > 0 && checkpoint.ready_opname_items === 0 && checkpoint.opname_items > 0 && scopeMissingPengawasan === 0) {
             showAlert({
                 title: "Sudah masuk Opname",
                 message: "Pekerjaan selesai pada checkpoint ini sudah diproses ke Opname dan dikunci. Tidak ada pekerjaan baru untuk diajukan.",
@@ -3279,6 +3280,7 @@ function GanttBoard() {
                     flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
                     draft={selectedGanttId && activeHeaderClick ? unifiedMemoDrafts[`${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
                     missingInOtherScopes={missingInOtherScopes}
+                    targetStDate={targetStInfo?.date ? formatDateForPengawasan(targetStInfo.date) : null}
                     onDraftChange={(draft: any) => {
                         if (!selectedGanttId || !activeHeaderClick) return;
                         const key = `${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
@@ -3445,7 +3447,7 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes }: any) {
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
     const { user } = useSession();
@@ -3462,6 +3464,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [forcedStBlockerItems, setForcedStBlockerItems] = useState<any[]>([]);
 
     const getEffectiveWorkStart = useCallback(() => {
         const spkStart = parseDateAny(spkInfo?.startDate || '');
@@ -3501,7 +3504,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         fallbackDate.setDate(fallbackDate.getDate() + (activeHeaderClick?.dayIndex || 0));
         const dDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackDate;
         const formattedDate = formatDateForInput(dDate);
+        const activePengawasanDateKey = formatDateForPengawasan(dDate);
         const currentDateNumeric = parseInt(formattedDate.replace(/-/g, ''), 10);
+        const isTargetStMemo = Boolean(targetStDate) && formatPengawasanDateKey(activePengawasanDateKey) === formatPengawasanDateKey(targetStDate);
 
         const parseDateNumeric = (value: any): number | null => {
             if (!value) return null;
@@ -3538,6 +3543,24 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             });
             return matched?.tanggal_pengawasan ?? null;
         };
+        const checkpointDateNumerics = Array.from(new Set<number>((pengawasanHistory || [])
+            .flatMap((p: any) => {
+                if (p.scopes && Array.isArray(p.scopes)) {
+                    return p.scopes.map((s: any) => s.checkpoint?.tanggal_pengawasan ?? p.tanggal_pengawasan);
+                }
+                return [p.tanggal_pengawasan];
+            })
+            .map(parseDateNumeric)
+            .filter((value: number | null): value is number => Boolean(value))))
+            .sort((a: number, b: number) => a - b);
+
+        const isNearestPengawasanAfter = (sourceDate: any): boolean => {
+            const sourceNumeric = parseDateNumeric(sourceDate);
+            if (!sourceNumeric) return false;
+            if (checkpointDateNumerics.length === 0) return isPreviousPengawasanBeforeCurrent(sourceDate);
+            const nearestNext = checkpointDateNumerics.find((value) => value > sourceNumeric);
+            return nearestNext === currentDateNumeric;
+        };
 
         import('@/lib/api').then(({ fetchPengawasanList, fetchOpnameList }) => {
             Promise.all([
@@ -3569,6 +3592,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const initial: Record<string, any> = {};
                     const map = new Map<string, string>();
                     const idMap = new Map<string, number>();
+                    const latestUnfinishedRows = new Map<string, any>();
                     const getCategoryLateDays = (kategoriPekerjaan: string) => {
                         const matchedTask = chartData?.processedTasks?.find((t: any) => t.name.toUpperCase() === kategoriPekerjaan.toUpperCase());
                         let categoryLateDays = 0;
@@ -3601,22 +3625,30 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                     dataAll.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const sourcePengawasanDate = p.tanggal_pengawasan ?? getPengawasanDateById(p.id_pengawasan_gantt);
+                            const sourceNumeric = parseDateNumeric(sourcePengawasanDate);
+                            if (sourceNumeric && sourceNumeric > currentDateNumeric) return;
+
                             const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
                             const normalizedStatus = p.status.charAt(0).toUpperCase() + p.status.slice(1);
 
                             // dataAll sudah diurutkan terbaru lebih dulu dari backend.
-                            // Jangan biarkan record lama menimpa status terbaru.
+                            // Jangan biarkan record lama menimpa status terbaru as-of tanggal memo.
                             if (!map.has(key)) {
                                 map.set(key, normalizedStatus);
+                                if (p.status.toLowerCase() !== 'selesai') {
+                                    latestUnfinishedRows.set(key, { ...p, sourcePengawasanDate, normalizedStatus });
+                                }
                             }
 
-                            // Jika item Progress/Terlambat dari hari sebelumnya belum punya record hari ini,
-                            // tetap masukkan ke form tanggal pengawasan berikutnya agar bisa diupdate.
+                            // Jika item Progress dari hari sebelumnya belum punya record hari ini,
+                            // tampilkan hanya pada checkpoint terdekat berikutnya, bukan semua tanggal setelahnya.
                             if (
                                 !initial[key] &&
                                 map.get(key) === normalizedStatus &&
-                                p.status.toLowerCase() !== 'selesai' &&
-                                isPreviousPengawasanBeforeCurrent(getPengawasanDateById(p.id_pengawasan_gantt))
+                                p.status.toLowerCase() === 'progress' &&
+                                isPreviousPengawasanBeforeCurrent(sourcePengawasanDate) &&
+                                isNearestPengawasanAfter(sourcePengawasanDate)
                             ) {
                                 initial[key] = {
                                     status: '',
@@ -3627,11 +3659,45 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     isSaved: false,
                                     previousStatus: normalizedStatus,
                                     previousLateDays: getCategoryLateDays(p.kategori_pekerjaan),
-                                    previousPengawasanDate: getPengawasanDateById(p.id_pengawasan_gantt)
+                                    previousPengawasanDate: sourcePengawasanDate
                                 };
                             }
                         }
                     });
+                    const forcedStItems = isTargetStMemo
+                        ? Array.from(latestUnfinishedRows.entries()).map(([key, row]) => {
+                            if (!initial[key]) {
+                                initial[key] = {
+                                    status: '',
+                                    lateDays: 0,
+                                    catatan: '',
+                                    file: null,
+                                    dokumentasiUrl: null,
+                                    isSaved: false,
+                                    previousStatus: row.normalizedStatus,
+                                    previousLateDays: getCategoryLateDays(row.kategori_pekerjaan),
+                                    previousPengawasanDate: row.sourcePengawasanDate
+                                };
+                            }
+
+                            return {
+                                id: `forced-st-${row.id || key}`,
+                                source_type: 'HISTORY',
+                                kategori_pekerjaan: row.kategori_pekerjaan,
+                                jenis_pekerjaan: row.jenis_pekerjaan || row.kategori_pekerjaan,
+                                satuan: row.satuan || '-',
+                                volume: 0,
+                                harga_material: 0,
+                                harga_upah: 0,
+                                total_material: 0,
+                                total_upah: 0,
+                                total_harga: 0,
+                                previous_pengawasan_date: row.sourcePengawasanDate,
+                            };
+                        })
+                        : [];
+                    setForcedStBlockerItems(forcedStItems);
+
                     const mergedInitial = { ...initial, ...(draft || {}) };
                     setMemoInputs(mergedInitial);
                     // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
@@ -3642,13 +3708,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     setLatestStatusMapState(map);
                     setLatestIdMapState(idMap);
                 })
-                .catch(err => console.error("Gagal mendapatkan pengawasan history:", err))
+                .catch(err => {
+                    setForcedStBlockerItems([]);
+                    console.error("Gagal mendapatkan pengawasan history:", err);
+                })
                 .finally(() => {
                     setHasLoadedInitial(true);
                     setIsLoadingHistory(false);
                 });
         });
-    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart]);
+    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart, targetStDate]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
@@ -3698,7 +3767,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             .filter((d: number | null) => d !== null && d < day);
 
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
-        return chartData.processedTasks.map((task: any) => {
+        const baseTasks = chartData.processedTasks || [];
+        const baseTaskNames = new Set(baseTasks.map((task: any) => String(task.name || '').toUpperCase()));
+        const forcedTasks = forcedStBlockerItems
+            .filter((item: any) => item?.kategori_pekerjaan && !baseTaskNames.has(String(item.kategori_pekerjaan).toUpperCase()))
+            .map((item: any) => ({
+                name: item.kategori_pekerjaan,
+                computed: { shift: 0 },
+                ranges: [],
+            }));
+
+        return [...baseTasks, ...forcedTasks].map((task: any) => {
             const shift = task.computed.shift || 0;
             let isScheduledToday = false;
             let isSkippedCompletely = false;
@@ -3800,7 +3879,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
 
             // Juga ambil item dari liveHistory yang kategorinya cocok (untuk proyek migrasi)
-            const historyItemsForCat = liveHistory
+            const historyItemsForCat = [...liveHistory, ...forcedStBlockerItems]
                 .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase())
                 .filter((lh: any) => !catItems.some((ci: any) => ci.jenis_pekerjaan?.toUpperCase() === lh.jenis_pekerjaan?.toUpperCase()));
 
@@ -3890,7 +3969,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, blockedOpnameItemKeys, getEffectiveWorkStart]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart]);
 
     const filteredMemoConfig = useMemo(() => {
         if (!searchQuery.trim()) return memoConfig;
