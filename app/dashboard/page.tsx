@@ -2810,6 +2810,7 @@ function DashboardPageContent() {
 
     const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
 
+    const canAccessPerformanceDashboard = Boolean(user?.isSuperHuman);
     const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
 
     const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
@@ -3025,6 +3026,8 @@ function DashboardPageContent() {
                         onCloseMobile={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}
 
                         onFeatureAlert={showFeatureAlert}
+
+                        canAccessPerformanceDashboard={canAccessPerformanceDashboard}
 
                         onChangeWorkspace={() => router.push('/workspace')}
 
@@ -3278,7 +3281,15 @@ function DashboardPageContent() {
 
                         {(currentView === 'performance' || deferredView === 'all') && (
 
-                            <DashboardKPI userInfo={userInfo} />
+                            canAccessPerformanceDashboard ? (
+
+                                <DashboardKPI userInfo={userInfo} />
+
+                            ) : (
+
+                                <PerformanceComingSoon onBack={() => router.push('/dashboard?view=monitoring')} />
+
+                            )
 
                         )}
 
@@ -5184,6 +5195,97 @@ function DashboardPageContent() {
 
 
 
+function PerformanceComingSoon({ onBack }: { onBack: () => void }) {
+
+    return (
+
+        <section className="flex h-full min-h-[520px] items-center justify-center overflow-y-auto bg-slate-50 px-4 py-8 md:px-8" aria-labelledby="performance-coming-soon-title">
+
+            <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.10)]">
+
+                <div className="grid min-h-[420px] lg:grid-cols-[0.9fr_1.1fr]">
+
+                    <div className="relative flex flex-col justify-between border-b border-slate-200 bg-slate-950 p-7 text-white lg:border-b-0 lg:border-r lg:p-8">
+
+                        <div>
+
+                            <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs font-semibold text-red-100 ring-1 ring-white/15">
+
+                                <Clock className="h-4 w-4" aria-hidden="true" />
+
+                                Validasi KPI Sedang Berjalan
+
+                            </div>
+
+                            <h1 id="performance-coming-soon-title" className="mt-7 max-w-sm text-3xl font-black leading-tight text-balance md:text-4xl">
+
+                                Performance Internal SAT belum dibuka untuk akun ini.
+
+                            </h1>
+
+                        </div>
+
+                        <div className="mt-10 grid gap-3 text-sm text-slate-300">
+
+                            <div className="flex items-start gap-3">
+
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-red-300" aria-hidden="true" />
+
+                                <p className="min-w-0 leading-6">Akses sementara hanya untuk Super Human sampai definisi KPI selesai divalidasi.</p>
+
+                            </div>
+
+                            <div className="flex items-start gap-3">
+
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-red-300" aria-hidden="true" />
+
+                                <p className="min-w-0 leading-6">Monitoring Tracking tetap aktif dengan filter role dan branch coverage.</p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div className="flex flex-col justify-center p-7 lg:p-10">
+
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-red-600">Coming Soon</p>
+
+                        <h2 className="mt-3 max-w-xl text-2xl font-black leading-tight text-slate-950 text-balance md:text-3xl">
+
+                            Dashboard KPI akan muncul setelah data, role, dan branch scope dinyatakan stabil.
+
+                        </h2>
+
+                        <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600">
+
+                            Untuk saat ini, gunakan Monitoring Tracking sebagai sumber operasional. Panel KPI ini disiapkan sebagai ruang evaluasi internal SAT agar angka yang tampil sudah konsisten sebelum dibuka lebih luas.
+
+                        </p>
+
+                        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+
+                            <Button type="button" onClick={onBack} className="h-11 rounded-lg bg-red-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-200">
+
+                                Kembali ke Monitoring Tracking
+
+                            </Button>
+
+                            <span className="text-xs font-semibold text-slate-400">Akses penuh: Super Human</span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    );
+
+}
 function StatCard({
 
     title,

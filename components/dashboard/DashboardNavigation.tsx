@@ -101,6 +101,7 @@ type Props = {
   userName: string;
   roleLabel: string;
   cabang: string;
+  canAccessPerformanceDashboard: boolean;
   onCloseMobile: () => void;
   onFeatureAlert: (title: string, description: string) => void;
   onChangeWorkspace: () => void;
@@ -121,7 +122,7 @@ function NavigationItem({
 }) {
   const Icon = SPECIAL_ICONS[menu.id] ?? FileText;
   const content = (
-    <div className="group flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] font-medium text-slate-600 transition-all hover:bg-red-50 hover:text-red-700 hover:shadow-[inset_3px_0_0_#dc2626]">
+    <div className="group flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]">
       <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
       <span className="min-w-0 flex-1 leading-snug">{menu.title}</span>
       {count > 0 ? (
@@ -190,6 +191,7 @@ export default function DashboardNavigation({
   userName,
   roleLabel,
   cabang,
+  canAccessPerformanceDashboard,
   onCloseMobile,
   onFeatureAlert,
   onChangeWorkspace,
@@ -212,20 +214,22 @@ export default function DashboardNavigation({
             <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5 flex flex-col gap-1">
                 <Link
                     href="/dashboard?view=monitoring"
-                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-all hover:bg-red-50 hover:text-red-700 hover:shadow-[inset_3px_0_0_#dc2626]"
+                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
                     onClick={onCloseMobile}
                 >
                     <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
                     <span className="min-w-0 flex-1 leading-snug">Monitoring Tracking</span>
                 </Link>
-                <Link
-                    href="/dashboard?view=performance"
-                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-all hover:bg-red-50 hover:text-red-700 hover:shadow-[inset_3px_0_0_#dc2626]"
-                    onClick={onCloseMobile}
-                >
-                    <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
-                    <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
-                </Link>
+                {canAccessPerformanceDashboard && (
+                    <Link
+                        href="/dashboard?view=performance"
+                        className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
+                        onClick={onCloseMobile}
+                    >
+                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
+                    </Link>
+                )}
             </div>
         </details>
       </div>
