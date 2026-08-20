@@ -1851,15 +1851,16 @@ function DashboardPageContent() {
 
             if (isHeadOfficeProject(p)) return false;
 
-            const matchSearch =
+            const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+            const matchSearch = !normalizedSearchQuery || [
 
-                p.toko.nomor_ulok?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.toko.nomor_ulok,
 
-                p.toko.nama_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.toko.nama_toko,
 
-                p.toko.kode_toko?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.toko.kode_toko,
 
-                p.toko.cabang?.toLowerCase().includes(searchQuery.toLowerCase());
+            ].some((value) => String(value || '').toLowerCase().includes(normalizedSearchQuery));
 
 
 

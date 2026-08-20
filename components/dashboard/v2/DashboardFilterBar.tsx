@@ -57,7 +57,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                 </button>
                 <input
                     type="text"
-                    placeholder="Cari Proyek, No ULOK, Kontraktor... (Tekan Enter)"
+                    placeholder="Cari nama toko, kode toko, atau No ULOK... (Tekan Enter)"
                     className="w-full pl-10 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition text-slate-700"
                     value={localSearch}
                     onChange={(e) => setLocalSearch(e.target.value)}
