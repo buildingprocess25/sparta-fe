@@ -1190,6 +1190,12 @@ const dashboardCache = {
 
 };
 
+const normalizeDashboardBranchOption = (branch?: string | null): string =>
+    String(branch ?? '').trim().replace(/_+/g, ' ').replace(/\s+/g, ' ').toUpperCase();
+
+const uniqueSortedBranches = (branches: Array<string | null | undefined>): string[] =>
+    Array.from(new Set(branches.map(normalizeDashboardBranchOption).filter(Boolean))).sort();
+
 const CACHE_TTL = 300_000; // 5 minutes
 
 
@@ -1647,33 +1653,31 @@ function DashboardPageContent() {
             // User cabang biasa hanya melihat cabang session-nya sendiri.
 
             let allowedBranches: string[] = [];
+            let visibleBranches: string[] = [];
 
             if (!canSeeAllBranches || shouldFilterByCompany) {
-
-                // Expand allowedBranches untuk branch support users (Cikokol, Cileungsi, dll)
 
                 const sessionCoverage = getSessionBranchCoverage();
 
                 const accessibleBranches = getAccessibleBranchesForUser(userRoles, userCabang, sessionCoverage);
 
-                allowedBranches = accessibleBranches.length > 0 ? accessibleBranches : [userCabang];
+                allowedBranches = uniqueSortedBranches(accessibleBranches.length > 0 ? accessibleBranches : [userCabang]);
+                const allowedBranchSet = new Set(allowedBranches);
 
-                data = data.filter((p: any) => allowedBranches.map(b => b.toUpperCase()).includes((p.toko?.cabang || '').toUpperCase()));
+                data = data.filter((p: any) => allowedBranchSet.has(normalizeDashboardBranchOption(p.toko?.cabang)));
 
-                // Untuk user cabang/branch: tampilkan semua cabang yang boleh dia akses, bukan cuma dari data
-                const actualBranches = Array.from(new Set(allowedBranches.map((b: string) => getParentBranch(b.toUpperCase())).filter(Boolean))) as string[];
+                visibleBranches = allowedBranches.filter((cabang) => !isHeadOfficeCabang(cabang));
 
-                setCabangList(actualBranches.sort());
+                setCabangList(visibleBranches);
 
             } else {
 
-                allowedBranches = Array.from(new Set(data.map((p: any) => p.toko?.cabang?.toUpperCase()).filter(Boolean)));
-
+                allowedBranches = uniqueSortedBranches(data.map((p: any) => p.toko?.cabang));
                 // Untuk HO/SuperHuman: Tampilkan SEMUA cabang induk yang ada di master data, ditambah dari data
                 const allMasterBranches = Array.from(new Set([...Object.keys(BRANCH_TO_ULOK), ...allowedBranches])).filter(b => b !== 'HEAD OFFICE');
-                const parentBranches = Array.from(new Set(allMasterBranches.map(b => getParentBranch(b))));
+                visibleBranches = uniqueSortedBranches(allMasterBranches.map(b => getParentBranch(b)));
 
-                setCabangList(parentBranches.sort());
+                setCabangList(visibleBranches);
 
             }
 
@@ -1733,7 +1737,7 @@ function DashboardPageContent() {
 
             dashboardCache.projects = data;
 
-            dashboardCache.cabangList = allowedBranches.sort();
+            dashboardCache.cabangList = visibleBranches;
 
             dashboardCache.opnameMap = opnameMap;
 
@@ -1859,26 +1863,26 @@ function DashboardPageContent() {
 
 
 
-            const pCabang = (p.toko?.cabang || '').toUpperCase();
+            const pCabang = normalizeDashboardBranchOption(p.toko?.cabang);
 
             const canSeeAllBranches = canViewAllBranches(userInfo?.roles, user?.isSuperHuman);
 
             let matchCabang = true;
 
             if (selectedCabang !== 'ALL') {
+                const normalizedSelectedCabang = normalizeDashboardBranchOption(selectedCabang);
 
                 if (canSeeAllBranches) {
 
-                    const targetSubBranches = getSubBranchesForParent(selectedCabang);
+                    const targetSubBranches = getSubBranchesForParent(normalizedSelectedCabang).map(normalizeDashboardBranchOption);
 
                     matchCabang = targetSubBranches.includes(pCabang);
 
                 } else {
 
-                    matchCabang = pCabang === selectedCabang;
+                    matchCabang = pCabang === normalizedSelectedCabang;
 
                 }
-
             }
 
 
@@ -1902,6 +1906,12 @@ function DashboardPageContent() {
         });
 
     }, [projects, searchQuery, selectedCabang, jobType, userInfo?.roles, user?.isSuperHuman]);
+
+    useEffect(() => {
+        if (selectedCabang === 'ALL') return;
+        const selectedStillAvailable = cabangList.some((cabang) => normalizeDashboardBranchOption(cabang) === normalizeDashboardBranchOption(selectedCabang));
+        if (!selectedStillAvailable) setSelectedCabang('ALL');
+    }, [cabangList, selectedCabang]);
 
 
 

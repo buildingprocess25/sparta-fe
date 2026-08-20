@@ -19,6 +19,12 @@ type DashboardData = any;
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
 
+const normalizeChartBranch = (branch?: string | null): string =>
+    String(branch ?? '').trim().replace(/_+/g, ' ').replace(/\s+/g, ' ').toUpperCase();
+
+const uniqueChartBranches = (branches: Array<string | null | undefined>): string[] =>
+    Array.from(new Set(branches.map(normalizeChartBranch).filter(Boolean))).sort();
+
 interface DashboardChartsProps {
     projects: DashboardData[];
     isSuperAdmin?: boolean;
@@ -44,28 +50,28 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
         return now;
     };
 
+    const normalizedAccessibleBranches = useMemo(() => uniqueChartBranches(accessibleBranches ?? []), [accessibleBranches]);
+
     const baseLabels = useMemo(() => {
-        if (!accessibleBranches || accessibleBranches.length === 0) return [];
-        if (selectedBranch === 'ALL' || !selectedBranch) {
-            return accessibleBranches;
-        } else {
-            if (isSuperAdmin) {
-                return getSubBranchesForParent(selectedBranch);
-            } else {
-                return [selectedBranch];
-            }
+        if (normalizedAccessibleBranches.length === 0) return [];
+        if (selectedBranch === 'ALL' || !selectedBranch) return normalizedAccessibleBranches;
+
+        const normalizedSelectedBranch = normalizeChartBranch(selectedBranch);
+        if (isSuperAdmin) {
+            return uniqueChartBranches(getSubBranchesForParent(normalizedSelectedBranch));
         }
-    }, [accessibleBranches, selectedBranch, isSuperAdmin]);
+
+        return [normalizedSelectedBranch].filter(Boolean);
+    }, [normalizedAccessibleBranches, selectedBranch, isSuperAdmin]);
 
     const getBranchName = (cabang: string | null | undefined, isSuperAdmin: boolean) => {
-        const rawCabang = (cabang || 'UNKNOWN').toUpperCase();
+        const rawCabang = normalizeChartBranch(cabang) || 'UNKNOWN';
         if (selectedBranch === 'ALL' || !selectedBranch) {
             if (isSuperAdmin) return getParentBranch(rawCabang) || rawCabang;
             return rawCabang;
-        } else {
-            // When filtered to a specific branch group, break it down to sub-branches
-            return rawCabang;
         }
+
+        return rawCabang;
     };
 
     // --- CHART A: RAB Dibuat vs RAB Approved ---
@@ -121,7 +127,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 { label: 'RAB Approved', data: labels.map(l => mapApproved[l] || 0), backgroundColor: '#0ea5e9', borderRadius: 4 }
             ]
         };
-    }, [projects, filterRab]);
+    }, [projects, filterRab, baseLabels, isSuperAdmin, selectedBranch]);
 
     // --- CHART B: SPK Dibuat vs SPK Approved ---
     const dataSpk = useMemo(() => {
@@ -174,7 +180,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 { label: 'SPK Approved', data: labels.map(l => mapApproved[l] || 0), backgroundColor: '#10b981', borderRadius: 4 }
             ]
         };
-    }, [projects, filterSpk, isSuperAdmin]);
+    }, [projects, filterSpk, baseLabels, isSuperAdmin, selectedBranch]);
 
     // --- CHART C: SPK Release vs Serah Terima ---
     const dataSpkRelease = useMemo(() => {
@@ -264,7 +270,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 { label: 'Serah Terima', data: labels.map(l => mapST[l] || 0), backgroundColor: '#8b5cf6', borderRadius: 4 }
             ]
         };
-    }, [projects, filterSt]);
+    }, [projects, filterSt, baseLabels, isSuperAdmin, selectedBranch]);
 
     // --- CHART D: Nilai SPK vs Nilai Grand Opname Final ---
     const dataNilai = useMemo(() => {
@@ -323,7 +329,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                 { label: 'Nilai Opname Final', data: labels.map(l => mapNilaiOpname[l] || 0), backgroundColor: '#2dd4bf', borderRadius: 4 }
             ]
         };
-    }, [projects, filterNilai]);
+    }, [projects, filterNilai, baseLabels, isSuperAdmin, selectedBranch]);
 
     const commonOptions = {
         responsive: true,
