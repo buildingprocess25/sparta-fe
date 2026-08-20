@@ -81,6 +81,9 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
         headers.set("Authorization", `Bearer ${token}`);
     }
 
+    // Bypass dev tunnel and ngrok warning pages.
+    headers.set("ngrok-skip-browser-warning", "69420");
+
     const response = await globalThis.fetch(input, {
         ...init,
         headers
@@ -1164,7 +1167,7 @@ export const checkRevisionStatus = async (email: string, _cabang: string) => {
         const res = await fetchRABList({
             email_pembuat: email,
         }, { suppressGlobalError: true });
-        
+
         // Filter RAB yang ditolak/dikembalikan, dan pastikan cabang cocok (double-check client-side)
         const rejected = res.data.filter(rab => {
             if (!rab.status) return false;
@@ -2302,9 +2305,9 @@ export const updatePengawasanBulk = async (payload: FormData | { items: any[] })
 };
 
 /** Ambil daftar pengawasan selesai/seluruhnya */
-export const fetchPengawasanList = async (filters?: { 
-    id_gantt?: number; 
-    status?: string; 
+export const fetchPengawasanList = async (filters?: {
+    id_gantt?: number;
+    status?: string;
     tanggal?: string;
     kategori_pekerjaan?: string;
     jenis_pekerjaan?: string;
@@ -2317,7 +2320,7 @@ export const fetchPengawasanList = async (filters?: {
     if (filters?.kategori_pekerjaan) params.append("kategori_pekerjaan", filters.kategori_pekerjaan);
     if (filters?.jenis_pekerjaan) params.append("jenis_pekerjaan", filters.jenis_pekerjaan);
     if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
-    
+
     const url = `${API_URL.replace(/\/$/, "")}/api/pengawasan${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
@@ -4472,17 +4475,22 @@ export const viewGeneratedPdfOnline = async (
     } as const;
 
     const endpoint = endpointByType[tipe];
-    const res = await apiFetch(`${base}${endpoint}`);
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Gagal membuka PDF (${res.status}): ${text.substring(0, 100)}`);
-    }
+    try {
+        const res = await apiFetch(`${base}${endpoint}`);
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Gagal membuka PDF (${res.status}): ${text.substring(0, 100)}`);
+        }
 
-    const blob = await res.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    popup.location.href = blobUrl;
-    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
-    return true;
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        popup.location.href = blobUrl;
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60_000);
+        return true;
+    } catch (err) {
+        popup.close();
+        throw err;
+    }
 };
 
 // =============================================================================
@@ -4552,7 +4560,7 @@ export const fetchDokumentasiBangunanList = async (filters?: {
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.kode_toko) params.append("kode_toko", filters.kode_toko);
     if (filters?.nomor_ulok) params.append("nomor_ulok", filters.nomor_ulok);
-    
+
     const url = `${base}/api/dok/bangunan${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };
@@ -4696,7 +4704,7 @@ export const addDokumentasiBangunanItems = async (
 ) => {
     const url = `${API_URL.replace(/\/$/, "")}/api/dok/bangunan/${id}/items`;
     const form = new FormData();
-    
+
     for (const [idStr, data] of Object.entries(photos)) {
         if (data.url.startsWith('data:')) {
             const res = await apiFetch(data.url);
@@ -4739,7 +4747,7 @@ export const fetchDashboardSingle = async (params: { search?: string; id?: numbe
     const query = new URLSearchParams();
     if (params.id) query.append("id", String(params.id));
     else if (params.search) query.append("search", params.search);
-    
+
     const url = `${API_URL.replace(/\/$/, "")}/api/dashboard?${query.toString()}`;
     return safeFetchJSON(url);
 };
@@ -5253,8 +5261,8 @@ export type ProjectPlanningInterventionPayload = {
 
 /** Submit FPD baru (Coordinator/Cabang). */
 export const submitProjekPlanning = async (
-    payload: Record<string, unknown>, 
-    fileFpd?: File | File[], 
+    payload: Record<string, unknown>,
+    fileFpd?: File | File[],
     fileGambarKerjaMe?: File | File[],
     fileGambarKompetitor?: File | File[],
     fileSiteplan?: File | File[],
@@ -5283,13 +5291,13 @@ export const submitProjekPlanning = async (
         appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
         appendFiles(formData, "file_siteplan", fileSiteplan);
         appendFiles(formData, "file_ba_tidak_sesuai_standar", fileBaTidakSesuaiStandar);
-        
+
         if (fotoFiles) {
             Object.entries(fotoFiles).forEach(([index, file]) => {
                 if (file) formData.append(`foto_items_${index}`, file);
             });
         }
-        
+
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
@@ -5313,9 +5321,9 @@ export const submitProjekPlanning = async (
 
 /** Resubmit FPD (Coordinator â€” update record DRAFT). */
 export const resubmitProjekPlanning = async (
-    id: number, 
-    payload: Record<string, unknown>, 
-    fileFpd?: File | File[], 
+    id: number,
+    payload: Record<string, unknown>,
+    fileFpd?: File | File[],
     fileGambarKerjaMe?: File | File[],
     fileGambarKompetitor?: File | File[],
     fileSiteplan?: File | File[],
@@ -5344,13 +5352,13 @@ export const resubmitProjekPlanning = async (
         appendFiles(formData, "file_gambar_kompetitor", fileGambarKompetitor);
         appendFiles(formData, "file_siteplan", fileSiteplan);
         appendFiles(formData, "file_ba_tidak_sesuai_standar", fileBaTidakSesuaiStandar);
-        
+
         if (fotoFiles) {
             Object.entries(fotoFiles).forEach(([index, file]) => {
                 if (file) formData.append(`foto_items_${index}`, file);
             });
         }
-        
+
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
@@ -5765,7 +5773,7 @@ export async function exportGlobalDcData(
 
   const base = API_URL.replace(/\/$/, "");
   const url = `${base}/api/dc-development/archive-projects/export/${format}?${params.toString()}`;
-  
+
   const response = await apiFetch(url, {
     method: 'GET',
     headers: {
@@ -5782,7 +5790,7 @@ export async function exportGlobalDcData(
   const downloadUrl = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = downloadUrl;
-  
+
   // Extract filename from Content-Disposition if available
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = `Data_Global_DC.${format === 'excel' ? 'xlsx' : format}`;
