@@ -260,8 +260,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
             labels,
             datasets: [
                 { label: 'SPK Release', data: labels.map(l => mapSpkRelease[l] || 0), backgroundColor: '#f87171', borderRadius: 4 },
-                { label: 'Serah Terima', data: labels.map(l => mapST[l] || 0), backgroundColor: '#8b5cf6', borderRadius: 4 },
-                { label: 'SPK Habis Durasi', data: labels.map(l => mapHabisDurasi[l] || 0), backgroundColor: '#fbbf24', borderRadius: 4 }
+                { label: 'SPK Habis Durasi', data: labels.map(l => mapHabisDurasi[l] || 0), backgroundColor: '#fbbf24', borderRadius: 4 },
+                { label: 'Serah Terima', data: labels.map(l => mapST[l] || 0), backgroundColor: '#8b5cf6', borderRadius: 4 }
             ]
         };
     }, [projects, filterSt]);

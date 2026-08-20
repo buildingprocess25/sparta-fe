@@ -1303,16 +1303,18 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         // 4. Instruksi Lapangan (Only if exists)
         const hasIL = proj.instruksi_lapangan && proj.instruksi_lapangan.length > 0;
         const totalIL = hasIL ? proj.instruksi_lapangan.reduce((sum: number, il: any) => sum + (Number(il.grand_total) || 0), 0) : 0;
-        nodes.push({
-            type: 'IL_ROOT',
-            title: `Instruksi Lapangan${suffix}`,
-            desc: hasIL ? formatRupiah(totalIL) : 'Belum Tersedia',
-            icon: <Activity className="w-5 h-5"/>,
-            color: hasIL ? 'orange' : 'slate',
-            data: hasIL ? { isILRoot: true, projectData: proj } : null,
-            isActive: hasIL,
-            isCompleted: true
-        });
+        if (hasIL) {
+            nodes.push({
+                type: 'IL_ROOT',
+                title: `Instruksi Lapangan${suffix}`,
+                desc: formatRupiah(totalIL),
+                icon: <Activity className="w-5 h-5"/>,
+                color: 'orange',
+                data: { isILRoot: true, projectData: proj },
+                isActive: true,
+                isCompleted: true
+            });
+        }
 
         // 5. Pengawasan
         let hasPengawasan = false;
@@ -1351,15 +1353,17 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
 
         // 6. Opname Parsial
         const allOpnames = proj.opname_final || [];
-        const opnameParsial = allOpnames.filter((o: any) => o.tipe_opname === 'OPNAME');
+        const opnameParsial = allOpnames.filter((o: any) => o.tipe_opname === 'OPNAME' || o.tipe_opname === 'OPNAME_FINAL' || o.tipe_opname === 'KTK');
         const hasParsial = opnameParsial.length > 0;
+        const parsialData = hasParsial ? opnameParsial[0] : null;
+        const parsialTotal = parsialData ? (parsialData.grand_total_final || parsialData.grand_total_ktk || parsialData.grand_total_opname || parsialData.nilai_opname || 0) : 0;
         nodes.push({
             type: 'Opname Parsial',
             title: `Opname Parsial${suffix}`,
-            desc: hasParsial ? formatRupiah(opnameParsial[0].grand_total_opname || opnameParsial[0].nilai_opname || 0) : 'Belum Tersedia',
+            desc: hasParsial ? formatRupiah(parsialTotal) : 'Belum Tersedia',
             icon: <Activity className="w-5 h-5"/>,
             color: hasParsial ? 'sky' : 'slate',
-            data: hasParsial ? opnameParsial[0] : null,
+            data: parsialData,
             isActive: hasParsial,
             isCompleted: hasParsial
         });
@@ -1399,15 +1403,18 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         });
 
         // 9. DONE
+        const isFinalApproved = hasFinal && ['SELESAI', 'APPROVED', 'DONE', 'DISETUJUI'].includes(String(opnameFinal[0].status_opname_final || '').toUpperCase());
+        const isProyekSelesai = hasST && hasFinal && isFinalApproved;
+        
         nodes.push({
             type: 'DONE',
             title: `Proyek Selesai${suffix}`,
-            desc: hasST ? 'Tercapai' : 'Belum Tercapai',
+            desc: isProyekSelesai ? 'Tercapai' : 'Belum Tercapai',
             icon: <CheckCircle2 className="w-5 h-5"/>,
-            color: hasST ? 'emerald' : 'slate',
+            color: isProyekSelesai ? 'emerald' : 'slate',
             data: null,
-            isActive: hasST,
-            isCompleted: hasST
+            isActive: isProyekSelesai,
+            isCompleted: isProyekSelesai
         });
 
         let displayNodes = nodes;
@@ -1994,13 +2001,38 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         }
 
         if (type === 'Opname Final' || type === 'Opname Parsial' || type === 'Opname') {
-            const baseExcludedKeys = ['id', 'created_at', 'updated_at', 'link_pdf', 'link_pdf_opname', 'items', 'hari_denda', 'nilai_denda', 'tipe_opname', ...commonExcluded];
+            const baseExcludedKeys = ['id', 'created_at', 'updated_at', 'link_pdf', 'link_pdf_opname', 'items', 'hari_denda', 'nilai_denda', 'tipe_opname', 'aksi', 'cost_terbuka', 'cost_beanspot', 'cost_bangunan', 'tanggal_akhir_spk_denda', 'tanggal_serah_terima_denda', 'pemberi_persetujuan_direktur', 'waktu_persetujuan_direktur', 'pemberi_persetujuan_koordinator', 'waktu_persetujuan_koordinator', 'pemberi_persetujuan_manager', 'waktu_persetujuan_manager', 'catatan_persetujuan_koordinator', 'catatan_persetujuan_manager', 'catatan_persetujuan_direktur', ...commonExcluded];
             const excludedKeys = type === 'Opname Parsial' 
-                ? [...baseExcludedKeys, 'aksi', 'cost_terbuka', 'cost_beanspot', 'cost_bangunan', 'grand_total_rab'] 
+                ? [...baseExcludedKeys, 'grand_total_rab', 'status_opname_final', 'email_pembuat', 'catatan_opname', 'grand_total_final', 'grand_total_ktk', 'alasan_penolakan', 'catatan_penolakan'] 
                 : [...baseExcludedKeys, 'grand_total_rab'];
             
             const keys = Object.keys(data).filter(k => !excludedKeys.includes(k) && data[k] !== null && data[k] !== '' && String(data[k]).toUpperCase() !== 'NULL' && typeof data[k] !== 'object');
             const docTitle = type === 'Opname Parsial' ? 'Opname Parsial' : 'Opname Final';
+
+            const renderPersetujuanRow = (label: string, emailField: string, waktuField: string) => {
+                if (!data[emailField] && !data[waktuField]) return null;
+                
+                let nama = data[emailField];
+                if (nama && typeof nama === 'string') {
+                    let emailName = nama.split('@')[0];
+                    emailName = emailName.replace(/\./g, ' ');
+                    nama = emailName.replace(/\b\w/g, l => l.toUpperCase());
+                } else {
+                    nama = '-';
+                }
+
+                const w = data[waktuField] ? String(data[waktuField]).replace(/\.\d+\+.*$/, '') : '';
+                if (!w && nama === '-') return null;
+                
+                return (
+                    <tr key={label} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                        <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">{label}</th>
+                        <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
+                            {w ? `Disetujui ${formatDateIndo(w).replace(/ pukul.*$/, '')} oleh ${nama}` : '-'}
+                        </td>
+                    </tr>
+                );
+            };
             
             // Per requirement: pake grand total final KTK opname bukan grand total opname
             let displayGrandTotal = data.grand_total_final || data.grand_total_ktk || data.grand_total_opname || data.nilai_opname || 0;
@@ -2024,7 +2056,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                             </div>
                             {type === 'Opname Parsial' 
                                 ? renderMainPdfButton(data.link_pdf || data.link_pdf_opname, undefined, undefined, 'Lihat PDF Opname Parsial')
-                                : renderMainPdfButton(data.link_pdf || data.link_pdf_opname, data.id, 'OPNAME')
+                                : renderMainPdfButton(data.link_pdf || data.link_pdf_opname, undefined, undefined, 'Lihat PDF KTK')
                             }
                         </div>
                     </div>
@@ -2032,6 +2064,94 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
                             <table className="w-full text-left border-collapse">
                                 <tbody>
+                                    {type === 'Opname Parsial' && selectedProject?.gantt && (() => {
+                                        let allPengawasanGantt: any[] = [];
+                                        let allPengawasanItems: any[] = [];
+                                        
+                                        (selectedProject.gantt || []).forEach((g: any) => {
+                                            if (g.pengawasan_gantt && Array.isArray(g.pengawasan_gantt)) {
+                                                allPengawasanGantt = allPengawasanGantt.concat(g.pengawasan_gantt);
+                                            }
+                                            if (g.pengawasan && Array.isArray(g.pengawasan)) {
+                                                allPengawasanItems = allPengawasanItems.concat(g.pengawasan);
+                                            }
+                                        });
+
+                                        if (allPengawasanGantt.length === 0) return null;
+
+                                        // Collect all opname items
+                                        const allOpnameItems = (selectedProject.opname_final || [])
+                                            .filter((o: any) => o.tipe_opname === 'OPNAME' || o.tipe_opname === 'OPNAME_FINAL')
+                                            .flatMap((o: any) => o.items || []);
+
+                                        // Group by tanggal_pengawasan
+                                        const groupsMap = new Map<string, { date: Date, count: number, total: number }>();
+                                        
+                                        allPengawasanGantt.forEach((pg: any) => {
+                                            const items = allPengawasanItems.filter(p => p.id_pengawasan_gantt === pg.id);
+                                            if (items.length > 0) {
+                                                let tglStr = pg.tanggal_pengawasan || pg.created_at;
+                                                if (tglStr && String(tglStr).match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+                                                    const parts = String(tglStr).split('/');
+                                                    tglStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                                                }
+                                                const dStr = formatDateIndo(tglStr).replace(/ pukul.*$/, '');
+                                                
+                                                let groupTotal = 0;
+                                                items.forEach(pi => {
+                                                    const piStatus = String(pi.status).trim().toUpperCase();
+                                                    // Map price only if 'selesai' to avoid double counting across parsials
+                                                    if (['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes(piStatus)) {
+                                                        const matchingOpname = allOpnameItems.find(oi => 
+                                                            String(oi.kategori_pekerjaan).trim().toLowerCase() === String(pi.kategori_pekerjaan).trim().toLowerCase() && 
+                                                            String(oi.jenis_pekerjaan).trim().toLowerCase() === String(pi.jenis_pekerjaan).trim().toLowerCase()
+                                                        );
+                                                        if (matchingOpname) {
+                                                            groupTotal += parseFloat(matchingOpname.total_harga_opname) || 0;
+                                                        }
+                                                    }
+                                                });
+
+                                                const existing = groupsMap.get(dStr);
+                                                if (existing) {
+                                                    existing.count += items.length;
+                                                    existing.total += groupTotal;
+                                                } else {
+                                                    let safeDate = new Date(tglStr);
+                                                    if (isNaN(safeDate.getTime())) safeDate = new Date(pg.created_at);
+                                                    groupsMap.set(dStr, { date: safeDate, count: items.length, total: groupTotal });
+                                                }
+                                            }
+                                        });
+
+                                        const groups = Array.from(groupsMap.entries()).map(([dStr, val]) => ({
+                                            dateStr: dStr,
+                                            date: val.date,
+                                            count: val.count,
+                                            total: val.total
+                                        })).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+                                        return (
+                                            <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group bg-slate-50/30">
+                                                <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Riwayat</th>
+                                                <td className="py-5 px-8 text-sm font-semibold text-slate-900 align-top">
+                                                    <div className="flex flex-col gap-3">
+                                                        {groups.map((g, idx) => (
+                                                            <div key={idx} className="flex flex-wrap items-center gap-2">
+                                                                <span className="font-bold text-slate-700">Opname Parsial {idx + 1}</span>
+                                                                <span className="text-slate-500 font-medium text-xs px-2.5 py-1 bg-slate-100 rounded-md border border-slate-200">
+                                                                    {g.dateStr}
+                                                                </span>
+                                                                <span className="text-emerald-700 font-bold text-xs px-2.5 py-1 bg-emerald-50 rounded-md border border-emerald-200">
+                                                                    {g.count} Item
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })()}
                                     {renderStandardTokoInfo()}
                                     <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                                         <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Nilai SPK</th>
@@ -2045,18 +2165,12 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             <span className="text-base font-semibold break-words text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg -ml-3">{fR(displayGrandTotal)}{opnameStatus}</span>
                                         </td>
                                     </tr>
-                                    {type !== 'Opname Parsial' && (
-                                        <>
-                                            <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                                                <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Hari Denda</th>
-                                                <td className="py-5 px-8 text-base font-semibold text-slate-800 align-top">{data.hari_denda || 0} hari</td>
-                                            </tr>
-                                            <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                                                <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Nilai Denda</th>
-                                                <td className="py-5 px-8 text-base font-semibold text-rose-600 align-top">{fR(data.nilai_denda || 0)}</td>
-                                            </tr>
-                                        </>
-                                    )}
+                                    <tr className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                                        <th className="py-5 px-8 text-xs font-bold uppercase text-slate-400 tracking-widest w-1/3 align-top group-hover:text-red-500 transition-colors">Selisih</th>
+                                        <td className="py-5 px-8 text-sm font-semibold text-slate-900 break-words align-top">
+                                            <span className="text-base font-semibold break-words text-red-700 bg-red-50 px-3 py-1 rounded-lg -ml-3">{fR(spkTotal - displayGrandTotal)}</span>
+                                        </td>
+                                    </tr>
                                     {keys.map((k, i) => {
                                         if (k === 'grand_total_opname' || k === 'grand_total_final' || k === 'nilai_opname' || k === 'grand_total_ktk') return null;
 
@@ -2079,6 +2193,13 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             </tr>
                                         );
                                     })}
+                                    {type !== 'Opname Parsial' && (
+                                        <>
+                                            {renderPersetujuanRow('Persetujuan Koordinator', 'pemberi_persetujuan_koordinator', 'waktu_persetujuan_koordinator')}
+                                            {renderPersetujuanRow('Persetujuan Manager', 'pemberi_persetujuan_manager', 'waktu_persetujuan_manager')}
+                                            {renderPersetujuanRow('Persetujuan Direktur', 'pemberi_persetujuan_direktur', 'waktu_persetujuan_direktur')}
+                                        </>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
