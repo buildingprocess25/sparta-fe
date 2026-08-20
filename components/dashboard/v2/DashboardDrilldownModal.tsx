@@ -81,7 +81,7 @@ const formatStatusLabel = (status: string) => {
         .join(' ');
 };
 
-type DrilldownView = 'stage_summary' | 'list_ulok' | 'timeline' | 'detail' | 'cost_m2' | 'jhk_pekerjaan_list' | 'keterlambatan_list' | 'lingkup_selection';
+type DrilldownView = 'stage_summary' | 'list_ulok' | 'timeline' | 'detail' | 'cost_m2' | 'jhk_pekerjaan_list' | 'keterlambatan_list' | 'lingkup_selection' | 'il_list_view';
 
 interface DashboardDrilldownModalProps {
     isOpen: boolean;
@@ -2082,7 +2082,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         // Collect all opname items
                                         const allOpnameItems = (selectedProject.opname_final || [])
                                             .filter((o: any) => o.tipe_opname === 'OPNAME' || o.tipe_opname === 'OPNAME_FINAL')
-                                            .flatMap((o: any) => o.items || []);
+                                            .flatMap((o: any) => o.items || []) as Array<Record<string, unknown>>;
 
                                         // Group by tanggal_pengawasan
                                         const groupsMap = new Map<string, { date: Date, count: number, total: number }>();
@@ -2107,7 +2107,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                                             String(oi.jenis_pekerjaan).trim().toLowerCase() === String(pi.jenis_pekerjaan).trim().toLowerCase()
                                                         );
                                                         if (matchingOpname) {
-                                                            groupTotal += parseFloat(matchingOpname.total_harga_opname) || 0;
+                                                            groupTotal += parseFloat(String(matchingOpname.total_harga_opname ?? 0)) || 0;
                                                         }
                                                     }
                                                 });

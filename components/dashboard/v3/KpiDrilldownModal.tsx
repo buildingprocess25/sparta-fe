@@ -212,7 +212,7 @@ export function KpiDrilldownModal({
           job_type: jobType,
           period,
           search,
-          card_type: kpiType,
+          card_type: kpiType as PerformanceCardType,
           selected_role: selectedRole ?? undefined,
           selected_name: selectedName ?? undefined
         });
@@ -240,7 +240,7 @@ export function KpiDrilldownModal({
         job_type: jobType,
         period,
         search,
-        card_type: kpiType,
+        card_type: kpiType as PerformanceCardType,
         sla_role: kpiType === "sla_approval" ? selectedRole as PerformanceSlaRole : undefined,
         sla_doc: selectedDoc ?? undefined,
         person_role: kpiType !== "sla_approval" ? selectedRole as PerformancePersonRole : undefined,
@@ -276,7 +276,7 @@ export function KpiDrilldownModal({
         period,
         search,
         nomor_ulok: row.nomor_ulok,
-        card_type: kpiType,
+        card_type: kpiType as PerformanceCardType,
         sla_role: kpiType === "sla_approval" ? selectedRole as PerformanceSlaRole : undefined,
         sla_doc: selectedDoc ?? undefined,
         person_role: kpiType !== "sla_approval" ? selectedRole as PerformancePersonRole : undefined,
