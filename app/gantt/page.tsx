@@ -3600,6 +3600,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const map = new Map<string, string>();
                     const idMap = new Map<string, number>();
                     const latestUnfinishedRows = new Map<string, any>();
+                    const buggedBlockedKeys = new Set<string>();
                     const getCategoryLateDays = (kategoriPekerjaan: string) => {
                         const matchedTask = chartData?.processedTasks?.find((t: any) => t.name.toUpperCase() === kategoriPekerjaan.toUpperCase());
                         let categoryLateDays = 0;
@@ -3646,6 +3647,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 if (p.status.toLowerCase() !== 'selesai') {
                                     latestUnfinishedRows.set(key, { ...p, sourcePengawasanDate, normalizedStatus });
                                 }
+                            } else {
+                                if (p.status.toLowerCase() === 'selesai' && map.get(key) !== 'Selesai') {
+                                    buggedBlockedKeys.add(key);
+                                }
                             }
 
                             // Jika item Progress/Terlambat dari hari sebelumnya belum punya record hari ini,
@@ -3672,7 +3677,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
                     });
                     const forcedStItems = isTargetStMemo
-                        ? Array.from(latestUnfinishedRows.entries()).map(([key, row]) => {
+                        ? Array.from(latestUnfinishedRows.entries())
+                            .filter(([key]) => buggedBlockedKeys.has(key))
+                            .map(([key, row]) => {
                             if (!initial[key]) {
                                 initial[key] = {
                                     status: '',
