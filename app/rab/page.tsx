@@ -1651,14 +1651,13 @@ function RABPageContent() {
                   {formData.isRenovasi ? (
                     <Select 
                       disabled={isProjectFieldLocked || hasProjectPlanningRequest}
-                      value={formData.proyek || 'Renovasi'} 
+                      value={formData.proyek || undefined} 
                       onValueChange={(val) => setFormData(prev => ({...prev, proyek: val}))}
                     >
                       <SelectTrigger className={projectInputClass}>
                         <SelectValue placeholder="Pilih Jenis Renovasi" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Renovasi">Renovasi (Umum)</SelectItem>
                         <SelectItem value="Renovasi Perluasan">Renovasi Perluasan</SelectItem>
                         <SelectItem value="Renovasi Perpanjangan">Renovasi Perpanjangan</SelectItem>
                         <SelectItem value="Renovasi Toko Tutup">Renovasi Toko Tutup</SelectItem>

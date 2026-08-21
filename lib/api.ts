@@ -2449,6 +2449,20 @@ export type OpnameItem = {
         total_upah:         number;
         total_harga:        number;
     };
+    instruksi_lapangan_item?: {
+        id:                 number;
+        id_instruksi_lapangan: number;
+        kategori_pekerjaan: string;
+        jenis_pekerjaan:    string;
+        satuan:             string;
+        volume:             number;
+        harga_material:     number;
+        harga_upah:         number;
+        total_material:     number;
+        total_upah:         number;
+        total_harga:        number;
+        catatan?:           string | null;
+    } | null;
     // Joined from toko relation
     toko?: {
         id:            number;

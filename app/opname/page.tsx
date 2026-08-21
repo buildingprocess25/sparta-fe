@@ -1936,7 +1936,11 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                 <div className="divide-y divide-slate-100">
                                                     {group.items.map((item, j) => {
                                                         const rabRef = item.rabRef;
-                                                        const volRab = rabRef?.volume || item.rab_item?.volume || 0;
+                                                        const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
+                                                        const volRab = Number(sourceRef?.volume || 0);
+                                                        const satuan = sourceRef?.satuan || '-';
+                                                        const hargaMaterial = Number(sourceRef?.harga_material || 0);
+                                                        const hargaUpah = Number(sourceRef?.harga_upah || 0);
                                                         const isPending = item.status?.toLowerCase() === 'pending';
 
                                                         return (
@@ -1946,24 +1950,24 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                     <div className="flex-1 min-w-0">
                                                                         <div className="flex flex-col gap-1 mb-2">
                                                                             <div className="flex items-center gap-2">
-                                                                                <span className="font-bold text-slate-800 text-sm">{rabRef?.jenis_pekerjaan || item.rab_item?.jenis_pekerjaan || '-'}</span>
+                                                                                <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
                                                                                 <StatusBadge status={item.status} />
                                                                             </div>
                                                                             <div className="flex flex-wrap gap-1.5">
-                                                                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {rabRef?.satuan || item.rab_item?.satuan}</span>
-                                                                                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(Number(rabRef?.harga_material || item.rab_item?.harga_material || 0))}</span>
-                                                                                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0))}</span>
+                                                                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {satuan}</span>
+                                                                                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hargaMaterial)}</span>
+                                                                                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hargaUpah)}</span>
                                                                             </div>
                                                                         </div>
 
                                                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-slate-200 text-xs rounded-lg border border-slate-200 overflow-hidden mt-3">
                                                                             <div className="p-2.5 bg-white">
                                                                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol RAB</div>
-                                                                                <div className="font-semibold text-slate-700">{volRab} <span className="text-xs font-normal text-slate-400">{rabRef?.satuan || item.rab_item?.satuan}</span></div>
+                                                                                <div className="font-semibold text-slate-700">{volRab} <span className="text-xs font-normal text-slate-400">{satuan}</span></div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-white">
                                                                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol Akhir</div>
-                                                                                <div className="font-bold text-slate-800">{item.volume_akhir} <span className="text-xs font-normal text-slate-400">{rabRef?.satuan || item.rab_item?.satuan}</span></div>
+                                                                                <div className="font-bold text-slate-800">{item.volume_akhir} <span className="text-xs font-normal text-slate-400">{satuan}</span></div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-slate-50">
                                                                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Vol</div>
@@ -1973,12 +1977,12 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                                             </div>
                                                                             <div className="p-2.5 bg-white">
                                                                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total RAB</div>
-                                                                                <div className="font-semibold text-slate-700">{formatRp(rabRef?.total_harga || (volRab * ((rabRef?.harga_material || 0) + (rabRef?.harga_upah || 0))))}</div>
+                                                                                <div className="font-semibold text-slate-700">{formatRp(Number(sourceRef?.total_harga) || (volRab * (hargaMaterial + hargaUpah)))}</div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-white">
                                                                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Opname</div>
                                                                                 <div className="font-bold text-slate-800">
-                                                                                    {formatRp(Number(item.total_harga_opname) || (Number(item.volume_akhir) * ((Number(rabRef?.harga_material || item.rab_item?.harga_material || 0)) + (Number(rabRef?.harga_upah || item.rab_item?.harga_upah || 0)))))}
+                                                                                    {formatRp(Number(item.total_harga_opname) || (Number(item.volume_akhir) * (hargaMaterial + hargaUpah)))}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="p-2.5 bg-slate-50">
