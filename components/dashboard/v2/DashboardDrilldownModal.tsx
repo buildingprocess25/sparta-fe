@@ -724,15 +724,26 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     {initialCardType === 'DENDA' && (() => {
                                         const op = project.opname_final?.[0];
                                         const hDenda = op?.hari_denda || 0;
-                                        let st = project.berkas_serah_terima?.[0]?.created_at;
-                                        let tgt = project.spk?.[0]?.waktu_selesai; // Approx target ST
-
                                         const allP = project._all_projects_for_ulok || [project];
-                                        const matchingProject = allP.find((p: any) => (p.opname_final?.[0]?.hari_denda || 0) === hDenda);
                                         
+                                        // Cari project yang memiliki denda tersebut
+                                        const matchingProject = allP.find((p: any) => (p.opname_final?.[0]?.hari_denda || 0) === hDenda);
+
+                                        let st = '-';
+                                        let tgt = '-';
                                         if (matchingProject) {
                                             st = matchingProject.berkas_serah_terima?.[0]?.created_at;
                                             tgt = matchingProject.spk?.[0]?.waktu_selesai;
+                                        }
+                                        
+                                        // Jika lingkup yg kena denda blm ST, ambil dari lingkup lain (yg melakukan serah terima)
+                                        if (!st) {
+                                            const pWithSt = allP.find((p: any) => p.berkas_serah_terima?.[0]?.created_at);
+                                            if (pWithSt) st = pWithSt.berkas_serah_terima[0].created_at;
+                                        }
+                                        if (!tgt) {
+                                            const pWithTgt = allP.find((p: any) => p.spk?.[0]?.waktu_selesai);
+                                            if (pWithTgt) tgt = pWithTgt.spk[0].waktu_selesai;
                                         }
 
                                         return (
