@@ -43,8 +43,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
     const handleSearchChange = (val: string) => {
         onSearchChange(val);
-        // Bypass to Tahap 3 / Timeline when searching by ULOK specific
-        if (val.length > 5) {
+        // Buka modal secara otomatis jika ada input pencarian
+        if (val.trim().length > 0) {
             setActiveCard('TIMELINE');
             setIsModalOpen(true);
         }
