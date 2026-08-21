@@ -724,8 +724,17 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     {initialCardType === 'DENDA' && (() => {
                                         const op = project.opname_final?.[0];
                                         const hDenda = op?.hari_denda || 0;
-                                        const st = project.berkas_serah_terima?.[0]?.created_at;
-                                        const tgt = project.spk?.[0]?.waktu_selesai; // Approx target ST
+                                        let st = project.berkas_serah_terima?.[0]?.created_at;
+                                        let tgt = project.spk?.[0]?.waktu_selesai; // Approx target ST
+
+                                        const allP = project._all_projects_for_ulok || [project];
+                                        const matchingProject = allP.find((p: any) => (p.opname_final?.[0]?.hari_denda || 0) === hDenda);
+                                        
+                                        if (matchingProject) {
+                                            st = matchingProject.berkas_serah_terima?.[0]?.created_at;
+                                            tgt = matchingProject.spk?.[0]?.waktu_selesai;
+                                        }
+
                                         return (
                                             <>
                                                 <div className="flex flex-col justify-center px-4 md:px-5 w-[100px] md:w-[120px] text-right shrink-0"><span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 md:hidden">Terlambat</span><span className="text-xs md:text-sm font-semibold text-slate-700">{hDenda} Hari</span></div>
