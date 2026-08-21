@@ -4839,65 +4839,76 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                             </div>
                                                                                                         </div>
                                                                                                         
-                                                                                                        <div className="p-5 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 bg-slate-50">
+                                                                                                        <div className="p-5 md:p-6 flex flex-col md:flex-row flex-wrap gap-6 bg-slate-50/50">
                                                                                                             {/* Kolom 1: Volume & Biaya */}
-                                                                                                            <div className="space-y-5">
-                                                                                                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b-2 border-blue-100 pb-2">Volume & Biaya</h4>
+                                                                                                            <div className="flex-1 min-w-[260px] space-y-4">
+                                                                                                                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2 mb-1">
+                                                                                                                    <span className="w-5 h-0.5 bg-blue-400 rounded-full"></span>
+                                                                                                                    Volume & Biaya
+                                                                                                                </h4>
                                                                                                                 
-                                                                                                                <div className="flex gap-4">
-                                                                                                                    <div className="flex-1 bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
-                                                                                                                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Volume RAB</label>
-                                                                                                                        <p className="font-bold text-slate-800 text-sm">{volumeRAB} <span className="text-[11px] font-medium text-slate-500">{item.satuan}</span></p>
+                                                                                                                <div className="flex flex-col sm:flex-row gap-4">
+                                                                                                                    <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                                                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Volume RAB</label>
+                                                                                                                        <div className="flex items-end gap-1.5">
+                                                                                                                            <span className="font-extrabold text-slate-700 text-lg leading-none">{volumeRAB}</span>
+                                                                                                                            <span className="text-[10px] font-bold text-slate-500 uppercase leading-snug">{item.satuan}</span>
+                                                                                                                        </div>
                                                                                                                     </div>
                                                                                                                     <div className="flex-1">
                                                                                                                         <label className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block mb-1">Vol. Akhir *</label>
-                                                                                                                        <div className="relative">
-                                                                                                                            <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full p-2.5 pr-10 border border-blue-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none font-bold shadow-sm" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
-                                                                                                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 uppercase">{item.satuan}</div>
+                                                                                                                        <div className="flex items-stretch overflow-hidden border border-blue-300 rounded-xl focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 shadow-sm bg-white transition-all">
+                                                                                                                            <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full p-2.5 text-sm font-bold text-slate-800 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                                                            <div className="bg-blue-50 px-3 flex items-center justify-center text-[10px] font-bold text-blue-700 uppercase border-l border-blue-200 shrink-0">
+                                                                                                                                {item.satuan}
+                                                                                                                            </div>
                                                                                                                         </div>
                                                                                                                     </div>
                                                                                                                 </div>
 
-                                                                                                                <div className="space-y-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                                                                                                                    <div className="flex justify-between items-center text-xs">
-                                                                                                                        <span className="text-slate-500 font-medium">Total Harga RAB</span>
-                                                                                                                        <span className="font-semibold text-slate-700">Rp {totalHargaRAB.toLocaleString('id-ID')}</span>
+                                                                                                                <div className="mt-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3">
+                                                                                                                    <div className="flex justify-between items-center">
+                                                                                                                        <span className="text-[11px] text-slate-500 font-semibold">Total Harga RAB</span>
+                                                                                                                        <span className="font-semibold text-slate-700 text-xs">Rp {totalHargaRAB.toLocaleString('id-ID')}</span>
                                                                                                                     </div>
-                                                                                                                    <div className="flex justify-between items-center text-xs pt-3 border-t border-slate-100">
-                                                                                                                        <span className="text-slate-600 font-bold">Total Opname</span>
-                                                                                                                        <span className="font-bold text-blue-700 text-[13px]">Rp {totalHargaOpname.toLocaleString('id-ID')}</span>
+                                                                                                                    <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                                                                                                                        <span className="text-xs text-slate-700 font-bold">Total Opname</span>
+                                                                                                                        <span className="font-black text-blue-700 text-[13px]">Rp {totalHargaOpname.toLocaleString('id-ID')}</span>
                                                                                                                     </div>
-                                                                                                                    <div className={`flex justify-between items-center text-xs pt-3 border-t border-slate-100 ${isOverbudget ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                                                                                        <span className="font-bold">Selisih Biaya</span>
-                                                                                                                        <span className="font-bold">{isOverbudget ? '+' : '-'} Rp {Math.abs(selisihBiaya).toLocaleString('id-ID')}</span>
+                                                                                                                    <div className={`flex justify-between items-center pt-2 ${isOverbudget ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                                                                                        <span className="text-[11px] font-bold">Selisih Biaya</span>
+                                                                                                                        <span className="font-bold text-xs">{isOverbudget ? '+' : '-'} Rp {Math.abs(selisihBiaya).toLocaleString('id-ID')}</span>
                                                                                                                     </div>
                                                                                                                 </div>
                                                                                                             </div>
 
                                                                                                             {/* Kolom 2: Verifikasi Pekerjaan */}
-                                                                                                            <div className="space-y-5">
-                                                                                                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b-2 border-blue-100 pb-2">Verifikasi Pekerjaan</h4>
+                                                                                                            <div className="flex-1 min-w-[240px] space-y-4">
+                                                                                                                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2 mb-1">
+                                                                                                                    <span className="w-5 h-0.5 bg-blue-400 rounded-full"></span>
+                                                                                                                    Verifikasi Pekerjaan
+                                                                                                                </h4>
                                                                                                                 
-                                                                                                                <div className="space-y-4">
+                                                                                                                <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                                                                                                                     <div>
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Kesesuaian Desain *</label>
-                                                                                                                        <select className="w-full p-2.5 border border-slate-300 rounded-lg text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white shadow-sm" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}>
+                                                                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Kesesuaian Desain *</label>
+                                                                                                                        <select className="w-full p-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 hover:bg-white transition-colors cursor-pointer" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}>
                                                                                                                             <option value="">-- Pilih --</option>
                                                                                                                             <option value="Sesuai">Sesuai</option>
                                                                                                                             <option value="Tidak Sesuai">Tidak Sesuai</option>
                                                                                                                         </select>
                                                                                                                     </div>
                                                                                                                     <div>
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Kualitas Hasil *</label>
-                                                                                                                        <select className="w-full p-2.5 border border-slate-300 rounded-lg text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white shadow-sm" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}>
+                                                                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Kualitas Hasil *</label>
+                                                                                                                        <select className="w-full p-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 hover:bg-white transition-colors cursor-pointer" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}>
                                                                                                                             <option value="">-- Pilih --</option>
                                                                                                                             <option value="Baik">Baik</option>
                                                                                                                             <option value="Tidak Baik">Tidak Baik</option>
                                                                                                                         </select>
                                                                                                                     </div>
                                                                                                                     <div>
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Spesifikasi Material *</label>
-                                                                                                                        <select className="w-full p-2.5 border border-slate-300 rounded-lg text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white shadow-sm" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}>
+                                                                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Spesifikasi Material *</label>
+                                                                                                                        <select className="w-full p-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 hover:bg-white transition-colors cursor-pointer" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}>
                                                                                                                             <option value="">-- Pilih --</option>
                                                                                                                             <option value="Sesuai">Sesuai</option>
                                                                                                                             <option value="Tidak Sesuai">Tidak Sesuai</option>
@@ -4907,18 +4918,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                             </div>
 
                                                                                                             {/* Kolom 3: Bukti & Catatan */}
-                                                                                                            <div className="space-y-5">
-                                                                                                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b-2 border-blue-100 pb-2">Bukti & Catatan</h4>
+                                                                                                            <div className="flex-1 min-w-[260px] space-y-4">
+                                                                                                                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2 mb-1">
+                                                                                                                    <span className="w-5 h-0.5 bg-blue-400 rounded-full"></span>
+                                                                                                                    Bukti & Catatan
+                                                                                                                </h4>
                                                                                                                 
-                                                                                                                <div className="space-y-4">
-                                                                                                                    <div>
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Catatan Opname</label>
-                                                                                                                        <textarea className="w-full p-3 border border-slate-300 rounded-lg text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white resize-none shadow-sm" rows={4} placeholder="Keterangan opname, masalah kualitas, selisih volume..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
+                                                                                                                <div className="space-y-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[calc(100%-2rem)]">
+                                                                                                                    <div className="flex-1 flex flex-col">
+                                                                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Catatan Opname</label>
+                                                                                                                        <textarea className="w-full flex-1 min-h-[90px] p-2.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 focus:bg-white resize-none transition-colors placeholder:text-slate-400 placeholder:font-normal" placeholder="Keterangan masalah kualitas, selisih volume..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
                                                                                                                     </div>
                                                                                                                     
-                                                                                                                    <div className="pt-1">
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">Foto Bukti Opname *</label>
-                                                                                                                        <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer transition-colors" />
+                                                                                                                    <div className="pt-3 border-t border-slate-100">
+                                                                                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Foto Bukti Opname *</label>
+                                                                                                                        <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer transition-colors outline-none" />
                                                                                                                     </div>
                                                                                                                 </div>
                                                                                                             </div>
