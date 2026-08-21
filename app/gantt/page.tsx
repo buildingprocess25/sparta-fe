@@ -4190,10 +4190,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 // Foto/dokumentasi wajib diisi, KECUALI item sudah punya dokumentasiUrl dari history
-                // (item Progress/Terlambat dari hari sebelumnya yang sedang diupdate statusnya)
+                // ATAU jika item Selesai dan mengisi form Opname (karena form opname pakai file_opname)
                 const hasFotoLama = !!(input.dokumentasiUrl);
                 const hasFotoBaru = !!(input.file);
-                if (!hasFotoBaru && !hasFotoLama) {
+                const hasFotoOpname = !!(input.file_opname);
+                const isMengisiOpname = input.status === 'Selesai' && !blockedOpnameItemKeys.has(key);
+
+                if (!hasFotoBaru && !hasFotoLama && !(isMengisiOpname && hasFotoOpname)) {
                     return false;
                 }
             }
@@ -4272,6 +4275,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const statusSafe = statusLower;
                 const lateDaysSafe = Number(val.lateDays) || 0;
 
+                const isOpnameBlocked = blockedOpnameItemKeys.has(key);
+                const isOpnameActive = statusSafe === 'selesai' && !isOpnameBlocked;
+
+                let opnameData: any = undefined;
+                if (isOpnameActive) {
+                    opnameData = {
+                        volume_akhir: val.volume_akhir,
+                        desain: val.desain,
+                        kualitas: val.kualitas,
+                        spesifikasi: val.spesifikasi,
+                        catatan_opname: val.catatan_opname || '',
+                    };
+                }
+
                 if (existingId) {
                     // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
                     // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
@@ -4279,9 +4296,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (alreadyQueued) return; // skip duplicate ID
                     const updateItem: any = { id: Number(existingId), status: statusSafe };
                     if (val.catatan && String(val.catatan).trim()) updateItem.catatan = String(val.catatan).trim();
+                    if (opnameData) updateItem.opname = opnameData;
                     itemsArrayUpdate.push(updateItem);
                     if (val.file) {
                         filesMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file });
+                    }
+                    if (isOpnameActive && val.file_opname) {
+                        filesOpnameMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file_opname });
                     }
                 } else {
                     const insertItem: any = {
@@ -4293,9 +4314,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
                     };
                     if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
+                    if (opnameData) insertItem.opname = opnameData;
                     itemsArrayInsert.push(insertItem);
                     if (val.file) {
                         filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file });
+                    }
+                    if (isOpnameActive && val.file_opname) {
+                        filesOpnameMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file_opname });
                     }
                 }
 
@@ -4356,14 +4381,22 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     let insertResult: any;
 
                     try {
-                        if (batch.files.length > 0) {
+                        if (batch.files.length > 0 || (batch.opnameFiles && batch.opnameFiles.length > 0)) {
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
+                            
                             batch.files.forEach(({ file }) => formData.append('file_dokumentasi', file));
-                            formData.append(
-                                'file_dokumentasi_indexes',
-                                JSON.stringify(batch.files.map(({ index }) => index))
-                            );
+                            if (batch.files.length > 0) {
+                                formData.append('file_dokumentasi_indexes', JSON.stringify(batch.files.map(({ index }) => index)));
+                            }
+                            
+                            if (batch.opnameFiles) {
+                                batch.opnameFiles.forEach(({ file }) => formData.append('file_foto_opname', file));
+                                if (batch.opnameFiles.length > 0) {
+                                    formData.append('file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }) => index)));
+                                }
+                            }
+                            
                             insertResult = await submitPengawasanBulk(formData);
                         } else {
                             insertResult = await submitPengawasanBulk({ items: batch.items });
@@ -4393,14 +4426,22 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     let updateResult: any;
 
                     try {
-                        if (batch.files.length > 0) {
+                        if (batch.files.length > 0 || (batch.opnameFiles && batch.opnameFiles.length > 0)) {
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
+                            
                             batch.files.forEach(({ file }) => formData.append('rev_file_dokumentasi', file));
-                            formData.append(
-                                'rev_file_dokumentasi_indexes',
-                                JSON.stringify(batch.files.map(({ index }) => index))
-                            );
+                            if (batch.files.length > 0) {
+                                formData.append('rev_file_dokumentasi_indexes', JSON.stringify(batch.files.map(({ index }) => index)));
+                            }
+                            
+                            if (batch.opnameFiles) {
+                                batch.opnameFiles.forEach(({ file }) => formData.append('file_foto_opname', file));
+                                if (batch.opnameFiles.length > 0) {
+                                    formData.append('rev_file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }) => index)));
+                                }
+                            }
+                            
                             updateResult = await updatePengawasanBulk(formData);
                         } else {
                             updateResult = await updatePengawasanBulk({ items: batch.items });
