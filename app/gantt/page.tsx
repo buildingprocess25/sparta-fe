@@ -4277,7 +4277,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 let opnameData: any = undefined;
                 let fileOpname: File | null = null;
                 if (isOpnameActive) {
-                    const rItem = rabItems.find(r => isSameWorkText(r.kategori_pekerjaan, catName) && isSameWorkText(r.jenis_pekerjaan, itemJenis));
+                    const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, catName) && isSameWorkText(r.jenis_pekerjaan, itemJenis));
                     if (rItem && val.desain && val.kualitas && val.spesifikasi) {
                         const hargaSatuan = Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0);
                         const volAwal = Number(rItem.volume || 0);
@@ -4813,7 +4813,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                                                                                             {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
                                                                                             {currentStatus === 'Selesai' && !blockedOpnameItemKeys.has(key) && (() => {
-                                                                                                const rItem = rabItems.find(r => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                                                                                                const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
                                                                                                 const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
                                                                                                 const volumeRAB = Number(rItem?.volume || 0);
                                                                                                 const volAkhir = memoInputs[key]?.volume_akhir !== undefined ? Number(memoInputs[key].volume_akhir) : volumeRAB;
