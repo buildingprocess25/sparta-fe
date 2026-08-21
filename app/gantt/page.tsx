@@ -4708,7 +4708,82 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     )}
 
                                                                                     {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
-                                                                                    {currentStatus && (
+                                                                                    {currentStatus === 'Selesai' && blockedOpnameItemKeys.has(key) ? (
+                                                                                        <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
+                                                                                            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 flex items-center gap-2">
+                                                                                                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                <div>
+                                                                                                    <p className="font-bold text-sm">Data Opname Sudah Terisi</p>
+                                                                                                    <p className="text-xs">Anda sudah mengisi form opname untuk item ini sebelumnya. Tidak perlu mengisi ulang.</p>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                            <textarea
+                                                                                                className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
+                                                                                                placeholder="Tambahkan catatan/keterangan (opsional)..."
+                                                                                                value={memoInputs[key]?.catatan || ''}
+                                                                                                onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan', e.target.value)}
+                                                                                                rows={2}
+                                                                                            />
+                                                                                            <div className="flex items-center text-xs">
+                                                                                                <span className="text-slate-600 font-medium w-16">Foto/Dok<span className="text-red-500">*</span>:</span>
+                                                                                                <input
+                                                                                                    type="file"
+                                                                                                    accept="image/*,.pdf,application/pdf"
+                                                                                                    onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                                    className="flex-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer"
+                                                                                                />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : currentStatus === 'Selesai' && !blockedOpnameItemKeys.has(key) ? (
+                                                                                        <div className="mt-4 p-3 rounded-xl border border-emerald-200 bg-emerald-50 shadow-inner flex flex-col gap-3 animate-in slide-in-from-top-1">
+                                                                                            <div className="flex items-center gap-2 mb-1 border-b border-emerald-200 pb-2">
+                                                                                                <div className="bg-emerald-100 p-1 rounded-full"><CheckCircle className="w-4 h-4 text-emerald-600"/></div>
+                                                                                                <h5 className="font-bold text-emerald-800 text-xs">Formulir Opname & Verifikasi Pekerjaan</h5>
+                                                                                            </div>
+                                                                                            
+                                                                                            <div className="grid grid-cols-2 gap-3">
+                                                                                                <div>
+                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Volume Akhir *</label>
+                                                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                                                        <input type="number" min={0} step="any" className="w-full p-1.5 border border-slate-300 rounded text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.volume_akhir ?? ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                                        <span className="text-xs font-semibold text-slate-500 w-12">{item.satuan}</span>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <div>
+                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Kesesuaian Desain *</label>
+                                                                                                    <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}>
+                                                                                                        <option value="">-- Pilih --</option>
+                                                                                                        <option value="Sesuai">Sesuai</option>
+                                                                                                        <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                                                                    </select>
+                                                                                                </div>
+                                                                                                <div>
+                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Kualitas *</label>
+                                                                                                    <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}>
+                                                                                                        <option value="">-- Pilih --</option>
+                                                                                                        <option value="Baik">Baik</option>
+                                                                                                        <option value="Tidak Baik">Tidak Baik</option>
+                                                                                                    </select>
+                                                                                                </div>
+                                                                                                <div>
+                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
+                                                                                                    <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}>
+                                                                                                        <option value="">-- Pilih --</option>
+                                                                                                        <option value="Sesuai">Sesuai</option>
+                                                                                                        <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                                                                    </select>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                            <div>
+                                                                                                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Catatan Opname</label>
+                                                                                                <textarea className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" rows={2} placeholder="Keterangan opname, selisih volume, masalah kualitas..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
+                                                                                            </div>
+                                                                                            <div className="border-t border-emerald-200/50 pt-2">
+                                                                                                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Foto Bukti Opname *</label>
+                                                                                                <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full mt-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200" />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : currentStatus ? (
                                                                                         <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
                                                                                             <textarea
                                                                                                 className="w-full p-2 text-xs border border-slate-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-slate-400"
@@ -4727,7 +4802,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                 />
                                                                                             </div>
                                                                                         </div>
-                                                                                    )}
+                                                                                    ) : null}
                                                                                 </>
                                                                             ) : (
                                                                                 <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center">
