@@ -495,6 +495,7 @@ function RABPageContent() {
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftData, setDraftData] = useState<any>(null);
   const draftAutosaveDisabledRef = useRef(false);
+  const userInitializedRef = useRef(false);
 
   // Reset state revisi saat component mount (setiap navigasi ke halaman ini)
   // Mencegah state revisi lama terbawa saat user kembali via browser back button
@@ -585,6 +586,8 @@ function RABPageContent() {
 
   useEffect(() => {
     if (!user) return;
+    if (userInitializedRef.current) return;
+    userInitializedRef.current = true;
 
     // Reset semua state revisi saat user/session berubah
     // Mencegah state lama terbawa saat user kembali ke halaman ini via browser back
