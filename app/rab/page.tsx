@@ -21,7 +21,7 @@ import {
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download, ClipboardList, ArrowRight } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 
-import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser, SUPPORTED_PRICE_BRANCHES } from '@/lib/constants';
+import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser, SUPPORTED_PRICE_BRANCHES, getParentBranch } from '@/lib/constants';
 import {
   checkRevisionStatus,
   fetchPricesData,
@@ -607,7 +607,7 @@ function RABPageContent() {
       setAvailableCabang(BRANCH_GROUPS[userCabang] || [userCabang]);
     }
     
-    const defaultLokasiCabang = userCabang === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[userCabang] || "KODE");
+    const defaultLokasiCabang = BRANCH_TO_ULOK[getParentBranch(userCabang)] || "KODE";
 
     setFormData(prev => ({ ...prev, cabang: userCabang, lokasiCabang: defaultLokasiCabang, alamatCabang: userAlamatCabang }));
 
@@ -987,7 +987,7 @@ function RABPageContent() {
 
           setFormData(prev => ({
               ...prev,
-              lokasiCabang: lokasiCabang || BRANCH_TO_ULOK[resolvedCabang] || prev.lokasiCabang,
+              lokasiCabang: lokasiCabang || BRANCH_TO_ULOK[getParentBranch(resolvedCabang)] || prev.lokasiCabang,
               lokasiTanggal,
               lokasiManual,
               isRenovasi: isRenovasi,
@@ -1680,7 +1680,7 @@ function RABPageContent() {
                         disabled={isProjectFieldLocked || hasProjectPlanningRequest}
                         value={formData.cabang} 
                         onValueChange={(val) => {
-                          const newLokasiCabang = val === 'CIKOKOL' ? "KZ01" : (BRANCH_TO_ULOK[val] || "KODE");
+                          const newLokasiCabang = BRANCH_TO_ULOK[getParentBranch(val)] || "KODE";
                           crossScopePrefillKeyRef.current = null;
                           setCrossScopeProjectLocked(false);
                           setFormData(prev => ({ 
