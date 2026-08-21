@@ -4186,7 +4186,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
-                    if (input.volume_akhir === undefined || input.volume_akhir === null || String(input.volume_akhir) === '') return false;
+                    const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
+                    if (volA === null || String(volA) === '') return false;
                     if (!input.desain || input.desain === '') return false;
                     if (!input.kualitas || input.kualitas === '') return false;
                     if (!input.spesifikasi || input.spesifikasi === '') return false;
@@ -4258,7 +4259,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
 
                         if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
-                            if (input.volume_akhir === undefined || input.volume_akhir === null || String(input.volume_akhir) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
+                            const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
+                            if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
                             if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                             if (!input.kualitas || input.kualitas === '') validationErrors.push(`Kualitas hasil (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                             if (!input.spesifikasi || input.spesifikasi === '') validationErrors.push(`Spesifikasi material (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
@@ -4351,7 +4353,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (rItem && val.desain && val.kualitas && val.spesifikasi) {
                         const hargaSatuan = Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0);
                         const volAwal = Number(rItem.volume || 0);
-                        const volAkhir = val.volume_akhir !== undefined ? Number(val.volume_akhir) : volAwal;
+                        const volAkhir = val.volume_akhir !== undefined && val.volume_akhir !== '' ? Number(val.volume_akhir) : 0;
                         const selisihVolume = volAkhir - volAwal;
                         const totalSelisih = selisihVolume * hargaSatuan;
                         const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
@@ -4886,7 +4888,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                 const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
                                                                                                 const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
                                                                                                 const volumeRAB = Number(rItem?.volume || 0);
-                                                                                                const volAkhir = memoInputs[key]?.volume_akhir !== undefined ? Number(memoInputs[key].volume_akhir) : volumeRAB;
+                                                                                                const volAkhir = memoInputs[key]?.volume_akhir !== undefined && memoInputs[key]?.volume_akhir !== '' ? Number(memoInputs[key].volume_akhir) : 0;
                                                                                                 const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
                                                                                                 const totalHargaRAB = Math.round(volumeRAB * hargaSatuan);
                                                                                                 const selisihBiaya = totalHargaRAB - totalHargaOpname;
@@ -4924,7 +4926,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                                     </div>
                                                                                                                     <div className="bg-white p-2 rounded-md border border-blue-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative transition-all">
                                                                                                                         <label className="text-[9px] font-bold text-blue-600 uppercase block">Vol Akhir *</label>
-                                                                                                                        <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                                                        <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? 0} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
                                                                                                                         <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan}</span>
                                                                                                                     </div>
                                                                                                                 </div>
@@ -5345,7 +5347,8 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
             if (!input) return false;
 
             // 1. Validasi volume akhir tidak boleh kosong
-            if (input.volume_akhir === undefined || input.volume_akhir === null || input.volume_akhir === '') return false;
+            const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
+            if (volA === null || String(volA) === '') return false;
 
             // 2. Validasi verifikasi pekerjaan (semua dropdown wajib diisi)
             if (!input.desain || input.desain === '') return false;
@@ -5614,7 +5617,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                                                                 <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Volume Akhir Opname</label>
                                                                 <div className="relative mt-1">
                                                                     <input type="text" inputMode="decimal" className="w-full p-1.5 border border-slate-300 rounded text-sm bg-blue-50 focus:bg-white focus:border-blue-500 focus:outline-none font-bold pr-12"
-                                                                        value={input.volume_akhir ?? ''}
+                                                                        value={input.volume_akhir ?? 0}
                                                                         onChange={(e) => handleSetOpname(itemKey, 'volume_akhir', normalizeVolumeInput(e.target.value))} />
                                                                     {item.satuan && <span className="absolute right-3 top-2 text-[10px] text-slate-400 font-bold uppercase">{item.satuan}</span>}
                                                                 </div>
