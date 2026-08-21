@@ -1410,7 +1410,7 @@ function DashboardPageContent() {
 
         ) {
 
-            allowedIds.push("menu-spk");
+            allowedIds.push("menu-spk", "menu-tambahspk");
 
         }
 
