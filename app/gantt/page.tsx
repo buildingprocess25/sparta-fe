@@ -4566,7 +4566,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     return (
         <>
             <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                <div className="bg-slate-50 flex flex-col rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden animate-in zoom-in-95">
                     <div className="p-5 border-b flex justify-between items-center bg-white">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
