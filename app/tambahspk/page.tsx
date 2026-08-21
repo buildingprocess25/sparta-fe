@@ -215,7 +215,10 @@ export default function TambahSPKPage() {
             'BRANCH BUILDING & MAINTENANCE MANAGER',
             'BRANCH BUILDING SUPPORT DOKUMENTASI',
         ];
-        if (!isHOUser && !isSHUser && !isRegionalUser && !allowedRoles.includes(role.toUpperCase())) {
+        
+        const isBatamCoordinator = cabang.toUpperCase() === 'BATAM' && role.toUpperCase().includes('BRANCH BUILDING COORDINATOR');
+
+        if (!isHOUser && !isSHUser && !isRegionalUser && !allowedRoles.includes(role.toUpperCase()) && !isBatamCoordinator) {
             showAlert({ message: "Anda tidak memiliki akses ke halaman ini.", type: "error", onConfirm: () => router.push('/dashboard') });
             return;
         }
