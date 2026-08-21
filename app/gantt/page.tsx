@@ -4585,7 +4585,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
                         {!isLoadingHistory && memoConfig.length > 0 && (
-                            <div className="relative group sticky top-0 z-20">
+                            <div className="relative group sticky -top-6 pt-6 pb-2 z-20 bg-white/95 backdrop-blur-md -mx-6 px-6 border-b border-slate-100/50">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
                                 <Input 
                                     placeholder="Cari kategori atau item pekerjaan..."
@@ -4733,6 +4733,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                         <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-top-1">
                                                                                             <input
                                                                                                 type="number"
+                                                                                                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                                                                                                 className="w-16 rounded border border-slate-300 p-1 text-center text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white shadow-inner"
                                                                                                 min={0}
                                                                                                 value={lateDays === 0 ? '' : lateDays}
@@ -4788,7 +4789,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                         <div>
                                                                                                             <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Volume Akhir *</label>
                                                                                                             <div className="flex items-center gap-2 mt-1">
-                                                                                                                <input type="number" min={0} step="any" className="w-full p-1.5 border border-slate-300 rounded text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.volume_akhir ?? ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                                                <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full p-1.5 border border-slate-300 rounded text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.volume_akhir ?? ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
                                                                                                                 <span className="text-xs font-semibold text-slate-500 w-12">{item.satuan}</span>
                                                                                                             </div>
                                                                                                         </div>
@@ -5373,7 +5374,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {!isLoading && groupedByCategory.length > 0 && (
-                        <div className="relative group sticky top-0 z-20">
+                        <div className="relative group sticky -top-6 pt-6 pb-2 z-20 bg-white/95 backdrop-blur-md -mx-6 px-6 border-b border-slate-100/50">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
                             <Input 
                                 placeholder="Cari kategori atau item pekerjaan..."

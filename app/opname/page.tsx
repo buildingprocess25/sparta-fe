@@ -1133,8 +1133,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
                                                 <Info className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                                <h4 className="font-bold text-slate-600">Semua Item Selesai</h4>
-                                                <p className="text-sm mt-1">Tidak ada item yang perlu diisi volume akhirnya saat ini.</p>
+                                                <h4 className="font-bold text-slate-600">Belum Ada Pekerjaan Selesai</h4>
+                                                <p className="text-sm mt-1">Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.</p>
                                             </div>
                                         ) : filteredGroupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
