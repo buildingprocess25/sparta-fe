@@ -208,33 +208,31 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
                         mapSpkRelease[branchLabel] = (mapSpkRelease[branchLabel] || 0) + 1;
 
                         // Cek Habis Durasi
-                        const hasST = p.berkas_serah_terima && p.berkas_serah_terima.length > 0;
-                        if (!hasST) {
-                            // Menggunakan waktu_selesai asli dari DB sebagai base date
-                            const baseEndDate = s.waktu_selesai || s.created_at || s.waktu_persetujuan;
-                            if (baseEndDate) {
-                                const targetDate = new Date(baseEndDate);
-                                if (!isNaN(targetDate.getTime())) {
-                                    // Tambahkan total hari dari adendum/pertambahan SPK yang di-approve
-                                    const tsArray = s.pertambahan_spk || [];
-                                    const tsDays = tsArray.reduce((acc: number, curr: any) => {
-                                        if(['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(curr.status_persetujuan || '').toUpperCase())) {
-                                            return acc + (Number(curr.pertambahan_hari) || 0);
-                                        }
-                                        return acc;
-                                    }, 0);
-
-                                    // Jika waktu_selesai tidak ada, fallback hitung manual durasi
-                                    if (!s.waktu_selesai) {
-                                        const durasi = Number(s.durasi) || 0;
-                                        targetDate.setDate(targetDate.getDate() + durasi);
+                        // Menghitung semua spk yang habis durasi per hari ini, tidak peduli sudah serah terima atau belum.
+                        // Menggunakan waktu_selesai asli dari DB sebagai base date
+                        const baseEndDate = s.waktu_selesai || s.created_at || s.waktu_persetujuan;
+                        if (baseEndDate) {
+                            const targetDate = new Date(baseEndDate);
+                            if (!isNaN(targetDate.getTime())) {
+                                // Tambahkan total hari dari adendum/pertambahan SPK yang di-approve
+                                const tsArray = s.pertambahan_spk || [];
+                                const tsDays = tsArray.reduce((acc: number, curr: any) => {
+                                    if(['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(curr.status_persetujuan || '').toUpperCase())) {
+                                        return acc + (Number(curr.pertambahan_hari) || 0);
                                     }
+                                    return acc;
+                                }, 0);
 
-                                    targetDate.setDate(targetDate.getDate() + tsDays);
+                                // Jika waktu_selesai tidak ada, fallback hitung manual durasi
+                                if (!s.waktu_selesai) {
+                                    const durasi = Number(s.durasi) || 0;
+                                    targetDate.setDate(targetDate.getDate() + durasi);
+                                }
 
-                                    if (now > targetDate) {
-                                        mapHabisDurasi[branchLabel] = (mapHabisDurasi[branchLabel] || 0) + 1;
-                                    }
+                                targetDate.setDate(targetDate.getDate() + tsDays);
+
+                                if (now > targetDate) {
+                                    mapHabisDurasi[branchLabel] = (mapHabisDurasi[branchLabel] || 0) + 1;
                                 }
                             }
                         }
@@ -420,7 +418,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ projects, isSu
 
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 elegant-shadow w-full">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                    <h3 className="font-bold text-xl text-slate-800 tracking-tight">SPK Release vs Serah Terima</h3>
+                    <h3 className="font-bold text-xl text-slate-800 tracking-tight">SPK vs serah terima</h3>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
                         <FilterDropdown value={filterSt} onChange={setFilterSt} />
                     </div>
