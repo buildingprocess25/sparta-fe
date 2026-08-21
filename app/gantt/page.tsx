@@ -4234,10 +4234,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         setIsSubmitting(true);
         try {
             const itemsArrayInsert: any[] = [];
-            const filesMapInsert: { index: number, file: File }[] = [];
+            const filesMapInsert: PengawasanFileMap[] = [];
 
             const itemsArrayUpdate: any[] = [];
-            const filesMapUpdate: { index: number, file: File }[] = [];
+            const filesMapUpdate: PengawasanFileMap[] = [];
 
             let catsLate = new Map<string, number>();
 
