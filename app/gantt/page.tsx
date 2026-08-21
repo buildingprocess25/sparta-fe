@@ -3648,12 +3648,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 }
                             }
 
-                            // Jika item Progress dari hari sebelumnya belum punya record hari ini,
+                            // Jika item Progress/Terlambat dari hari sebelumnya belum punya record hari ini,
                             // tampilkan hanya pada checkpoint terdekat berikutnya, bukan semua tanggal setelahnya.
                             if (
                                 !initial[key] &&
                                 map.get(key) === normalizedStatus &&
-                                p.status.toLowerCase() === 'progress' &&
+                                ['progress', 'terlambat'].includes(p.status.toLowerCase()) &&
                                 isPreviousPengawasanBeforeCurrent(sourcePengawasanDate) &&
                                 isNearestPengawasanAfter(sourcePengawasanDate)
                             ) {
@@ -3950,19 +3950,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // tapi muncul HANYA pada tanggal yang ter-hit saja (isScheduledToday).
                 // Logika isPastDueAndUnfinished telah dihapus karena bertentangan dengan Poin 2.
 
-                const shiftForCheck = task.computed?.shift || 0;
-                const isCurrentlyInRange = rawRangeMatch && (day >= (parseInt(rawRangeMatch.start) + shiftForCheck - 1)) && (day <= (parseInt(rawRangeMatch.end) + shiftForCheck - 1 + (parseInt(rawRangeMatch.keterlambatan) || 0)));
-                const isNeverSupervisedButInRange = isCurrentlyInRange && !latestStatusLower;
-
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
                 const wasSupervisedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase());
                 
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
-                // belum pernah disupervisi tapi masih berada di dalam rentang, atau
                 // DI-SUPERVISI PADA HARI INI (ada record di database untuk hari ini)
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !isNeverSupervisedButInRange && !wasSupervisedToday) return false;
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
