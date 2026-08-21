@@ -159,6 +159,7 @@ function formatPengawasanDateKey(value?: string | null): string {
 type PengawasanFileMap = {
     index: number;
     file: File;
+    field_name?: string;
 };
 
 const createPengawasanUploadBatches = <T,>(
@@ -174,12 +175,12 @@ const createPengawasanUploadBatches = <T,>(
             items: items.slice(start, end),
             files: files
                 .filter(({ index }) => index >= start && index < end)
-                .map(({ index, file }) => ({ index: index - start, file }))
+                .map(({ index, file, field_name }) => ({ index: index - start, file, field_name }))
         };
         if (opnameFiles) {
             batch.opnameFiles = opnameFiles
                 .filter(({ index }) => index >= start && index < end)
-                .map(({ index, file }) => ({ index: index - start, file }));
+                .map(({ index, file, field_name }) => ({ index: index - start, file, field_name }));
         }
         batches.push(batch);
     }
@@ -504,6 +505,7 @@ function GanttBoard() {
     const [spkInfo, setSpkInfo] = useState<{ startDate: string; duration: number } | null>(null);
     const [pengawasanDates, setPengawasanDates] = useState<string[]>([]);
     const [pengawasanHistory, setPengawasanHistory] = useState<any[]>([]);
+    const [pengawasanRabData, setPengawasanRabData] = useState<any[]>([]);
 
     const [rabItems, setRabItems] = useState<any[]>([]);
     const [showMemoModal, setShowMemoModal] = useState(false);
@@ -4244,9 +4246,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
                 return !isSavedOnCurrentDate;
             });
-            const shouldOpenOpname = entriesToSubmit.some(([, val]) =>
-                String(val.status || '').toLowerCase() === 'selesai'
-            );
+            const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
             const hasNextHandoverAction = canCreateNextHandover && !!nextHandoverDate;
 
             const clickedDate = parseDateAny(activeHeaderClick?.dateString || '');
@@ -4274,6 +4274,35 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isOpnameBlocked = blockedOpnameItemKeys.has(key);
                 const isOpnameActive = statusSafe === 'selesai' && !isOpnameBlocked;
 
+                let opnameData: any = undefined;
+                let fileOpname: File | null = null;
+                if (isOpnameActive) {
+                    const rItem = rabItems.find(r => isSameWorkText(r.kategori_pekerjaan, catName) && isSameWorkText(r.jenis_pekerjaan, itemJenis));
+                    if (rItem && val.desain && val.kualitas && val.spesifikasi) {
+                        const hargaSatuan = Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0);
+                        const volAwal = Number(rItem.volume || 0);
+                        const volAkhir = val.volume_akhir !== undefined ? Number(val.volume_akhir) : volAwal;
+                        const selisihVolume = volAkhir - volAwal;
+                        const totalSelisih = selisihVolume * hargaSatuan;
+                        const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
+
+                        opnameData = {
+                            id_toko: Number(projectData?.id_toko),
+                            id_rab_item: rItem.source_type === 'RAB' || rItem.source_type === undefined ? Number(rItem.id) : undefined,
+                            id_instruksi_lapangan_item: rItem.source_type === 'IL' ? Number(rItem.id) : undefined,
+                            volume_akhir: volAkhir,
+                            selisih_volume: selisihVolume,
+                            total_selisih: totalSelisih,
+                            total_harga_opname: totalHargaOpname,
+                            desain: val.desain,
+                            kualitas: val.kualitas,
+                            spesifikasi: val.spesifikasi,
+                            catatan: val.catatan_opname || ''
+                        };
+                        fileOpname = val.file_opname || null;
+                    }
+                }
+
                 if (existingId) {
                     // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
                     // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
@@ -4281,9 +4310,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (alreadyQueued) return; // skip duplicate ID
                     const updateItem: any = { id: Number(existingId), status: statusSafe };
                     if (val.catatan && String(val.catatan).trim()) updateItem.catatan = String(val.catatan).trim();
+                    if (opnameData) updateItem.opname_data = opnameData;
                     itemsArrayUpdate.push(updateItem);
                     if (val.file) {
                         filesMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file });
+                    }
+                    if (fileOpname) {
+                        filesMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: fileOpname, field_name: "file_opname" });
                     }
                 } else {
                     const insertItem: any = {
@@ -4295,9 +4328,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
                     };
                     if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
+                    if (opnameData) insertItem.opname_data = opnameData;
                     itemsArrayInsert.push(insertItem);
                     if (val.file) {
                         filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file });
+                    }
+                    if (fileOpname) {
+                        filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: fileOpname, field_name: "file_opname" });
                     }
                 }
 
@@ -4362,15 +4399,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
                             
-                            batch.files.forEach(({ file }) => formData.append('file_dokumentasi', file));
-                            if (batch.files.length > 0) {
-                                formData.append('file_dokumentasi_indexes', JSON.stringify(batch.files.map(({ index }) => index)));
+                            const dokFiles = batch.files.filter((f: any) => f.field_name !== "file_opname");
+                            const opFiles = batch.files.filter((f: any) => f.field_name === "file_opname");
+                            
+                            dokFiles.forEach(({ file }: any) => formData.append('file_dokumentasi', file));
+                            if (dokFiles.length > 0) {
+                                formData.append('file_dokumentasi_indexes', JSON.stringify(dokFiles.map(({ index }: any) => index)));
+                            }
+                            
+                            if (opFiles.length > 0) {
+                                opFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
+                                formData.append('file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
                             
                             if (batch.opnameFiles) {
-                                batch.opnameFiles.forEach(({ file }) => formData.append('file_foto_opname', file));
+                                batch.opnameFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
-                                    formData.append('file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }) => index)));
+                                    formData.append('file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
                             }
                             
@@ -4407,15 +4452,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
                             
-                            batch.files.forEach(({ file }) => formData.append('rev_file_dokumentasi', file));
-                            if (batch.files.length > 0) {
-                                formData.append('rev_file_dokumentasi_indexes', JSON.stringify(batch.files.map(({ index }) => index)));
+                            const dokFiles = batch.files.filter((f: any) => f.field_name !== "file_opname");
+                            const opFiles = batch.files.filter((f: any) => f.field_name === "file_opname");
+
+                            dokFiles.forEach(({ file }: any) => formData.append('rev_file_dokumentasi', file));
+                            if (dokFiles.length > 0) {
+                                formData.append('rev_file_dokumentasi_indexes', JSON.stringify(dokFiles.map(({ index }: any) => index)));
+                            }
+                            
+                            if (opFiles.length > 0) {
+                                opFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
+                                formData.append('rev_file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
                             
                             if (batch.opnameFiles) {
-                                batch.opnameFiles.forEach(({ file }) => formData.append('file_foto_opname', file));
+                                batch.opnameFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
-                                    formData.append('rev_file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }) => index)));
+                                    formData.append('rev_file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
                             }
                             
@@ -4758,6 +4811,117 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                 </div>
                                                                                             </div>
 
+                                                                                            {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
+                                                                                            {currentStatus === 'Selesai' && !blockedOpnameItemKeys.has(key) && (() => {
+                                                                                                const rItem = rabItems.find(r => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                                                                                                const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
+                                                                                                const volumeRAB = Number(rItem?.volume || 0);
+                                                                                                const volAkhir = memoInputs[key]?.volume_akhir !== undefined ? Number(memoInputs[key].volume_akhir) : volumeRAB;
+                                                                                                const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
+                                                                                                const totalHargaRAB = Math.round(volumeRAB * hargaSatuan);
+                                                                                                const selisihBiaya = totalHargaRAB - totalHargaOpname;
+                                                                                                const isOverbudget = selisihBiaya < 0;
+
+                                                                                                return (
+                                                                                                    <div className="mt-4 rounded-xl border border-blue-200 bg-white shadow-md overflow-hidden animate-in slide-in-from-top-1">
+                                                                                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
+                                                                                                            <div className="flex items-center gap-2">
+                                                                                                                <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white"/></div>
+                                                                                                                <div>
+                                                                                                                    <h5 className="font-bold text-blue-900 text-sm">Formulir Opname & Verifikasi Pekerjaan</h5>
+                                                                                                                    <p className="text-[10px] text-blue-600 font-medium mt-0.5">Lengkapi data di bawah ini karena pekerjaan telah selesai</p>
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                            <div className="text-right">
+                                                                                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Harga Satuan</p>
+                                                                                                                <p className="text-xs font-bold text-slate-800">Rp {(hargaSatuan).toLocaleString('id-ID')}</p>
+                                                                                                                <p className="text-[9px] text-slate-500">(Mat: Rp {Number(rItem?.harga_material || 0).toLocaleString('id-ID')} | Upah: Rp {Number(rItem?.harga_upah || 0).toLocaleString('id-ID')})</p>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                        
+                                                                                                        <div className="p-4 flex flex-col lg:flex-row gap-6">
+                                                                                                            {/* Kolom 1: Volume & Biaya */}
+                                                                                                            <div className="flex-1 space-y-4">
+                                                                                                                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Volume & Biaya</h4>
+                                                                                                                
+                                                                                                                <div className="grid grid-cols-2 gap-4">
+                                                                                                                    <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                                                                                                                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Volume RAB</label>
+                                                                                                                        <p className="font-bold text-slate-700 text-sm">{volumeRAB} {item.satuan}</p>
+                                                                                                                    </div>
+                                                                                                                    <div>
+                                                                                                                        <label className="text-[10px] font-bold text-blue-700 uppercase tracking-wide block mb-1">Volume Akhir Opname *</label>
+                                                                                                                        <div className="flex items-center gap-2">
+                                                                                                                            <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full p-1.5 border border-blue-300 rounded text-sm focus:border-blue-500 focus:outline-none font-bold" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                                                            <span className="text-xs font-semibold text-slate-500 w-12">{item.satuan}</span>
+                                                                                                                        </div>
+                                                                                                                    </div>
+                                                                                                                </div>
+
+                                                                                                                <div className="space-y-2 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                                                                                                    <div className="flex justify-between items-center text-xs">
+                                                                                                                        <span className="text-slate-600 font-medium">Total Harga RAB:</span>
+                                                                                                                        <span className="font-bold text-slate-800">Rp {totalHargaRAB.toLocaleString('id-ID')}</span>
+                                                                                                                    </div>
+                                                                                                                    <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-2">
+                                                                                                                        <span className="text-slate-700 font-semibold">Total Harga Opname:</span>
+                                                                                                                        <span className="font-bold text-blue-700 text-sm">Rp {totalHargaOpname.toLocaleString('id-ID')}</span>
+                                                                                                                    </div>
+                                                                                                                    <div className={`flex justify-between items-center text-xs border-t border-slate-200 pt-2 ${isOverbudget ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                                                                                        <span className="font-bold">Selisih Biaya:</span>
+                                                                                                                        <span className="font-bold">{isOverbudget ? '+' : '-'} Rp {Math.abs(selisihBiaya).toLocaleString('id-ID')}</span>
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                            </div>
+
+                                                                                                            {/* Kolom 2: Verifikasi Pekerjaan */}
+                                                                                                            <div className="flex-1 space-y-4">
+                                                                                                                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Verifikasi Pekerjaan</h4>
+                                                                                                                
+                                                                                                                <div>
+                                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Kesesuaian Desain *</label>
+                                                                                                                    <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}>
+                                                                                                                        <option value="">-- Pilih --</option>
+                                                                                                                        <option value="Sesuai">Sesuai</option>
+                                                                                                                        <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                                                                                    </select>
+                                                                                                                </div>
+                                                                                                                <div>
+                                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Kualitas Hasil *</label>
+                                                                                                                    <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}>
+                                                                                                                        <option value="">-- Pilih --</option>
+                                                                                                                        <option value="Baik">Baik</option>
+                                                                                                                        <option value="Tidak Baik">Tidak Baik</option>
+                                                                                                                    </select>
+                                                                                                                </div>
+                                                                                                                <div>
+                                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Spesifikasi Material *</label>
+                                                                                                                    <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-blue-500 focus:outline-none bg-slate-50" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}>
+                                                                                                                        <option value="">-- Pilih --</option>
+                                                                                                                        <option value="Sesuai">Sesuai</option>
+                                                                                                                        <option value="Tidak Sesuai">Tidak Sesuai</option>
+                                                                                                                    </select>
+                                                                                                                </div>
+                                                                                                            </div>
+
+                                                                                                            {/* Kolom 3: Bukti & Catatan */}
+                                                                                                            <div className="flex-1 space-y-4">
+                                                                                                                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border-b pb-1 mb-2">Bukti & Catatan Opname</h4>
+                                                                                                                
+                                                                                                                <div>
+                                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block mb-1">Catatan Opname</label>
+                                                                                                                    <textarea className="w-full p-2 border border-slate-300 rounded text-xs focus:border-blue-500 focus:outline-none bg-slate-50 resize-none" rows={3} placeholder="Keterangan opname, selisih volume, masalah kualitas..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
+                                                                                                                </div>
+                                                                                                                
+                                                                                                                <div className="pt-2">
+                                                                                                                    <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block mb-1">Foto Bukti Opname *</label>
+                                                                                                                    <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })()}
                                                                                         </>
                                                                                     ) : null}
                                                                                 </>
