@@ -492,8 +492,17 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         const map = new Map<string, RABDetailItem[]>();
         rabItems.forEach(item => {
             // Skip item yang sudah di-opname dengan status pending/disetujui
-            if (blockedItemKeys.has(getWorkItemKey(item))) return;
-            // Allow: no existing record (new) or status ditolak (revision)
+            const itemKey = getWorkItemKey(item);
+            if (blockedItemKeys.has(itemKey)) return;
+            
+            // HANYA allow item yang memiliki existing record (pernah disubmit) dan berstatus ditolak
+            // Item baru (belum pernah di-opname) TIDAK BOLEH diinput lewat form Opname ini (harus lewat Gantt Chart)
+            const hasExistingDitolak = existingOpname.some(o => 
+                getOpnameItemKey(o) === itemKey && 
+                (o.status || '').toLowerCase() === 'ditolak'
+            );
+            
+            if (!hasExistingDitolak) return;
 
             const cat = item.kategori_pekerjaan;
             if (!map.has(cat)) map.set(cat, []);

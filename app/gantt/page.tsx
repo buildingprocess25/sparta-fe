@@ -163,18 +163,25 @@ type PengawasanFileMap = {
 
 const createPengawasanUploadBatches = <T,>(
     items: T[],
-    files: PengawasanFileMap[]
+    files: PengawasanFileMap[],
+    opnameFiles?: PengawasanFileMap[]
 ) => {
-    const batches: Array<{ items: T[]; files: PengawasanFileMap[] }> = [];
+    const batches: Array<{ items: T[]; files: PengawasanFileMap[]; opnameFiles?: PengawasanFileMap[] }> = [];
 
     for (let start = 0; start < items.length; start += PENGAWASAN_UPLOAD_BATCH_SIZE) {
         const end = Math.min(start + PENGAWASAN_UPLOAD_BATCH_SIZE, items.length);
-        batches.push({
+        const batch: any = {
             items: items.slice(start, end),
             files: files
                 .filter(({ index }) => index >= start && index < end)
                 .map(({ index, file }) => ({ index: index - start, file }))
-        });
+        };
+        if (opnameFiles) {
+            batch.opnameFiles = opnameFiles
+                .filter(({ index }) => index >= start && index < end)
+                .map(({ index, file }) => ({ index: index - start, file }));
+        }
+        batches.push(batch);
     }
 
     return batches;
@@ -3455,7 +3462,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const isReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-    const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean }>>({});
+    const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean, volume_akhir?: string | number, desain?: string, kualitas?: string, spesifikasi?: string, catatan_opname?: string, file_opname?: File | null, existing_foto?: string }>>({});
     const [isDirty, setIsDirty] = useState(false);
     const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
@@ -3994,7 +4001,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 lateDays: prev[key]?.lateDays || 0,
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
-                dokumentasiUrl: prev[key]?.dokumentasiUrl || null
+                dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
+                  volume_akhir: prev[key]?.volume_akhir,
+                  desain: prev[key]?.desain,
+                  kualitas: prev[key]?.kualitas,
+                  spesifikasi: prev[key]?.spesifikasi,
+                  catatan_opname: prev[key]?.catatan_opname,
+                  file_opname: prev[key]?.file_opname,
+                  existing_foto: prev[key]?.existing_foto
             }
         }));
     };
@@ -4010,16 +4024,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 lateDays: Math.max(0, lateDays),
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
-                dokumentasiUrl: prev[key]?.dokumentasiUrl || null
+                dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
+                  volume_akhir: prev[key]?.volume_akhir,
+                  desain: prev[key]?.desain,
+                  kualitas: prev[key]?.kualitas,
+                  spesifikasi: prev[key]?.spesifikasi,
+                  catatan_opname: prev[key]?.catatan_opname,
+                  file_opname: prev[key]?.file_opname,
+                  existing_foto: prev[key]?.existing_foto
             }
         }));
     };
 
-    const handleSetField = async (catName: string, itemJenis: string, field: 'catatan' | 'file', value: any) => {
+    const handleSetField = async (catName: string, itemJenis: string, field: string, value: any) => {
         let finalValue = value;
 
         // Kompresi otomatis untuk foto sebelum dimasukkan ke state
-        if (field === 'file' && value instanceof File) {
+        if ((field === 'file' || field === 'file_opname') && value instanceof File) {
             const { compressImage } = await import('@/lib/utils');
             finalValue = await compressImage(value);
 
@@ -4043,6 +4064,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
                 dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
+                  volume_akhir: prev[key]?.volume_akhir,
+                  desain: prev[key]?.desain,
+                  kualitas: prev[key]?.kualitas,
+                  spesifikasi: prev[key]?.spesifikasi,
+                  catatan_opname: prev[key]?.catatan_opname,
+                  file_opname: prev[key]?.file_opname,
+                  existing_foto: prev[key]?.existing_foto,
                 [field]: finalValue
             }
         }));
@@ -4153,6 +4181,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
+                if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
+                    if (input.volume_akhir === undefined || input.volume_akhir === null || String(input.volume_akhir) === '') return false;
+                    if (!input.desain || input.desain === '') return false;
+                    if (!input.kualitas || input.kualitas === '') return false;
+                    if (!input.spesifikasi || input.spesifikasi === '') return false;
+                    if (!input.file_opname && !input.existing_foto) return false;
+                }
+
                 // Foto/dokumentasi wajib diisi, KECUALI item sudah punya dokumentasiUrl dari history
                 // (item Progress/Terlambat dari hari sebelumnya yang sedang diupdate statusnya)
                 const hasFotoLama = !!(input.dokumentasiUrl);
@@ -4196,9 +4232,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         try {
             const itemsArrayInsert: any[] = [];
             const filesMapInsert: { index: number, file: File }[] = [];
+            const filesOpnameMapInsert: { index: number, file: File }[] = [];
 
             const itemsArrayUpdate: any[] = [];
             const filesMapUpdate: { index: number, file: File }[] = [];
+            const filesOpnameMapUpdate: { index: number, file: File }[] = [];
 
             let catsLate = new Map<string, number>();
 
@@ -4300,6 +4338,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             }
 
             const { submitPengawasanBulk, updatePengawasanBulk } = await import('@/lib/api');
+            const emailPembuat = sessionStorage.getItem('loggedInUserEmail') || '';
             const { submitGanttPengawasan } = await import('@/lib/api');
 
             // --- A. Eksekusi INSERT (POST) ---
@@ -4309,7 +4348,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // sebelum item pengawasan mereferensikannya.
                 await submitGanttPengawasan(Number(selectedGanttId), [formattedDate]);
 
-                const insertBatches = createPengawasanUploadBatches(itemsArrayInsert, filesMapInsert);
+                const insertBatches = createPengawasanUploadBatches(itemsArrayInsert, filesMapInsert, filesOpnameMapInsert);
                 let insertedCount = 0;
 
                 for (let batchIndex = 0; batchIndex < insertBatches.length; batchIndex++) {
@@ -4346,7 +4385,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             // --- B. Eksekusi UPDATE (PUT) ---
             if (itemsArrayUpdate.length > 0) {
-                const updateBatches = createPengawasanUploadBatches(itemsArrayUpdate, filesMapUpdate);
+                const updateBatches = createPengawasanUploadBatches(itemsArrayUpdate, filesMapUpdate, filesOpnameMapUpdate);
                 let updatedCount = 0;
 
                 for (let batchIndex = 0; batchIndex < updateBatches.length; batchIndex++) {
@@ -4751,11 +4790,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                     <div className="p-5 border-t bg-white flex justify-between items-center shadow-[0_-4px_15px_rgba(0,0,0,0.05)] z-10">
                         <div>
-                            {hasCurrentDateSelesaiItems && (
-                                <Button variant="outline" onClick={() => onSuccess({ openOpname: true })} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 font-semibold transition-colors">
-                                    Lanjut ke Opname &rarr;
-                                </Button>
-                            )}
+
                         </div>
                         <div className="flex gap-3">
                             <Button variant="outline" className="font-semibold" onClick={onClose}>Batal</Button>
