@@ -4233,11 +4233,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         try {
             const itemsArrayInsert: any[] = [];
             const filesMapInsert: { index: number, file: File }[] = [];
-            const filesOpnameMapInsert: { index: number, file: File }[] = [];
 
             const itemsArrayUpdate: any[] = [];
             const filesMapUpdate: { index: number, file: File }[] = [];
-            const filesOpnameMapUpdate: { index: number, file: File }[] = [];
 
             let catsLate = new Map<string, number>();
 
@@ -4276,17 +4274,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isOpnameBlocked = blockedOpnameItemKeys.has(key);
                 const isOpnameActive = statusSafe === 'selesai' && !isOpnameBlocked;
 
-                let opnameData: any = undefined;
-                if (isOpnameActive) {
-                    opnameData = {
-                        volume_akhir: val.volume_akhir,
-                        desain: val.desain,
-                        kualitas: val.kualitas,
-                        spesifikasi: val.spesifikasi,
-                        catatan_opname: val.catatan_opname || '',
-                    };
-                }
-
                 if (existingId) {
                     // [PERBAIKAN 2]: DILARANG mengirim keterlambatan, id_gantt, & tanggal_pengawasan pada API PUT
                     // [PERBAIKAN 3]: Hanya kirim catatan jika user mengisinya, hindari duplicate ID
@@ -4294,13 +4281,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (alreadyQueued) return; // skip duplicate ID
                     const updateItem: any = { id: Number(existingId), status: statusSafe };
                     if (val.catatan && String(val.catatan).trim()) updateItem.catatan = String(val.catatan).trim();
-                    if (opnameData) updateItem.opname = opnameData;
                     itemsArrayUpdate.push(updateItem);
                     if (val.file) {
                         filesMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file });
-                    }
-                    if (isOpnameActive && val.file_opname) {
-                        filesOpnameMapUpdate.push({ index: itemsArrayUpdate.length - 1, file: val.file_opname });
                     }
                 } else {
                     const insertItem: any = {
@@ -4312,13 +4295,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
                     };
                     if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
-                    if (opnameData) insertItem.opname = opnameData;
                     itemsArrayInsert.push(insertItem);
                     if (val.file) {
                         filesMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file });
-                    }
-                    if (isOpnameActive && val.file_opname) {
-                        filesOpnameMapInsert.push({ index: itemsArrayInsert.length - 1, file: val.file_opname });
                     }
                 }
 
@@ -4371,7 +4350,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // sebelum item pengawasan mereferensikannya.
                 await submitGanttPengawasan(Number(selectedGanttId), [formattedDate]);
 
-                const insertBatches = createPengawasanUploadBatches(itemsArrayInsert, filesMapInsert, filesOpnameMapInsert);
+                const insertBatches = createPengawasanUploadBatches(itemsArrayInsert, filesMapInsert, []);
                 let insertedCount = 0;
 
                 for (let batchIndex = 0; batchIndex < insertBatches.length; batchIndex++) {
@@ -4416,7 +4395,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             // --- B. Eksekusi UPDATE (PUT) ---
             if (itemsArrayUpdate.length > 0) {
-                const updateBatches = createPengawasanUploadBatches(itemsArrayUpdate, filesMapUpdate, filesOpnameMapUpdate);
+                const updateBatches = createPengawasanUploadBatches(itemsArrayUpdate, filesMapUpdate, []);
                 let updatedCount = 0;
 
                 for (let batchIndex = 0; batchIndex < updateBatches.length; batchIndex++) {
@@ -4779,57 +4758,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                                 </div>
                                                                                             </div>
 
-                                                                                            {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
-                                                                                            {currentStatus === 'Selesai' && !blockedOpnameItemKeys.has(key) && (
-                                                                                                <div className="mt-4 p-3 rounded-xl border border-emerald-200 bg-emerald-50 shadow-inner flex flex-col gap-3 animate-in slide-in-from-top-1">
-                                                                                                    <div className="flex items-center gap-2 mb-1 border-b border-emerald-200 pb-2">
-                                                                                                        <div className="bg-emerald-100 p-1 rounded-full"><CheckCircle className="w-4 h-4 text-emerald-600"/></div>
-                                                                                                        <h5 className="font-bold text-emerald-800 text-xs">Formulir Opname & Verifikasi Pekerjaan</h5>
-                                                                                                    </div>
-                                                                                                    
-                                                                                                    <div className="grid grid-cols-2 gap-3">
-                                                                                                        <div>
-                                                                                                            <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Volume Akhir *</label>
-                                                                                                            <div className="flex items-center gap-2 mt-1">
-                                                                                                                <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full p-1.5 border border-slate-300 rounded text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.volume_akhir ?? ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
-                                                                                                                <span className="text-xs font-semibold text-slate-500 w-12">{item.satuan}</span>
-                                                                                                            </div>
-                                                                                                        </div>
-                                                                                                        <div>
-                                                                                                            <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Kesesuaian Desain *</label>
-                                                                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}>
-                                                                                                                <option value="">-- Pilih --</option>
-                                                                                                                <option value="Sesuai">Sesuai</option>
-                                                                                                                <option value="Tidak Sesuai">Tidak Sesuai</option>
-                                                                                                            </select>
-                                                                                                        </div>
-                                                                                                        <div>
-                                                                                                            <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Kualitas *</label>
-                                                                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}>
-                                                                                                                <option value="">-- Pilih --</option>
-                                                                                                                <option value="Baik">Baik</option>
-                                                                                                                <option value="Tidak Baik">Tidak Baik</option>
-                                                                                                            </select>
-                                                                                                        </div>
-                                                                                                        <div>
-                                                                                                            <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
-                                                                                                            <select className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}>
-                                                                                                                <option value="">-- Pilih --</option>
-                                                                                                                <option value="Sesuai">Sesuai</option>
-                                                                                                                <option value="Tidak Sesuai">Tidak Sesuai</option>
-                                                                                                            </select>
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                    <div>
-                                                                                                        <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Catatan Opname</label>
-                                                                                                        <textarea className="w-full p-1.5 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none" rows={2} placeholder="Keterangan opname, selisih volume, masalah kualitas..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
-                                                                                                    </div>
-                                                                                                    <div className="border-t border-emerald-200/50 pt-2">
-                                                                                                        <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Foto Bukti Opname *</label>
-                                                                                                        <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full mt-1 text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200" />
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            )}
                                                                                         </>
                                                                                     ) : null}
                                                                                 </>
