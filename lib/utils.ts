@@ -112,8 +112,8 @@ export const compressImage = async (file: File): Promise<File> => {
     if (file.type === 'image/svg+xml' || file.type === 'image/gif') return file;
 
     const options = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
+        maxSizeMB: 0.3,
+        maxWidthOrHeight: 1200,
         // CSP production hanya mengizinkan koneksi ke self. Web worker library ini
         // mencoba mengambil worker dari CDN, jadi matikan agar upload tidak gagal.
         useWebWorker: false,
