@@ -1634,7 +1634,7 @@ function RABPageContent() {
                 <div className="space-y-2"><Label>Nama Toko <span className="text-red-500">*</span></Label><Input name="namaToko" readOnly={isProjectFieldLocked} value={formData.namaToko} onChange={handleInputChange} placeholder="Masukkan nama toko" className={projectInputClass} required /></div>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? 'Renovasi' : 'Reguler'}))}/>
+                    <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
                   </div>
                   <div className="flex gap-2 items-center">
