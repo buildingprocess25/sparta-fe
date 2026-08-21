@@ -4231,6 +4231,76 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             return;
         }
 
+        const validationErrors: string[] = [];
+        if (memoConfig.length > 0) {
+            if (!isDirty) {
+                validationErrors.push("Belum ada perubahan data yang dilakukan pada item apapun.");
+            } else {
+                let editableItemCount = 0;
+                for (const cat of memoConfig) {
+                    if (!cat.items) continue;
+                    for (const item of cat.items) {
+                        const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
+                        const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
+                        if (isAlreadySelesai) continue;
+                        const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
+                        if (isSavedOnCurrentDate) continue;
+
+                        editableItemCount += 1;
+                        const input = memoInputs[key];
+                        if (!input || !input.status) {
+                            validationErrors.push(`Status (Selesai/Progress/Terlambat) untuk "${item.jenis_pekerjaan}" belum dipilih.`);
+                            continue;
+                        }
+
+                        if (input.status === 'Terlambat' && (!input.lateDays || input.lateDays <= 0)) {
+                            validationErrors.push(`Tambahan hari keterlambatan untuk "${item.jenis_pekerjaan}" wajib diisi.`);
+                        }
+
+                        if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
+                            if (input.volume_akhir === undefined || input.volume_akhir === null || String(input.volume_akhir) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
+                            if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
+                            if (!input.kualitas || input.kualitas === '') validationErrors.push(`Kualitas hasil (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
+                            if (!input.spesifikasi || input.spesifikasi === '') validationErrors.push(`Spesifikasi material (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
+                            if (!input.file_opname && !input.existing_foto) validationErrors.push(`Upload Foto Bukti (Opname) untuk "${item.jenis_pekerjaan}" wajib diunggah.`);
+                        }
+
+                        const hasFotoLama = !!(input.dokumentasiUrl);
+                        const hasFotoBaru = !!(input.file);
+                        if (!hasFotoBaru && !hasFotoLama) {
+                            validationErrors.push(`Foto/Dok pengawasan utama untuk "${item.jenis_pekerjaan}" wajib diunggah.`);
+                        }
+                    }
+                }
+                
+                // Allow submit if it's just a visit log for empty days, but if we have items, we expect them to be edited.
+                if (editableItemCount === 0 && canCreateNextHandover && nextHandoverDate) {
+                     // Empty day but Handover is being created. allowed.
+                } else if (editableItemCount === 0 && !canCreateNextHandover) {
+                    validationErrors.push("Tidak ada item pekerjaan aktif yang perlu diperbarui pada tanggal ini.");
+                }
+            }
+        } else {
+             // memoConfig.length === 0
+             if (canCreateNextHandover && !nextHandoverDate) {
+                  validationErrors.push("Wajib mengisi tanggal serah terima berikutnya karena ada item terlambat dari pengawasan sebelumnya.");
+             }
+        }
+        
+        if (canCreateNextHandover && !nextHandoverDate && memoConfig.length > 0) {
+            validationErrors.push("Tanggal serah terima berikutnya wajib diisi (scroll ke paling bawah).");
+        } else if (canCreateNextHandover && minNextHandoverDate && nextHandoverDate && nextHandoverDate < minNextHandoverDate) {
+            validationErrors.push(`Tanggal serah terima berikutnya tidak boleh kurang dari ${minNextHandoverDate}.`);
+        }
+
+        if (validationErrors.length > 0) {
+            showAlert({ 
+                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`, 
+                type: 'error' 
+            });
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             const itemsArrayInsert: any[] = [];
@@ -4980,7 +5050,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 </Button>
                             )}
                             {!isReadOnly && (
-                                <Button onClick={handleSubmit} disabled={isSubmitting || (!isSubmitValid && !(memoConfig.length === 0 && canCreateNextHandover && nextHandoverDate))} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
+                                <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                                     Simpan
                                 </Button>
