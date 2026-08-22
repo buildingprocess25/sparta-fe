@@ -3706,9 +3706,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 initial[key] = {
                                     status: row.status.charAt(0).toUpperCase() + row.status.slice(1),
                                     lateDays: 0,
-                                    catatan: '',
+                                    catatan: row.catatan || '',
                                     file: null,
-                                    dokumentasiUrl: null,
+                                    dokumentasiUrl: row.dokumentasi || null,
                                     isSaved: false,
                                     previousStatus: row.status.charAt(0).toUpperCase() + row.status.slice(1),
                                     previousLateDays: getCategoryLateDays(row.kategori_pekerjaan),
