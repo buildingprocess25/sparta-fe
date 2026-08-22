@@ -4826,9 +4826,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                 <tbody>
                                                     {d.items.map((item: any, j: number) => {
                                                         const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
-                                                        const currentStatus = memoInputs[key]?.status;
+                                                        const latestStatusKey = latestStatusMapState.get(key);
+                                                        const currentStatus = memoInputs[key]?.status || latestStatusKey;
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
-                                                        const latestStatusKey = latestStatusMapState.get(`${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`);
 
                                                         const renderOpnameForm = () => {
                                                             if (currentStatus !== 'Selesai' || blockedOpnameItemKeys.has(key)) return null;
