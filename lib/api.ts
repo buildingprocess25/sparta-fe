@@ -2298,7 +2298,7 @@ export const submitPengawasanBulk = async (payload: FormData | { items: any[] })
 export const updatePengawasanBulk = async (payload: FormData | { items: any[] }) => {
     const isFormData = payload instanceof FormData;
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 120000); // 2 menit timeout
+    const timeoutId = window.setTimeout(() => controller.abort(), 300000); // 5 menit timeout
     try {
         return await safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
             method: "PUT",
