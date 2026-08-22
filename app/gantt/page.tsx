@@ -3678,21 +3678,41 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             }
                         }
                     });
+                    const missingOpnames = Array.from(map.entries())
+                        .filter(([key, status]) => status.toLowerCase() === 'selesai' && !blockedOpnameIds.has(key))
+                        .filter(([key]) => {
+                            const pipeIdx = key.indexOf('|');
+                            if (pipeIdx === -1) return false;
+                            const kategori = key.substring(0, pipeIdx);
+                            const jenis = key.substring(pipeIdx + 1);
+                            // Only include if it's in rabItems (wait, we can't safely access rabItems here because it might not be loaded yet,
+                            // OR we can just include them and the UI will gracefully ignore if rItem is undefined!)
+                            return true;
+                        })
+                        .map(([key]) => {
+                            return dataAll.find((p: any) => `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}` === key && p.status.toLowerCase() === 'selesai');
+                        })
+                        .filter(Boolean);
+
                     const forcedStItems = isTargetStMemo
-                        ? Array.from(latestUnfinishedRows.entries())
-                            .filter(([key]) => buggedBlockedKeys.has(key))
-                            .map(([key, row]) => {
+                        ? [
+                            ...Array.from(latestUnfinishedRows.entries())
+                                .filter(([key]) => buggedBlockedKeys.has(key))
+                                .map(([key, row]) => row),
+                            ...missingOpnames
+                          ].map((row: any) => {
+                            const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
                             if (!initial[key]) {
                                 initial[key] = {
-                                    status: '',
+                                    status: row.status.charAt(0).toUpperCase() + row.status.slice(1),
                                     lateDays: 0,
                                     catatan: '',
                                     file: null,
                                     dokumentasiUrl: null,
                                     isSaved: false,
-                                    previousStatus: row.normalizedStatus,
+                                    previousStatus: row.status.charAt(0).toUpperCase() + row.status.slice(1),
                                     previousLateDays: getCategoryLateDays(row.kategori_pekerjaan),
-                                    previousPengawasanDate: row.sourcePengawasanDate
+                                    previousPengawasanDate: row.tanggal_pengawasan || row.sourcePengawasanDate
                                 };
                             }
 
@@ -3708,7 +3728,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 total_material: 0,
                                 total_upah: 0,
                                 total_harga: 0,
-                                previous_pengawasan_date: row.sourcePengawasanDate,
+                                previous_pengawasan_date: row.tanggal_pengawasan || row.sourcePengawasanDate,
                             };
                         })
                         : [];
@@ -3785,13 +3805,24 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
         const baseTasks = chartData.processedTasks || [];
         const baseTaskNames = new Set(baseTasks.map((task: any) => String(task.name || '').toUpperCase()));
-        const forcedTasks = forcedStBlockerItems
+        
+        // [PERBAIKAN]: Saring forcedStBlockerItems agar item yang dipaksa masuk karena "Selesai namun belum opname" BENAR-BENAR ada di rabItems
+        const validForcedStBlockerItems = forcedStBlockerItems.filter((item: any) => {
+            const key = `${String(item.kategori_pekerjaan).toUpperCase()}|${String(item.jenis_pekerjaan || item.kategori_pekerjaan).toUpperCase()}`;
+            if (memoInputs[key]?.status === 'Selesai') {
+                return rabItems.some((r: any) => isSameWorkText(r.kategori_pekerjaan, item.kategori_pekerjaan) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan || item.kategori_pekerjaan));
+            }
+            return true;
+        });
+
+        const forcedTasks = validForcedStBlockerItems
             .filter((item: any) => item?.kategori_pekerjaan && !baseTaskNames.has(String(item.kategori_pekerjaan).toUpperCase()))
             .map((item: any) => ({
                 name: item.kategori_pekerjaan,
                 computed: { shift: 0 },
                 ranges: [],
             }));
+
 
         return [...baseTasks, ...forcedTasks].map((task: any) => {
             const shift = task.computed.shift || 0;
@@ -3895,7 +3926,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
 
             // Juga ambil item dari liveHistory yang kategorinya cocok (untuk proyek migrasi)
-            const historyItemsForCat = [...liveHistory, ...forcedStBlockerItems]
+            const historyItemsForCat = [...liveHistory, ...validForcedStBlockerItems]
                 .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase())
                 .filter((lh: any) => !catItems.some((ci: any) => ci.jenis_pekerjaan?.toUpperCase() === lh.jenis_pekerjaan?.toUpperCase()));
 
@@ -4886,6 +4917,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
                                                                                             {currentStatus === 'Selesai' && !blockedOpnameItemKeys.has(key) && (() => {
                                                                                                 const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                                                                                                
+                                                                                                if (!rItem) return null; // [PERBAIKAN]: Jangan tampilkan form opname jika item ini tidak ada di RAB
+
                                                                                                 const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
                                                                                                 const volumeRAB = Number(rItem?.volume || 0);
                                                                                                 const volAkhir = memoInputs[key]?.volume_akhir !== undefined && memoInputs[key]?.volume_akhir !== '' ? Number(memoInputs[key].volume_akhir) : 0;
