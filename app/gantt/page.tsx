@@ -4221,10 +4221,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             for (const item of cat.items) {
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-                if (isAlreadySelesai) continue;
+                const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
+                
+                if (isAlreadySelesai && !needsOpnameFill) continue;
 
                 const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                if (isSavedOnCurrentDate) continue;
+                if (isSavedOnCurrentDate && !needsOpnameFill) continue;
 
                 editableItemCount += 1;
 
@@ -4298,11 +4300,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     for (const item of cat.items) {
                         const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                         const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-                        if (isAlreadySelesai) continue;
+                        const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
+                        
+                        // Jika sudah selesai dan BUKAN butuh opname, lewati (tidak bisa diedit)
+                        if (isAlreadySelesai && !needsOpnameFill) continue;
+
+                        // Jika sudah disimpan hari ini dan BUKAN butuh opname, lewati (tidak bisa diedit lagi hari ini)
                         const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                        if (isSavedOnCurrentDate) continue;
+                        if (isSavedOnCurrentDate && !needsOpnameFill) continue;
 
                         editableItemCount += 1;
+
                         const input = memoInputs[key];
                         if (!input || !input.status) {
                             validationErrors.push(`Status (Selesai/Progress/Terlambat) untuk "${item.jenis_pekerjaan}" belum dipilih.`);
@@ -4370,8 +4378,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
             const entriesToSubmit = Object.entries(memoInputs).filter(([key, val]) => {
                 if (!val.status) return false;
+                const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
+                const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
-                return !isSavedOnCurrentDate;
+                
+                return !isSavedOnCurrentDate || needsOpnameFill;
             });
             const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
             const hasNextHandoverAction = canCreateNextHandover && !!nextHandoverDate;
