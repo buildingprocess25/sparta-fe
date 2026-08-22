@@ -4422,7 +4422,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const volAwal = Number(rItem.volume || 0);
                         const volAkhir = val.volume_akhir !== undefined && val.volume_akhir !== '' ? Number(val.volume_akhir) : volAwal;
                         const selisihVolume = volAkhir - volAwal;
-                        const totalSelisih = selisihVolume * hargaSatuan;
+                        const totalSelisih = Math.round(selisihVolume * hargaSatuan);
                         const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
                         opnameData = {
