@@ -3722,7 +3722,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 kategori_pekerjaan: row.kategori_pekerjaan,
                                 jenis_pekerjaan: row.jenis_pekerjaan || row.kategori_pekerjaan,
                                 satuan: row.satuan || '-',
-                                volume: 0,
+                                volume: row.volume || 0,
                                 harga_material: 0,
                                 harga_upah: 0,
                                 total_material: 0,
@@ -4243,7 +4243,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
-                    const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
+                    const rItem = rabItems?.find((r: any) => isSameWorkText(r.kategori_pekerjaan, cat.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                    const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : (rItem ? rItem.volume : 0);
                     if (volA === null || String(volA) === '') return false;
                     if (!input.desain || input.desain === '') return false;
                     if (!input.kualitas || input.kualitas === '') return false;
@@ -4419,7 +4420,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     if (rItem && val.desain && val.kualitas && val.spesifikasi) {
                         const hargaSatuan = Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0);
                         const volAwal = Number(rItem.volume || 0);
-                        const volAkhir = val.volume_akhir !== undefined && val.volume_akhir !== '' ? Number(val.volume_akhir) : 0;
+                        const volAkhir = val.volume_akhir !== undefined && val.volume_akhir !== '' ? Number(val.volume_akhir) : volAwal;
                         const selisihVolume = volAkhir - volAwal;
                         const totalSelisih = selisihVolume * hargaSatuan;
                         const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
@@ -4826,7 +4827,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                                                             const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
                                                             const volumeRAB = Number(rItem?.volume || 0);
-                                                            const volAkhir = memoInputs[key]?.volume_akhir !== undefined && memoInputs[key]?.volume_akhir !== '' ? Number(memoInputs[key].volume_akhir) : 0;
+                                                            const volAkhir = memoInputs[key]?.volume_akhir !== undefined && memoInputs[key]?.volume_akhir !== '' ? Number(memoInputs[key].volume_akhir) : volumeRAB;
                                                             const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
                                                             const totalHargaRAB = Math.round(volumeRAB * hargaSatuan);
                                                             const selisihBiaya = totalHargaRAB - totalHargaOpname;
@@ -4864,7 +4865,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 </div>
                                                                                 <div className="bg-white p-2 rounded-md border border-blue-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative transition-all">
                                                                                     <label className="text-[9px] font-bold text-blue-600 uppercase block">Vol Akhir *</label>
-                                                                                    <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? 0} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                    <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? volumeRAB} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
                                                                                     <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan}</span>
                                                                                 </div>
                                                                             </div>
@@ -5356,7 +5357,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                         const key = item.source_key || item.id;
                         const ex = item.existing_opname;
                         inputs[key] = {
-                            volume_akhir: ex ? String(ex.volume_akhir) : "0",
+                            volume_akhir: ex ? String(ex.volume_akhir) : String(item.volume_rab || 0),
                             desain: ex?.desain || '',
                             kualitas: ex?.kualitas || '',
                             spesifikasi: ex?.spesifikasi || '',
