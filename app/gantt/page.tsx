@@ -4312,8 +4312,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                         editableItemCount += 1;
 
-                        const input = memoInputs[key];
-                        if (!input || !input.status) {
+                        const input = memoInputs[key] || ({} as any);
+                        const existingStatus = latestStatusMapState.get(key);
+                        if (!input.status && existingStatus) {
+                            input.status = existingStatus as any;
+                        }
+
+                        if (!input.status) {
                             validationErrors.push(`Status (Selesai/Progress/Terlambat) untuk "${item.jenis_pekerjaan}" belum dipilih.`);
                             continue;
                         }
@@ -4378,7 +4383,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             let catsLate = new Map<string, number>();
 
             const entriesToSubmit = Object.entries(memoInputs).filter(([key, val]) => {
-                if (!val.status) return false;
+                const existingStatus = latestStatusMapState.get(key);
+                const effectiveStatus = val.status || existingStatus;
+                if (!effectiveStatus) return false;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                 const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
@@ -4403,8 +4410,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const upperKey = key; // already normalized
                 const existingId = latestIdMapState.get(upperKey);
 
+                const existingStatus = latestStatusMapState.get(key);
+                const effectiveStatus = val.status || existingStatus;
+
                 // [PERBAIKAN 1]: Mengubah status menjadi lowercase utuh agar lolos validasi strict enum backend
-                const statusLower = typeof val.status === 'string' ? val.status.toLowerCase() : '';
+                const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase() : '';
                 const validStatuses = ['progress', 'selesai', 'terlambat'];
                 if (!validStatuses.includes(statusLower)) return; // skip jika status tidak valid
                 const statusSafe = statusLower;
