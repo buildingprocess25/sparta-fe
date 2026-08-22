@@ -4807,6 +4807,99 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         const currentStatus = memoInputs[key]?.status;
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
                                                         const latestStatusKey = latestStatusMapState.get(`${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`);
+
+                                                        const renderOpnameForm = () => {
+                                                            if (currentStatus !== 'Selesai' || blockedOpnameItemKeys.has(key)) return null;
+                                                            const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                                                            if (!rItem) return null;
+
+                                                            const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
+                                                            const volumeRAB = Number(rItem?.volume || 0);
+                                                            const volAkhir = memoInputs[key]?.volume_akhir !== undefined && memoInputs[key]?.volume_akhir !== '' ? Number(memoInputs[key].volume_akhir) : 0;
+                                                            const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
+                                                            const totalHargaRAB = Math.round(volumeRAB * hargaSatuan);
+                                                            const selisihBiaya = totalHargaRAB - totalHargaOpname;
+                                                            const isOverbudget = selisihBiaya < 0;
+
+                                                            return (
+                                                                <div className="mt-4 rounded-xl border border-blue-200 bg-white shadow-md overflow-hidden animate-in slide-in-from-top-1">
+                                                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white"/></div>
+                                                                            <div>
+                                                                                <h5 className="font-bold text-blue-900 text-sm">Formulir Opname & Verifikasi Pekerjaan</h5>
+                                                                                <p className="text-[10px] text-blue-600 font-medium mt-0.5">Lengkapi data di bawah ini karena pekerjaan telah selesai</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Harga Satuan</p>
+                                                                            <p className="text-xs font-bold text-slate-800">Rp {(hargaSatuan).toLocaleString('id-ID')}</p>
+                                                                            <p className="text-[9px] text-slate-500">(Mat: Rp {Number(rItem?.harga_material || 0).toLocaleString('id-ID')} | Upah: Rp {Number(rItem?.harga_upah || 0).toLocaleString('id-ID')})</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-200 flex flex-col xl:flex-row gap-4 xl:gap-6 w-full overflow-hidden">
+                                                                        {/* Kolom 1: Volume & Biaya */}
+                                                                        <div className="flex-1 min-w-[200px]">
+                                                                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">1</span> Volume & Biaya</h4>
+                                                                            
+                                                                            <div className="grid grid-cols-2 gap-2 mb-2">
+                                                                                <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm flex flex-col justify-center">
+                                                                                    <label className="text-[9px] font-bold text-slate-400 uppercase block">Vol RAB</label>
+                                                                                    <div className="flex items-baseline gap-1 mt-0.5">
+                                                                                        <span className="font-bold text-slate-700 text-sm leading-none">{volumeRAB}</span>
+                                                                                        <span className="text-[9px] text-slate-500">{item.satuan}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="bg-white p-2 rounded-md border border-blue-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative transition-all">
+                                                                                    <label className="text-[9px] font-bold text-blue-600 uppercase block">Vol Akhir *</label>
+                                                                                    <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? 0} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
+                                                                                    <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan}</span>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm text-[10px] space-y-1.5">
+                                                                                <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Total RAB:</span><span className="font-semibold text-slate-700">Rp {totalHargaRAB.toLocaleString('id-ID')}</span></div>
+                                                                                <div className="flex justify-between items-center border-t border-slate-100 pt-1.5"><span className="text-slate-600 font-bold">Total Opname:</span><span className="font-bold text-blue-600 text-[11px]">Rp {totalHargaOpname.toLocaleString('id-ID')}</span></div>
+                                                                                <div className={`flex justify-between items-center border-t border-slate-100 pt-1.5 font-bold ${isOverbudget ? 'text-red-600' : 'text-emerald-600'}`}><span>Selisih:</span><span>{isOverbudget ? '+' : '-'} Rp {Math.abs(selisihBiaya).toLocaleString('id-ID')}</span></div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Kolom 2: Verifikasi Pekerjaan */}
+                                                                        <div className="flex-1 min-w-[200px]">
+                                                                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">2</span> Verifikasi</h4>
+                                                                            <div className="bg-white p-2.5 rounded-md border border-slate-200 shadow-sm space-y-2.5 h-[calc(100%-24px)] flex flex-col justify-center">
+                                                                                <div className="flex items-center justify-between gap-2">
+                                                                                    <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Desain *</label>
+                                                                                    <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}><option value="">- Pilih -</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
+                                                                                </div>
+                                                                                <div className="flex items-center justify-between gap-2">
+                                                                                    <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Kualitas *</label>
+                                                                                    <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}><option value="">- Pilih -</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option></select>
+                                                                                </div>
+                                                                                <div className="flex items-center justify-between gap-2">
+                                                                                    <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Material *</label>
+                                                                                    <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}><option value="">- Pilih -</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Kolom 3: Bukti & Catatan */}
+                                                                        <div className="flex-[1.2] min-w-[220px]">
+                                                                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">3</span> Bukti & Catatan</h4>
+                                                                            <div className="bg-white p-2.5 rounded-md border border-slate-200 shadow-sm flex flex-col h-[calc(100%-24px)]">
+                                                                                <textarea className="w-full flex-1 min-h-[55px] p-2 border border-slate-200 rounded text-[10px] font-medium text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 focus:bg-white resize-none mb-2.5 shadow-sm transition-colors placeholder:text-slate-400" placeholder="Keterangan opname, masalah, selisih volume..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
+                                                                                
+                                                                                <div className="pt-2 border-t border-slate-100">
+                                                                                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1.5">Upload Foto *</label>
+                                                                                    <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer outline-none" />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        };
                                                         return (
                                                             <tr key={j} className="border-b last:border-b-0 hover:bg-slate-50/50">
                                                                 <td className="p-4 align-middle w-1/3">
@@ -4820,9 +4913,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                 </td>
                                                                 <td className="p-4 align-middle w-2/3">
                                                                     {latestStatusKey === 'Selesai' ? (
-                                                                        <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
-                                                                            <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                                                                            <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
+                                                                        <div className="flex flex-col gap-2">
+                                                                            <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
+                                                                                <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                                                                                <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
+                                                                            </div>
+                                                                            {!isReadOnly && renderOpnameForm()}
                                                                         </div>
                                                                     ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
                                                                         <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
@@ -4939,98 +5035,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             </div>
 
                                                                                             {/* 2. Opname Form (MUNCUL di BAWAH Pengawasan Form jika Selesai & tidak diblokir) */}
-                                                                                            {currentStatus === 'Selesai' && !blockedOpnameItemKeys.has(key) && (() => {
-                                                                                                const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
-                                                                                                
-                                                                                                if (!rItem) return null; // [PERBAIKAN]: Jangan tampilkan form opname jika item ini tidak ada di RAB
-
-                                                                                                const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
-                                                                                                const volumeRAB = Number(rItem?.volume || 0);
-                                                                                                const volAkhir = memoInputs[key]?.volume_akhir !== undefined && memoInputs[key]?.volume_akhir !== '' ? Number(memoInputs[key].volume_akhir) : 0;
-                                                                                                const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
-                                                                                                const totalHargaRAB = Math.round(volumeRAB * hargaSatuan);
-                                                                                                const selisihBiaya = totalHargaRAB - totalHargaOpname;
-                                                                                                const isOverbudget = selisihBiaya < 0;
-
-                                                                                                return (
-                                                                                                    <div className="mt-4 rounded-xl border border-blue-200 bg-white shadow-md overflow-hidden animate-in slide-in-from-top-1">
-                                                                                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
-                                                                                                            <div className="flex items-center gap-2">
-                                                                                                                <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white"/></div>
-                                                                                                                <div>
-                                                                                                                    <h5 className="font-bold text-blue-900 text-sm">Formulir Opname & Verifikasi Pekerjaan</h5>
-                                                                                                                    <p className="text-[10px] text-blue-600 font-medium mt-0.5">Lengkapi data di bawah ini karena pekerjaan telah selesai</p>
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                            <div className="text-right">
-                                                                                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Harga Satuan</p>
-                                                                                                                <p className="text-xs font-bold text-slate-800">Rp {(hargaSatuan).toLocaleString('id-ID')}</p>
-                                                                                                                <p className="text-[9px] text-slate-500">(Mat: Rp {Number(rItem?.harga_material || 0).toLocaleString('id-ID')} | Upah: Rp {Number(rItem?.harga_upah || 0).toLocaleString('id-ID')})</p>
-                                                                                                            </div>
-                                                                                                        </div>
-                                                                                                        
-                                                                                                        <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-200 flex flex-col xl:flex-row gap-4 xl:gap-6 w-full overflow-hidden">
-                                                                                                            {/* Kolom 1: Volume & Biaya */}
-                                                                                                            <div className="flex-1 min-w-[200px]">
-                                                                                                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">1</span> Volume & Biaya</h4>
-                                                                                                                
-                                                                                                                <div className="grid grid-cols-2 gap-2 mb-2">
-                                                                                                                    <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm flex flex-col justify-center">
-                                                                                                                        <label className="text-[9px] font-bold text-slate-400 uppercase block">Vol RAB</label>
-                                                                                                                        <div className="flex items-baseline gap-1 mt-0.5">
-                                                                                                                            <span className="font-bold text-slate-700 text-sm leading-none">{volumeRAB}</span>
-                                                                                                                            <span className="text-[9px] text-slate-500">{item.satuan}</span>
-                                                                                                                        </div>
-                                                                                                                    </div>
-                                                                                                                    <div className="bg-white p-2 rounded-md border border-blue-200 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 relative transition-all">
-                                                                                                                        <label className="text-[9px] font-bold text-blue-600 uppercase block">Vol Akhir *</label>
-                                                                                                                        <input type="number" min={0} step="any" onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()} className="w-full text-sm font-bold text-slate-800 outline-none bg-transparent mt-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" value={memoInputs[key]?.volume_akhir ?? 0} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'volume_akhir', e.target.value)} />
-                                                                                                                        <span className="absolute right-2 bottom-2 text-[9px] font-bold text-blue-500">{item.satuan}</span>
-                                                                                                                    </div>
-                                                                                                                </div>
-
-                                                                                                                <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm text-[10px] space-y-1.5">
-                                                                                                                    <div className="flex justify-between items-center"><span className="text-slate-500 font-medium">Total RAB:</span><span className="font-semibold text-slate-700">Rp {totalHargaRAB.toLocaleString('id-ID')}</span></div>
-                                                                                                                    <div className="flex justify-between items-center border-t border-slate-100 pt-1.5"><span className="text-slate-600 font-bold">Total Opname:</span><span className="font-bold text-blue-600 text-[11px]">Rp {totalHargaOpname.toLocaleString('id-ID')}</span></div>
-                                                                                                                    <div className={`flex justify-between items-center border-t border-slate-100 pt-1.5 font-bold ${isOverbudget ? 'text-red-600' : 'text-emerald-600'}`}><span>Selisih:</span><span>{isOverbudget ? '+' : '-'} Rp {Math.abs(selisihBiaya).toLocaleString('id-ID')}</span></div>
-                                                                                                                </div>
-                                                                                                            </div>
-
-                                                                                                            {/* Kolom 2: Verifikasi Pekerjaan */}
-                                                                                                            <div className="flex-1 min-w-[200px]">
-                                                                                                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">2</span> Verifikasi</h4>
-                                                                                                                <div className="bg-white p-2.5 rounded-md border border-slate-200 shadow-sm space-y-2.5 h-[calc(100%-24px)] flex flex-col justify-center">
-                                                                                                                    <div className="flex items-center justify-between gap-2">
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Desain *</label>
-                                                                                                                        <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.desain || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'desain', e.target.value)}><option value="">- Pilih -</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
-                                                                                                                    </div>
-                                                                                                                    <div className="flex items-center justify-between gap-2">
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Kualitas *</label>
-                                                                                                                        <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.kualitas || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'kualitas', e.target.value)}><option value="">- Pilih -</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option></select>
-                                                                                                                    </div>
-                                                                                                                    <div className="flex items-center justify-between gap-2">
-                                                                                                                        <label className="text-[10px] font-bold text-slate-600 whitespace-nowrap">Material *</label>
-                                                                                                                        <select className="w-[125px] p-1.5 border border-slate-200 rounded text-[10px] font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50 hover:bg-white transition-colors cursor-pointer shadow-sm" value={memoInputs[key]?.spesifikasi || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'spesifikasi', e.target.value)}><option value="">- Pilih -</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
-                                                                                                                    </div>
-                                                                                                                </div>
-                                                                                                            </div>
-
-                                                                                                            {/* Kolom 3: Bukti & Catatan */}
-                                                                                                            <div className="flex-[1.2] min-w-[220px]">
-                                                                                                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">3</span> Bukti & Catatan</h4>
-                                                                                                                <div className="bg-white p-2.5 rounded-md border border-slate-200 shadow-sm flex flex-col h-[calc(100%-24px)]">
-                                                                                                                    <textarea className="w-full flex-1 min-h-[55px] p-2 border border-slate-200 rounded text-[10px] font-medium text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 focus:bg-white resize-none mb-2.5 shadow-sm transition-colors placeholder:text-slate-400" placeholder="Keterangan opname, masalah, selisih volume..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
-                                                                                                                    
-                                                                                                                    <div className="pt-2 border-t border-slate-100">
-                                                                                                                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1.5">Upload Foto *</label>
-                                                                                                                        <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer outline-none" />
-                                                                                                                    </div>
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            })()}
+                                                                                            {renderOpnameForm()}
                                                                                         </>
                                                                                     ) : null}
                                                                                 </>
