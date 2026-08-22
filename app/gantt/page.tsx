@@ -4025,6 +4025,23 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }).filter((d: any) => d.items.length > 0);
     }, [memoConfig, searchQuery]);
 
+    const activeItemsCount = useMemo(() => {
+        let count = 0;
+        memoConfig.forEach((cat: any) => {
+            cat.items?.forEach((item: any) => {
+                const key = `${cat.category.name.toUpperCase()}|${(item.jenis_pekerjaan || cat.category.name).toUpperCase()}`;
+                const currentStatus = memoInputs[key]?.status;
+                if (currentStatus !== 'Selesai') {
+                    count++;
+                } else if (!blockedOpnameItemKeys.has(key)) {
+                    const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, cat.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan || cat.category.name));
+                    if (rItem) count++;
+                }
+            });
+        });
+        return count;
+    }, [memoConfig, memoInputs, blockedOpnameItemKeys, rabItems]);
+
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
         const key = `${catName.toUpperCase()}|${itemJenis.toUpperCase()}`;
@@ -5087,7 +5104,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
                                 </Button>
                             )}
-                            {!isReadOnly && (memoConfig.length === 0 || activeItemsCount > 0 || canCreateNextHandover) && (
+                            {!isReadOnly && (memoConfig.length === 0 || activeItemsCount > 0 || canCreateNextHandover || isDirty) && (
                                 <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                                     Simpan
