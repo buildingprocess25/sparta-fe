@@ -3993,15 +3993,22 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
                 const wasSupervisedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase());
                 
+                const isForcedMissingOpname = validForcedStBlockerItems.some((fi: any) => 
+                    fi.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && 
+                    (fi.jenis_pekerjaan || fi.kategori_pekerjaan).toUpperCase() === jenisPekerjaan.toUpperCase()
+                );
+
                 // Tampilkan item jika jadwalnya aktif hari ini, atau
                 // terlewat sepenuhnya di masa lalu tanpa pernah ada pengawasan yg meng-hit, atau
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
-                // DI-SUPERVISI PADA HARI INI (ada record di database untuk hari ini)
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday) return false;
+                // DI-SUPERVISI PADA HARI INI (ada record di database untuk hari ini),
+                // ATAU merupakan opname nyangkut yang dipaksa tampil
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday && !isForcedMissingOpname) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
+                // KECUALI jika ini adalah opname nyangkut yang dipaksa tampil
                 const wasFinishedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase() && lh.status.toLowerCase() === 'selesai');
-                if (latestStatus === 'Selesai' && !wasFinishedToday) return false;
+                if (latestStatus === 'Selesai' && !wasFinishedToday && !isForcedMissingOpname) return false;
 
                 return true;
             });
