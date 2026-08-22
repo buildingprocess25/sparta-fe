@@ -4600,12 +4600,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             }
                             
                             if (opFiles.length > 0) {
-                                opFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
+                                opFiles.forEach(({ file }: any) => formData.append('rev_file_foto_opname', file));
                                 formData.append('rev_file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
                             
                             if (batch.opnameFiles) {
-                                batch.opnameFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
+                                batch.opnameFiles.forEach(({ file }: any) => formData.append('rev_file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
                                     formData.append('rev_file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
