@@ -4930,6 +4930,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
                                                                                 <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
                                                                             </div>
+                                                                            {!isReadOnly && !(memoInputs[key] as any)?.dokumentasiUrl && (
+                                                                                <div className="flex flex-col gap-2 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in">
+                                                                                    <div className="text-xs font-bold text-red-600 flex items-center gap-1.5">
+                                                                                        <AlertCircle className="w-4 h-4" />
+                                                                                        <span>Foto Pengawasan Utama belum diunggah!</span>
+                                                                                    </div>
+                                                                                    <p className="text-[10px] text-red-500 font-medium">Silakan unggah ulang foto pengawasan yang sempat gagal tersimpan.</p>
+                                                                                    <input
+                                                                                        type="file"
+                                                                                        accept="image/*,.pdf,application/pdf"
+                                                                                        onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file', e.target.files?.[0] || null)}
+                                                                                        className="w-full text-xs text-red-600 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-red-100 file:text-red-700 hover:file:bg-red-200 cursor-pointer"
+                                                                                    />
+                                                                                </div>
+                                                                            )}
                                                                             {!isReadOnly && renderOpnameForm()}
                                                                         </div>
                                                                     ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
