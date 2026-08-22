@@ -2297,11 +2297,18 @@ export const submitPengawasanBulk = async (payload: FormData | { items: any[] })
 /** Update Bulk Pengawasan (Items Pekerjaan dari Memo) */
 export const updatePengawasanBulk = async (payload: FormData | { items: any[] }) => {
     const isFormData = payload instanceof FormData;
-    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
-        method: "PUT",
-        headers: isFormData ? undefined : { "Content-Type": "application/json" },
-        body: isFormData ? payload : JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 120000); // 2 menit timeout
+    try {
+        return await safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+            method: "PUT",
+            headers: isFormData ? undefined : { "Content-Type": "application/json" },
+            body: isFormData ? payload : JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
 };
 
 /** Ambil daftar pengawasan selesai/seluruhnya */
