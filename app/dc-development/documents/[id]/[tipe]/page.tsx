@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/context/SessionContext";
 import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType } from "@/lib/api";
-import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
+import { DC_DOCUMENT_LEGENDS, getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 
 const CUSTOM_SLOT_OPTIONS: DcDocumentUploadSlotType[] = ["PDF/JPEG", "AUTOCAD", "WORD", "EXCEL", "PPT"];
 
@@ -103,20 +103,30 @@ export default function DcDocumentDetailPage() {
     if (!isLoading && user) loadData();
   }, [isLoading, user, loadData]);
 
-  const docConfig = useMemo(() => {
-    if (tipe === "RENOVASI") {
-      return DC_DOCUMENT_CONFIG.filter(u => RENOVASI_ALLOWED_UTAMA.includes(u.title));
-    }
-    return DC_DOCUMENT_CONFIG;
-  }, [tipe]);
+  const docConfig = useMemo(() => getDcDocumentConfigForStage(tipe), [tipe]);
 
   const customDocumentItemsForStage = useMemo(() => (
     customItems.filter(item => item.stage === tipe.toUpperCase())
   ), [customItems, tipe]);
 
+  const visibleItemKeys = useMemo(() => {
+    const keys = new Set<string>();
+    docConfig.forEach(utama => {
+      utama.details.forEach(detail => {
+        detail.jenis.forEach(jenis => keys.add(jenis.key));
+      });
+    });
+    customDocumentItemsForStage.forEach(item => keys.add(getCustomItemKey(item)));
+    return keys;
+  }, [customDocumentItemsForStage, docConfig]);
+
   const uploadedItemCount = useMemo(() => (
-    new Set(documents.map(d => (d.document_type || "").split('__')[0])).size
-  ), [documents]);
+    new Set(
+      documents
+        .map(d => (d.document_type || "").split('__')[0])
+        .filter(key => visibleItemKeys.has(key))
+    ).size
+  ), [documents, visibleItemKeys]);
 
   const requiredItemCount = useMemo(() => (
     getTotalRequiredDcDocumentSlots(tipe) + customDocumentItemsForStage.length
@@ -124,8 +134,8 @@ export default function DcDocumentDetailPage() {
 
   const formatKey = (jenisKey: string, type: string) => `${jenisKey}__${type.replace(/\//g, '_')}`;
 
-  const handleFileUpload = async (jenisKey: string, type: string, file: File) => {
-    if (!archive || !actor.actor_email) return;
+  const handleFileUpload = async (jenisKey: string, type: string, files: File[]) => {
+    if (!archive || !actor.actor_email || files.length === 0) return;
 
     const compositeKey = formatKey(jenisKey, type);
     setUploadingKey(compositeKey);
@@ -137,7 +147,7 @@ export default function DcDocumentDetailPage() {
         entity_type: "DC_ARCHIVE_PROJECT",
         document_type: compositeKey,
         stage: tipe,
-      }, [file]);
+      }, files);
 
       // Reload docs
       await loadData();
@@ -160,9 +170,9 @@ export default function DcDocumentDetailPage() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeUploadContext) return;
-    handleFileUpload(activeUploadContext.key, activeUploadContext.type, file);
+    const selectedFiles = Array.from(e.target.files ?? []);
+    if (selectedFiles.length === 0 || !activeUploadContext) return;
+    handleFileUpload(activeUploadContext.key, activeUploadContext.type, selectedFiles);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -179,37 +189,45 @@ export default function DcDocumentDetailPage() {
 
   const renderDocumentSlot = (jenisKey: string, type: string) => {
     const compKey = formatKey(jenisKey, type);
-    const existingDoc = documents.find(d => d.document_type === compKey);
+    const slotDocuments = documents.filter(d => d.document_type === compKey);
     const isUploading = uploadingKey === compKey;
 
     return (
       <div key={compKey} className="relative group/slot flex flex-col items-end gap-1">
-        {existingDoc ? (
-          <div className="flex flex-col gap-1 w-full items-end">
-            <div className="flex items-center gap-1.5">
-              {existingDoc.drive_file_id || existingDoc.file_name ? (
-                <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {type}
-                </a>
-              ) : (
-                <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-                  <UploadCloud className="h-4 w-4" />
-                  Upload {type}
-                </button>
-              )}
-              <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(existingDoc); setNoteText(existingDoc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
-                <MessageSquare className="h-4 w-4" />
-              </button>
-              <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
-                <Trash2 className="h-4 w-4" />
+        {slotDocuments.length > 0 ? (
+          <div className="flex flex-col gap-1.5 w-full items-end">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {slotDocuments.map((doc, index) => (
+                <div key={doc.id} className="flex items-center gap-1.5">
+                  {doc.drive_file_id || doc.file_name ? (
+                    <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {slotDocuments.length > 1 ? `${type} ${index + 1}` : type}
+                    </a>
+                  ) : (
+                    <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
+                      <UploadCloud className="h-4 w-4" />
+                      Upload {type}
+                    </button>
+                  )}
+                  <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(doc); setNoteText(doc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
+                    <MessageSquare className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => handleDelete(doc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow" title="Tambah file lagi">
+                <UploadCloud className="h-4 w-4" />
+                Tambah {type}
               </button>
             </div>
-            {existingDoc.notes && (
-              <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1 max-w-[200px] truncate" title={existingDoc.notes}>
-                <span className="font-semibold text-slate-600">Catatan:</span> {existingDoc.notes}
+            {slotDocuments.map(doc => doc.notes ? (
+              <div key={`note-${doc.id}`} className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1 max-w-[240px] truncate" title={doc.notes}>
+                <span className="font-semibold text-slate-600">Catatan:</span> {doc.notes}
               </div>
-            )}
+            ) : null)}
           </div>
         ) : isUploading ? (
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
@@ -230,7 +248,6 @@ export default function DcDocumentDetailPage() {
       </div>
     );
   };
-
   const handleSaveNote = async () => {
     if (!actor.actor_email) return;
     setSavingNote(true);
@@ -354,7 +371,7 @@ export default function DcDocumentDetailPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f7f9] text-slate-900 pb-20 [font-family:var(--font-sans)]">
-      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} multiple />
 
       {/* HEADER PREMIUM */}
       <header className="sticky top-0 z-30 bg-gradient-to-r from-red-700 to-red-600 shadow-md">
