@@ -123,6 +123,7 @@ export default function DcDocumentDetailPage() {
   const uploadedItemCount = useMemo(() => (
     new Set(
       documents
+        .filter(d => !!(d.drive_file_id || d.file_name))
         .map(d => (d.document_type || "").split('__')[0])
         .filter(key => visibleItemKeys.has(key))
     ).size

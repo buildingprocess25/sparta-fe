@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Download,
-  FileArchive,
   FileDown,
   FileSpreadsheet,
   FolderArchive,
@@ -20,37 +19,79 @@ import {
   Search,
   Maximize,
   MessageSquare,
-  FileText} from "lucide-react";
+  FileText,
+  Files,
+  Tag,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, exportDcData, exportGlobalDcData, type DcArchiveProject, type DcDocument } from "@/lib/api";
-import { getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
+import { fetchDcArchiveProjects, fetchDcDocuments, exportDcData, exportGlobalDcData, fetchDcDocumentCustomItems, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem } from "@/lib/api";
+import { getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 import { canViewAllBranches, getParentBranch, getSubBranchesForParent } from "@/lib/constants";
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+type NoteDisplay = {
+  note: DcDocument;
+  stageKey: string;
+  stageLabel: string;
+  category: string;
+  itemTitle: string;
+  format: string;
+};
+
+type GroupedProjectNotes = {
+  stageKey: string;
+  stageLabel: string;
+  total: number;
+  categories: Array<{
+    category: string;
+    notes: NoteDisplay[];
+  }>;
+};
+
+const NOTE_STAGE_ORDER = ["PEMBANGUNAN", "RENOVASI", "PERLUASAN", "UMUM"];
+const NOTE_STAGE_LABELS: Record<string, string> = {
+  PEMBANGUNAN: "Pembangunan",
+  RENOVASI: "Renovasi",
+  PERLUASAN: "Perluasan",
+  UMUM: "Umum",
+};
+
+const normalizeNoteStage = (stage?: string | null) => {
+  const normalized = String(stage || "").trim().toUpperCase();
+  return NOTE_STAGE_ORDER.includes(normalized) ? normalized : "UMUM";
+};
+
+const formatDocumentSlotLabel = (raw?: string) => raw ? raw.replace(/_/g, "/") : "Format tidak diketahui";
+
+type DcArchiveStatusFilter = "all" | "lengkap" | "belum";
+
+const toArchiveStatusFilter = (value: string): DcArchiveStatusFilter => (
+  value === "lengkap" || value === "belum" ? value : "all"
+);
 const MiniProgress = ({ label, current, total }: { label: string; current: number; total: number }) => {
   const isZero = current === 0;
   const isComplete = current === total && total > 0;
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-  
+
   return (
     <div className={`flex items-center gap-2.5 transition-opacity ${isZero ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}>
       <span className="w-[85px] text-[10px] font-bold tracking-wider uppercase text-slate-500 truncate" title={label}>
         {label}
       </span>
       <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-        <div 
-          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-emerald-500' : 'bg-red-500'}`} 
-          style={{ width: `${pct}%` }} 
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-emerald-500' : 'bg-red-500'}`}
+          style={{ width: `${pct}%` }}
         />
       </div>
       <span className={`w-9 text-right text-[10px] font-bold ${isZero ? 'text-slate-400' : 'text-slate-800'}`}>
@@ -70,10 +111,11 @@ export default function DcDocumentsPage() {
   const [tipeDcFilter, setTipeDcFilter] = useState("all"); // 'all', 'dc', 'warehouse'
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [message, setMessage] = useState("");
-  
+
   const [selectedArchiveForType, setSelectedArchiveForType] = useState<DcArchiveProject | null>(null);
   const [selectedArchiveForNotes, setSelectedArchiveForNotes] = useState<DcArchiveProject | null>(null);
   const [projectNotes, setProjectNotes] = useState<DcDocument[]>([]);
+  const [customItemsForNotes, setCustomItemsForNotes] = useState<DcDocumentCustomItem[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
 
   const actor = useMemo(() => ({
@@ -81,7 +123,7 @@ export default function DcDocumentsPage() {
     actor_role: user?.role || "",
   }), [user]);
 
-  
+
   const handleExportGlobal = async (format: 'csv' | 'excel' | 'pdf') => {
     if (!actor.actor_email || !actor.actor_role) return;
     try {
@@ -90,7 +132,7 @@ export default function DcDocumentsPage() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         branch_name: branchFilter !== 'all' ? branchFilter : undefined,
       };
-      
+
       await exportGlobalDcData(queryParams, actor, format);
     } catch (error) {
       setMessage(getErrorMessage(error, "Gagal mengunduh file ekspor"));
@@ -111,6 +153,7 @@ export default function DcDocumentsPage() {
     setSelectedArchiveForNotes(archive);
     setLoadingNotes(true);
     setProjectNotes([]);
+    setCustomItemsForNotes([]);
     try {
       const res = await fetchDcDocuments({
         actor_email: actor.actor_email,
@@ -118,9 +161,19 @@ export default function DcDocumentsPage() {
         project_id: archive.project_id,
         entity_type: "DC_ARCHIVE_PROJECT"
       }, { suppressGlobalError: true });
+      const [customPembangunan, customRenovasi, customPerluasan] = await Promise.all([
+        fetchDcDocumentCustomItems(archive.id, { ...actor, stage: "PEMBANGUNAN" }, { suppressGlobalError: true }),
+        fetchDcDocumentCustomItems(archive.id, { ...actor, stage: "RENOVASI" }, { suppressGlobalError: true }),
+        fetchDcDocumentCustomItems(archive.id, { ...actor, stage: "PERLUASAN" }, { suppressGlobalError: true }),
+      ]);
       const docs = res.data ?? [];
       const withNotes = docs.filter(d => !!d.notes);
       setProjectNotes(withNotes);
+      setCustomItemsForNotes([
+        ...(customPembangunan.data ?? []),
+        ...(customRenovasi.data ?? []),
+        ...(customPerluasan.data ?? []),
+      ]);
     } catch (e) {
       console.error(e);
     } finally {
@@ -128,6 +181,76 @@ export default function DcDocumentsPage() {
     }
   }, [actor]);
 
+
+  const groupedProjectNotes = useMemo<GroupedProjectNotes[]>(() => {
+    const customItemMap = new Map<string, DcDocumentCustomItem>();
+    customItemsForNotes.forEach(item => customItemMap.set(`CUSTOM_K_${item.id}`, item));
+
+    const resolveNote = (note: DcDocument): NoteDisplay => {
+      const [jenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
+      const stageKey = normalizeNoteStage(note.stage);
+      const customItem = customItemMap.get(jenisKey);
+      if (customItem) {
+        return {
+          note,
+          stageKey,
+          stageLabel: NOTE_STAGE_LABELS[stageKey],
+          category: "DATA PENTING LAINNYA",
+          itemTitle: customItem.title,
+          format: formatDocumentSlotLabel(rawFormat),
+        };
+      }
+
+      for (const utama of getDcDocumentConfigForStage(stageKey)) {
+        for (const detail of utama.details) {
+          const jenis = detail.jenis.find(item => item.key === jenisKey);
+          if (jenis) {
+            return {
+              note,
+              stageKey,
+              stageLabel: NOTE_STAGE_LABELS[stageKey],
+              category: utama.title,
+              itemTitle: jenis.title,
+              format: formatDocumentSlotLabel(rawFormat),
+            };
+          }
+        }
+      }
+
+      return {
+        note,
+        stageKey,
+        stageLabel: NOTE_STAGE_LABELS[stageKey],
+        category: "Kategori tidak diketahui",
+        itemTitle: jenisKey || "Item tidak diketahui",
+        format: formatDocumentSlotLabel(rawFormat),
+      };
+    };
+
+    const stageMap = new Map<string, Map<string, NoteDisplay[]>>();
+    projectNotes.map(resolveNote).forEach(item => {
+      if (!stageMap.has(item.stageKey)) stageMap.set(item.stageKey, new Map());
+      const categoryMap = stageMap.get(item.stageKey)!;
+      if (!categoryMap.has(item.category)) categoryMap.set(item.category, []);
+      categoryMap.get(item.category)!.push(item);
+    });
+
+    return NOTE_STAGE_ORDER
+      .filter(stageKey => stageMap.has(stageKey))
+      .map(stageKey => {
+        const categoryMap = stageMap.get(stageKey)!;
+        const categories = Array.from(categoryMap.entries()).map(([category, notes]) => ({
+          category,
+          notes: notes.sort((a, b) => String(a.itemTitle).localeCompare(String(b.itemTitle), "id-ID")),
+        }));
+        return {
+          stageKey,
+          stageLabel: NOTE_STAGE_LABELS[stageKey],
+          total: categories.reduce((sum, category) => sum + category.notes.length, 0),
+          categories,
+        };
+      });
+  }, [customItemsForNotes, projectNotes]);
   const isHOUser = useMemo(() => (
     canViewAllBranches(user?.roles, user?.isSuperHuman ?? false) || user?.cabang?.toUpperCase() === "HEAD OFFICE"
   ), [user]);
@@ -141,6 +264,7 @@ export default function DcDocumentsPage() {
         ? getSubBranchesForParent(branchFilter)
         : null;
       let data: DcArchiveProject[];
+      const statusParam = toArchiveStatusFilter(statusFilter);
 
       if (subBranches && subBranches.length > 1) {
         const results = await Promise.all(
@@ -150,7 +274,7 @@ export default function DcDocumentsPage() {
               actor_role: actor.actor_role,
               search: query.trim() || undefined,
               branch_name: sub,
-              status: statusFilter as any,
+              status: statusParam,
             }, { suppressGlobalError: true }).then((res) => res.data ?? [])
           )
         );
@@ -161,7 +285,7 @@ export default function DcDocumentsPage() {
           actor_role: actor.actor_role,
           search: query.trim() || undefined,
           branch_name: branchFilter === "all" ? undefined : branchFilter,
-          status: statusFilter as any,
+          status: statusParam,
         }, { suppressGlobalError: true });
         data = res.data ?? [];
       }
@@ -190,9 +314,9 @@ export default function DcDocumentsPage() {
     return archives.filter((item) => {
       const isWarehouse = tipeDcFilter === "warehouse";
       const searchTipe = isWarehouse ? "wh" : tipeDcFilter.toLowerCase();
-      
-      const matchesTipe = tipeDcFilter === "all" 
-        ? true 
+
+      const matchesTipe = tipeDcFilter === "all"
+        ? true
         : item.archive_name.toLowerCase().includes(searchTipe);
       const matchesStatus = statusFilter === "all"
         ? true
@@ -200,7 +324,7 @@ export default function DcDocumentsPage() {
       const matchesBranch = branchFilter === "all"
         ? true
         : getParentBranch(item.branch_name) === branchFilter;
-      
+
       return matchesTipe && matchesStatus && matchesBranch;
     });
   }, [archives, tipeDcFilter, statusFilter, branchFilter]);
@@ -212,14 +336,13 @@ export default function DcDocumentsPage() {
     const totalWarehouse = filteredArchives.filter(a => a.archive_name.toLowerCase().includes('wh') || a.archive_name.toLowerCase().includes('warehouse')).length;
     const completeDc = filteredArchives.filter(a => a.jumlah_dokumen > 0 && !a.archive_name.toLowerCase().includes('wh') && !a.archive_name.toLowerCase().includes('warehouse')).length;
     const completeWarehouse = filteredArchives.filter(a => a.jumlah_dokumen > 0 && (a.archive_name.toLowerCase().includes('wh') || a.archive_name.toLowerCase().includes('warehouse'))).length;
-    
+
     // Hitung progress berdasarkan persentase aktual tiap slot jika memungkinkan, atau berdasarkan jumlah dokumen
     // Sebagai estimasi sederhana yang informatif:
     const totalDocsAll = filteredArchives.reduce((sum, a) => sum + (a.jumlah_dokumen || 0), 0);
-    const estimatedTotalRequired = filteredArchives.length * 15; // Estimasi rata-rata slot per lokasi jika tidak punya angka pastinya. (Akan lebih baik jika ada API atau perhitungan detail).
     // Alternatif yang lebih aman dan akurat berdasarkan data yang ada: Rata-rata dari "progress per project" (0-100%).
     // Namun karena kita belum fetch detail dokumen, kita bisa gunakan jumlah_dokumen.
-    
+
     return {
       total: filteredArchives.length,
       complete,
@@ -278,20 +401,20 @@ export default function DcDocumentsPage() {
             <MetricCard title="Total Cabang & WH" value={totals.total} icon={<Building2 className="h-5 w-5 opacity-70" />} />
             <MetricCard title="Total DC" value={totals.totalDc} icon={<Building2 className="h-5 w-5 opacity-70" />} />
             <MetricCard title="Total Warehouse" value={totals.totalWarehouse} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
-            
-            <MetricCard 
-              title="Sudah Mulai Upload" 
-              value={totals.complete} 
-              tone="green" 
+
+            <MetricCard
+              title="Sudah Mulai Upload"
+              value={totals.complete}
+              tone="green"
               subtitle={`${totals.completeDc} DC, ${totals.completeWarehouse} WH`}
-              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />} 
+              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />}
             />
-            
-            <MetricCard 
-              title="Progress Lokasi" 
-              value={`${totals.progress}%`} 
-              subtitle={`${totals.complete} dari ${totals.total} lokasi lengkap`} 
-              progress={totals.progress} 
+
+            <MetricCard
+              title="Progress Lokasi"
+              value={`${totals.progress}%`}
+              subtitle={`${totals.complete} dari ${totals.total} lokasi lengkap`}
+              progress={totals.progress}
             />
           </section>
 
@@ -383,7 +506,6 @@ export default function DcDocumentsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredArchives.map((archive, index) => {
-                    const hasDocs = archive.jumlah_dokumen > 0;
                     return (
                       <tr key={archive.id} className="group transition-colors hover:bg-red-50/40">
                         <td className="px-6 py-5 text-slate-500">{index + 1}</td>
@@ -400,20 +522,20 @@ export default function DcDocumentsPage() {
                         </td>
                         <td className="px-6 py-5">
                           <div className="flex flex-col gap-2 min-w-[170px]">
-                            <MiniProgress 
-                              label="Pembangunan" 
-                              current={archive.docs_pembangunan || 0} 
-                              total={getTotalRequiredDcDocumentSlots('Pembangunan')} 
+                            <MiniProgress
+                              label="Pembangunan"
+                              current={archive.docs_pembangunan || 0}
+                              total={getTotalRequiredDcDocumentSlots('Pembangunan')}
                             />
-                            <MiniProgress 
-                              label="Renovasi" 
-                              current={archive.docs_renovasi || 0} 
-                              total={getTotalRequiredDcDocumentSlots('Renovasi')} 
+                            <MiniProgress
+                              label="Renovasi"
+                              current={archive.docs_renovasi || 0}
+                              total={getTotalRequiredDcDocumentSlots('Renovasi')}
                             />
-                            <MiniProgress 
-                              label="Perluasan" 
-                              current={archive.docs_perluasan || 0} 
-                              total={getTotalRequiredDcDocumentSlots('Perluasan')} 
+                            <MiniProgress
+                              label="Perluasan"
+                              current={archive.docs_perluasan || 0}
+                              total={getTotalRequiredDcDocumentSlots('Perluasan')}
                             />
                           </div>
                         </td>
@@ -520,63 +642,91 @@ export default function DcDocumentsPage() {
 
       {/* NOTES MODAL */}
       <Dialog open={!!selectedArchiveForNotes} onOpenChange={(open) => !open && setSelectedArchiveForNotes(null)}>
-        <DialogContent className="max-w-2xl bg-slate-50 border-0 rounded-[1.5rem] p-0 shadow-2xl overflow-hidden">
-          <div className="bg-white p-6 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <DialogTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-red-500" />
-                Catatan Proyek
-              </DialogTitle>
-              <DialogDescription className="mt-1 font-medium text-slate-500">
-                {selectedArchiveForNotes?.archive_name} - {selectedArchiveForNotes?.branch_name}
-              </DialogDescription>
-            </div>
+        <DialogContent className="max-w-4xl overflow-hidden rounded-2xl border-0 bg-slate-50 p-0 shadow-2xl">
+          <div className="bg-white px-6 py-5 border-b border-slate-100">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <MessageSquare className="h-5 w-5 text-red-500" />
+              Catatan Proyek
+            </DialogTitle>
+            <DialogDescription className="mt-1 font-medium text-slate-500">
+              {selectedArchiveForNotes?.archive_name} - {selectedArchiveForNotes?.branch_name}
+            </DialogDescription>
           </div>
-          <div className="p-6 max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[68vh] overflow-y-auto p-6">
             {loadingNotes ? (
-              <div className="py-12 flex flex-col items-center justify-center text-slate-400">
-                <Loader2 className="h-8 w-8 animate-spin mb-4 text-red-500" />
+              <div className="flex min-h-[260px] flex-col items-center justify-center text-slate-400">
+                <Loader2 className="mb-4 h-8 w-8 animate-spin text-red-500" />
                 <p className="font-medium">Memuat catatan...</p>
               </div>
-            ) : projectNotes.length === 0 ? (
-              <div className="py-12 flex flex-col items-center justify-center text-slate-400">
-                <FileText className="h-12 w-12 mb-4 opacity-20" />
+            ) : groupedProjectNotes.length === 0 ? (
+              <div className="flex min-h-[260px] flex-col items-center justify-center text-slate-400">
+                <FileText className="mb-4 h-12 w-12 opacity-20" />
                 <p className="font-medium">Belum ada catatan pada proyek ini.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {projectNotes.map(note => {
-                  const labelParts = (note.document_type || "").split('__');
-                  const stage = note.stage || "UMUM";
-                  const tipe = labelParts[0] || "Unknown";
-                  const namaFile = labelParts[1] ? labelParts[1].replace(/_/g, '/') : "Unknown";
-                  return (
-                    <div key={note.id} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative group overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
-                            {stage}
-                          </Badge>
-                          <span className="text-xs font-bold text-slate-700 bg-red-50 text-red-700 px-2 py-0.5 rounded uppercase tracking-wider">{tipe}</span>
+              <div className="space-y-6">
+                {groupedProjectNotes.map(stageGroup => (
+                  <section key={stageGroup.stageKey} className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+                          <Files className="h-5 w-5" />
                         </div>
-                        <span className="text-xs font-semibold text-slate-500 truncate max-w-[200px]" title={namaFile}>
-                          {namaFile}
-                        </span>
+                        <div>
+                          <h3 className="text-base font-black uppercase tracking-tight text-slate-900">{stageGroup.stageLabel}</h3>
+                          <p className="text-xs font-semibold text-slate-500">{stageGroup.total} catatan pada tahap ini</p>
+                        </div>
                       </div>
-                      <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 border border-slate-100 font-medium leading-relaxed">
-                        {note.notes}
-                      </div>
-                      <div className="mt-2 text-[10px] text-slate-400 font-medium">
-                        Oleh: {note.created_by_email || "Unknown"} &bull; {new Date(note.created_at || "").toLocaleDateString('id-ID')}
-                      </div>
+                      <Badge variant="outline" className="rounded-lg border-red-100 bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
+                        {stageGroup.stageKey}
+                      </Badge>
                     </div>
-                  );
-                })}
+
+                    <div className="space-y-3 border-l border-slate-200 pl-4">
+                      {stageGroup.categories.map(categoryGroup => (
+                        <div key={`${stageGroup.stageKey}-${categoryGroup.category}`} className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                            <Tag className="h-4 w-4 text-red-500" />
+                            {categoryGroup.category}
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">{categoryGroup.notes.length}</span>
+                          </div>
+                          <div className="grid gap-2">
+                            {categoryGroup.notes.map(item => (
+                              <article key={item.note.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-bold leading-snug text-slate-900">{item.itemTitle}</div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <Badge variant="outline" className="rounded-md bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                                        {item.format}
+                                      </Badge>
+                                      {!item.note.drive_file_id && !item.note.file_name && (
+                                        <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">Catatan saja</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-right text-[11px] font-semibold text-slate-400">
+                                    {new Date(item.note.created_at || "").toLocaleDateString("id-ID")}
+                                  </div>
+                                </div>
+                                <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium leading-relaxed text-slate-700">
+                                  {item.note.notes}
+                                </div>
+                                <div className="mt-2 text-[11px] font-medium text-slate-400">
+                                  Oleh: {item.note.created_by_email || item.note.uploaded_by_email || "Unknown"}
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
             )}
           </div>
-          <div className="bg-white p-4 border-t border-slate-100 flex justify-end">
+          <div className="flex justify-end border-t border-slate-100 bg-white p-4">
             <Button variant="outline" className="rounded-xl font-medium" onClick={() => setSelectedArchiveForNotes(null)}>Tutup</Button>
           </div>
         </DialogContent>
@@ -608,8 +758,8 @@ function MetricCard({
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-5 transition-shadow hover:shadow-md ${
-      filled 
-        ? isRed ? 'border-red-600 bg-gradient-to-br from-red-600 to-red-700 text-white shadow-red-200' : 'bg-slate-900 text-white' 
+      filled
+        ? isRed ? 'border-red-600 bg-gradient-to-br from-red-600 to-red-700 text-white shadow-red-200' : 'bg-slate-900 text-white'
         : 'border-slate-200/60 bg-white/80 backdrop-blur-lg shadow-sm'
     }`}>
       <div className="relative z-10 flex flex-col h-full justify-between gap-4">
