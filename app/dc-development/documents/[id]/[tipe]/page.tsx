@@ -195,7 +195,7 @@ export default function DcDocumentDetailPage() {
 
   const handleExport = async (format: "csv" | "excel" | "pdf") => {
     try {
-      await exportDcData(Number(id), format, user?.role || "", user?.email || "");
+      await exportDcData(Number(id), format, user?.role || "", user?.email || "", tipe);
     } catch (e) {
       console.error(e);
       alert(e instanceof Error ? e.message : "Gagal mengunduh laporan");

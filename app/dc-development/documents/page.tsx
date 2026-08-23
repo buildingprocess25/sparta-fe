@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, exportGlobalDcData, type DcArchiveProject, type DcDocument } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, exportDcData, exportGlobalDcData, type DcArchiveProject, type DcDocument } from "@/lib/api";
 import { getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 import { canViewAllBranches, getParentBranch, getSubBranchesForParent } from "@/lib/constants";
 
@@ -85,7 +85,7 @@ export default function DcDocumentsPage() {
   const handleExportGlobal = async (format: 'csv' | 'excel' | 'pdf') => {
     if (!actor.actor_email || !actor.actor_role) return;
     try {
-      const queryParams: any = {
+      const queryParams: { search?: string; status?: string; branch_name?: string } = {
         search: query.trim() || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         branch_name: branchFilter !== 'all' ? branchFilter : undefined,
@@ -94,6 +94,15 @@ export default function DcDocumentsPage() {
       await exportGlobalDcData(queryParams, actor, format);
     } catch (error) {
       setMessage(getErrorMessage(error, "Gagal mengunduh file ekspor"));
+    }
+  };
+
+  const handleExportProject = async (archive: DcArchiveProject, format: 'csv' | 'excel' | 'pdf') => {
+    if (!actor.actor_email || !actor.actor_role) return;
+    try {
+      await exportDcData(archive.id, format, actor.actor_role, actor.actor_email);
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Gagal mengunduh file ekspor proyek"));
     }
   };
 
@@ -413,6 +422,27 @@ export default function DcDocumentsPage() {
                             <Button size="sm" variant="outline" className="rounded-lg border-slate-200 bg-white font-medium text-slate-500 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-700" onClick={() => handleOpenNotes(archive)} title="Lihat Catatan">
                               <MessageSquare className="h-4 w-4" />
                             </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="outline" className="rounded-lg border-slate-200 bg-white font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:text-red-600" title="Ekspor data proyek">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-[190px] rounded-xl">
+                                <DropdownMenuItem onClick={() => handleExportProject(archive, 'csv')} className="cursor-pointer gap-2 py-2">
+                                  <FileText className="h-4 w-4 text-slate-500" />
+                                  Ekspor CSV Proyek
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExportProject(archive, 'excel')} className="cursor-pointer gap-2 py-2">
+                                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                                  Ekspor Excel Proyek
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExportProject(archive, 'pdf')} className="cursor-pointer gap-2 py-2">
+                                  <FileDown className="h-4 w-4 text-red-500" />
+                                  Ekspor PDF Proyek
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <Button size="sm" className="rounded-lg bg-white font-semibold text-red-600 shadow-sm border border-red-100 transition-all hover:bg-red-600 hover:text-white" onClick={() => setSelectedArchiveForType(archive)}>
                               Kelola Dokumen
                               <ChevronRight className="ml-1.5 h-4 w-4" />

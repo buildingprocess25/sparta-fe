@@ -5763,8 +5763,9 @@ export const processPpApproval2 = async (id: number, payload: {
 };
 
 
-export const exportDcData = async (id: number, format: "csv" | "excel" | "pdf", actorRole: string, actorEmail: string): Promise<boolean> => {
+export const exportDcData = async (id: number, format: "csv" | "excel" | "pdf", actorRole: string, actorEmail: string, stage?: string): Promise<boolean> => {
     const params = new URLSearchParams({ actor_role: actorRole, actor_email: actorEmail });
+    if (stage) params.set("stage", stage);
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/projects/${id}/export/${format}?${params}`);
     if (!res.ok) {
         const text = await res.text();
@@ -5789,7 +5790,7 @@ export const exportDcData = async (id: number, format: "csv" | "excel" | "pdf", 
 };
 
 export async function exportGlobalDcData(
-  query: any,
+  query: { search?: string; branch_name?: string; status?: string },
   actor: { actor_email: string; actor_role: string },
   format: 'csv' | 'excel' | 'pdf'
 ): Promise<void> {
