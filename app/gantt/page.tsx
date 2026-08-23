@@ -4477,6 +4477,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         // [PERBAIKAN 4]: DILARANG mengirim keterlambatan pada payload POST bulk
                     };
                     if (val.catatan && String(val.catatan).trim()) insertItem.catatan = String(val.catatan).trim();
+                    if (!val.file && val.dokumentasiUrl) insertItem.dokumentasi = val.dokumentasiUrl;
                     if (opnameData) insertItem.opname_data = opnameData;
                     itemsArrayInsert.push(insertItem);
                     if (val.file) {
