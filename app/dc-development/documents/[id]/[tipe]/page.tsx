@@ -2,53 +2,57 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Image from "next/image";
 import {
   ArrowLeft,
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  FileDown,
-  FileIcon,
-  HelpCircle,
   Loader2,
   UploadCloud,
-  Eye,
   Info,
   Trash2,
   MessageSquare,
   DownloadCloud,
   FileText,
   FileSpreadsheet,
-  File
+  File,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, type DcArchiveProject, type DcDocument } from "@/lib/api";
-import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, getTotalRequiredDcDocumentSlots, type DokumenUtama } from "@/lib/dc-document.config";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType } from "@/lib/api";
+import { DC_DOCUMENT_CONFIG, DC_DOCUMENT_LEGENDS, RENOVASI_ALLOWED_UTAMA, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
+
+const CUSTOM_SLOT_OPTIONS: DcDocumentUploadSlotType[] = ["PDF/JPEG", "AUTOCAD", "WORD", "EXCEL", "PPT"];
+
+const getCustomItemKey = (item: DcDocumentCustomItem) => `CUSTOM_K_${item.id}`;
+
+const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 
 export default function DcDocumentDetailPage() {
-  const router = useRouter();
   const { id, tipe } = useParams() as { id: string; tipe: string };
   const { user, isLoading } = useSession();
-  
+
   const [archive, setArchive] = useState<DcArchiveProject | null>(null);
   const [documents, setDocuments] = useState<DcDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
-  
+
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [editingNoteDoc, setEditingNoteDoc] = useState<DcDocument | null>(null);
   const [noteUploadContext, setNoteUploadContext] = useState<{key: string, type: string} | null>(null);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
-  
+  const [customItems, setCustomItems] = useState<DcDocumentCustomItem[]>([]);
+  const [customItemModalOpen, setCustomItemModalOpen] = useState(false);
+  const [customItemTitle, setCustomItemTitle] = useState("");
+  const [customItemSlots, setCustomItemSlots] = useState<DcDocumentUploadSlotType[]>(["PDF/JPEG"]);
+  const [savingCustomItem, setSavingCustomItem] = useState(false);
   const actor = useMemo(() => ({
     actor_email: user?.email || "",
     actor_role: user?.role || "",
@@ -63,23 +67,31 @@ export default function DcDocumentDetailPage() {
         actor_email: actor.actor_email,
         actor_role: actor.actor_role,
       }, { suppressGlobalError: true });
-      
+
       const currentArchive = (archRes.data ?? []).find(a => a.id === parseInt(id));
       if (!currentArchive) {
         throw new Error("Arsip tidak ditemukan");
       }
       setArchive(currentArchive);
-      
-      // 2. Fetch documents for this project_id and stage
-      const docsRes = await fetchDcDocuments({
-        actor_email: actor.actor_email,
-        actor_role: actor.actor_role,
-        project_id: currentArchive.project_id,
-        entity_type: "DC_ARCHIVE_PROJECT",
-        stage: tipe,
-      }, { suppressGlobalError: true });
-      
+
+      // 2. Fetch documents and custom items for this project_id and stage
+      const [docsRes, customItemsRes] = await Promise.all([
+        fetchDcDocuments({
+          actor_email: actor.actor_email,
+          actor_role: actor.actor_role,
+          project_id: currentArchive.project_id,
+          entity_type: "DC_ARCHIVE_PROJECT",
+          stage: tipe,
+        }, { suppressGlobalError: true }),
+        fetchDcDocumentCustomItems(currentArchive.id, {
+          actor_email: actor.actor_email,
+          actor_role: actor.actor_role,
+          stage: tipe,
+        }, { suppressGlobalError: true }),
+      ]);
+
       setDocuments(docsRes.data ?? []);
+      setCustomItems(customItemsRes.data ?? []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -97,12 +109,24 @@ export default function DcDocumentDetailPage() {
     }
     return DC_DOCUMENT_CONFIG;
   }, [tipe]);
-  
+
+  const customDocumentItemsForStage = useMemo(() => (
+    customItems.filter(item => item.stage === tipe.toUpperCase())
+  ), [customItems, tipe]);
+
+  const uploadedItemCount = useMemo(() => (
+    new Set(documents.map(d => (d.document_type || "").split('__')[0])).size
+  ), [documents]);
+
+  const requiredItemCount = useMemo(() => (
+    getTotalRequiredDcDocumentSlots(tipe) + customDocumentItemsForStage.length
+  ), [customDocumentItemsForStage.length, tipe]);
+
   const formatKey = (jenisKey: string, type: string) => `${jenisKey}__${type.replace(/\//g, '_')}`;
 
   const handleFileUpload = async (jenisKey: string, type: string, file: File) => {
     if (!archive || !actor.actor_email) return;
-    
+
     const compositeKey = formatKey(jenisKey, type);
     setUploadingKey(compositeKey);
     try {
@@ -114,10 +138,10 @@ export default function DcDocumentDetailPage() {
         document_type: compositeKey,
         stage: tipe,
       }, [file]);
-      
+
       // Reload docs
       await loadData();
-    } catch (error) {
+    } catch {
       alert("Gagal mengupload dokumen");
     } finally {
       setUploadingKey(null);
@@ -147,10 +171,64 @@ export default function DcDocumentDetailPage() {
     try {
       await deleteDcDocument(docId, actor);
       await loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || "Gagal menghapus dokumen.");
+      alert(getErrorMessage(err, "Gagal menghapus dokumen."));
     }
+  };
+
+  const renderDocumentSlot = (jenisKey: string, type: string) => {
+    const compKey = formatKey(jenisKey, type);
+    const existingDoc = documents.find(d => d.document_type === compKey);
+    const isUploading = uploadingKey === compKey;
+
+    return (
+      <div key={compKey} className="relative group/slot flex flex-col items-end gap-1">
+        {existingDoc ? (
+          <div className="flex flex-col gap-1 w-full items-end">
+            <div className="flex items-center gap-1.5">
+              {existingDoc.drive_file_id || existingDoc.file_name ? (
+                <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {type}
+                </a>
+              ) : (
+                <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
+                  <UploadCloud className="h-4 w-4" />
+                  Upload {type}
+                </button>
+              )}
+              <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(existingDoc); setNoteText(existingDoc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
+                <MessageSquare className="h-4 w-4" />
+              </button>
+              <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            {existingDoc.notes && (
+              <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1 max-w-[200px] truncate" title={existingDoc.notes}>
+                <span className="font-semibold text-slate-600">Catatan:</span> {existingDoc.notes}
+              </div>
+            )}
+          </div>
+        ) : isUploading ? (
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Uploading...
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setEditingNoteDoc(null); setNoteUploadContext({ key: jenisKey, type }); setNoteText(""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Tambah Catatan">
+              <MessageSquare className="h-4 w-4" />
+            </button>
+            <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
+              <UploadCloud className="h-4 w-4" />
+              {type}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleSaveNote = async () => {
@@ -177,11 +255,70 @@ export default function DcDocumentDetailPage() {
       }
       await loadData();
       setNoteModalOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || "Gagal menyimpan catatan.");
+      alert(getErrorMessage(err, "Gagal menyimpan catatan."));
     } finally {
       setSavingNote(false);
+    }
+  };
+  const resetCustomItemForm = () => {
+    setCustomItemTitle("");
+    setCustomItemSlots(["PDF/JPEG"]);
+  };
+
+  const openCreateCustomItemModal = () => {
+    resetCustomItemForm();
+    setCustomItemModalOpen(true);
+  };
+
+  const toggleCustomItemSlot = (slot: DcDocumentUploadSlotType) => {
+    setCustomItemSlots(current => (
+      current.includes(slot)
+        ? current.filter(item => item !== slot)
+        : [...current, slot]
+    ));
+  };
+
+  const handleCreateCustomItem = async () => {
+    if (!archive || !actor.actor_email) return;
+    const title = customItemTitle.trim();
+    if (!title) {
+      alert("Nama item wajib diisi.");
+      return;
+    }
+    if (customItemSlots.length === 0) {
+      alert("Pilih minimal satu jenis file upload.");
+      return;
+    }
+
+    setSavingCustomItem(true);
+    try {
+      await createDcDocumentCustomItem(archive.id, {
+        ...actor,
+        stage: tipe.toUpperCase() as DcDocumentCustomItem["stage"],
+        title,
+        slots: customItemSlots,
+      });
+      await loadData();
+      setCustomItemModalOpen(false);
+      resetCustomItemForm();
+    } catch (err: unknown) {
+      console.error(err);
+      alert(getErrorMessage(err, "Gagal menambah item dokumen."));
+    } finally {
+      setSavingCustomItem(false);
+    }
+  };
+
+  const handleDeleteCustomItem = async (item: DcDocumentCustomItem) => {
+    if (!confirm(`Hapus item tambahan "${item.title}" dari tahap ini?`)) return;
+    try {
+      await deleteDcDocumentCustomItem(item.id, actor);
+      await loadData();
+    } catch (err: unknown) {
+      console.error(err);
+      alert(getErrorMessage(err, "Gagal menghapus item dokumen."));
     }
   };
 
@@ -196,9 +333,9 @@ export default function DcDocumentDetailPage() {
   const handleExport = async (format: "csv" | "excel" | "pdf") => {
     try {
       await exportDcData(Number(id), format, user?.role || "", user?.email || "", tipe);
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      alert(e instanceof Error ? e.message : "Gagal mengunduh laporan");
+      alert(getErrorMessage(e, "Gagal mengunduh laporan"));
     }
   };
 
@@ -218,7 +355,7 @@ export default function DcDocumentDetailPage() {
   return (
     <main className="min-h-screen bg-[#f4f7f9] text-slate-900 pb-20 [font-family:var(--font-sans)]">
       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-      
+
       {/* HEADER PREMIUM */}
       <header className="sticky top-0 z-30 bg-gradient-to-r from-red-700 to-red-600 shadow-md">
         <div className="mx-auto flex h-[80px] max-w-[1400px] items-center gap-5 px-6 lg:px-8">
@@ -260,17 +397,17 @@ export default function DcDocumentDetailPage() {
 
             <div className="flex flex-col items-end">
               <span className="text-[11px] font-medium text-red-200 uppercase tracking-wider">Progress Dokumen</span>
-              <span className="text-lg font-bold text-white">{new Set(documents.map(d => (d.document_type || "").split('__')[0])).size} / {getTotalRequiredDcDocumentSlots(tipe)}</span>
+              <span className="text-lg font-bold text-white">{uploadedItemCount} / {requiredItemCount}</span>
             </div>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-[1400px] px-4 py-8 md:px-8 flex flex-col lg:flex-row gap-8 items-start">
-        
+
         {/* LEFT MAIN CONTENT */}
         <div className="flex-1 w-full space-y-6">
-          
+
           <Accordion type="multiple" defaultValue={docConfig.map(d => d.id)} className="space-y-4">
             {docConfig.map((utama, uIdx) => (
               <AccordionItem key={utama.id} value={utama.id} className="border-0 rounded-2xl bg-white shadow-sm overflow-hidden">
@@ -283,9 +420,20 @@ export default function DcDocumentDetailPage() {
                       <h3 className="text-lg font-bold text-slate-800 uppercase tracking-tight">{utama.title}</h3>
                       <p className="text-xs font-medium text-slate-500 mt-0.5 uppercase tracking-wider">Kategori Dokumen Utama</p>
                     </div>
+                    {utama.title === "DATA PENTING LAINNYA" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={(event) => { event.stopPropagation(); openCreateCustomItemModal(); }}
+                        className="ml-2 bg-red-600 text-white hover:bg-red-700"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Tambah Item
+                      </Button>
+                    )}
                   </div>
                 </AccordionTrigger>
-                
+
                 <AccordionContent className="px-6 pb-6 pt-2">
                   <div className="space-y-8 pl-14">
                     {utama.details.map((detail, dIdx) => (
@@ -297,7 +445,7 @@ export default function DcDocumentDetailPage() {
                           </span>
                           <div className="h-px bg-slate-200 flex-1"></div>
                         </div>
-                        
+
                         <div className="grid gap-3">
                           {detail.jenis.map((jenis, jIdx) => (
                             <div key={jenis.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:border-slate-200 hover:bg-white">
@@ -305,61 +453,27 @@ export default function DcDocumentDetailPage() {
                                 <span className="mt-0.5 text-sm font-bold text-slate-400 w-6 shrink-0">{jIdx + 1}.</span>
                                 <p className="font-semibold text-slate-700 leading-tight">{jenis.title}</p>
                               </div>
-                              
+
                               <div className="flex flex-wrap items-center gap-2 sm:justify-end ml-9 sm:ml-0">
-                                {jenis.slots.map(slot => {
-                                  const compKey = formatKey(jenis.key, slot.type);
-                                  const existingDoc = documents.find(d => d.document_type === compKey);
-                                  const isUploading = uploadingKey === compKey;
-                                  
-                                  return (
-                                    <div key={compKey} className="relative group/slot flex flex-col items-end gap-1">
-                                      {existingDoc ? (
-                                        <div className="flex flex-col gap-1 w-full items-end">
-                                          <div className="flex items-center gap-1.5">
-                                            {(existingDoc as any).drive_file_id || (existingDoc as any).file_name ? (
-                                              <a href={buildDcDocumentViewUrl(existingDoc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                                                <CheckCircle2 className="h-4 w-4" />
-                                                {slot.type}
-                                              </a>
-                                            ) : (
-                                              <button onClick={() => triggerUpload(jenis.key, slot.type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-                                                <UploadCloud className="h-4 w-4" />
-                                                Upload {slot.type}
-                                              </button>
-                                            )}
-                                            <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(existingDoc); setNoteText(existingDoc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
-                                              <MessageSquare className="h-4 w-4" />
-                                            </button>
-                                            <button onClick={() => handleDelete(existingDoc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
-                                              <Trash2 className="h-4 w-4" />
-                                            </button>
-                                          </div>
-                                          {existingDoc.notes && (
-                                            <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1 max-w-[200px] truncate" title={existingDoc.notes}>
-                                              <span className="font-semibold text-slate-600">Catatan:</span> {existingDoc.notes}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : isUploading ? (
-                                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                          Uploading...
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-2">
-                                          <button onClick={() => { setEditingNoteDoc(null); setNoteUploadContext({ key: jenis.key, type: slot.type }); setNoteText(""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Tambah Catatan">
-                                            <MessageSquare className="h-4 w-4" />
-                                          </button>
-                                          <button onClick={() => triggerUpload(jenis.key, slot.type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-                                            <UploadCloud className="h-4 w-4" />
-                                            {slot.type}
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                {jenis.slots.map(slot => renderDocumentSlot(jenis.key, slot.type))}
+                              </div>
+                            </div>
+                          ))}
+                          {utama.title === "DATA PENTING LAINNYA" && customDocumentItemsForStage.map((customItem, customIdx) => (
+                            <div key={customItem.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-red-100 bg-red-50/40 p-4 transition-colors hover:border-red-200 hover:bg-white">
+                              <div className="flex items-start gap-3">
+                                <span className="mt-0.5 text-sm font-bold text-red-300 w-6 shrink-0">{detail.jenis.length + customIdx + 1}.</span>
+                                <div>
+                                  <p className="font-semibold text-slate-800 leading-tight">{customItem.title}</p>
+                                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-red-500">Item tambahan</p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 sm:justify-end ml-9 sm:ml-0">
+                                {customItem.slots.map(slotType => renderDocumentSlot(getCustomItemKey(customItem), slotType))}
+                                <button onClick={() => handleDeleteCustomItem(customItem)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Item Tambahan">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -371,7 +485,7 @@ export default function DcDocumentDetailPage() {
               </AccordionItem>
             ))}
           </Accordion>
-          
+
         </div>
 
         {/* RIGHT SIDEBAR / LEGEND */}
@@ -397,6 +511,51 @@ export default function DcDocumentDetailPage() {
 
       </div>
 
+      {/* DIALOG TAMBAH ITEM */}
+      <Dialog open={customItemModalOpen} onOpenChange={(open) => { setCustomItemModalOpen(open); if (!open) resetCustomItemForm(); }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Tambah Item Data Penting Lainnya</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-5 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700" htmlFor="custom-item-title">Nama Item</label>
+              <Input
+                id="custom-item-title"
+                placeholder="Contoh: Berita Acara Pemeriksaan Lapangan"
+                value={customItemTitle}
+                onChange={(event) => setCustomItemTitle(event.target.value)}
+              />
+            </div>
+            <div className="space-y-3">
+              <div className="text-sm font-semibold text-slate-700">Jenis File Upload</div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {CUSTOM_SLOT_OPTIONS.map(slot => {
+                  const selected = customItemSlots.includes(slot);
+                  return (
+                    <label key={slot} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${selected ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"}`}>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-red-600"
+                        checked={selected}
+                        onChange={() => toggleCustomItemSlot(slot)}
+                      />
+                      {slot}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomItemModalOpen(false)}>Batal</Button>
+            <Button onClick={handleCreateCustomItem} disabled={savingCustomItem || !customItemTitle.trim() || customItemSlots.length === 0} className="bg-red-600 hover:bg-red-700 text-white">
+              {savingCustomItem ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              Tambah Item
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* DIALOG CATATAN */}
       <Dialog open={noteModalOpen} onOpenChange={setNoteModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -404,7 +563,7 @@ export default function DcDocumentDetailPage() {
             <DialogTitle>Catatan Dokumen</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <Textarea 
+            <Textarea
               placeholder="Tulis catatan opsional..."
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}

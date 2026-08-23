@@ -297,13 +297,14 @@ export const RENOVASI_ALLOWED_UTAMA = [
 ];
 
 export const getTotalRequiredDcDocumentSlots = (tipe: "Renovasi" | "Pembangunan" | "Perluasan" | string): number => {
+  const normalizedTipe = String(tipe).toUpperCase();
   let total = 0;
   DC_DOCUMENT_CONFIG.forEach(utama => {
-    if (tipe === "Renovasi" && !RENOVASI_ALLOWED_UTAMA.includes(utama.title)) {
+    if (normalizedTipe === "RENOVASI" && !RENOVASI_ALLOWED_UTAMA.includes(utama.title)) {
       return;
     }
     utama.details.forEach(detail => {
-      detail.jenis.forEach(j => {
+      detail.jenis.forEach(() => {
         total += 1; // Count unique items (jenis), not individual upload slots
       });
     });

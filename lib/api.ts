@@ -623,6 +623,74 @@ export const buildDcDocumentViewUrl = (id: number, actor: DcDocumentActor, mode:
     return withApiAuthQuery(`${API_URL.replace(/\/$/, "")}/api/dc-development/documents/${id}/${mode}?${params}`);
 };
 
+export type DcDocumentUploadSlotType = "PDF/JPEG" | "AUTOCAD" | "WORD" | "EXCEL" | "PPT";
+
+export type DcDocumentCustomItem = {
+    id: number;
+    archive_project_id: number;
+    project_id: number;
+    stage: "PEMBANGUNAN" | "RENOVASI" | "PERLUASAN";
+    title: string;
+    slots: DcDocumentUploadSlotType[];
+    status: string;
+    created_by_email: string | null;
+    created_by_role: string | null;
+    created_at: string;
+    updated_at: string;
+    deleted_at: string | null;
+};
+
+export const fetchDcDocumentCustomItems = async (
+    archiveProjectId: number,
+    filters: DcDocumentActor & { stage?: string },
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcDocumentCustomItem[] }> => {
+    const base = API_URL.replace(/\/$/, "");
+    const params = new URLSearchParams({
+        actor_email: filters.actor_email,
+        actor_role: filters.actor_role,
+    });
+    if (filters.stage) params.append("stage", filters.stage);
+    return safeFetchJSON(`${base}/api/dc-development/archive-projects/${archiveProjectId}/custom-document-items?${params}`, options);
+};
+
+export const createDcDocumentCustomItem = async (
+    archiveProjectId: number,
+    payload: DcDocumentActor & {
+        stage: "PEMBANGUNAN" | "RENOVASI" | "PERLUASAN";
+        title: string;
+        slots: DcDocumentUploadSlotType[];
+    }
+): Promise<{ status: string; message: string; data: DcDocumentCustomItem }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/archive-projects/${archiveProjectId}/custom-document-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Anda tidak memiliki akses menambah item dokumen DC.");
+    if (res.status === 404) throw new Error(result.message || "Arsip proyek DC tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal menambah item dokumen DC.");
+    return result;
+};
+
+export const deleteDcDocumentCustomItem = async (
+    itemId: number,
+    actor: DcDocumentActor
+): Promise<{ status: string; message: string; data: DcDocumentCustomItem }> => {
+    const params = new URLSearchParams({
+        actor_email: actor.actor_email,
+        actor_role: actor.actor_role,
+    });
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dc-development/custom-document-items/${itemId}?${params}`, {
+        method: "DELETE",
+    });
+    const result = await res.json();
+    if (res.status === 403) throw new Error(result.message || "Anda tidak memiliki akses menghapus item dokumen DC.");
+    if (res.status === 404) throw new Error(result.message || "Item dokumen DC tidak ditemukan.");
+    if (!res.ok) throw new Error(result.message || "Gagal menghapus item dokumen DC.");
+    return result;
+};
 // DC Tender Types
 export type DcTender = {
     id: number;
