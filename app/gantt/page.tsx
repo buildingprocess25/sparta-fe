@@ -123,8 +123,8 @@ type GanttDetailResponse = Awaited<ReturnType<typeof fetchGanttDetail>>;
 
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
-const PENGAWASAN_UPLOAD_BATCH_SIZE = 2;
-const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const PENGAWASAN_UPLOAD_BATCH_SIZE = 1;
+const PENGAWASAN_MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 function parseCalendarDate(value?: string | null): Date | null {
     if (!value) return null;
