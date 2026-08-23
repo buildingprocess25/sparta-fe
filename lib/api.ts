@@ -125,16 +125,24 @@ const reportApiError = (error: Error, context?: ApiErrorContext) => {
     }
 };
 
-const buildApiErrorMessage = (data: any, fallback: string): string => {
-    const baseMessage = data?.message || fallback;
-    const issues = Array.isArray(data?.issues) ? data.issues : [];
+type ApiValidationIssue = {
+    path?: Array<string | number>;
+    message?: string;
+};
+
+export const buildApiErrorMessage = (data: unknown, fallback: string): string => {
+    const payload = data as { message?: unknown; issues?: unknown } | null;
+    const baseMessage = typeof payload?.message === "string" && payload.message.trim()
+        ? payload.message
+        : fallback;
+    const issues = Array.isArray(payload?.issues) ? payload.issues as ApiValidationIssue[] : [];
     if (issues.length === 0) return baseMessage;
 
-    const issueMessages = issues.slice(0, 3).map((issue: any) => {
-        const path = Array.isArray(issue?.path) && issue.path.length > 0
-            ? issue.path.join(".")
+    const issueMessages = issues.slice(0, 3).map((issue) => {
+        const path = Array.isArray(issue.path) && issue.path.length > 0
+            ? issue.path.map(String).join(".")
             : "payload";
-        return `${path}: ${issue?.message || "nilai tidak valid"}`;
+        return `${path}: ${issue.message || "nilai tidak valid"}`;
     });
 
     return `${baseMessage}: ${issueMessages.join("; ")}`;
@@ -1323,9 +1331,9 @@ export const submitRABData = async (
     }
 
     const result = await res.json();
-    if (res.status === 409) throw new Error(result.message || "RAB aktif untuk ULOK ini sudah ada.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan seluruh form dan tabel terisi.");
-    if (!res.ok || result.status !== "success") throw new Error(result.message || "Server error saat menyimpan.");
+    if (res.status === 409) throw new Error(buildApiErrorMessage(result, "RAB aktif untuk ULOK ini sudah ada."));
+    if (res.status === 422) throw new Error(buildApiErrorMessage(result, "Validasi gagal. Pastikan seluruh form dan tabel terisi."));
+    if (!res.ok || result.status !== "success") throw new Error(buildApiErrorMessage(result, "Server error saat menyimpan."));
     return result;
 };
 
