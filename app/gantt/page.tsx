@@ -76,6 +76,17 @@ const getOpnameWorkTextKey = (item: any) => {
     return getWorkTextKeyFromValues(kategori, jenis);
 };
 
+const OPNAME_INLINE_FIELDS = new Set([
+    'volume_akhir',
+    'desain',
+    'kualitas',
+    'spesifikasi',
+    'catatan_opname',
+    'file_opname'
+]);
+
+const isOpnameTouched = (input: any) => Boolean(input?.opnameTouched);
+
 const isSameWorkText = (left: any, right: any) =>
     normalizeWorkText(left) === normalizeWorkText(right);
 
@@ -3479,7 +3490,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const isReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-    const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean, volume_akhir?: string | number, desain?: string, kualitas?: string, spesifikasi?: string, catatan_opname?: string, file_opname?: File | null, existing_foto?: string }>>({});
+    const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean, volume_akhir?: string | number, desain?: string, kualitas?: string, spesifikasi?: string, catatan_opname?: string, file_opname?: File | null, existing_foto?: string, opnameTouched?: boolean }>>({});
     const [isDirty, setIsDirty] = useState(false);
     const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
@@ -4078,13 +4089,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
                 dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
-                  volume_akhir: prev[key]?.volume_akhir,
-                  desain: prev[key]?.desain,
-                  kualitas: prev[key]?.kualitas,
-                  spesifikasi: prev[key]?.spesifikasi,
-                  catatan_opname: prev[key]?.catatan_opname,
-                  file_opname: prev[key]?.file_opname,
-                  existing_foto: prev[key]?.existing_foto
+                volume_akhir: prev[key]?.volume_akhir,
+                desain: prev[key]?.desain,
+                kualitas: prev[key]?.kualitas,
+                spesifikasi: prev[key]?.spesifikasi,
+                catatan_opname: prev[key]?.catatan_opname,
+                file_opname: prev[key]?.file_opname,
+                existing_foto: prev[key]?.existing_foto,
+                opnameTouched: prev[key]?.opnameTouched
             }
         }));
     };
@@ -4101,13 +4113,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
                 dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
-                  volume_akhir: prev[key]?.volume_akhir,
-                  desain: prev[key]?.desain,
-                  kualitas: prev[key]?.kualitas,
-                  spesifikasi: prev[key]?.spesifikasi,
-                  catatan_opname: prev[key]?.catatan_opname,
-                  file_opname: prev[key]?.file_opname,
-                  existing_foto: prev[key]?.existing_foto
+                volume_akhir: prev[key]?.volume_akhir,
+                desain: prev[key]?.desain,
+                kualitas: prev[key]?.kualitas,
+                spesifikasi: prev[key]?.spesifikasi,
+                catatan_opname: prev[key]?.catatan_opname,
+                file_opname: prev[key]?.file_opname,
+                existing_foto: prev[key]?.existing_foto,
+                opnameTouched: prev[key]?.opnameTouched
             }
         }));
     };
@@ -4140,13 +4153,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 catatan: prev[key]?.catatan || '',
                 file: prev[key]?.file || null,
                 dokumentasiUrl: prev[key]?.dokumentasiUrl || null,
-                  volume_akhir: prev[key]?.volume_akhir,
-                  desain: prev[key]?.desain,
-                  kualitas: prev[key]?.kualitas,
-                  spesifikasi: prev[key]?.spesifikasi,
-                  catatan_opname: prev[key]?.catatan_opname,
-                  file_opname: prev[key]?.file_opname,
-                  existing_foto: prev[key]?.existing_foto,
+                volume_akhir: prev[key]?.volume_akhir,
+                desain: prev[key]?.desain,
+                kualitas: prev[key]?.kualitas,
+                spesifikasi: prev[key]?.spesifikasi,
+                catatan_opname: prev[key]?.catatan_opname,
+                file_opname: prev[key]?.file_opname,
+                existing_foto: prev[key]?.existing_foto,
+                opnameTouched: prev[key]?.opnameTouched || OPNAME_INLINE_FIELDS.has(field),
                 [field]: finalValue
             }
         }));
@@ -4240,6 +4254,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                 const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
                 
+                if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
+                
                 if (isAlreadySelesai && !needsOpnameFill) continue;
 
                 const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
@@ -4289,7 +4305,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, blockedOpnameItemKeys, rabItems, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -4319,6 +4335,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                         const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                         const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
+                        
+                        if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
+                        
+                        
                         
                         // Jika sudah selesai dan BUKAN butuh opname, lewati (tidak bisa diedit)
                         if (isAlreadySelesai && !needsOpnameFill) continue;
@@ -4407,7 +4427,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
                 
-                return !isSavedOnCurrentDate || needsOpnameFill;
+                return needsOpnameFill ? isOpnameTouched(val) : !isSavedOnCurrentDate;
             });
             const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
             const hasNextHandoverAction = canCreateNextHandover && !!nextHandoverDate;
