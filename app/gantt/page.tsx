@@ -61,6 +61,21 @@ const normalizeWorkText = (value: any) =>
         .replace(/\s+/g, ' ')
         .toUpperCase();
 
+const getWorkTextKeyFromValues = (kategori: any, jenis: any) =>
+    normalizeWorkText(kategori) + '|' + normalizeWorkText(jenis);
+
+const getOpnameWorkTextKey = (item: any) => {
+    const kategori = item?.kategori_pekerjaan
+        ?? item?.rab_item?.kategori_pekerjaan
+        ?? item?.instruksi_lapangan_item?.kategori_pekerjaan;
+    const jenis = item?.jenis_pekerjaan
+        ?? item?.rab_item?.jenis_pekerjaan
+        ?? item?.instruksi_lapangan_item?.jenis_pekerjaan;
+
+    if (!kategori || !jenis) return null;
+    return getWorkTextKeyFromValues(kategori, jenis);
+};
+
 const isSameWorkText = (left: any, right: any) =>
     normalizeWorkText(left) === normalizeWorkText(right);
 
@@ -3592,6 +3607,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const status = (op.status || '').toLowerCase();
                         if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
                             blockedOpnameIds.add(getOpnameItemKey(op));
+                            const workTextKey = getOpnameWorkTextKey(op);
+                            if (workTextKey) blockedOpnameIds.add(workTextKey);
                         }
                     });
                     setBlockedOpnameItemKeys(blockedOpnameIds);
