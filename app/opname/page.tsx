@@ -164,6 +164,28 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
     terlambat:  { label: 'Ditolak',    color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200' },
 };
 
+const normalizeOpnameStatus = (status?: string | null) => String(status || '').trim().toLowerCase();
+
+const isPendingOpnameStatus = (status?: string | null) => {
+    const normalized = normalizeOpnameStatus(status);
+    return normalized === 'pending' || normalized === 'progress';
+};
+
+const isApprovedOpnameStatus = (status?: string | null) => {
+    const normalized = normalizeOpnameStatus(status);
+    return normalized === 'disetujui' || normalized === 'selesai';
+};
+
+const isRejectedOpnameStatus = (status?: string | null) => {
+    const normalized = normalizeOpnameStatus(status);
+    return normalized === 'ditolak' || normalized === 'terlambat';
+};
+
+const getOpnameReviewSortRank = (status?: string | null) => {
+    if (isPendingOpnameStatus(status)) return 0;
+    if (isApprovedOpnameStatus(status) || isRejectedOpnameStatus(status)) return 2;
+    return 1;
+};
 // =============================================================================
 // SUB-COMPONENTS
 // =============================================================================
@@ -476,41 +498,47 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         });
     };
 
-    // Group items by category — only show items that haven't been submitted yet OR were rejected
-    const groupedItems = useMemo(() => {
-        // Build Set dari id_rab_item yang sudah di-opname dengan status blocking
-        // Menggunakan Number() untuk menghindari type mismatch string vs number
-        const blockedItemKeys = new Set<string>();
-        existingOpname.forEach(o => {
-            const status = (o.status || '').toLowerCase();
-            // Samakan dengan modal Gantt: pending, disetujui, selesai, progress dianggap sudah diproses
-            if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
-                blockedItemKeys.add(getOpnameItemKey(o));
+    const latestOpnameByItemKey = useMemo(() => {
+        const latest = new Map<string, OpnameItem>();
+        existingOpname.forEach((item) => {
+            const itemKey = getOpnameItemKey(item);
+            const current = latest.get(itemKey);
+            if (!current || Number(item.id) > Number(current.id)) {
+                latest.set(itemKey, item);
             }
         });
+        return latest;
+    }, [existingOpname]);
 
+    // Check if all items are approved (for Opname button and finalized read-only view)
+    const allApproved = useMemo(() => {
+        if (rabItems.length === 0) return false;
+        return rabItems.every((item) => isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status));
+    }, [rabItems, latestOpnameByItemKey]);
+
+    const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || allApproved;
+
+    // Group items by category. Before all-approved/finalized, only rejected items can be revised here.
+    // After all-approved/finalized, show every item as a read-only final review.
+    const groupedItems = useMemo(() => {
         const map = new Map<string, RABDetailItem[]>();
         rabItems.forEach(item => {
-            // Skip item yang sudah di-opname dengan status pending/disetujui
             const itemKey = getWorkItemKey(item);
-            if (blockedItemKeys.has(itemKey)) return;
-            
-            // HANYA allow item yang memiliki existing record (pernah disubmit) dan berstatus ditolak
-            // Item baru (belum pernah di-opname) TIDAK BOLEH diinput lewat form Opname ini (harus lewat Gantt Chart)
-            const hasExistingDitolak = existingOpname.some(o => 
-                getOpnameItemKey(o) === itemKey && 
-                (o.status || '').toLowerCase() === 'ditolak'
-            );
-            
-            if (!hasExistingDitolak) return;
+            const latestOpname = latestOpnameByItemKey.get(itemKey);
+            const status = latestOpname?.status;
+
+            if (!shouldShowReadOnlyOpnameItems) {
+                const isBlocked = isPendingOpnameStatus(status) || isApprovedOpnameStatus(status);
+                if (isBlocked) return;
+                if (!isRejectedOpnameStatus(status)) return;
+            }
 
             const cat = item.kategori_pekerjaan;
             if (!map.has(cat)) map.set(cat, []);
             map.get(cat)!.push(item);
         });
         return Array.from(map.entries()).map(([name, items]) => ({ name, items })).filter(g => g.items.length > 0);
-    }, [rabItems, existingOpname]);
-
+    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems]);
     const filteredGroupedItems = useMemo(() => {
         if (!opnameItemSearchQuery.trim()) return groupedItems;
         const term = opnameItemSearchQuery.toLowerCase();
@@ -529,13 +557,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         const itemKey = item ? getWorkItemKey(item) : `rab:${rabItemId}`;
         return existingOpname.find(o => getOpnameItemKey(o) === itemKey && o.status?.toLowerCase() === 'ditolak');
     };
-
-    // Check if all items are approved (for Opname button)
-    const allApproved = useMemo(() => {
-        if (rabItems.length === 0) return false;
-        const approvedCount = existingOpname.filter(o => o.status?.toLowerCase() === 'disetujui').length;
-        return approvedCount === rabItems.length;
-    }, [rabItems, existingOpname]);
 
     // Actual kunci logic (extracted so GlobalAlert can call it)
     const executeKunciOpnameFinal = async () => {
@@ -1104,7 +1125,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <ClipboardList className="w-4 h-4 text-emerald-600" />
                                                 2. Input Volume Akhir & Verifikasi Pekerjaan
                                             </h3>
-                                            {groupedItems.length > 0 && !isReadOnly && (
+                                            {groupedItems.length > 0 && !isReadOnly && !shouldShowReadOnlyOpnameItems && (
                                                 <Button
                                                     size="sm"
                                                     onClick={handleSubmitAll}
@@ -1133,8 +1154,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
                                                 <Info className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                                <h4 className="font-bold text-slate-600">Belum Ada Pekerjaan Selesai</h4>
-                                                <p className="text-sm mt-1">Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.</p>
+                                                <h4 className="font-bold text-slate-600">{shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Selesai'}</h4>
+                                                <p className="text-sm mt-1">{shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.'}</p>
                                             </div>
                                         ) : filteredGroupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
@@ -1184,6 +1205,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                         const totalHargaBaru = Math.round(volAkhir * hSatuan);
                                                                         const selisihHarga = totalHargaBaru - totalHargaRAB;
 
+                                                                        const itemKey = getWorkItemKey(item);
+                                                                        const existingRecord = latestOpnameByItemKey.get(itemKey);
                                                                         const rejectedRecord = getRejectedOpname(item.id);
 
                                                                         return (
@@ -1197,6 +1220,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             </span>
                                                                                         )}
                                                                                         <span className="text-sm">{item.jenis_pekerjaan}</span>
+                                                                                        {shouldShowReadOnlyOpnameItems && existingRecord?.status && (
+                                                                                            <StatusBadge status={existingRecord.status} />
+                                                                                        )}
                                                                                         {rejectedRecord && (
                                                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700 border border-red-200">
                                                                                                 <AlertCircle className="w-3 h-3" />
@@ -1231,7 +1257,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                                     type="text"
                                                                                                     inputMode="decimal"
                                                                                                     className="w-full p-2 border border-slate-300 rounded text-sm bg-emerald-50 focus:bg-white focus:border-emerald-500 focus:outline-none font-bold pr-12"
-                                                                                                    disabled={isReadOnly}
+                                                                                                    disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                     value={input.volume_akhir}
                                                                                                     onChange={(e) => handleSetInput(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))}
                                                                                                 />
@@ -1273,7 +1299,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Desain *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={isReadOnly}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 value={input.desain || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'desain', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1284,7 +1310,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Kualitas *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={isReadOnly}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 value={input.kualitas || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'kualitas', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1295,7 +1321,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={isReadOnly}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 value={input.spesifikasi || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'spesifikasi', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1312,7 +1338,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Catatan</label>
                                                                                             <textarea
                                                                                                 className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none placeholder:text-slate-400 bg-slate-50 flex-1 resize-none min-h-15"
-                                                                                                disabled={isReadOnly}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 placeholder="Keterangan tambahan..."
                                                                                                 value={input.catatan || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'catatan', e.target.value)}
@@ -1323,7 +1349,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <input
                                                                                                 type="file"
                                                                                                 accept="image/*"
-                                                                                                disabled={isReadOnly}
+                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
                                                                                                 className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
                                                                                                 onChange={(e) => handleSetInput(item.id, 'file', e.target.files?.[0] || null)}
                                                                                             />
@@ -1343,7 +1369,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                 </div>
  
                                                                                 {/* Per-item Submit Button */}
-                                                                                {!isReadOnly && (
+                                                                                {!isReadOnly && !shouldShowReadOnlyOpnameItems && (
                                                                                     <div className="flex justify-end pt-3 mt-3 border-t border-slate-200">
                                                                                         <Button
                                                                                             size="sm"
@@ -1678,12 +1704,18 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         }
     };
 
-    // Filter opname by status
+    // Filter opname by status, then prioritize items that still need contractor action.
     const displayedOpname = useMemo(() => {
-        if (!filterStatus) return filteredOpname;
-        return filteredOpname.filter(o => o.status?.toLowerCase() === filterStatus.toLowerCase());
-    }, [filteredOpname, filterStatus]);
+        const items = filterStatus
+            ? filteredOpname.filter(o => normalizeOpnameStatus(o.status) === filterStatus.toLowerCase())
+            : filteredOpname;
 
+        return [...items].sort((a, b) => {
+            const rankDiff = getOpnameReviewSortRank(a.status) - getOpnameReviewSortRank(b.status);
+            if (rankDiff !== 0) return rankDiff;
+            return Number(b.id) - Number(a.id);
+        });
+    }, [filteredOpname, filterStatus]);
     // Group by category for display
     const groupedOpname = useMemo(() => {
         const map = new Map<string, (OpnameItem & { rabRef?: RABDetailItem })[]>();
@@ -1693,7 +1725,21 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
             if (!map.has(cat)) map.set(cat, []);
             map.get(cat)!.push({ ...item, rabRef });
         });
-        return Array.from(map.entries()).map(([name, items]) => ({ name, items }));
+        return Array.from(map.entries())
+            .map(([name, items]) => ({
+                name,
+                items: items.sort((a, b) => {
+                    const rankDiff = getOpnameReviewSortRank(a.status) - getOpnameReviewSortRank(b.status);
+                    if (rankDiff !== 0) return rankDiff;
+                    return Number(b.id) - Number(a.id);
+                })
+            }))
+            .sort((a, b) => {
+                const aRank = Math.min(...a.items.map(item => getOpnameReviewSortRank(item.status)));
+                const bRank = Math.min(...b.items.map(item => getOpnameReviewSortRank(item.status)));
+                if (aRank !== bRank) return aRank - bRank;
+                return a.name.localeCompare(b.name);
+            });
     }, [displayedOpname, rabItems]);
 
     // Handle approve — shows styled confirmation via GlobalAlert
