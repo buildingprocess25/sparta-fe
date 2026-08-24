@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { fetchDashboardAll } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
-import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
 
 export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     const [project, setProject] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [expandedNode, setExpandedNode] = useState<number | null>(null);
 
     useEffect(() => {
         const load = async () => {
@@ -100,7 +101,15 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     // 4. Instruksi Lapangan (Only if exists)
     const hasIL = proj.instruksi_lapangan && proj.instruksi_lapangan.length > 0;
     const totalIL = hasIL ? proj.instruksi_lapangan.reduce((sum: number, il: any) => sum + (Number(il.grand_total) || 0), 0) : 0;
+    
+    let ilSubItems: any[] = [];
     if (hasIL) {
+        ilSubItems = proj.instruksi_lapangan.filter((il: any) => il.link_pdf_gabungan || il.link_pdf_non_sbo).map((il: any, idx: number) => ({
+            title: `Instruksi Lapangan ${idx + 1}`,
+            desc: new Date(il.created_at).toLocaleDateString('id-ID'),
+            url: il.link_pdf_gabungan || il.link_pdf_non_sbo
+        }));
+        
         nodes.push({
             type: 'IL_ROOT',
             title: `Instruksi Lapangan${suffix}`,
@@ -110,14 +119,32 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
             data: { isILRoot: true, projectData: proj },
             isActive: true,
             isCompleted: true,
-            url: proj.instruksi_lapangan[0].link_pdf_gabungan
+            url: ilSubItems.length === 1 ? ilSubItems[0].url : null,
+            subItems: ilSubItems.length > 1 ? ilSubItems : undefined
         });
     }
 
     // 5. Pengawasan
     let hasPengawasan = false;
     let pengawasanProgress = 0, pengawasanTerlambat = 0;
+    
+    const pengawasanSubItems: any[] = [];
+    
     const grouped = (proj.gantt || []).reduce((acc: any, g: any) => {
+        if (g.berkas_pengawasan && Array.isArray(g.berkas_pengawasan)) {
+            g.berkas_pengawasan.forEach((bp: any) => {
+                if (bp.link_pdf_pengawasan) {
+                    pengawasanSubItems.push({
+                        title: 'Pengawasan',
+                        desc: new Date(bp.created_at).toLocaleDateString('id-ID'),
+                        url: bp.link_pdf_pengawasan,
+                        createdAt: new Date(bp.created_at).getTime(),
+                        idGantt: g.id // to match with status if needed
+                    });
+                }
+            });
+        }
+        
         if (g.pengawasan && Array.isArray(g.pengawasan) && g.pengawasan.length > 0) {
             hasPengawasan = true;
             g.pengawasan.forEach((pw: any) => {
@@ -125,10 +152,24 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                 if (typeof dateKey === 'string') dateKey = dateKey.split(/[T ]/)[0];
                 if (!acc[dateKey]) acc[dateKey] = [];
                 acc[dateKey].push(pw);
+                
+                // Try to find matching subitem to attach status
+                const match = pengawasanSubItems.find(sub => sub.idGantt === pw.id_gantt);
+                if (match) {
+                    match.title = `Pengawasan - Progress: ${pw.status || '-'}`;
+                }
             });
         }
         return acc;
     }, {});
+    
+    pengawasanSubItems.sort((a, b) => a.createdAt - b.createdAt);
+    pengawasanSubItems.forEach((sub, idx) => {
+        if (sub.title === 'Pengawasan') {
+            sub.title = `Pengawasan ${idx + 1}`;
+        }
+    });
+
     if (hasPengawasan) {
         Object.values(grouped).forEach((groupItems: any) => {
             const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
@@ -147,7 +188,8 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
         data: hasPengawasan ? { isPengawasanRoot: true, ganttData: proj.gantt, projectData: proj } : null,
         isActive: hasPengawasan,
         isCompleted: pSelesai,
-        url: null
+        url: pengawasanSubItems.length === 1 ? pengawasanSubItems[0].url : null,
+        subItems: pengawasanSubItems.length > 1 ? pengawasanSubItems : undefined
     });
 
     // 6. Opname Parsial
@@ -253,9 +295,11 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                     {nodes.map((node, idx) => {
                         const isEven = idx % 2 === 0;
                         const colors = getColorClasses(node.color, node.isActive, node.isCompleted);
+                        const hasSubItems = node.subItems && node.subItems.length > 0;
+                        const isExpanded = expandedNode === idx;
                         
                         const CardContent = (
-                            <div className={`p-3.5 rounded-xl border bg-white shadow-sm transition-all duration-300 ${node.isActive ? (node.url ? 'hover:shadow-md hover:-translate-y-1 hover:border-blue-300' : 'hover:shadow-md hover:-translate-y-1') : 'opacity-60'} ${colors.border}`}>
+                            <div className={`p-3.5 rounded-xl border bg-white shadow-sm transition-all duration-300 ${node.isActive ? (node.url || hasSubItems ? 'hover:shadow-md hover:-translate-y-1 hover:border-blue-300 cursor-pointer' : 'hover:shadow-md hover:-translate-y-1') : 'opacity-60'} ${colors.border}`}>
                                 <div className={`flex items-center justify-between gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                     <div className={`flex items-center gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
@@ -268,10 +312,29 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                                             </p>
                                         </div>
                                     </div>
-                                    {node.url && (
+                                    {node.url && !hasSubItems && (
                                         <ExternalLink className={`w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors shrink-0 ${isEven ? 'md:rotate-180' : ''}`} />
                                     )}
+                                    {hasSubItems && (
+                                        <ChevronDown className={`w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                                    )}
                                 </div>
+                                
+                                {hasSubItems && isExpanded && (
+                                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+                                        {node.subItems.map((sub: any, sIdx: number) => (
+                                            <a key={sIdx} href={getProxyUrl(sub.url)} target="_blank" rel="noreferrer" 
+                                               onClick={(e) => e.stopPropagation()}
+                                               className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-colors ${isEven ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
+                                               <div className="flex flex-col">
+                                                   <span className="text-sm font-bold text-slate-700">{sub.title}</span>
+                                                   <span className="text-xs text-slate-500">{sub.desc}</span>
+                                               </div>
+                                               <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         );
 
@@ -284,10 +347,14 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                                 </div>
 
                                 <div className={`w-full md:w-[45%] pl-14 md:pl-0 ${isEven ? 'md:pr-10 md:text-right' : 'md:pl-10'}`}>
-                                    {node.url ? (
+                                    {node.url && !hasSubItems ? (
                                         <a href={getProxyUrl(node.url)} target="_blank" rel="noreferrer" className="block outline-none">
                                             {CardContent}
                                         </a>
+                                    ) : hasSubItems ? (
+                                        <div onClick={() => setExpandedNode(isExpanded ? null : idx)} className="block outline-none">
+                                            {CardContent}
+                                        </div>
                                     ) : (
                                         CardContent
                                     )}
