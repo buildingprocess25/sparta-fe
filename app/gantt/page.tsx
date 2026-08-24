@@ -716,9 +716,27 @@ function GanttBoard() {
 
         if (flowScopes.length === 0) return;
 
-        const first = flowScopes[0] as { scope: SupervisionScope; checkpoint: SupervisionCheckpoint };
+        const normalizedFlowScopes = flowScopes as Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
+        const hasScopeOutstandingItems = (scope: SupervisionScope) => {
+            const expected = Number(scope.total_expected_items || 0);
+            const selesai = Number(scope.total_selesai_items || 0);
+            const missing = Number(scope.missing_pengawasan_checkpoints || 0);
+            const ready = (scope.checkpoints || []).reduce((sum, item) => sum + Number(item.ready_opname_items || 0), 0);
+            return missing > 0 || ready > 0 || (expected > 0 && selesai < expected);
+        };
+        const hasCheckpointUnfinishedItems = (item: { scope: SupervisionScope; checkpoint: SupervisionCheckpoint }) =>
+            Number(item.checkpoint?.total_items || 0) > Number(item.checkpoint?.selesai_items || 0);
+        const orderedFlowScopes = [...normalizedFlowScopes].sort((a, b) => {
+            const scopeDelta = Number(hasScopeOutstandingItems(b.scope)) - Number(hasScopeOutstandingItems(a.scope));
+            if (scopeDelta !== 0) return scopeDelta;
+            const checkpointDelta = Number(hasCheckpointUnfinishedItems(b)) - Number(hasCheckpointUnfinishedItems(a));
+            if (checkpointDelta !== 0) return checkpointDelta;
+            return 0;
+        });
+
+        const first = orderedFlowScopes[0];
         setUnifiedMemoFlow({
-            scopes: flowScopes as Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>,
+            scopes: orderedFlowScopes,
             index: 0,
             dayIndex,
             dateString: checkpoint.tanggal_pengawasan,
@@ -1859,19 +1877,25 @@ function GanttBoard() {
     const hasReadyOpnameCheckpoint = Boolean(supervisionWorkspace?.scopes.some(scope =>
         (scope.checkpoints || []).some(checkpoint => Number(checkpoint.ready_opname_items || 0) > 0)
     ));
+    const activeMemoFlowEntry = unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index] ?? null;
+    const activeMemoGanttId = activeMemoFlowEntry?.scope?.gantt_id ?? selectedGanttId;
+    const activeMemoIdToko = activeMemoFlowEntry?.scope?.id_toko ?? projectData?.id_toko;
+    const activeOpnameFlowEntry = unifiedOpnameFlow?.scopes?.[unifiedOpnameFlow.index] ?? null;
+    const activeOpnameGanttId = activeOpnameFlowEntry?.scope?.gantt_id ?? selectedGanttId;
+
     const missingInOtherScopes = useMemo(() => {
         if (!activeHeaderClick || !supervisionWorkspace) return false;
         const cp = supervisionWorkspace.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === activeHeaderClick.dateString);
         if (!cp) return false;
         let otherMissing = false;
         cp.scopes?.forEach((s: any) => {
-            if (String(s.id_toko) !== String(projectData?.id_toko)) {
+            if (String(s.id_toko) !== String(activeMemoIdToko)) {
                 const missing = (Number(s.checkpoint?.total_items) || 0) - (Number(s.checkpoint?.selesai_items) || 0);
                 if (missing > 0) otherMissing = true;
             }
         });
         return otherMissing;
-    }, [activeHeaderClick, supervisionWorkspace, projectData?.id_toko]);
+    }, [activeHeaderClick, supervisionWorkspace, activeMemoIdToko]);
 
     const selectedSpkSummary = useMemo(() => {
         const selectedUlokValue = supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || selectedUlok;
@@ -3306,19 +3330,19 @@ function GanttBoard() {
                         setShowMemoModal(false);
                         setUnifiedMemoFlow(null);
                     }}
-                    selectedGanttId={selectedGanttId}
+                    selectedGanttId={activeMemoGanttId}
                     spkInfo={spkInfo}
                     projectData={projectData}
-                    id_toko={projectData?.id_toko}
+                    id_toko={activeMemoIdToko}
                     scopeLabel={unifiedMemoFlow?.scopes?.[unifiedMemoFlow.index]?.scope?.lingkup_pekerjaan}
                     nextScopeLabel={unifiedMemoFlow && unifiedMemoFlow.index + 1 < unifiedMemoFlow.scopes.length ? unifiedMemoFlow.scopes[unifiedMemoFlow.index + 1]?.scope?.lingkup_pekerjaan : null}
                     flowStep={unifiedMemoFlow ? { current: unifiedMemoFlow.index + 1, total: unifiedMemoFlow.scopes.length } : null}
-                    draft={selectedGanttId && activeHeaderClick ? unifiedMemoDrafts[`${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
+                    draft={activeMemoGanttId && activeHeaderClick ? unifiedMemoDrafts[`${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
                     missingInOtherScopes={missingInOtherScopes}
                     targetStDate={targetStInfo?.date ? formatDateForPengawasan(targetStInfo.date) : null}
                     onDraftChange={(draft: any) => {
-                        if (!selectedGanttId || !activeHeaderClick) return;
-                        const key = `${selectedGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
+                        if (!activeMemoGanttId || !activeHeaderClick) return;
+                        const key = `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
                         setUnifiedMemoDrafts((prev) => ({ ...prev, [key]: draft }));
                     }}
                     onNavigateScope={async (targetIndex: number) => {
@@ -3338,7 +3362,7 @@ function GanttBoard() {
                     onSuccess={async (options?: { openOpname?: boolean }) => {
                         setShowMemoModal(false);
                         // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
-                        if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                        if (activeMemoGanttId) loadGanttDetail(activeMemoGanttId);
                         if (supervisionWorkspace?.nomor_ulok) {
                             loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
                         }
@@ -3423,7 +3447,7 @@ function GanttBoard() {
                     }}
                     onSuccess={async () => {
                         setShowOpnameModal(false);
-                        if (selectedGanttId) loadGanttDetail(selectedGanttId);
+                        if (activeOpnameGanttId) loadGanttDetail(activeOpnameGanttId);
                         if (supervisionWorkspace?.nomor_ulok) {
                             loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
                         }

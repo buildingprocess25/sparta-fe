@@ -160,6 +160,8 @@ type CheckpointScopeSummary = {
     scopeName: string;
     expectedItems: number;
     filledItems: number;
+    selesaiItems: number;
+    unfinishedItems: number;
     readyOpnameItems: number;
     missingItems: number;
     hasCheckpointData: boolean;
@@ -681,6 +683,8 @@ export default function UnifiedSupervisionGantt({
                 const scopeName = String(entry.lingkup_pekerjaan || "").trim().toUpperCase() || "LINGKUP";
                 const expectedItems = getExpectedItemCountForScope(Number(entry.id_toko), absoluteDay);
                 const filledItems = Number(entry.checkpoint?.total_items || 0);
+                const selesaiItems = Number(entry.checkpoint?.selesai_items || 0);
+                const unfinishedItems = filledItems > 0 ? Math.max(0, filledItems - selesaiItems) : 0;
                 const readyOpnameItems = Number(entry.checkpoint?.ready_opname_items || 0);
                 const hasCheckpointData = filledItems > 0;
                 const coveredByLaterCheckpoint = !hasCheckpointData &&
@@ -692,6 +696,8 @@ export default function UnifiedSupervisionGantt({
                     scopeName,
                     expectedItems,
                     filledItems,
+                    selesaiItems,
+                    unfinishedItems,
                     readyOpnameItems,
                     missingItems,
                     hasCheckpointData,
@@ -721,6 +727,10 @@ export default function UnifiedSupervisionGantt({
                 }
                 if (!summary.hasCheckpointData && summary.expectedItems > 0) {
                     parts.push(`${summary.scopeName}: ${summary.expectedItems} item belum diisi`);
+                    return;
+                }
+                if (summary.unfinishedItems > 0) {
+                    parts.push(`${summary.scopeName}: ${summary.unfinishedItems} item belum selesai`);
                     return;
                 }
                 if (summary.missingItems > 0) {
@@ -807,6 +817,15 @@ export default function UnifiedSupervisionGantt({
                         return;
                     }
 
+                    const anyScopeUnfinishedPengawasan = scopesWithExpectedWork.some(entry =>
+                        Number(entry.checkpoint?.total_items || 0) > Number(entry.checkpoint?.selesai_items || 0)
+                    );
+
+                    if (anyScopeUnfinishedPengawasan) {
+                        map.set(fullDate, "needsInput");
+                        return;
+                    }
+
                     const allScopesOpnameDone = scopesWithExpectedWork.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
@@ -830,7 +849,7 @@ export default function UnifiedSupervisionGantt({
                     // Fallback ke unified logic jika tidak ada per-scope data
                     // Kita tidak mewarnai merah jika tidak ada data (unifiedTotal === 0)
                     if (unifiedTotal > 0 && unifiedTotal > unifiedSelesai + unifiedOpname) {
-                        map.set(fullDate, "normal"); // Progress/Terlambat, bisa tetap biru/normal
+                        map.set(fullDate, "needsInput");
                     } else if (unifiedSelesai > 0 && unifiedOpname === 0) {
                         map.set(fullDate, "needsInput");
                     } else if (unifiedOpname > 0) {
@@ -870,6 +889,10 @@ export default function UnifiedSupervisionGantt({
         const hasReadyOpnameItems = summaries.some((summary) => summary.readyOpnameItems > 0)
             || Number(checkpoint.ready_opname_items || 0) > 0;
         if (hasReadyOpnameItems) return "needsInput";
+
+        const hasUnfinishedPengawasan = summaries.some((summary) => summary.unfinishedItems > 0)
+            || Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0);
+        if (hasUnfinishedPengawasan) return "needsInput";
 
         const hasMissingInput = summaries.some((summary) =>
             summary.expectedItems > 0 && !summary.hasCheckpointData && !summary.coveredByLaterCheckpoint
@@ -1055,7 +1078,11 @@ export default function UnifiedSupervisionGantt({
                             const actionableCheckpoint = checkpoint && activeScopeIds.size > 0
                                 ? {
                                     ...checkpoint,
-                                    scopes: (checkpoint.scopes || []).filter((scope) => activeScopeIds.has(Number(scope.id_toko))),
+                                    scopes: (checkpoint.scopes || []).filter((scope) =>
+                                        activeScopeIds.has(Number(scope.id_toko))
+                                        || Number(scope.checkpoint?.total_items || 0) > 0
+                                        || Number(scope.checkpoint?.ready_opname_items || 0) > 0
+                                    ),
                                 }
                                 : checkpoint;
                             const readyCount = Number(checkpoint?.ready_opname_items || 0);
