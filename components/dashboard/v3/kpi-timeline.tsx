@@ -145,7 +145,18 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                 acc[dateKey].push(pw);
                 
                 const matchPdf = bpList.find(bp => bp.id_pengawasan_gantt === pw.id_pengawasan_gantt || bp.id_pengawasan_gantt === pw.id_gantt);
-                let pengawasanUrl = matchPdf?.link_pdf_pengawasan || pw.dokumentasi || pw.dokumentasi_base64 || null;
+                
+                let pendingPdfUrl = null;
+                if (proj.pengawasan_pdf_pending && Array.isArray(proj.pengawasan_pdf_pending)) {
+                    const pendingMatch = proj.pengawasan_pdf_pending.find((p: any) =>
+                        p.tanggal_pengawasan === pw.tanggal_pengawasan || p.tanggal_pengawasan === dateKey
+                    );
+                    if (pendingMatch) {
+                        pendingPdfUrl = pendingMatch.link_pdf_pengawasan;
+                    }
+                }
+                
+                let pengawasanUrl = pendingPdfUrl || matchPdf?.link_pdf_pengawasan || pw.dokumentasi || pw.dokumentasi_base64 || null;
                 
                 pengawasanSubItems.push({
                     title: `Pengawasan - Progress: ${pw.status || '-'}`,
