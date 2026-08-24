@@ -730,7 +730,7 @@ export default function UnifiedSupervisionGantt({
                     return;
                 }
                 if (summary.unfinishedItems > 0) {
-                    parts.push(`${summary.scopeName}: ${summary.unfinishedItems} item belum selesai`);
+                    parts.push(`${summary.scopeName}: ${summary.unfinishedItems} item terisi progress/terlambat`);
                     return;
                 }
                 if (summary.missingItems > 0) {
@@ -817,14 +817,6 @@ export default function UnifiedSupervisionGantt({
                         return;
                     }
 
-                    const anyScopeUnfinishedPengawasan = scopesWithExpectedWork.some(entry =>
-                        Number(entry.checkpoint?.total_items || 0) > Number(entry.checkpoint?.selesai_items || 0)
-                    );
-
-                    if (anyScopeUnfinishedPengawasan) {
-                        map.set(fullDate, "needsInput");
-                        return;
-                    }
 
                     const allScopesOpnameDone = scopesWithExpectedWork.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
@@ -849,7 +841,7 @@ export default function UnifiedSupervisionGantt({
                     // Fallback ke unified logic jika tidak ada per-scope data
                     // Kita tidak mewarnai merah jika tidak ada data (unifiedTotal === 0)
                     if (unifiedTotal > 0 && unifiedTotal > unifiedSelesai + unifiedOpname) {
-                        map.set(fullDate, "needsInput");
+                        map.set(fullDate, "normal");
                     } else if (unifiedSelesai > 0 && unifiedOpname === 0) {
                         map.set(fullDate, "needsInput");
                     } else if (unifiedOpname > 0) {
@@ -890,9 +882,6 @@ export default function UnifiedSupervisionGantt({
             || Number(checkpoint.ready_opname_items || 0) > 0;
         if (hasReadyOpnameItems) return "needsInput";
 
-        const hasUnfinishedPengawasan = summaries.some((summary) => summary.unfinishedItems > 0)
-            || Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0);
-        if (hasUnfinishedPengawasan) return "needsInput";
 
         const hasMissingInput = summaries.some((summary) =>
             summary.expectedItems > 0 && !summary.hasCheckpointData && !summary.coveredByLaterCheckpoint
