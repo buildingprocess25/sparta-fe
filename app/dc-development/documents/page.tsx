@@ -349,22 +349,16 @@ export default function DcDocumentsPage() {
   const totals = useMemo(() => {
     const complete = filteredArchives.filter(a => a.jumlah_dokumen > 0).length;
     const branches = new Set(filteredArchives.map((item) => getArchiveParentBranch(item)).filter(Boolean));
+    const childLocations = filteredArchives.filter(a => (a.archive_type || a.project_type) !== "DC");
+    const linkedChildLocations = childLocations.filter(a => !!a.parent_dc_code).length;
     const countType = (type: string) => filteredArchives.filter(a => (a.archive_type || a.project_type) === type).length;
-    const completeType = (type: string) => filteredArchives.filter(a => a.jumlah_dokumen > 0 && (a.archive_type || a.project_type) === type).length;
     const totalDc = countType("DC");
     const totalWarehouse = countType("WAREHOUSE");
     const totalDepo = countType("DEPO");
     const totalBulky = countType("BULKY");
     const totalStoreHub = countType("STORE_HUB");
     const totalGudangAnak = countType("GUDANG_ANAK");
-    const completeDc = completeType("DC");
-    const completeWarehouse = completeType("WAREHOUSE");
-
-    // Hitung progress berdasarkan persentase aktual tiap slot jika memungkinkan, atau berdasarkan jumlah dokumen
-    // Sebagai estimasi sederhana yang informatif:
     const totalDocsAll = filteredArchives.reduce((sum, a) => sum + (a.jumlah_dokumen || 0), 0);
-    // Alternatif yang lebih aman dan akurat berdasarkan data yang ada: Rata-rata dari "progress per project" (0-100%).
-    // Namun karena kita belum fetch detail dokumen, kita bisa gunakan jumlah_dokumen.
 
     return {
       total: filteredArchives.length,
@@ -373,14 +367,15 @@ export default function DcDocumentsPage() {
       branches: branches.size,
       totalDc,
       totalWarehouse,
-      completeDc,
-      completeWarehouse,
       totalDepo,
       totalBulky,
       totalStoreHub,
       totalGudangAnak,
+      childLocations: childLocations.length,
+      linkedChildLocations,
       totalDocs: totalDocsAll,
       progress: filteredArchives.length > 0 ? Math.round((complete / filteredArchives.length) * 100) : 0,
+      parentLinkProgress: childLocations.length > 0 ? Math.round((linkedChildLocations / childLocations.length) * 100) : 100,
     };
   }, [filteredArchives]);
 
@@ -424,14 +419,31 @@ export default function DcDocumentsPage() {
 
         <div className="space-y-6">
           {/* DASHBOARD WIDGETS */}
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-            <MetricCard title="Total Lokasi" value={totals.total} icon={<Building2 className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Total DC" value={totals.totalDc} icon={<Building2 className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Warehouse" value={totals.totalWarehouse} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Depo & Bulky" value={totals.totalDepo + totals.totalBulky} subtitle={`${totals.totalDepo} Depo, ${totals.totalBulky} Bulky`} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Hub & Gudang" value={totals.totalStoreHub + totals.totalGudangAnak} subtitle={`${totals.totalStoreHub} Store-Hub, ${totals.totalGudangAnak} Gudang Anak`} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5">
+            <MetricCard title="Total Lokasi Arsip" value={totals.total} subtitle={`${totals.branches} induk cabang, 6 tipe lokasi`} icon={<Building2 className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="DC Induk" value={totals.totalDc} subtitle="Lokasi utama / parent" icon={<Building2 className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Warehouse" value={totals.totalWarehouse} subtitle="Lokasi turunan WH" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Depo" value={totals.totalDepo} subtitle="Lokasi turunan depo" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Bulky" value={totals.totalBulky} subtitle="Lokasi turunan bulky" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Store-Hub" value={totals.totalStoreHub} subtitle="Lokasi turunan store-hub" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Gudang Anak" value={totals.totalGudangAnak} subtitle="Lokasi turunan gudang" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
             <MetricCard
-              title="Progress Lokasi"
+              title="DC Induk Terhubung"
+              value={`${totals.linkedChildLocations}/${totals.childLocations}`}
+              subtitle="Lokasi turunan punya DC induk"
+              tone="green"
+              progress={totals.parentLinkProgress}
+              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />}
+            />
+            <MetricCard
+              title="Sudah Mulai Upload"
+              value={totals.complete}
+              subtitle={`${totals.incomplete} lokasi belum upload`}
+              tone="green"
+              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />}
+            />
+            <MetricCard
+              title="Progress Dokumen"
               value={`${totals.progress}%`}
               subtitle={`${totals.complete} dari ${totals.total} lokasi mulai upload`}
               progress={totals.progress}
