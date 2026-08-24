@@ -696,23 +696,13 @@ function GanttBoard() {
         if (!supervisionWorkspace) return;
 
         const targetDateKey = formatPengawasanDateKey(checkpoint.tanggal_pengawasan);
-        const flowScopes = (checkpoint as any).scopes
-            ? (checkpoint as any).scopes
-                .map((entry: any) => {
-                    const scope = supervisionWorkspace.scopes.find((item) => Number(item.id_toko) === Number(entry.id_toko));
-                    const scopeCheckpoint = entry.checkpoint
-                        ?? scope?.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey)
-                        ?? { tanggal_pengawasan: checkpoint.tanggal_pengawasan, total_items: 0, ready_opname_items: 0, opname_items: 0 };
-                    return scope ? { scope, checkpoint: scopeCheckpoint } : null;
-                })
-                .filter(Boolean)
-            : supervisionWorkspace.scopes
-                .map((scope) => {
-                    const scopeCheckpoint = scope.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey)
-                        ?? { tanggal_pengawasan: targetDateKey, total_items: 0, ready_opname_items: 0, opname_items: 0 };
-                    return { scope, checkpoint: scopeCheckpoint };
-                })
-                .filter(Boolean);
+        const flowScopes = supervisionWorkspace.scopes
+            .map((scope) => {
+                const scopeCheckpoint = scope.checkpoints?.find((item) => formatPengawasanDateKey(item.tanggal_pengawasan) === targetDateKey)
+                    ?? { tanggal_pengawasan: targetDateKey, total_items: 0, ready_opname_items: 0, opname_items: 0 };
+                return { scope, checkpoint: scopeCheckpoint };
+            })
+            .filter((entry) => Boolean(entry.scope.gantt_id));
 
         if (flowScopes.length === 0) return;
 
