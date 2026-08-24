@@ -4,18 +4,22 @@ import { API_URL } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
 import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
 
-export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
+export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: string; lingkup_pekerjaan?: string | null }) {
     const [project, setProject] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [expandedNode, setExpandedNode] = useState<number | null>(null);
+    const selectedScope = String(lingkup_pekerjaan ?? "").trim().toUpperCase();
 
     useEffect(() => {
         const load = async () => {
             try {
                 setIsLoading(true);
                 const res = await fetchDashboardAll(nomor_ulok);
-                if (res?.status === 'success' && res.data && res.data.length > 0) {
-                    setProject(res.data[0]);
+                if (res?.status === "success" && res.data && res.data.length > 0) {
+                    const scopedProject = selectedScope
+                        ? res.data.find((item: any) => String(item?.toko?.lingkup_pekerjaan ?? "").trim().toUpperCase() === selectedScope)
+                        : null;
+                    setProject(scopedProject ?? res.data[0]);
                 }
             } catch (error) {
                 console.error("Failed to load project for timeline", error);
@@ -24,7 +28,7 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
             }
         };
         load();
-    }, [nomor_ulok]);
+    }, [nomor_ulok, selectedScope]);
 
     const getProxyUrl = (url: string) => {
         if (!url || typeof url !== 'string' || !url.startsWith('http')) return url;

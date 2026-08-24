@@ -55,7 +55,7 @@ interface KpiDrilldownModalProps {
   approvalActors?: Record<PerformanceSlaRole, string[]>;
 }
 
-type DrilldownStep = "select_role" | "select_doc" | "select_name" | "list_ulok";
+type DrilldownStep = "select_role" | "select_doc" | "select_name" | "list_ulok" | "select_scope";
 
 const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string }> = [
   { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200" },
@@ -136,6 +136,7 @@ export function KpiDrilldownModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUlok, setSelectedUlok] = useState<PerformanceDrilldownItem | null>(null);
+  const [scopeSelectionRow, setScopeSelectionRow] = useState<PerformanceDrilldownItem | null>(null);
   const [detail, setDetail] = useState<PerformanceDetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [optionStats, setOptionStats] = useState<PerformanceOptionStatsData>({ roles: [], people: [], documents: [] });
@@ -153,6 +154,7 @@ export function KpiDrilldownModal({
     setMeta(null);
     setError(null);
     setSelectedUlok(null);
+    setScopeSelectionRow(null);
     setDetail(null);
     setSelectedDoc(null);
     setSelectedName(null);
@@ -305,7 +307,7 @@ export function KpiDrilldownModal({
 
   useEffect(() => { if (isOpen && step === "list_ulok") loadRows(1); }, [isOpen, step, loadRows]);
 
-  const openDetail = async (row: PerformanceDrilldownItem) => {
+  const openDetail = async (row: PerformanceDrilldownItem, lingkup?: string) => {
     if (!kpiType) return;
     setSelectedUlok(row);
     setDetail(null);
@@ -321,6 +323,7 @@ export function KpiDrilldownModal({
         period,
         search,
         nomor_ulok: row.nomor_ulok,
+        lingkup_pekerjaan: lingkup,
         card_type: kpiType as PerformanceCardType,
         sla_role: kpiType === "sla_approval" ? selectedRole as PerformanceSlaRole : undefined,
         sla_doc: selectedDoc ?? undefined,
@@ -337,6 +340,11 @@ export function KpiDrilldownModal({
   };
 
   const goBack = () => {
+    if (step === "select_scope") {
+      setScopeSelectionRow(null);
+      setStep("list_ulok");
+      return;
+    }
     if (step === "list_ulok") {
       if (supportMetric) return onClose();
       setStep(kpiType === "sla_approval" ? "select_doc" : "select_name");
@@ -443,6 +451,53 @@ export function KpiDrilldownModal({
     );
   };
 
+  const renderScopeSelection = () => {
+    const row = scopeSelectionRow;
+    const scopes = row?.scopes?.length ? row.scopes : [{ lingkup_pekerjaan: "LAINNYA", toko_id: 0 }];
+
+    return (
+      <div className="flex flex-col items-center justify-center p-8 lg:p-12">
+        <div className="mb-8 text-center">
+          <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Lingkup Pekerjaan</h3>
+          <p className="mt-2 text-sm font-bold text-slate-500">{row?.nomor_ulok} - {row?.nama_toko ?? "-"}</p>
+        </div>
+        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
+          {scopes.map((scope) => {
+            const statusItems = [
+              { label: "RAB", active: scope.has_rab },
+              { label: "SPK", active: scope.has_spk },
+              { label: "ST", active: scope.has_st },
+              { label: "KTK", active: scope.has_opname }
+            ];
+            return (
+              <button
+                key={(row?.nomor_ulok ?? "ULOK") + "-" + scope.lingkup_pekerjaan}
+                type="button"
+                onClick={() => row && openDetail(row, scope.lingkup_pekerjaan)}
+                className="group flex min-h-36 flex-col justify-between rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-left shadow-sm transition-[transform,border-color,box-shadow,background-color] duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20"
+              >
+                <span className="flex items-start justify-between gap-4">
+                  <span className="min-w-0">
+                    <span className="block text-xl font-black tracking-tight text-slate-900 group-hover:text-red-700">{scope.lingkup_pekerjaan}</span>
+                    <span className="mt-1 block truncate text-xs font-bold uppercase tracking-widest text-slate-400">{scope.project_type ?? "PROJECT"}</span>
+                  </span>
+                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+                </span>
+                <span className="mt-5 flex flex-wrap gap-2">
+                  {statusItems.map((item) => (
+                    <span key={item.label} className={cn("rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ring-1", item.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-400 ring-slate-200")}>
+                      {item.label}
+                    </span>
+                  ))}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderList = () => {
     const isCostM2 = kpiType === "cost_m2";
     return (
@@ -473,13 +528,20 @@ export function KpiDrilldownModal({
                   {rows.map((row) => (
                     <tr 
                       key={row.nomor_ulok} 
-                      onClick={() => openDetail(row)}
+                      onClick={() => { setScopeSelectionRow(row); setStep("select_scope"); }}
                       className="group cursor-pointer hover:bg-red-50/50 transition-colors"
                     >
                       <td className="px-4 py-3">
                         <span className="min-w-0">
                           <span className="block font-bold text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">{row.nomor_ulok}</span>
                           <span className="block truncate text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span>
+                          <span className="mt-2 flex flex-wrap gap-1.5">
+                            {(row.scopes?.length ? row.scopes : [{ lingkup_pekerjaan: "LAINNYA", toko_id: 0 }]).map((scope) => (
+                              <span key={row.nomor_ulok + "-" + scope.lingkup_pekerjaan} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                                {scope.lingkup_pekerjaan}
+                              </span>
+                            ))}
+                          </span>
                         </span>
                       </td>
                       <td className="px-4 py-3 font-bold text-slate-700">{row.cabang ?? "-"}</td>
@@ -549,6 +611,7 @@ export function KpiDrilldownModal({
             {step === "select_doc" && renderDoc()}
             {step === "select_name" && renderName()}
             {step === "list_ulok" && renderList()}
+            {step === "select_scope" && renderScopeSelection()}
           </div>
         </DialogContent>
       </Dialog>
@@ -573,6 +636,11 @@ export function KpiDrilldownModal({
                         <h3 className="mt-1.5 truncate text-2xl font-bold tracking-tight text-slate-900">
                           {selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}
                         </h3>
+                        {detail?.selected_scope && (
+                          <span className="mt-2 inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-red-700 ring-1 ring-red-100">
+                            Lingkup {detail.selected_scope}
+                          </span>
+                        )}
                       </DialogPrimitive.Title>
                     </div>
                     <DialogPrimitive.Close className="group rounded-full bg-slate-100 p-2.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
@@ -588,7 +656,7 @@ export function KpiDrilldownModal({
                   ) : detail ? (
                     <div className="flex flex-col gap-6">
                       <KpiDetailSections detail={detail} />
-                      <KpiTimeline nomor_ulok={detail.nomor_ulok} />
+                      <KpiTimeline nomor_ulok={detail.nomor_ulok} lingkup_pekerjaan={detail.selected_scope} />
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-red-200 bg-red-50/80 p-5 text-sm font-bold text-red-700 shadow-sm backdrop-blur-sm">

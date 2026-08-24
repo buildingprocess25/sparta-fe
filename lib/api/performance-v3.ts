@@ -56,11 +56,22 @@ export type PerformanceFiltersData = {
   approvalActors?: Record<PerformanceSlaRole, string[]>;
 };
 
+export type PerformanceDrilldownScope = {
+  lingkup_pekerjaan: string;
+  toko_id: number;
+  project_type?: string | null;
+  has_rab?: boolean;
+  has_spk?: boolean;
+  has_st?: boolean;
+  has_opname?: boolean;
+};
+
 export type PerformanceDrilldownItem = {
   nomor_ulok: string;
   nama_toko: string | null;
   kode_toko: string | null;
   cabang: string | null;
+  scopes: PerformanceDrilldownScope[];
   supports: string[];
   coordinators: string[];
   value: number | null;
@@ -76,12 +87,14 @@ export type PerformanceDocumentLink = {
   label: string;
   url: string;
   source: string;
+  lingkup?: string | null;
 };
 
 export type PerformanceApprovalEvent = {
   role: PerformanceSlaRole;
   document: PerformanceDocument;
   label: string;
+  lingkup?: string | null;
   actorName: string | null;
   startAt: string | null;
   approvedAt: string | null;
@@ -99,6 +112,7 @@ export type PerformanceDetailData = {
   supports: string[];
   coordinators: string[];
   selected_card: PerformanceCardType;
+  selected_scope?: string | null;
   selected_value: number | null;
   sections: {
     cost_m2: { terbangun: number | null; bangunan: number | null; area_terbuka: number | null; formula: string };
@@ -189,6 +203,7 @@ export const fetchPerformanceDrilldown = async (
 export const fetchPerformanceDetail = async (
   params: PerformanceQueryParams & {
     nomor_ulok: string;
+    lingkup_pekerjaan?: string;
     card_type: PerformanceCardType;
     sla_role?: PerformanceSlaRole;
     sla_doc?: PerformanceDocument;
