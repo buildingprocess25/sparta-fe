@@ -119,8 +119,8 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
             data: { isILRoot: true, projectData: proj },
             isActive: true,
             isCompleted: true,
-            url: ilSubItems.length === 1 ? ilSubItems[0].url : null,
-            subItems: ilSubItems.length > 1 ? ilSubItems : undefined
+            url: null,
+            subItems: ilSubItems.length > 0 ? ilSubItems : undefined
         });
     }
 
@@ -188,8 +188,8 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
         data: hasPengawasan ? { isPengawasanRoot: true, ganttData: proj.gantt, projectData: proj } : null,
         isActive: hasPengawasan,
         isCompleted: pSelesai,
-        url: pengawasanSubItems.length === 1 ? pengawasanSubItems[0].url : null,
-        subItems: pengawasanSubItems.length > 1 ? pengawasanSubItems : undefined
+        url: null,
+        subItems: pengawasanSubItems.length > 0 ? pengawasanSubItems : undefined
     });
 
     // 6. Opname Parsial
