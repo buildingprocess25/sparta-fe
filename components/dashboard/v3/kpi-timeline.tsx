@@ -68,15 +68,17 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         .flatMap((item: any) => (item.spk || []).flatMap((spk: any) => (spk.pertambahan_spk || []).map((tambah: any) => ({
             ...tambah,
             _scope: item.toko?.lingkup_pekerjaan || spk.lingkup_pekerjaan || null,
-            _sortDate: Math.max(
-                documentDateValue(tambah.waktu_persetujuan),
-                documentDateValue(tambah.created_at),
+            _spkEndDate: Math.max(
                 documentDateValue(tambah.tanggal_spk_akhir_setelah_perpanjangan),
                 documentDateValue(tambah.tanggal_spk_akhir)
+            ),
+            _documentDate: Math.max(
+                documentDateValue(tambah.waktu_persetujuan),
+                documentDateValue(tambah.created_at)
             )
         }))))
         .filter((tambah: any) => tambah.link_pdf || tambah.link_lampiran_pendukung || tambah.pertambahan_hari)
-        .sort((a: any, b: any) => b._sortDate - a._sortDate)[0] ?? null;
+        .sort((a: any, b: any) => (b._spkEndDate - a._spkEndDate) || (b._documentDate - a._documentDate))[0] ?? null;
 
     const openPengawasanDocument = async (sub: any) => {
         if (sub.url) {
@@ -140,7 +142,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         url: hasSpk ? proj.spk[0].link_pdf : null
     });
 
-    // 3. Tambah SPK (ULOK gabungan: pakai dokumen terbaru lintas lingkup)
+    // 3. Tambah SPK (ULOK gabungan: pakai tanggal akhir SPK paling jauh lintas lingkup)
     if (latestTambahSpk) {
         nodes.push({
             type: 'Tambah SPK',
