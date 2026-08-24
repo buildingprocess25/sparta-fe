@@ -145,11 +145,12 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                 acc[dateKey].push(pw);
                 
                 const matchPdf = bpList.find(bp => bp.id_pengawasan_gantt === pw.id_pengawasan_gantt || bp.id_pengawasan_gantt === pw.id_gantt);
+                let pengawasanUrl = matchPdf?.link_pdf_pengawasan || pw.dokumentasi || pw.dokumentasi_base64 || null;
                 
                 pengawasanSubItems.push({
                     title: `Pengawasan - Progress: ${pw.status || '-'}`,
                     desc: new Date(dateKey !== 'unknown' ? dateKey : pw.created_at).toLocaleDateString('id-ID'),
-                    url: matchPdf?.link_pdf_pengawasan || null,
+                    url: pengawasanUrl,
                     createdAt: new Date(pw.created_at).getTime(),
                     idGantt: g.id
                 });
@@ -189,12 +190,15 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     const parsialData = hasParsial ? opnameParsial[0] : null;
     const parsialTotal = parsialData ? (parsialData.grand_total_final || parsialData.grand_total_ktk || parsialData.grand_total_opname || parsialData.nilai_opname || 0) : 0;
     
+    // Fallback to Opname Final / KTK document if parsial document is missing
+    const finalDataFallback = allOpnames.find((o: any) => o.tipe_opname === 'OPNAME_FINAL' || o.tipe_opname === 'KTK');
+    
     let parsialSubItems: any[] = [];
     if (hasParsial) {
         parsialSubItems = opnameParsial.map((op: any, idx: number) => ({
             title: `Opname Parsial ${idx + 1}`,
             desc: new Date(op.created_at).toLocaleDateString('id-ID'),
-            url: op.link_pdf_opname || null
+            url: op.link_pdf_opname || finalDataFallback?.link_pdf_opname || null
         }));
     }
     
