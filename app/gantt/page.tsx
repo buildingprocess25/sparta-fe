@@ -3669,7 +3669,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     catatan: p.catatan || '',
                                     file: null,
                                     dokumentasiUrl: p.dokumentasi || null,
-                                    isSaved: true
+                                    isSaved: Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim()),
+                                    needsCurrentCheckpointCompletion: !Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim())
                                 };
                             }
                         }

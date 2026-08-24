@@ -158,6 +158,7 @@ type CheckpointVisualState = "normal" | "today" | "todayCheckpoint" | "needsInpu
 
 type CheckpointScopeSummary = {
     scopeName: string;
+    scopeId: number;
     expectedItems: number;
     filledItems: number;
     selesaiItems: number;
@@ -166,6 +167,7 @@ type CheckpointScopeSummary = {
     missingItems: number;
     hasCheckpointData: boolean;
     coveredByLaterCheckpoint: boolean;
+    blockedByEarlierCheckpoint: boolean;
 };
 
 function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
@@ -331,14 +333,14 @@ export default function UnifiedSupervisionGantt({
         const dates = new Set<string>();
 
         workspace.scopes.forEach((scope) => {
-            const latest = (scope.checkpoints || [])
+            const earliest = (scope.checkpoints || [])
                 .filter((checkpoint) => Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0))
                 .map((checkpoint) => ({ checkpoint, date: parseDate(checkpoint.tanggal_pengawasan) }))
                 .filter((entry): entry is { checkpoint: typeof entry.checkpoint; date: Date } => Boolean(entry.date))
-                .sort((left, right) => right.date.getTime() - left.date.getTime())[0];
+                .sort((left, right) => left.date.getTime() - right.date.getTime())[0];
 
-            if (latest) {
-                dates.add(formatFullDate(latest.date));
+            if (earliest) {
+                dates.add(formatFullDate(earliest.date));
             }
         });
 
@@ -608,15 +610,33 @@ export default function UnifiedSupervisionGantt({
         };
     }, [workspace, workspaceTimeline]);
 
+    const scopeHasUnfinishedCheckpointBefore = (scopeId: number, fullDate: string) => {
+        const date = parseDate(fullDate);
+        if (!date) return false;
+
+        const scope = workspace.scopes.find((item) => Number(item.id_toko) === Number(scopeId));
+        return Boolean(scope?.checkpoints?.some((checkpoint) => {
+            const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
+            return Boolean(
+                checkpointDate &&
+                checkpointDate < date &&
+                Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0)
+            );
+        }));
+    };
+
     const activeScopeIdsByDate = useMemo(() => {
         const map = new Map<string, Set<number>>();
         if (!timeline) return map;
 
         timeline.dates.forEach((date, dayIndex) => {
             const absoluteDay = dayIndex + 1;
+            const fullDate = formatFullDate(date);
             const scopeIds = new Set<number>();
 
             details.forEach((scope) => {
+                if (scopeHasUnfinishedCheckpointBefore(scope.id_toko, fullDate)) return;
+
                 const hasActiveBar = scope.rows.some((row) =>
                     row.bars.some((bar) => {
                         const start = Math.max(1, bar.start);
@@ -627,11 +647,11 @@ export default function UnifiedSupervisionGantt({
                 if (hasActiveBar) scopeIds.add(Number(scope.id_toko));
             });
 
-            map.set(formatFullDate(date), scopeIds);
+            map.set(fullDate, scopeIds);
         });
 
         return map;
-    }, [details, timeline]);
+    }, [details, timeline, workspace.scopes]);
     
     // Calculate scope activity ranges for better visual indication
     const scopeActivityRanges = useMemo(() => {
@@ -705,13 +725,18 @@ export default function UnifiedSupervisionGantt({
                 const unfinishedItems = filledItems > 0 ? Math.max(0, filledItems - selesaiItems) : 0;
                 const readyOpnameItems = Number(entry.checkpoint?.ready_opname_items || 0);
                 const hasCheckpointData = filledItems > 0;
+                const blockedByEarlierCheckpoint = !hasCheckpointData &&
+                    expectedItems > 0 &&
+                    scopeHasUnfinishedCheckpointBefore(Number(entry.id_toko), fullDate);
                 const coveredByLaterCheckpoint = !hasCheckpointData &&
+                    !blockedByEarlierCheckpoint &&
                     expectedItems > 0 &&
                     scopeHasFilledCheckpointOnOrAfter(Number(entry.id_toko), fullDate);
-                const missingItems = coveredByLaterCheckpoint ? 0 : Math.max(0, expectedItems - filledItems);
+                const missingItems = coveredByLaterCheckpoint || blockedByEarlierCheckpoint ? 0 : Math.max(0, expectedItems - filledItems);
 
                 return {
                     scopeName,
+                    scopeId: Number(entry.id_toko),
                     expectedItems,
                     filledItems,
                     selesaiItems,
@@ -720,6 +745,7 @@ export default function UnifiedSupervisionGantt({
                     missingItems,
                     hasCheckpointData,
                     coveredByLaterCheckpoint,
+                    blockedByEarlierCheckpoint,
                 };
             })
             .filter((summary) => summary.expectedItems > 0 || summary.hasCheckpointData);
@@ -741,6 +767,10 @@ export default function UnifiedSupervisionGantt({
                 }
                 if (summary.coveredByLaterCheckpoint) {
                     parts.push(`${summary.scopeName}: sudah diisi di checkpoint berikutnya`);
+                    return;
+                }
+                if (summary.blockedByEarlierCheckpoint) {
+                    parts.push(`${summary.scopeName}: selesaikan checkpoint sebelumnya dulu`);
                     return;
                 }
                 if (!summary.hasCheckpointData && summary.expectedItems > 0) {
@@ -795,7 +825,7 @@ export default function UnifiedSupervisionGantt({
                 return;
             }
 
-            // Ada item siap opname atau checkpoint follow-up terbaru yang belum selesai → merah.
+            // Ada item siap opname atau checkpoint paling awal yang belum selesai -> merah.
             if (unifiedReady > 0 || activeUnfinishedCheckpointDates.has(fullDate)) {
                 map.set(fullDate, "needsInput");
                 return;
@@ -826,7 +856,8 @@ export default function UnifiedSupervisionGantt({
 
                     // Logic per-scope: cek apakah ada scope yang belum diisi sama sekali
                     const anyScopeMissingPengawasan = scopesWithExpectedWork.some(entry =>
-                        Number(entry.checkpoint?.total_items || 0) === 0
+                        Number(entry.checkpoint?.total_items || 0) === 0 &&
+                        !scopeHasUnfinishedCheckpointBefore(Number(entry.id_toko), fullDate)
                     );
 
                     if (anyScopeMissingPengawasan) {
@@ -901,7 +932,10 @@ export default function UnifiedSupervisionGantt({
         if (hasReadyOpnameItems || activeUnfinishedCheckpointDates.has(fullDate)) return "needsInput";
 
         const hasMissingInput = summaries.some((summary) =>
-            summary.expectedItems > 0 && !summary.hasCheckpointData && !summary.coveredByLaterCheckpoint
+            summary.expectedItems > 0 &&
+            !summary.hasCheckpointData &&
+            !summary.coveredByLaterCheckpoint &&
+            !summary.blockedByEarlierCheckpoint
         );
         return hasMissingInput ? "needsInput" : "filled";
     };
