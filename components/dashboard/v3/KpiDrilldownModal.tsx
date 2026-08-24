@@ -632,16 +632,14 @@ export function KpiDrilldownModal({
                         <span className="flex h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
                         Detail ULOK {selectedUlok.nomor_ulok}
                       </p>
-                      <DialogPrimitive.Title asChild>
-                        <h3 className="mt-1.5 truncate text-2xl font-bold tracking-tight text-slate-900">
-                          {selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}
-                        </h3>
-                        {detail?.selected_scope && (
-                          <span className="mt-2 inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-red-700 ring-1 ring-red-100">
-                            Lingkup {detail.selected_scope}
-                          </span>
-                        )}
+                      <DialogPrimitive.Title className="mt-1.5 truncate text-2xl font-bold tracking-tight text-slate-900">
+                        {selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}
                       </DialogPrimitive.Title>
+                      {detail?.selected_scope && (
+                        <span className="mt-2 inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-red-700 ring-1 ring-red-100">
+                          Lingkup {detail.selected_scope}
+                        </span>
+                      )}
                     </div>
                     <DialogPrimitive.Close className="group rounded-full bg-slate-100 p-2.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                       <X className="h-5 w-5 transition-transform group-hover:rotate-90" aria-hidden="true" />
