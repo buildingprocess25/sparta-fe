@@ -6,6 +6,7 @@ import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Lo
 
 export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: string; lingkup_pekerjaan?: string | null }) {
     const [project, setProject] = useState<any>(null);
+    const [projects, setProjects] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [expandedNode, setExpandedNode] = useState<number | null>(null);
     const selectedScope = String(lingkup_pekerjaan ?? "").trim().toUpperCase();
@@ -16,10 +17,14 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                 setIsLoading(true);
                 const res = await fetchDashboardAll(nomor_ulok);
                 if (res?.status === "success" && res.data && res.data.length > 0) {
+                    setProjects(res.data);
                     const scopedProject = selectedScope
                         ? res.data.find((item: any) => String(item?.toko?.lingkup_pekerjaan ?? "").trim().toUpperCase() === selectedScope)
                         : null;
                     setProject(scopedProject ?? res.data[0]);
+                } else {
+                    setProjects([]);
+                    setProject(null);
                 }
             } catch (error) {
                 console.error("Failed to load project for timeline", error);
@@ -51,6 +56,27 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         const parsed = new Date(`${key}T00:00:00`);
         return Number.isNaN(parsed.getTime()) ? key : parsed.toLocaleDateString('id-ID');
     };
+
+    const timestampValue = (value: unknown) => {
+        const date = value ? new Date(String(value)) : null;
+        return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+    };
+
+    const documentDateValue = (value: unknown) => timestampValue(value) || timestampValue(`${normalizeDateKey(value)}T00:00:00`);
+
+    const latestTambahSpk = projects
+        .flatMap((item: any) => (item.spk || []).flatMap((spk: any) => (spk.pertambahan_spk || []).map((tambah: any) => ({
+            ...tambah,
+            _scope: item.toko?.lingkup_pekerjaan || spk.lingkup_pekerjaan || null,
+            _sortDate: Math.max(
+                documentDateValue(tambah.waktu_persetujuan),
+                documentDateValue(tambah.created_at),
+                documentDateValue(tambah.tanggal_spk_akhir_setelah_perpanjangan),
+                documentDateValue(tambah.tanggal_spk_akhir)
+            )
+        }))))
+        .filter((tambah: any) => tambah.link_pdf || tambah.link_lampiran_pendukung || tambah.pertambahan_hari)
+        .sort((a: any, b: any) => b._sortDate - a._sortDate)[0] ?? null;
 
     const openPengawasanDocument = async (sub: any) => {
         if (sub.url) {
@@ -114,20 +140,18 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         url: hasSpk ? proj.spk[0].link_pdf : null
     });
 
-    // 3. Tambah SPK (Only if exists)
-    let spkTs = hasSpk ? proj.spk[0].pertambahan_spk : null;
-    if (spkTs && spkTs.length > 0) {
-        const t = spkTs[0];
+    // 3. Tambah SPK (ULOK gabungan: pakai dokumen terbaru lintas lingkup)
+    if (latestTambahSpk) {
         nodes.push({
             type: 'Tambah SPK',
             title: `Tambah SPK${suffix}`,
-            desc: `${t.pertambahan_hari} Hari`,
+            desc: `${latestTambahSpk.pertambahan_hari ?? '-'} Hari`,
             icon: <Clock className="w-5 h-5"/>,
             color: 'cyan',
-            data: t,
+            data: latestTambahSpk,
             isActive: true,
             isCompleted: true,
-            url: t.link_pdf
+            url: latestTambahSpk.link_pdf || latestTambahSpk.link_lampiran_pendukung || null
         });
     }
 
@@ -163,12 +187,26 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     
     const pengawasanSubItems: any[] = [];
 
-    (proj.gantt || []).forEach((g: any) => {
-        if (!Array.isArray(g.pengawasan_gantt)) return;
+    const seenPengawasan = new Set<string>();
 
-        g.pengawasan_gantt.forEach((pg: any) => {
+    projects.forEach((projectItem: any) => {
+        (projectItem.gantt || []).forEach((g: any) => {
+            if (!Array.isArray(g.pengawasan_gantt)) return;
+
+            g.pengawasan_gantt.forEach((pg: any) => {
             const groupItems = (g.pengawasan || []).filter((pw: any) => pw.id_pengawasan_gantt === pg.id);
             if (groupItems.length === 0) return;
+
+            const pw = groupItems[0];
+            const dateKey = normalizeDateKey(pg.tanggal_pengawasan || pw.tanggal_pengawasan || pw.created_at);
+            const matchPdf = (g.berkas_pengawasan || []).find((bp: any) => bp.id_pengawasan_gantt === pg.id);
+            const pendingMatch = projectItem.pengawasan_pdf_pending && Array.isArray(projectItem.pengawasan_pdf_pending)
+                ? projectItem.pengawasan_pdf_pending.find((p: any) => normalizeDateKey(p.tanggal_pengawasan) === dateKey)
+                : null;
+            const pengawasanUrl = pendingMatch?.link_pdf_pengawasan || matchPdf?.link_pdf_pengawasan || null;
+            const dedupeKey = String(pg.id || pengawasanUrl || (dateKey + '|' + g.id));
+            if (seenPengawasan.has(dedupeKey)) return;
+            seenPengawasan.add(dedupeKey);
 
             hasPengawasan = true;
             const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
@@ -176,30 +214,17 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
             if (!isSelesai && isTerlambat) pengawasanTerlambat++;
             else if (!isSelesai) pengawasanProgress++;
 
-            const pw = groupItems[0];
-            const dateKey = normalizeDateKey(pg.tanggal_pengawasan || pw.tanggal_pengawasan || pw.created_at);
-            const matchPdf = (g.berkas_pengawasan || []).find((bp: any) => bp.id_pengawasan_gantt === pg.id);
-
-            let pendingPdfUrl = null;
-            if (proj.pengawasan_pdf_pending && Array.isArray(proj.pengawasan_pdf_pending)) {
-                const pendingMatch = proj.pengawasan_pdf_pending.find((p: any) =>
-                    normalizeDateKey(p.tanggal_pengawasan) === dateKey
-                );
-                if (pendingMatch) {
-                    pendingPdfUrl = pendingMatch.link_pdf_pengawasan;
-                }
-            }
-            let pengawasanUrl = pendingPdfUrl || matchPdf?.link_pdf_pengawasan || null;
             const statusDesc = isSelesai ? 'Selesai' : isTerlambat ? 'Terlambat' : 'Progress';
 
             pengawasanSubItems.push({
-                title: `Pengawasan - Progress: ${statusDesc}`,
+                title: 'Pengawasan ' + (projectItem.toko?.lingkup_pekerjaan ? '(' + projectItem.toko.lingkup_pekerjaan + ') ' : '') + '- Progress: ' + statusDesc,
                 desc: formatDateLabel(dateKey || pg.tanggal_pengawasan || pw.created_at),
                 url: pengawasanUrl,
                 createdAt: Number(pg.id) || new Date(pw.created_at).getTime(),
                 idGantt: g.id,
                 idPengawasanGantt: pg.id,
                 hasGeneratedFallback: Boolean(pg.id)
+            });
             });
         });
     });
