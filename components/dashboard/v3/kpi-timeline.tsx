@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchDashboardAll } from '@/lib/api';
+import { fetchDashboardAll, viewGeneratedPdfOnline } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
 import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
@@ -29,6 +29,35 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     const getProxyUrl = (url: string) => {
         if (!url || typeof url !== 'string' || !url.startsWith('http')) return url;
         return `${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(url)}`;
+    };
+
+    const normalizeDateKey = (value: unknown) => {
+        const raw = String(value ?? '').trim();
+        if (!raw) return '';
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+            const [day, month, year] = raw.split('/');
+            return `${year}-${month}-${day}`;
+        }
+        return raw.split(/[T ]/)[0];
+    };
+
+    const formatDateLabel = (value: unknown) => {
+        const key = normalizeDateKey(value);
+        if (!key) return '-';
+        const parsed = new Date(`${key}T00:00:00`);
+        return Number.isNaN(parsed.getTime()) ? key : parsed.toLocaleDateString('id-ID');
+    };
+
+    const openPengawasanDocument = async (sub: any) => {
+        if (sub.url) {
+            window.open(getProxyUrl(sub.url), '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        const idPengawasanGantt = Number(sub.idPengawasanGantt);
+        if (Number.isFinite(idPengawasanGantt) && idPengawasanGantt > 0) {
+            await viewGeneratedPdfOnline(idPengawasanGantt, 'PENGAWASAN' as any);
+        }
     };
 
     if (isLoading) {
@@ -129,40 +158,28 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     let pengawasanProgress = 0, pengawasanTerlambat = 0;
     
     const pengawasanSubItems: any[] = [];
-    let bpList: any[] = [];
-    
-    const grouped = (proj.gantt || []).reduce((acc: any, g: any) => {
-        if (g.berkas_pengawasan && Array.isArray(g.berkas_pengawasan)) {
-            bpList = bpList.concat(g.berkas_pengawasan);
-        }
-        
-        if (g.pengawasan && Array.isArray(g.pengawasan) && g.pengawasan.length > 0) {
+
+    (proj.gantt || []).forEach((g: any) => {
+        if (!Array.isArray(g.pengawasan_gantt)) return;
+
+        g.pengawasan_gantt.forEach((pg: any) => {
+            const groupItems = (g.pengawasan || []).filter((pw: any) => pw.id_pengawasan_gantt === pg.id);
+            if (groupItems.length === 0) return;
+
             hasPengawasan = true;
-            g.pengawasan.forEach((pw: any) => {
-                let dateKey = pw.tanggal_pengawasan || pw.created_at || 'unknown';
-                if (typeof dateKey === 'string') dateKey = dateKey.split(/[T ]/)[0];
-                if (!acc[dateKey]) acc[dateKey] = [];
-                acc[dateKey].push(pw);
-                
-            });
-        }
-        return acc;
-    }, {});
-    
-    if (hasPengawasan) {
-        Object.entries(grouped).forEach(([dateKey, groupItems]: [string, any]) => {
             const isSelesai = groupItems.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
             const isTerlambat = groupItems.some((i: any) => ['TERLAMBAT', 'LATE'].includes((i.status || '').toUpperCase()));
             if (!isSelesai && isTerlambat) pengawasanTerlambat++;
             else if (!isSelesai) pengawasanProgress++;
-            
+
             const pw = groupItems[0];
-            const matchPdf = bpList.find(bp => bp.id_pengawasan_gantt === pw.id_pengawasan_gantt || bp.id_pengawasan_gantt === pw.id_gantt);
-            
+            const dateKey = normalizeDateKey(pg.tanggal_pengawasan || pw.tanggal_pengawasan || pw.created_at);
+            const matchPdf = (g.berkas_pengawasan || []).find((bp: any) => bp.id_pengawasan_gantt === pg.id);
+
             let pendingPdfUrl = null;
             if (proj.pengawasan_pdf_pending && Array.isArray(proj.pengawasan_pdf_pending)) {
                 const pendingMatch = proj.pengawasan_pdf_pending.find((p: any) =>
-                    p.tanggal_pengawasan === pw.tanggal_pengawasan || p.tanggal_pengawasan === dateKey
+                    normalizeDateKey(p.tanggal_pengawasan) === dateKey
                 );
                 if (pendingMatch) {
                     pendingPdfUrl = pendingMatch.link_pdf_pengawasan;
@@ -170,16 +187,18 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
             }
             let pengawasanUrl = pendingPdfUrl || matchPdf?.link_pdf_pengawasan || null;
             const statusDesc = isSelesai ? 'Selesai' : isTerlambat ? 'Terlambat' : 'Progress';
-            
+
             pengawasanSubItems.push({
                 title: `Pengawasan - Progress: ${statusDesc}`,
-                desc: new Date(dateKey !== 'unknown' ? dateKey : pw.created_at).toLocaleDateString('id-ID'),
+                desc: formatDateLabel(dateKey || pg.tanggal_pengawasan || pw.created_at),
                 url: pengawasanUrl,
-                createdAt: new Date(pw.created_at).getTime(),
-                idGantt: pw.id_gantt
+                createdAt: Number(pg.id) || new Date(pw.created_at).getTime(),
+                idGantt: g.id,
+                idPengawasanGantt: pg.id,
+                hasGeneratedFallback: Boolean(pg.id)
             });
         });
-    }
+    });
     
     pengawasanSubItems.sort((a, b) => a.createdAt - b.createdAt);
 
@@ -334,19 +353,28 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                                 {hasSubItems && isExpanded && (
                                     <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
                                         {node.subItems.map((sub: any, sIdx: number) => {
+                                            const canOpenDocument = Boolean(sub.url || sub.hasGeneratedFallback);
                                             const SubContent = (
-                                               <div className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-100 ${sub.url ? 'hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer' : 'bg-slate-50 opacity-80'} transition-colors ${isEven ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
+                                               <div className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-100 ${canOpenDocument ? 'hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer' : 'bg-slate-50 opacity-80'} transition-colors ${isEven ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
                                                    <div className="flex flex-col">
                                                        <span className="text-sm font-bold text-slate-700">{sub.title}</span>
                                                        <span className="text-xs text-slate-500">{sub.desc}</span>
                                                    </div>
-                                                   {sub.url && <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                                   {canOpenDocument && <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                                                </div>
                                             );
-                                            return sub.url ? (
-                                                <a key={sIdx} href={getProxyUrl(sub.url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                                            return canOpenDocument ? (
+                                                <button
+                                                    key={sIdx}
+                                                    type="button"
+                                                    className="w-full text-left"
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        await openPengawasanDocument(sub);
+                                                    }}
+                                                >
                                                     {SubContent}
-                                                </a>
+                                                </button>
                                             ) : (
                                                 <div key={sIdx} onClick={(e) => e.stopPropagation()}>
                                                     {SubContent}
