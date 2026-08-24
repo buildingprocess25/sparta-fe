@@ -81,12 +81,30 @@ const statLabel = (stat: PerformanceOptionStat | undefined, kpiType: Performance
   return formatNumberKpi(stat.value, " hari");
 };
 const mergeStats = (items: PerformanceOptionStat[]): PerformanceOptionStat | undefined => {
-  const validItems = items.filter((item) => item.value !== null && item.value !== undefined && item.count > 0);
   const count = items.reduce((sum, item) => sum + item.count, 0);
   if (!items.length) return undefined;
+
+  const validItems = items.filter((item) => item.value !== null && item.value !== undefined && item.count > 0);
   const weight = validItems.reduce((sum, item) => sum + item.count, 0);
   const value = weight > 0 ? validItems.reduce((sum, item) => sum + (item.value ?? 0) * item.count, 0) / weight : null;
-  return { id: "all", label: "Semua", value, count, incomplete_count: items.reduce((sum, item) => sum + (item.incomplete_count ?? 0), 0) };
+
+  const validBangunan = items.filter((item) => item.bangunan !== null && item.bangunan !== undefined && item.count > 0);
+  const weightBangunan = validBangunan.reduce((sum, item) => sum + item.count, 0);
+  const bangunan = weightBangunan > 0 ? validBangunan.reduce((sum, item) => sum + (item.bangunan ?? 0) * item.count, 0) / weightBangunan : undefined;
+
+  const validArea = items.filter((item) => item.area_terbuka !== null && item.area_terbuka !== undefined && item.count > 0);
+  const weightArea = validArea.reduce((sum, item) => sum + item.count, 0);
+  const area_terbuka = weightArea > 0 ? validArea.reduce((sum, item) => sum + (item.area_terbuka ?? 0) * item.count, 0) / weightArea : undefined;
+
+  return { 
+    id: "all", 
+    label: "Semua", 
+    value, 
+    count, 
+    bangunan, 
+    area_terbuka, 
+    incomplete_count: items.reduce((sum, item) => sum + (item.incomplete_count ?? 0), 0) 
+  };
 };
 const isAllValue = (value?: string | null) => !value || value.toUpperCase() === "ALL" || value.toUpperCase() === "SEMUA" || value.toUpperCase() === "SEMUA CABANG";
 
