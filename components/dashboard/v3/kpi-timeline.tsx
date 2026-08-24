@@ -129,20 +129,11 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     let pengawasanProgress = 0, pengawasanTerlambat = 0;
     
     const pengawasanSubItems: any[] = [];
+    let bpList: any[] = [];
     
     const grouped = (proj.gantt || []).reduce((acc: any, g: any) => {
         if (g.berkas_pengawasan && Array.isArray(g.berkas_pengawasan)) {
-            g.berkas_pengawasan.forEach((bp: any) => {
-                if (bp.link_pdf_pengawasan) {
-                    pengawasanSubItems.push({
-                        title: 'Pengawasan',
-                        desc: new Date(bp.created_at).toLocaleDateString('id-ID'),
-                        url: bp.link_pdf_pengawasan,
-                        createdAt: new Date(bp.created_at).getTime(),
-                        idGantt: g.id // to match with status if needed
-                    });
-                }
-            });
+            bpList = bpList.concat(g.berkas_pengawasan);
         }
         
         if (g.pengawasan && Array.isArray(g.pengawasan) && g.pengawasan.length > 0) {
@@ -153,22 +144,21 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                 if (!acc[dateKey]) acc[dateKey] = [];
                 acc[dateKey].push(pw);
                 
-                // Try to find matching subitem to attach status
-                const match = pengawasanSubItems.find(sub => sub.idGantt === pw.id_gantt);
-                if (match) {
-                    match.title = `Pengawasan - Progress: ${pw.status || '-'}`;
-                }
+                const matchPdf = bpList.find(bp => bp.id_pengawasan_gantt === pw.id_pengawasan_gantt || bp.id_pengawasan_gantt === pw.id_gantt);
+                
+                pengawasanSubItems.push({
+                    title: `Pengawasan - Progress: ${pw.status || '-'}`,
+                    desc: new Date(dateKey !== 'unknown' ? dateKey : pw.created_at).toLocaleDateString('id-ID'),
+                    url: matchPdf?.link_pdf_pengawasan || null,
+                    createdAt: new Date(pw.created_at).getTime(),
+                    idGantt: g.id
+                });
             });
         }
         return acc;
     }, {});
     
     pengawasanSubItems.sort((a, b) => a.createdAt - b.createdAt);
-    pengawasanSubItems.forEach((sub, idx) => {
-        if (sub.title === 'Pengawasan') {
-            sub.title = `Pengawasan ${idx + 1}`;
-        }
-    });
 
     if (hasPengawasan) {
         Object.values(grouped).forEach((groupItems: any) => {
@@ -198,6 +188,16 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
     const hasParsial = opnameParsial.length > 0;
     const parsialData = hasParsial ? opnameParsial[0] : null;
     const parsialTotal = parsialData ? (parsialData.grand_total_final || parsialData.grand_total_ktk || parsialData.grand_total_opname || parsialData.nilai_opname || 0) : 0;
+    
+    let parsialSubItems: any[] = [];
+    if (hasParsial) {
+        parsialSubItems = opnameParsial.map((op: any, idx: number) => ({
+            title: `Opname Parsial ${idx + 1}`,
+            desc: new Date(op.created_at).toLocaleDateString('id-ID'),
+            url: op.link_pdf_opname || null
+        }));
+    }
+    
     nodes.push({
         type: 'Opname Parsial',
         title: `Opname Parsial${suffix}`,
@@ -207,7 +207,8 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
         data: parsialData,
         isActive: hasParsial,
         isCompleted: hasParsial,
-        url: parsialData?.link_pdf_opname
+        url: null,
+        subItems: parsialSubItems.length > 0 ? parsialSubItems : undefined
     });
 
     // 7. Serah Terima
@@ -322,17 +323,26 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                                 
                                 {hasSubItems && isExpanded && (
                                     <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
-                                        {node.subItems.map((sub: any, sIdx: number) => (
-                                            <a key={sIdx} href={getProxyUrl(sub.url)} target="_blank" rel="noreferrer" 
-                                               onClick={(e) => e.stopPropagation()}
-                                               className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-colors ${isEven ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
-                                               <div className="flex flex-col">
-                                                   <span className="text-sm font-bold text-slate-700">{sub.title}</span>
-                                                   <span className="text-xs text-slate-500">{sub.desc}</span>
+                                        {node.subItems.map((sub: any, sIdx: number) => {
+                                            const SubContent = (
+                                               <div className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-100 ${sub.url ? 'hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer' : 'bg-slate-50 opacity-80'} transition-colors ${isEven ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
+                                                   <div className="flex flex-col">
+                                                       <span className="text-sm font-bold text-slate-700">{sub.title}</span>
+                                                       <span className="text-xs text-slate-500">{sub.desc}</span>
+                                                   </div>
+                                                   {sub.url && <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                                                </div>
-                                               <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                            </a>
-                                        ))}
+                                            );
+                                            return sub.url ? (
+                                                <a key={sIdx} href={getProxyUrl(sub.url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                                                    {SubContent}
+                                                </a>
+                                            ) : (
+                                                <div key={sIdx} onClick={(e) => e.stopPropagation()}>
+                                                    {SubContent}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
