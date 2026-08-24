@@ -337,6 +337,11 @@ export type DcArchiveProject = {
     branch_name: string;
     location_name: string | null;
     project_type: string;
+    archive_type: string | null;
+    initial_code: string | null;
+    parent_dc_code: string | null;
+    parent_dc_name: string | null;
+    parent_branch_name: string | null;
     address: string | null;
     notes: string | null;
     created_by_email: string | null;
@@ -356,6 +361,11 @@ export type CreateDcArchiveProjectPayload = {
     branch_name: string;
     location_name?: string;
     project_type: string;
+    archive_type?: string;
+    initial_code?: string;
+    parent_dc_code?: string;
+    parent_dc_name?: string;
+    parent_branch_name?: string;
     address?: string;
     notes?: string;
     actor_email: string;
@@ -425,6 +435,7 @@ export const fetchDcArchiveProjects = async (
         actor_role: string;
         search?: string;
         branch_name?: string;
+        archive_type?: string;
         status?: "all" | "lengkap" | "belum";
     },
     options?: ApiRequestOptions
@@ -435,6 +446,7 @@ export const fetchDcArchiveProjects = async (
     params.append("actor_role", filters.actor_role);
     if (filters.search) params.append("search", filters.search);
     if (filters.branch_name && filters.branch_name !== "all") params.append("branch_name", filters.branch_name);
+    if (filters.archive_type && filters.archive_type !== "all") params.append("archive_type", filters.archive_type);
     if (filters.status && filters.status !== "all") params.append("status", filters.status);
     return safeFetchJSON(`${base}/api/dc-development/archive-projects?${params}`, options);
 };
@@ -5858,13 +5870,14 @@ export const exportDcData = async (id: number, format: "csv" | "excel" | "pdf", 
 };
 
 export async function exportGlobalDcData(
-  query: { search?: string; branch_name?: string; status?: string },
+  query: { search?: string; branch_name?: string; status?: string; archive_type?: string },
   actor: { actor_email: string; actor_role: string },
   format: 'csv' | 'excel' | 'pdf'
 ): Promise<void> {
   const params = new URLSearchParams();
   if (query.search) params.append('search', query.search);
   if (query.branch_name) params.append('branch_name', query.branch_name);
+  if (query.archive_type) params.append('archive_type', query.archive_type);
   if (query.status) params.append('status', query.status);
   params.append('actor_email', actor.actor_email);
   params.append('actor_role', actor.actor_role);

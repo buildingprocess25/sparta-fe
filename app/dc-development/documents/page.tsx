@@ -78,6 +78,22 @@ type DcArchiveStatusFilter = "all" | "lengkap" | "belum";
 const toArchiveStatusFilter = (value: string): DcArchiveStatusFilter => (
   value === "lengkap" || value === "belum" ? value : "all"
 );
+
+const ARCHIVE_TYPE_OPTIONS = [
+  { value: "DC", label: "DC" },
+  { value: "WAREHOUSE", label: "Warehouse" },
+  { value: "DEPO", label: "Depo" },
+  { value: "BULKY", label: "Bulky" },
+  { value: "STORE_HUB", label: "Store-Hub" },
+  { value: "GUDANG_ANAK", label: "Gudang Anak" },
+] as const;
+
+const getArchiveTypeLabel = (archive: DcArchiveProject) => {
+  const key = archive.archive_type || archive.project_type;
+  return ARCHIVE_TYPE_OPTIONS.find((item) => item.value === key)?.label || archive.project_type || key || "-";
+};
+
+const getArchiveParentBranch = (archive: DcArchiveProject) => archive.parent_branch_name || getParentBranch(archive.branch_name);
 const MiniProgress = ({ label, current, total }: { label: string; current: number; total: number }) => {
   const isZero = current === 0;
   const isComplete = current === total && total > 0;
@@ -108,7 +124,7 @@ export default function DcDocumentsPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [branchFilter, setBranchFilter] = useState("all");
-  const [tipeDcFilter, setTipeDcFilter] = useState("all"); // 'all', 'dc', 'warehouse'
+  const [tipeDcFilter, setTipeDcFilter] = useState("all");
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -127,10 +143,11 @@ export default function DcDocumentsPage() {
   const handleExportGlobal = async (format: 'csv' | 'excel' | 'pdf') => {
     if (!actor.actor_email || !actor.actor_role) return;
     try {
-      const queryParams: { search?: string; status?: string; branch_name?: string } = {
+      const queryParams: { search?: string; status?: string; branch_name?: string; archive_type?: string } = {
         search: query.trim() || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         branch_name: branchFilter !== 'all' ? branchFilter : undefined,
+        archive_type: tipeDcFilter !== 'all' ? tipeDcFilter : undefined,
       };
 
       await exportGlobalDcData(queryParams, actor, format);
@@ -275,6 +292,7 @@ export default function DcDocumentsPage() {
               search: query.trim() || undefined,
               branch_name: sub,
               status: statusParam,
+              archive_type: tipeDcFilter !== "all" ? tipeDcFilter : undefined,
             }, { suppressGlobalError: true }).then((res) => res.data ?? [])
           )
         );
@@ -286,6 +304,7 @@ export default function DcDocumentsPage() {
           search: query.trim() || undefined,
           branch_name: branchFilter === "all" ? undefined : branchFilter,
           status: statusParam,
+          archive_type: tipeDcFilter !== "all" ? tipeDcFilter : undefined,
         }, { suppressGlobalError: true });
         data = res.data ?? [];
       }
@@ -296,7 +315,7 @@ export default function DcDocumentsPage() {
     } finally {
       setLoadingArchives(false);
     }
-  }, [actor.actor_email, actor.actor_role, branchFilter, query, statusFilter, isHOUser]);
+  }, [actor.actor_email, actor.actor_role, branchFilter, query, statusFilter, tipeDcFilter, isHOUser]);
 
   useEffect(() => {
     if (!isLoading && user) loadArchives();
@@ -305,25 +324,23 @@ export default function DcDocumentsPage() {
   const branchOptions = useMemo(() => {
     const branches = new Set<string>();
     archives.forEach((archive) => {
-      if (archive.branch_name) branches.add(getParentBranch(archive.branch_name));
+      const parentBranch = getArchiveParentBranch(archive);
+      if (parentBranch) branches.add(parentBranch);
     });
     return Array.from(branches).sort((a, b) => a.localeCompare(b));
   }, [archives]);
 
   const filteredArchives = useMemo(() => {
     return archives.filter((item) => {
-      const isWarehouse = tipeDcFilter === "warehouse";
-      const searchTipe = isWarehouse ? "wh" : tipeDcFilter.toLowerCase();
-
       const matchesTipe = tipeDcFilter === "all"
         ? true
-        : item.archive_name.toLowerCase().includes(searchTipe);
+        : (item.archive_type || item.project_type) === tipeDcFilter;
       const matchesStatus = statusFilter === "all"
         ? true
         : (statusFilter === "lengkap" ? item.jumlah_dokumen > 0 : item.jumlah_dokumen === 0);
       const matchesBranch = branchFilter === "all"
         ? true
-        : getParentBranch(item.branch_name) === branchFilter;
+        : getArchiveParentBranch(item) === branchFilter;
 
       return matchesTipe && matchesStatus && matchesBranch;
     });
@@ -331,11 +348,17 @@ export default function DcDocumentsPage() {
 
   const totals = useMemo(() => {
     const complete = filteredArchives.filter(a => a.jumlah_dokumen > 0).length;
-    const branches = new Set(filteredArchives.map((item) => getParentBranch(item.branch_name)).filter(Boolean));
-    const totalDc = filteredArchives.filter(a => !a.archive_name.toLowerCase().includes('wh') && !a.archive_name.toLowerCase().includes('warehouse')).length;
-    const totalWarehouse = filteredArchives.filter(a => a.archive_name.toLowerCase().includes('wh') || a.archive_name.toLowerCase().includes('warehouse')).length;
-    const completeDc = filteredArchives.filter(a => a.jumlah_dokumen > 0 && !a.archive_name.toLowerCase().includes('wh') && !a.archive_name.toLowerCase().includes('warehouse')).length;
-    const completeWarehouse = filteredArchives.filter(a => a.jumlah_dokumen > 0 && (a.archive_name.toLowerCase().includes('wh') || a.archive_name.toLowerCase().includes('warehouse'))).length;
+    const branches = new Set(filteredArchives.map((item) => getArchiveParentBranch(item)).filter(Boolean));
+    const countType = (type: string) => filteredArchives.filter(a => (a.archive_type || a.project_type) === type).length;
+    const completeType = (type: string) => filteredArchives.filter(a => a.jumlah_dokumen > 0 && (a.archive_type || a.project_type) === type).length;
+    const totalDc = countType("DC");
+    const totalWarehouse = countType("WAREHOUSE");
+    const totalDepo = countType("DEPO");
+    const totalBulky = countType("BULKY");
+    const totalStoreHub = countType("STORE_HUB");
+    const totalGudangAnak = countType("GUDANG_ANAK");
+    const completeDc = completeType("DC");
+    const completeWarehouse = completeType("WAREHOUSE");
 
     // Hitung progress berdasarkan persentase aktual tiap slot jika memungkinkan, atau berdasarkan jumlah dokumen
     // Sebagai estimasi sederhana yang informatif:
@@ -352,6 +375,10 @@ export default function DcDocumentsPage() {
       totalWarehouse,
       completeDc,
       completeWarehouse,
+      totalDepo,
+      totalBulky,
+      totalStoreHub,
+      totalGudangAnak,
       totalDocs: totalDocsAll,
       progress: filteredArchives.length > 0 ? Math.round((complete / filteredArchives.length) * 100) : 0,
     };
@@ -397,24 +424,18 @@ export default function DcDocumentsPage() {
 
         <div className="space-y-6">
           {/* DASHBOARD WIDGETS */}
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <MetricCard title="Total Cabang & WH" value={totals.total} icon={<Building2 className="h-5 w-5 opacity-70" />} />
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            <MetricCard title="Total Lokasi" value={totals.total} icon={<Building2 className="h-5 w-5 opacity-70" />} />
             <MetricCard title="Total DC" value={totals.totalDc} icon={<Building2 className="h-5 w-5 opacity-70" />} />
-            <MetricCard title="Total Warehouse" value={totals.totalWarehouse} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
-
-            <MetricCard
-              title="Sudah Mulai Upload"
-              value={totals.complete}
-              tone="green"
-              subtitle={`${totals.completeDc} DC, ${totals.completeWarehouse} WH`}
-              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />}
-            />
-
+            <MetricCard title="Warehouse" value={totals.totalWarehouse} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Depo & Bulky" value={totals.totalDepo + totals.totalBulky} subtitle={`${totals.totalDepo} Depo, ${totals.totalBulky} Bulky`} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
+            <MetricCard title="Hub & Gudang" value={totals.totalStoreHub + totals.totalGudangAnak} subtitle={`${totals.totalStoreHub} Store-Hub, ${totals.totalGudangAnak} Gudang Anak`} icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
             <MetricCard
               title="Progress Lokasi"
               value={`${totals.progress}%`}
-              subtitle={`${totals.complete} dari ${totals.total} lokasi lengkap`}
+              subtitle={`${totals.complete} dari ${totals.total} lokasi mulai upload`}
               progress={totals.progress}
+              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />}
             />
           </section>
 
@@ -424,7 +445,7 @@ export default function DcDocumentsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  placeholder="Cari kode, nama DC, atau lokasi..."
+                  placeholder="Cari kode, nama lokasi, DC induk, atau cabang..."
                   className="h-11 w-full rounded-xl border-slate-200 bg-white pl-10 pr-4 shadow-sm focus:border-red-500 focus:ring-red-500"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -437,8 +458,9 @@ export default function DcDocumentsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Semua Tipe</SelectItem>
-                    <SelectItem value="dc">DC</SelectItem>
-                    <SelectItem value="warehouse">Warehouse</SelectItem>
+                    {ARCHIVE_TYPE_OPTIONS.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -492,13 +514,15 @@ export default function DcDocumentsPage() {
           {/* MAIN DATA TABLE */}
           <Card className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-lg shadow-slate-200/40">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1040px] text-left text-sm">
+              <table className="w-full min-w-[1240px] text-left text-sm">
                 <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-6 py-4">No</th>
                     <th className="px-6 py-4">Kode</th>
                     <th className="px-6 py-4">Nama Proyek</th>
                     <th className="px-6 py-4">Cabang</th>
+                    <th className="px-6 py-4">Induk Cabang</th>
+                    <th className="px-6 py-4">DC Induk</th>
                     <th className="px-6 py-4">Tipe</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Aksi</th>
@@ -515,9 +539,18 @@ export default function DcDocumentsPage() {
                           {archive.location_name && <div className="mt-0.5 text-xs text-slate-500">{archive.location_name}</div>}
                         </td>
                         <td className="px-6 py-5 font-medium text-slate-700">{archive.branch_name}</td>
+                        <td className="px-6 py-5 font-medium text-slate-700">{getArchiveParentBranch(archive)}</td>
+                        <td className="px-6 py-5 text-slate-600">
+                          {archive.parent_dc_code ? (
+                            <div className="font-medium">
+                              <span className="font-bold text-slate-800">{archive.parent_dc_code}</span>
+                              <div className="mt-0.5 text-xs text-slate-500">{archive.parent_dc_name}</div>
+                            </div>
+                          ) : <span className="text-slate-400">-</span>}
+                        </td>
                         <td className="px-6 py-5">
                           <Badge variant="outline" className="rounded-md border-slate-200 bg-slate-50 font-medium text-slate-600">
-                            {archive.project_type}
+                            {getArchiveTypeLabel(archive)}
                           </Badge>
                         </td>
                         <td className="px-6 py-5">
@@ -576,7 +609,7 @@ export default function DcDocumentsPage() {
                   })}
                   {loadingArchives && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
+                      <td colSpan={9} className="px-6 py-16 text-center text-slate-500">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin text-red-500" />
                         <p className="mt-3 font-medium">Memuat data...</p>
                       </td>
@@ -584,7 +617,7 @@ export default function DcDocumentsPage() {
                   )}
                   {!loadingArchives && archives.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
+                      <td colSpan={9} className="px-6 py-16 text-center text-slate-500">
                         <FolderArchive className="mx-auto h-12 w-12 text-slate-300" />
                         <p className="mt-3 font-medium">Belum ada data DC / Warehouse.</p>
                       </td>
