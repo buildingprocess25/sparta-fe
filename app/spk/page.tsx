@@ -175,6 +175,7 @@ export default function SPKPage() {
                 "Cabang": r.cabang,
                 "Nama_Toko": r.toko?.nama_toko || r.nama_toko,
                 "Kode_Toko": r.toko?.kode_toko || "", 
+                "nama_pt": r.nama_pt || "",
                 "Proyek": r.proyek || "-",
                 "Alamat": r.toko?.alamat || "-",
                 "Grand Total": r.grand_total || 0,
@@ -242,12 +243,16 @@ export default function SPKPage() {
             setSelectedRabObj(selected);
             setRevisiMinStartDate('');
             setRevisiData({ isRevisi: false, sequence: '', rowIndex: null });
+            let initialKodeToko = selected["Kode_Toko"] || selected["kode_toko"] || '';
+            let initialNamaKontraktor = selected["nama_pt"] || '';
+
             setForm(prev => ({ 
                 ...prev, 
                 nomor_ulok: ulokStr, 
                 kode_cabang: getCabangCode(selected.Cabang),
                 nama_toko: selected["Nama_Toko"] || selected["nama_toko"] || '',
-                kode_toko: selected["Kode_Toko"] || selected["kode_toko"] || '',
+                kode_toko: initialKodeToko,
+                nama_kontraktor: initialNamaKontraktor,
                 durasi: selected["Durasi_Pekerjaan"] || ''
             }));
             
@@ -269,7 +274,15 @@ export default function SPKPage() {
             if (selectedUlok && selectedLingkup) {
                 try {
                     const spkRes = await fetchSPKList({ nomor_ulok: selectedUlok });
-                    const existingSpks = spkRes.data.filter(s => s.lingkup_pekerjaan === selectedLingkup);
+                    
+                    if (!initialKodeToko && spkRes.data && spkRes.data.length > 0) {
+                        const spkWithKodeToko = spkRes.data.find((s: any) => s.toko?.kode_toko);
+                        if (spkWithKodeToko && spkWithKodeToko.toko?.kode_toko) {
+                            setForm(prev => ({ ...prev, kode_toko: spkWithKodeToko.toko?.kode_toko || '' }));
+                        }
+                    }
+
+                    const existingSpks = spkRes.data.filter((s: any) => s.lingkup_pekerjaan === selectedLingkup);
                     
                     if (existingSpks.length > 0) {
                         const latestSpk = existingSpks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
