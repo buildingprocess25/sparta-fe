@@ -193,23 +193,23 @@ export function KpiDrilldownModal({
   const renderOptionStat = (stat?: PerformanceOptionStat) => {
     if (kpiType === "cost_m2") {
       return (
-        <div className="mt-3 flex w-full flex-col gap-2">
-          <div className="grid w-full grid-cols-3 gap-2">
-            <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg bg-red-50/50 p-1.5 text-center ring-1 ring-red-100">
-              <span className="text-[9px] font-extrabold uppercase tracking-widest text-red-500">Terbangun</span>
-              <span className="text-[10px] font-bold text-slate-800">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</span>
+        <div className="mt-4 flex w-full flex-col gap-3">
+          <div className="flex flex-col gap-2 w-full">
+            <div className="flex items-center justify-between rounded-lg bg-red-50/50 px-3 py-2 ring-1 ring-red-100">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-500">Terbangun</span>
+              <span className="text-xs font-bold text-slate-800">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</span>
             </div>
-            <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 p-1.5 text-center ring-1 ring-slate-100">
-              <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Bangunan</span>
-              <span className="text-[10px] font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.bangunan)}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Bangunan</span>
+              <span className="text-xs font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.bangunan)}</span>
             </div>
-            <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 p-1.5 text-center ring-1 ring-slate-100">
-              <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Terbuka</span>
-              <span className="text-[10px] font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.area_terbuka)}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Area Terbuka</span>
+              <span className="text-xs font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.area_terbuka)}</span>
             </div>
           </div>
-          <div className="flex justify-center">
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+          <div className="flex justify-center mt-1">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500 shadow-sm">
               {optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}
             </span>
           </div>
@@ -440,9 +440,11 @@ export function KpiDrilldownModal({
                         <th className="px-4 py-3 text-right">Area Terbuka</th>
                       </>
                     ) : (
-                      <th className="px-4 py-3 text-right">Nilai</th>
+                      <>
+                        <th className="px-4 py-3 text-right">Nilai</th>
+                        <th className="px-4 py-3">Status</th>
+                      </>
                     )}
-                    <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -466,12 +468,14 @@ export function KpiDrilldownModal({
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.area_terbuka !== null && row.area_terbuka !== undefined ? formatRupiahKpi(row.area_terbuka) : "-"}</td>
                         </>
                       ) : (
-                        <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value_label}</span></td>
+                        <>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value_label}</span></td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-500">{row.secondary_label}</td>
+                        </>
                       )}
-                      <td className="px-4 py-3 text-xs font-bold text-slate-500">{row.secondary_label}</td>
                     </tr>
                   ))}
-                  {!rows.length && <tr><td colSpan={isCostM2 ? 6 : 4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
+                  {!rows.length && <tr><td colSpan={isCostM2 ? 5 : 4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
                 </tbody>
               </table>
             </div>
