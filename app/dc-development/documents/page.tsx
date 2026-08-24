@@ -428,14 +428,6 @@ export default function DcDocumentsPage() {
             <MetricCard title="Store-Hub" value={totals.totalStoreHub} subtitle="Lokasi turunan store-hub" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
             <MetricCard title="Gudang Anak" value={totals.totalGudangAnak} subtitle="Lokasi turunan gudang" icon={<FolderArchive className="h-5 w-5 opacity-70" />} />
             <MetricCard
-              title="DC Induk Terhubung"
-              value={`${totals.linkedChildLocations}/${totals.childLocations}`}
-              subtitle="Lokasi turunan punya DC induk"
-              tone="green"
-              progress={totals.parentLinkProgress}
-              icon={<CheckCircle2 className="h-5 w-5 opacity-70" />}
-            />
-            <MetricCard
               title="Sudah Mulai Upload"
               value={totals.complete}
               subtitle={`${totals.incomplete} lokasi belum upload`}
@@ -801,29 +793,56 @@ function MetricCard({
   const isGreen = tone === "green";
   const isAmber = tone === "amber";
 
+  const iconBg = isGreen ? 'bg-emerald-100 text-emerald-600' : isAmber ? 'bg-amber-100 text-amber-600' : isRed ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500';
+  const valColor = isGreen ? 'text-emerald-700' : isAmber ? 'text-amber-700' : isRed ? 'text-red-700' : 'text-slate-800';
+
   return (
-    <div className={`relative overflow-hidden rounded-2xl border p-5 transition-shadow hover:shadow-md ${
+    <div className={`group relative overflow-hidden rounded-[1.25rem] border p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
       filled
-        ? isRed ? 'border-red-600 bg-gradient-to-br from-red-600 to-red-700 text-white shadow-red-200' : 'bg-slate-900 text-white'
-        : 'border-slate-200/60 bg-white/80 backdrop-blur-lg shadow-sm'
+        ? isRed ? 'border-red-500 bg-gradient-to-br from-red-600 to-red-700 text-white shadow-red-200' : 'bg-gradient-to-br from-slate-800 to-slate-900 text-white border-slate-700'
+        : 'border-white/60 bg-white/80 backdrop-blur-xl shadow-lg shadow-slate-200/40'
     }`}>
-      <div className="relative z-10 flex flex-col h-full justify-between gap-4">
-        <div className="flex items-center justify-between">
-          <p className={`text-sm font-semibold uppercase tracking-wider ${filled ? 'text-red-100' : 'text-slate-500'}`}>{title}</p>
-          {icon && <div className={filled ? 'text-white' : isGreen ? 'text-emerald-500' : isAmber ? 'text-amber-500' : 'text-slate-400'}>{icon}</div>}
+      {/* Decorative gradient blur blob on hover */}
+      {!filled && (
+        <div className={`absolute -right-6 -top-6 h-28 w-28 rounded-full blur-3xl transition-opacity duration-500 opacity-0 group-hover:opacity-20 ${
+          isGreen ? 'bg-emerald-500' : isAmber ? 'bg-amber-500' : isRed ? 'bg-red-500' : 'bg-slate-500'
+        }`} />
+      )}
+      
+      <div className="relative z-10 flex h-full flex-col justify-between gap-4">
+        <div className="flex items-start justify-between">
+          <p className={`text-[11px] font-bold uppercase tracking-widest ${filled ? 'text-white/80' : 'text-slate-500'}`}>
+            {title}
+          </p>
+          {icon && (
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 ${
+              filled ? 'bg-white/20 text-white backdrop-blur-md' : iconBg
+            }`}>
+              {icon}
+            </div>
+          )}
         </div>
+        
         <div>
-          <h3 className={`text-3xl font-black tracking-tight ${filled ? 'text-white' : isGreen ? 'text-emerald-600' : isAmber ? 'text-amber-600' : 'text-slate-800'}`}>
+          <h3 className={`text-3xl font-black tracking-tight drop-shadow-sm ${filled ? 'text-white' : valColor}`}>
             {value}
           </h3>
           {subtitle && (
-            <p className={`mt-1 text-xs font-medium ${filled ? 'text-red-100' : 'text-slate-500'}`}>{subtitle}</p>
+            <p className={`mt-1.5 text-xs font-medium ${filled ? 'text-white/70' : 'text-slate-500'}`}>
+              {subtitle}
+            </p>
           )}
         </div>
       </div>
+      
       {progress !== undefined && (
-        <div className="relative z-10 mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-          <div className={`h-full rounded-full ${isGreen ? 'bg-emerald-500' : isAmber ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${progress}%` }} />
+        <div className="relative z-10 mt-5 h-2 w-full overflow-hidden rounded-full bg-slate-100 shadow-inner">
+          <div 
+            className={`h-full rounded-full transition-all duration-1000 ease-out ${
+              isGreen ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : isAmber ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-red-400 to-red-500'
+            }`} 
+            style={{ width: `${progress}%` }} 
+          />
         </div>
       )}
     </div>
