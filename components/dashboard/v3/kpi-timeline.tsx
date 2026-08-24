@@ -303,7 +303,7 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                                 <div className={`flex items-center justify-between gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                     <div className={`flex items-center gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
-                                            {node.icon && React.cloneElement(node.icon as React.ReactElement, { className: 'w-4 h-4' })}
+                                            {node.icon && React.cloneElement(node.icon as React.ReactElement<{ className: string }>, { className: 'w-4 h-4' })}
                                         </div>
                                         <div className={`flex flex-col ${isEven ? 'md:items-end' : 'items-start'}`}>
                                             <h4 className={`font-bold text-sm ${node.isActive ? 'text-slate-800' : 'text-slate-500'}`}>{node.title}</h4>
