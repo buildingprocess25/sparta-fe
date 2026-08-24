@@ -249,45 +249,48 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                 
                 <div className="absolute left-8 top-0 bottom-0 w-1 bg-slate-100 rounded-full md:hidden"></div>
 
-                <div className="space-y-4 md:space-y-10">
+                <div className="space-y-4 md:space-y-6">
                     {nodes.map((node, idx) => {
                         const isEven = idx % 2 === 0;
                         const colors = getColorClasses(node.color, node.isActive, node.isCompleted);
+                        
+                        const CardContent = (
+                            <div className={`p-3.5 rounded-xl border bg-white shadow-sm transition-all duration-300 ${node.isActive ? (node.url ? 'hover:shadow-md hover:-translate-y-1 hover:border-blue-300' : 'hover:shadow-md hover:-translate-y-1') : 'opacity-60'} ${colors.border}`}>
+                                <div className={`flex items-center justify-between gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
+                                    <div className={`flex items-center gap-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
+                                            {node.icon && React.cloneElement(node.icon as React.ReactElement, { className: 'w-4 h-4' })}
+                                        </div>
+                                        <div className={`flex flex-col ${isEven ? 'md:items-end' : 'items-start'}`}>
+                                            <h4 className={`font-bold text-sm ${node.isActive ? 'text-slate-800' : 'text-slate-500'}`}>{node.title}</h4>
+                                            <p className={`font-semibold text-xs mt-0.5 ${node.isActive ? colors.text : 'text-slate-400'}`}>
+                                                {node.desc}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {node.url && (
+                                        <ExternalLink className={`w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors shrink-0 ${isEven ? 'md:rotate-180' : ''}`} />
+                                    )}
+                                </div>
+                            </div>
+                        );
+
                         return (
                             <div key={idx} className={`relative flex items-center md:justify-between w-full group ${isEven ? 'md:flex-row-reverse' : ''}`}>
                                 
                                 <div className="hidden md:block w-[45%]"></div>
 
-                                <div className={`absolute left-8 md:left-1/2 w-8 h-8 rounded-full border-4 border-white ${colors.dot} -translate-x-1/2 flex items-center justify-center shadow-md z-10 transition-transform group-hover:scale-125`}>
-                                    <div className="w-2 h-2 rounded-full bg-white"></div>
+                                <div className={`absolute left-8 md:left-1/2 w-5 h-5 rounded-full border-[3px] border-white ${colors.dot} -translate-x-1/2 flex items-center justify-center shadow-sm z-10 transition-transform group-hover:scale-125`}>
                                 </div>
 
-                                <div className={`w-full md:w-[45%] pl-16 md:pl-0 ${isEven ? 'md:pr-12 md:text-right' : 'md:pl-12'}`}>
-                                    <div className={`p-5 rounded-2xl border bg-white shadow-sm transition-all duration-300 ${node.isActive ? 'hover:shadow-lg hover:-translate-y-1' : 'opacity-60'} ${colors.border}`}>
-                                        <div className={`flex items-center gap-3 mb-2 ${isEven ? 'md:flex-row-reverse' : ''}`}>
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
-                                                {node.icon}
-                                            </div>
-                                            <h4 className={`font-bold text-lg ${node.isActive ? 'text-slate-800' : 'text-slate-500'}`}>{node.title}</h4>
-                                        </div>
-                                        <div className={`flex items-center justify-between mt-3 ${isEven ? 'md:flex-row-reverse' : ''}`}>
-                                            <p className={`font-semibold ${node.isActive ? colors.text : 'text-slate-400'}`}>
-                                                {node.desc}
-                                            </p>
-                                            
-                                            {node.url && (
-                                                <a 
-                                                    href={getProxyUrl(node.url)} 
-                                                    target="_blank" 
-                                                    rel="noreferrer"
-                                                    className="inline-flex items-center px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors"
-                                                >
-                                                    <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                                                    Lihat Dokumen
-                                                </a>
-                                            )}
-                                        </div>
-                                    </div>
+                                <div className={`w-full md:w-[45%] pl-14 md:pl-0 ${isEven ? 'md:pr-10 md:text-right' : 'md:pl-10'}`}>
+                                    {node.url ? (
+                                        <a href={getProxyUrl(node.url)} target="_blank" rel="noreferrer" className="block outline-none">
+                                            {CardContent}
+                                        </a>
+                                    ) : (
+                                        CardContent
+                                    )}
                                 </div>
                             </div>
                         );
