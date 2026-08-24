@@ -1963,6 +1963,8 @@ export type SupervisionCheckpoint = {
     total_items: number;
     selesai_items: number;
     filled_items: number;
+    documented_items?: number;
+    missing_documentation_items?: number;
     ready_opname_items: number;
     opname_items: number;
 };

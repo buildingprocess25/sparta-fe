@@ -107,6 +107,17 @@ function isReasonableSpkStart(date: Date | null): date is Date {
     return year >= 2024 && year <= new Date().getFullYear() + 1;
 }
 
+function getMissingDocumentationItems(checkpoint?: any): number {
+    if (!checkpoint) return 0;
+    if (checkpoint.missing_documentation_items !== undefined && checkpoint.missing_documentation_items !== null) {
+        return Number(checkpoint.missing_documentation_items || 0);
+    }
+    if (checkpoint.documented_items !== undefined && checkpoint.documented_items !== null) {
+        return Math.max(0, Number(checkpoint.total_items || 0) - Number(checkpoint.documented_items || 0));
+    }
+    return 0;
+}
+
 function getScopeSpkEnd(scope: SupervisionWorkspace["scopes"][number]): Date | null {
     const explicitEnd = parseDate(scope.spk_effective_end_date);
     if (explicitEnd) return explicitEnd;
@@ -164,6 +175,8 @@ type CheckpointScopeSummary = {
     selesaiItems: number;
     unfinishedItems: number;
     readyOpnameItems: number;
+    documentedItems: number;
+    missingDocumentationItems: number;
     missingItems: number;
     hasCheckpointData: boolean;
     coveredByLaterCheckpoint: boolean;
@@ -334,7 +347,10 @@ export default function UnifiedSupervisionGantt({
 
         workspace.scopes.forEach((scope) => {
             const earliest = (scope.checkpoints || [])
-                .filter((checkpoint) => Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0))
+                .filter((checkpoint) =>
+                    Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0) &&
+                    getMissingDocumentationItems(checkpoint) > 0
+                )
                 .map((checkpoint) => ({ checkpoint, date: parseDate(checkpoint.tanggal_pengawasan) }))
                 .filter((entry): entry is { checkpoint: typeof entry.checkpoint; date: Date } => Boolean(entry.date))
                 .sort((left, right) => left.date.getTime() - right.date.getTime())[0];
@@ -620,7 +636,8 @@ export default function UnifiedSupervisionGantt({
             return Boolean(
                 checkpointDate &&
                 checkpointDate < date &&
-                Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0)
+                Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0) &&
+                getMissingDocumentationItems(checkpoint) > 0
             );
         }));
     };
@@ -724,6 +741,8 @@ export default function UnifiedSupervisionGantt({
                 const selesaiItems = Number(entry.checkpoint?.selesai_items || 0);
                 const unfinishedItems = filledItems > 0 ? Math.max(0, filledItems - selesaiItems) : 0;
                 const readyOpnameItems = Number(entry.checkpoint?.ready_opname_items || 0);
+                const documentedItems = Number(entry.checkpoint?.documented_items || 0);
+                const missingDocumentationItems = getMissingDocumentationItems(entry.checkpoint);
                 const hasCheckpointData = filledItems > 0;
                 const blockedByEarlierCheckpoint = !hasCheckpointData &&
                     expectedItems > 0 &&
@@ -742,6 +761,8 @@ export default function UnifiedSupervisionGantt({
                     selesaiItems,
                     unfinishedItems,
                     readyOpnameItems,
+                    documentedItems,
+                    missingDocumentationItems,
                     missingItems,
                     hasCheckpointData,
                     coveredByLaterCheckpoint,
@@ -767,6 +788,10 @@ export default function UnifiedSupervisionGantt({
                 }
                 if (summary.coveredByLaterCheckpoint) {
                     parts.push(`${summary.scopeName}: sudah diisi di checkpoint berikutnya`);
+                    return;
+                }
+                if (summary.missingDocumentationItems > 0) {
+                    parts.push(`${summary.scopeName}: ${summary.missingDocumentationItems} item perlu dokumentasi`);
                     return;
                 }
                 if (summary.blockedByEarlierCheckpoint) {
