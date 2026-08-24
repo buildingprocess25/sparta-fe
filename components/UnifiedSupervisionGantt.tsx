@@ -327,6 +327,24 @@ export default function UnifiedSupervisionGantt({
         return map;
     }, [workspace.unified_checkpoints]);
 
+    const activeUnfinishedCheckpointDates = useMemo(() => {
+        const dates = new Set<string>();
+
+        workspace.scopes.forEach((scope) => {
+            const latest = (scope.checkpoints || [])
+                .filter((checkpoint) => Number(checkpoint.total_items || 0) > Number(checkpoint.selesai_items || 0))
+                .map((checkpoint) => ({ checkpoint, date: parseDate(checkpoint.tanggal_pengawasan) }))
+                .filter((entry): entry is { checkpoint: typeof entry.checkpoint; date: Date } => Boolean(entry.date))
+                .sort((left, right) => right.date.getTime() - left.date.getTime())[0];
+
+            if (latest) {
+                dates.add(formatFullDate(latest.date));
+            }
+        });
+
+        return dates;
+    }, [workspace.scopes]);
+
     const extensionDates = useMemo(() => {
         const dates = new Set<string>();
 
@@ -777,8 +795,8 @@ export default function UnifiedSupervisionGantt({
                 return;
             }
 
-            // Ada item siap opname → selalu merah (perlu tindakan segera)
-            if (unifiedReady > 0) {
+            // Ada item siap opname atau checkpoint follow-up terbaru yang belum selesai → merah.
+            if (unifiedReady > 0 || activeUnfinishedCheckpointDates.has(fullDate)) {
                 map.set(fullDate, "needsInput");
                 return;
             }
@@ -857,7 +875,7 @@ export default function UnifiedSupervisionGantt({
         });
 
         return map;
-    }, [checkpointByDate, details, timeline]);
+    }, [activeUnfinishedCheckpointDates, checkpointByDate, details, timeline]);
 
     const resolveCheckpointVisualState = (
         fullDate: string,
@@ -880,8 +898,7 @@ export default function UnifiedSupervisionGantt({
 
         const hasReadyOpnameItems = summaries.some((summary) => summary.readyOpnameItems > 0)
             || Number(checkpoint.ready_opname_items || 0) > 0;
-        if (hasReadyOpnameItems) return "needsInput";
-
+        if (hasReadyOpnameItems || activeUnfinishedCheckpointDates.has(fullDate)) return "needsInput";
 
         const hasMissingInput = summaries.some((summary) =>
             summary.expectedItems > 0 && !summary.hasCheckpointData && !summary.coveredByLaterCheckpoint
