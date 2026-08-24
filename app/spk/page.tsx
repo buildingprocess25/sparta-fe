@@ -575,10 +575,14 @@ export default function SPKPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-slate-700">Nama Kontraktor *</label>
-                                        <select required disabled={isReadOnly} className="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500" value={form.nama_kontraktor} onChange={e => setForm({...form, nama_kontraktor: e.target.value})}>
-                                            <option value="">-- Pilih Kontraktor --</option>
-                                            {kontraktorList.map(k => <option key={k} value={k}>{k}</option>)}
-                                        </select>
+                                        <input 
+                                            type="text" 
+                                            required 
+                                            readOnly 
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 font-bold outline-none cursor-not-allowed" 
+                                            value={form.nama_kontraktor} 
+                                            placeholder="Otomatis dari RAB"
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-slate-700">Kode Cabang Penomoran</label>
