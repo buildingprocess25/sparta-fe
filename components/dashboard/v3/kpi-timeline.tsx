@@ -168,7 +168,7 @@ export function KpiTimeline({ nomor_ulok }: { nomor_ulok: string }) {
                     pendingPdfUrl = pendingMatch.link_pdf_pengawasan;
                 }
             }
-            let pengawasanUrl = pendingPdfUrl || matchPdf?.link_pdf_pengawasan || pw.dokumentasi || pw.dokumentasi_base64 || null;
+            let pengawasanUrl = pendingPdfUrl || matchPdf?.link_pdf_pengawasan || null;
             const statusDesc = isSelesai ? 'Selesai' : isTerlambat ? 'Terlambat' : 'Progress';
             
             pengawasanSubItems.push({
