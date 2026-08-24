@@ -195,9 +195,9 @@ export function KpiDrilldownModal({
       return (
         <div className="mt-4 flex w-full flex-col gap-3">
           <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center justify-between rounded-lg bg-red-50/50 px-3 py-2 ring-1 ring-red-100">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-500">Terbangun</span>
-              <span className="text-xs font-bold text-slate-800">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Terbangun</span>
+              <span className="text-xs font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Bangunan</span>
@@ -400,20 +400,24 @@ export function KpiDrilldownModal({
           <p className="mt-2 text-sm font-bold text-slate-500">Pilih spesifik personil {roleLabel(selectedRole)}</p>
         </div>
         <div className="grid max-h-[50vh] w-full max-w-4xl grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3 custom-scrollbar">
-          <button type="button" onClick={() => { setSelectedName(null); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block">Semua Personil</span>
+          <button type="button" onClick={() => { setSelectedName(null); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex flex-col w-full overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+            <div className="flex w-full items-center justify-between border-b border-slate-100/60 bg-slate-50/50 px-5 py-4 transition-colors group-hover:bg-red-50/30">
+              <span className="block font-bold tracking-tight text-slate-800">Semua Personil</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+            </div>
+            <div className="w-full px-5 pb-5">
               {renderOptionStat(allPeopleStat)}
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+            </div>
           </button>
           {names.map((name) => (
-            <button key={name} type="button" onClick={() => { setSelectedName(name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-              <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate">{name}</span>
+            <button key={name} type="button" onClick={() => { setSelectedName(name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex flex-col w-full overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+              <div className="flex w-full items-center justify-between border-b border-slate-100/60 bg-slate-50/50 px-5 py-4 transition-colors group-hover:bg-red-50/30">
+                <span className="block truncate font-bold tracking-tight text-slate-800">{name}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+              </div>
+              <div className="w-full px-5 pb-5">
                 {renderOptionStat(statById(optionStats.people, name))}
-              </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+              </div>
             </button>
           ))}
         </div>
