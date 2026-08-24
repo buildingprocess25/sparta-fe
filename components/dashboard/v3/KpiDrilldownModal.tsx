@@ -31,7 +31,7 @@ import {
   type PerformanceTableMetric
 } from "@/lib/api/performance-v3";
 import { KpiDetailSections } from "./kpi-detail-sections";
-import { KpiDocuments } from "./kpi-documents";
+import { KpiTimeline } from "./kpi-timeline";
 import { formatNumberKpi, formatRupiahKpi } from "./kpi-formatters";
 import { cn } from "@/lib/utils";
 
@@ -190,12 +190,39 @@ export function KpiDrilldownModal({
   const statById = useCallback((items: PerformanceOptionStat[], id?: string | null) => items.find((item) => item.id === id || item.label === id), []);
   const allPeopleStat = useMemo(() => mergeStats(optionStats.people), [optionStats.people]);
 
-  const renderOptionStat = (stat?: PerformanceOptionStat) => (
-    <span className="mt-2 flex w-full flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-500">
-      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-800">Avg {optionStatsLoading ? "..." : statLabel(stat, kpiType)}</span>
-      <span className="rounded-full bg-white px-2.5 py-1 text-slate-500 ring-1 ring-slate-200">{optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}</span>
-    </span>
-  );
+  const renderOptionStat = (stat?: PerformanceOptionStat) => {
+    if (kpiType === "cost_m2") {
+      return (
+        <div className="mt-3 flex w-full flex-col gap-2">
+          <div className="grid w-full grid-cols-3 gap-2">
+            <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg bg-red-50/50 p-1.5 text-center ring-1 ring-red-100">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-red-500">Terbangun</span>
+              <span className="text-[10px] font-bold text-slate-800">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</span>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 p-1.5 text-center ring-1 ring-slate-100">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Bangunan</span>
+              <span className="text-[10px] font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.bangunan)}</span>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 p-1.5 text-center ring-1 ring-slate-100">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Terbuka</span>
+              <span className="text-[10px] font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.area_terbuka)}</span>
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+              {optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <span className="mt-2 flex w-full flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-500">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-800">Avg {optionStatsLoading ? "..." : statLabel(stat, kpiType)}</span>
+        <span className="rounded-full bg-white px-2.5 py-1 text-slate-500 ring-1 ring-slate-200">{optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}</span>
+      </span>
+    );
+  };
 
   useEffect(() => {
     if (!isOpen || !kpiType) return;
@@ -374,7 +401,11 @@ export function KpiDrilldownModal({
         </div>
         <div className="grid max-h-[50vh] w-full max-w-4xl grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3 custom-scrollbar">
           <button type="button" onClick={() => { setSelectedName(null); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-            <span className="min-w-0"><span className="block">Semua Personil</span><span className="mt-1 block text-[11px] text-slate-500">Avg {optionStatsLoading ? "..." : statLabel(allPeopleStat, kpiType)} - {optionStatsLoading ? "..." : `${allPeopleStat?.count ?? 0} data`}</span></span> <ChevronRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block">Semua Personil</span>
+              {renderOptionStat(allPeopleStat)}
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
           </button>
           {names.map((name) => (
             <button key={name} type="button" onClick={() => { setSelectedName(name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex items-center justify-between rounded-xl border border-slate-200/60 bg-white/50 px-5 py-4 text-sm font-bold text-slate-700 transition-all hover:border-red-200 hover:bg-white hover:shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
@@ -390,40 +421,62 @@ export function KpiDrilldownModal({
     );
   };
 
-  const renderList = () => (
-    <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-slate-50">
-      <div className="flex-1 overflow-y-auto p-5">
-        {loading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : (
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-normal text-slate-500"><tr><th className="px-4 py-3">ULOK</th><th className="px-4 py-3">Cabang</th><th className="px-4 py-3">Nilai</th><th className="px-4 py-3">Status</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
-                  <tr key={row.nomor_ulok} className="group hover:bg-red-50/50">
-                    <td className="p-0" colSpan={4}>
-                      <button
-                        type="button"
-                        onClick={() => openDetail(row)}
-                        className="grid w-full grid-cols-[minmax(260px,2fr)_minmax(140px,1fr)_minmax(120px,160px)_minmax(160px,1fr)] items-center gap-4 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-500"
-                        aria-label={`Buka detail KPI ${row.nomor_ulok} ${row.nama_toko ?? ""}`}
-                      >
+  const renderList = () => {
+    const isCostM2 = kpiType === "cost_m2";
+    return (
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-5">
+          {loading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : (
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-bold uppercase tracking-normal text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">ULOK</th>
+                    <th className="px-4 py-3">Cabang</th>
+                    {isCostM2 ? (
+                      <>
+                        <th className="px-4 py-3 text-right">Terbangun</th>
+                        <th className="px-4 py-3 text-right">Bangunan</th>
+                        <th className="px-4 py-3 text-right">Area Terbuka</th>
+                      </>
+                    ) : (
+                      <th className="px-4 py-3 text-right">Nilai</th>
+                    )}
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map((row) => (
+                    <tr 
+                      key={row.nomor_ulok} 
+                      onClick={() => openDetail(row)}
+                      className="group cursor-pointer hover:bg-red-50/50 transition-colors"
+                    >
+                      <td className="px-4 py-3">
                         <span className="min-w-0">
                           <span className="block font-bold text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">{row.nomor_ulok}</span>
                           <span className="block truncate text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span>
                         </span>
-                        <span className="font-bold text-slate-700">{row.cabang ?? "-"}</span>
-                        <span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800">{row.value_label}</span></span>
-                        <span className="text-xs font-bold text-slate-500">{row.secondary_label}</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {!rows.length && <tr><td colSpan={4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                      </td>
+                      <td className="px-4 py-3 font-bold text-slate-700">{row.cabang ?? "-"}</td>
+                      {isCostM2 ? (
+                        <>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value !== null && row.value !== undefined ? formatRupiahKpi(row.value) : "-"}</span></td>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.bangunan !== null && row.bangunan !== undefined ? formatRupiahKpi(row.bangunan) : "-"}</td>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.area_terbuka !== null && row.area_terbuka !== undefined ? formatRupiahKpi(row.area_terbuka) : "-"}</td>
+                        </>
+                      ) : (
+                        <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value_label}</span></td>
+                      )}
+                      <td className="px-4 py-3 text-xs font-bold text-slate-500">{row.secondary_label}</td>
+                    </tr>
+                  ))}
+                  {!rows.length && <tr><td colSpan={isCostM2 ? 6 : 4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       {meta && meta.totalPages > 1 && (
         <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4 text-sm font-bold text-slate-600 shadow-[0_-4px_20px_rgb(0,0,0,0.02)] relative z-10">
           <span>Page {meta.page} dari {meta.totalPages}</span>
@@ -434,7 +487,8 @@ export function KpiDrilldownModal({
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -508,7 +562,7 @@ export function KpiDrilldownModal({
                   ) : detail ? (
                     <div className="flex flex-col gap-6">
                       <KpiDetailSections detail={detail} />
-                      <KpiDocuments documents={detail.documents} />
+                      <KpiTimeline nomor_ulok={detail.nomor_ulok} />
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-red-200 bg-red-50/80 p-5 text-sm font-bold text-red-700 shadow-sm backdrop-blur-sm">

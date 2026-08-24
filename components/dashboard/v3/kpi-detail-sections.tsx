@@ -139,29 +139,6 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </section>
       )}
 
-      <section>
-        <SectionHeader title="Metrik Tabel Support" />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Notaris to End SPK" value={formatNumberKpi(section.support_metrics.jhk_notaris_to_end_spk, " hari")} />
-          <Field label="Notaris to Start SPK" value={formatNumberKpi(section.support_metrics.jhk_notaris_to_start_spk, " hari")} />
-          <Field label="% Temuan" value={formatPercentKpi(section.support_metrics.persentase_temuan)} />
-          <Field label="Deviasi PE" value={formatPercentKpi(section.support_metrics.deviasi_pe)} />
-        </div>
-      </section>
-
-      {detail.data_quality.length > 0 && (
-        <section className="rounded-[24px] border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-white/90 p-6 shadow-sm">
-          <SectionHeader title="Catatan Kualitas Data" />
-          <ul className="mt-3 space-y-3 text-sm font-semibold text-amber-900">
-            {detail.data_quality.map((flag) => (
-              <li key={flag} className="flex items-start gap-2.5 rounded-xl bg-white/50 p-3 shadow-sm ring-1 ring-amber-100">
-                <span className="mt-1 flex h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                <span>{flag}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

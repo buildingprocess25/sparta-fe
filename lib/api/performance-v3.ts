@@ -67,6 +67,8 @@ export type PerformanceDrilldownItem = {
   value_label: string;
   secondary_label: string;
   data_quality: string[];
+  bangunan?: number | null;
+  area_terbuka?: number | null;
 };
 
 export type PerformanceDocumentLink = {
@@ -119,6 +121,8 @@ export type PerformanceOptionStat = {
   value: number | null;
   count: number;
   incomplete_count?: number;
+  bangunan?: number | null;
+  area_terbuka?: number | null;
 };
 
 export type PerformanceOptionStatsData = {
