@@ -146,7 +146,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     if (latestTambahSpk) {
         nodes.push({
             type: 'Tambah SPK',
-            title: `Tambah SPK${suffix}`,
+            title: `Tambah SPK`,
             desc: `${latestTambahSpk.pertambahan_hari ?? '-'} Hari`,
             icon: <Clock className="w-5 h-5"/>,
             color: 'cyan',
@@ -219,7 +219,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
             const statusDesc = isSelesai ? 'Selesai' : isTerlambat ? 'Terlambat' : 'Progress';
 
             pengawasanSubItems.push({
-                title: 'Pengawasan ' + (projectItem.toko?.lingkup_pekerjaan ? '(' + projectItem.toko.lingkup_pekerjaan + ') ' : '') + '- Progress: ' + statusDesc,
+                title: 'Pengawasan - Progress: ' + statusDesc,
                 desc: formatDateLabel(dateKey || pg.tanggal_pengawasan || pw.created_at),
                 url: pengawasanUrl,
                 createdAt: Number(pg.id) || new Date(pw.created_at).getTime(),
@@ -236,7 +236,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     const pSelesai = hasPengawasan && pengawasanProgress === 0 && pengawasanTerlambat === 0;
     nodes.push({
         type: 'PENGAWASAN',
-        title: `Pengawasan${suffix}`,
+        title: `Pengawasan`,
         desc: hasPengawasan ? (pSelesai ? 'SELESAI' : pengawasanTerlambat > 0 ? 'TERLAMBAT' : 'PROGRESS') : 'Belum Tersedia',
         icon: <Search className="w-5 h-5"/>,
         color: hasPengawasan ? 'purple' : 'slate',
