@@ -391,18 +391,20 @@ export function KpiDrilldownModal({
           <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Dokumen</h3>
           <p className="mt-2 text-sm font-bold text-slate-500">Evaluasi SLA untuk {roleLabel(selectedRole)}</p>
         </div>
-        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid w-full max-w-4xl grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {docs.map((doc) => {
             const Icon = doc.icon;
             return (
-              <button key={doc.id} type="button" onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }} className="group flex items-center gap-4 rounded-2xl border border-slate-200/60 bg-white/50 p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.06)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-inset ring-red-100 transition-transform duration-300 group-hover:scale-110 group-hover:bg-red-100">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
+              <button key={doc.id} type="button" onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }} className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
+                <div className="flex flex-col items-start gap-4 p-6">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-inset ring-red-100 transition-transform duration-300 group-hover:scale-110 group-hover:bg-red-100">
+                    <Icon className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                  <span className="block text-lg font-black tracking-tight text-slate-800 group-hover:text-red-700">{doc.label}</span>
                 </div>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-bold tracking-tight text-slate-800">{doc.label}</span>
+                <div className="w-full border-t border-slate-100/60 bg-slate-50/50 px-6 py-4 transition-colors group-hover:bg-red-50/30">
                   {renderOptionStat(statById(optionStats.documents, doc.id))}
-                </span>
+                </div>
               </button>
             );
           })}
