@@ -194,6 +194,17 @@ const SP_DASHBOARD_ACTIVE_STATUSES = new Set([
 
 
 
+const isPerformanceDashboardBlockedRole = (roles: string[]) =>
+
+    roles.some(role => {
+
+        const normalized = normalizeDashboardText(role);
+
+        return normalized.includes('KONTRAKTOR') || normalized === 'DIREKTUR';
+
+    });
+
+
 const canViewInternalSpDashboard = (roles: string[]) =>
 
     roles.some(role =>
@@ -2821,7 +2832,7 @@ function DashboardPageContent() {
 
     const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
 
-    const canAccessPerformanceDashboard = Boolean(user?.isSuperHuman);
+    const canAccessPerformanceDashboard = Boolean(user?.isSuperHuman) && !isPerformanceDashboardBlockedRole(userInfo.roles);
     const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
 
     const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
