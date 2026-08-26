@@ -1635,7 +1635,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     {keys.map((k, i) => {
                                         const valStr = String(data[k]);
                                         const kl = k.toLowerCase();
-                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi'));
+                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi') && !kl.includes('polis'));
 
                                         let displayVal = isCurrency ? fR(data[k]) : valStr;
 
@@ -1703,7 +1703,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     {keys.map((k, i) => {
                                         const valStr = String(data[k]);
                                         const kl = k.toLowerCase();
-                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi'));
+                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi') && !kl.includes('polis'));
 
                                         let displayVal = isCurrency ? fR(data[k]) : valStr;
 
@@ -1775,7 +1775,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     {keys.map((k, i) => {
                                         const valStr = String(data[k]);
                                         const kl = k.toLowerCase();
-                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi'));
+                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi') && !kl.includes('polis'));
 
                                         let displayVal = isCurrency ? fR(data[k]) : valStr;
 
@@ -1876,7 +1876,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     {keys.map((k, i) => {
                                         const valStr = String(data[k]);
                                         const kl = k.toLowerCase();
-                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi'));
+                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi') && !kl.includes('polis'));
 
                                         let displayVal = isCurrency ? fR(data[k]) : valStr;
 
@@ -2196,7 +2196,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
 
                                         const valStr = String(data[k]);
                                         const kl = k.toLowerCase();
-                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi'));
+                                        const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi') && !kl.includes('polis'));
 
                                         let displayVal = isCurrency ? fR(data[k]) : valStr;
 
@@ -2356,7 +2356,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                         {keys.map((k, i) => {
                             const valStr = String(data[k]);
                             const isLink = valStr.startsWith('http://') || valStr.startsWith('https://');
-                            const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !k.toLowerCase().includes('tahun') && !k.toLowerCase().includes('hari') && !k.toLowerCase().includes('durasi'));
+                            const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(data[k])) && Number(data[k]) > 10000 && !k.toLowerCase().includes('tahun') && !k.toLowerCase().includes('hari') && !k.toLowerCase().includes('durasi') && !k.toLowerCase().includes('polis'));
 
                             const displayVal = isCurrency ? fR(data[k]) : valStr;
 
@@ -2451,7 +2451,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                             {keys.map((k, i) => {
                                 const valStr = String(il[k]);
                                 const kl = k.toLowerCase();
-                                const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(il[k])) && Number(il[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi'));
+                                const isCurrency = valStr.startsWith('Rp') || (!isNaN(Number(il[k])) && Number(il[k]) > 10000 && !kl.includes('tahun') && !kl.includes('hari') && !kl.includes('durasi') && !kl.includes('polis'));
                                 const isDate = (kl.includes('tanggal') || kl.includes('waktu') || kl.endsWith('_at')) && isNaN(Number(valStr)) && valStr.length > 8;
                                 let displayVal = isCurrency ? fR(il[k]) : valStr;
                                 if (isDate) displayVal = formatDateIndo(valStr).replace(/ pukul.*$/, '');
