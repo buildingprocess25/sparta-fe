@@ -295,6 +295,12 @@ interface NormalizedDetail {
     rawRequestIntervensi?: RequestIntervensi & { logs?: any[] };
 }
 
+const getProxyUrl = (driveUrl: string | null | undefined): string => {
+    if (!driveUrl) return "";
+    const base = API_URL.replace(/\/$/, "");
+    return `${base}/api/proxy-file?url=${encodeURIComponent(driveUrl)}`;
+};
+
 const buildStTargetDisplay = (endDate?: string | null) => {
     if (!endDate) {
         return {
@@ -2173,7 +2179,7 @@ export default function DaftarDokumenPage() {
     const handleViewPDFOnline = useCallback(async (detail: NormalizedDetail) => {
         try {
             if (detail.tipe === 'PENGAWASAN' && detail.link_pdf) {
-                window.open(detail.link_pdf, '_blank', 'noopener,noreferrer');
+                window.open(getProxyUrl(detail.link_pdf), '_blank', 'noopener,noreferrer');
                 return;
             }
 
@@ -4008,7 +4014,7 @@ export default function DaftarDokumenPage() {
                                                             </td>
                                                             <td className="px-4 py-2.5 text-center whitespace-nowrap">
                                                                 {item.dokumentasi ? (
-                                                                    <a href={item.dokumentasi} target="_blank" rel="noopener noreferrer">
+                                                                    <a href={getProxyUrl(item.dokumentasi)} target="_blank" rel="noopener noreferrer">
                                                                         <Button variant="outline" size="sm" className="h-7 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50">
                                                                             <Eye className="w-3 h-3 mr-1" /> Lihat
                                                                         </Button>
@@ -4105,7 +4111,7 @@ export default function DaftarDokumenPage() {
                                                 disabled={downloadingId === selectedDetail.id}
                                                 onClick={() => {
                                                     if (selectedDetail.tipe === 'PENGAWASAN' && selectedDetail.link_pdf) {
-                                                        window.open(selectedDetail.link_pdf, '_blank', 'noopener,noreferrer');
+                                                        window.open(getProxyUrl(selectedDetail.link_pdf), '_blank', 'noopener,noreferrer');
                                                         return;
                                                     }
                                                     void handleDownloadPDF(selectedDetail.id, selectedDetail.tipe);
