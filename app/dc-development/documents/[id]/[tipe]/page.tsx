@@ -194,41 +194,43 @@ export default function DcDocumentDetailPage() {
     const isUploading = uploadingKey === compKey;
 
     return (
-      <div key={compKey} className="relative group/slot flex flex-col items-end gap-1">
+      <div key={compKey} className="relative group/slot w-full sm:w-auto">
         {slotDocuments.length > 0 ? (
-          <div className="flex flex-col gap-1.5 w-full items-end">
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              {slotDocuments.map((doc, index) => (
-                <div key={doc.id} className="flex items-center gap-1.5">
+          <div className="flex flex-col gap-3 w-full sm:items-end">
+            {slotDocuments.map((doc, index) => (
+              <div key={doc.id} className="flex flex-col sm:flex-row items-end sm:items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {doc.drive_file_id || doc.file_name ? (
                     <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                      <CheckCircle2 className="h-4 w-4" />
-                      {slotDocuments.length > 1 ? `${type} ${index + 1}` : type}
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span className="truncate max-w-[120px]">{slotDocuments.length > 1 ? `${type} ${index + 1}` : type}</span>
                     </a>
                   ) : (
                     <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-                      <UploadCloud className="h-4 w-4" />
+                      <UploadCloud className="h-4 w-4 shrink-0" />
                       Upload {type}
                     </button>
                   )}
-                  <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(doc); setNoteText(doc.notes || ""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
+                  <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(doc); setNoteText(doc.notes || ""); setNoteModalOpen(true); }} className="flex shrink-0 items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
                     <MessageSquare className="h-4 w-4" />
                   </button>
-                  <button onClick={() => handleDelete(doc.id)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
+                  <button onClick={() => handleDelete(doc.id)} className="flex shrink-0 items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              ))}
-              <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow" title="Tambah file lagi">
-                <UploadCloud className="h-4 w-4" />
-                Tambah {type}
+                {doc.notes && (
+                  <div className="text-[11px] text-slate-600 bg-yellow-50/50 border border-yellow-200/60 rounded-md px-2.5 py-1.5 w-full sm:max-w-[200px] break-words" title={doc.notes}>
+                    <span className="font-bold text-yellow-700/80 mr-1">Catatan:</span>{doc.notes}
+                  </div>
+                )}
+              </div>
+            ))}
+            <div className="flex justify-end w-full">
+              <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-transparent px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:bg-red-50" title="Tambah file lagi">
+                <Plus className="h-3 w-3 shrink-0" />
+                Tambah File
               </button>
             </div>
-            {slotDocuments.map(doc => doc.notes ? (
-              <div key={`note-${doc.id}`} className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-2 py-1 max-w-[240px] truncate" title={doc.notes}>
-                <span className="font-semibold text-slate-600">Catatan:</span> {doc.notes}
-              </div>
-            ) : null)}
           </div>
         ) : isUploading ? (
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
@@ -502,20 +504,20 @@ export default function DcDocumentDetailPage() {
 
                         <div className="grid gap-3">
                           {detail.jenis.map((jenis, jIdx) => (
-                            <div key={jenis.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:border-slate-200 hover:bg-white">
-                              <div className="flex items-start gap-3">
-                                <span className="mt-0.5 text-sm font-bold text-slate-400 w-6 shrink-0">{jIdx + 1}.</span>
+                            <div key={jenis.key} className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-colors hover:border-slate-200 hover:bg-white">
+                              <div className="flex items-start gap-3 mt-1.5">
+                                <span className="text-sm font-bold text-slate-400 w-6 shrink-0">{jIdx + 1}.</span>
                                 <p className="font-semibold text-slate-700 leading-tight">{jenis.title}</p>
                               </div>
 
-                              <div className="flex flex-wrap items-center gap-2 sm:justify-end ml-9 sm:ml-0">
+                              <div className="flex flex-col items-end gap-2 w-full sm:w-auto ml-9 sm:ml-0">
                                 {jenis.slots.map(slot => renderDocumentSlot(jenis.key, slot.type))}
                               </div>
                             </div>
                           ))}
                           {utama.title === "DATA PENTING LAINNYA" && customDocumentItemsForStage.map((customItem, customIdx) => (
-                            <div key={customItem.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-red-100 bg-red-50/40 p-4 transition-colors hover:border-red-200 hover:bg-white">
-                              <div className="flex items-start gap-3">
+                            <div key={customItem.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 rounded-xl border border-red-100 bg-red-50/40 p-4 transition-colors hover:border-red-200 hover:bg-white">
+                              <div className="flex items-start gap-3 mt-1.5">
                                 <span className="mt-0.5 text-sm font-bold text-red-300 w-6 shrink-0">{detail.jenis.length + customIdx + 1}.</span>
                                 <div>
                                   <p className="font-semibold text-slate-800 leading-tight">{customItem.title}</p>
@@ -523,7 +525,7 @@ export default function DcDocumentDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex flex-wrap items-center gap-2 sm:justify-end ml-9 sm:ml-0">
+                              <div className="flex flex-col items-end gap-2 w-full sm:w-auto ml-9 sm:ml-0">
                                 {customItem.slots.map(slotType => renderDocumentSlot(getCustomItemKey(customItem), slotType))}
                                 <button onClick={() => handleDeleteCustomItem(customItem)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Item Tambahan">
                                   <Trash2 className="h-4 w-4" />
