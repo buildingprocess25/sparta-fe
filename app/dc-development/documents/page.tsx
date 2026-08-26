@@ -651,7 +651,7 @@ export default function DcDocumentsPage() {
                 <Building2 className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Pembangunan</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Proyek Bangunan Baru</p>
             </button>
             <button
               onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/RENOVASI`)}
@@ -661,7 +661,7 @@ export default function DcDocumentsPage() {
                 <Hammer className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Renovasi</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">4 Kategori Utama</p>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Perbaikan & Pembaruan</p>
             </button>
             <button
               onClick={() => router.push(`/dc-development/documents/${selectedArchiveForType?.id}/PERLUASAN`)}
@@ -671,7 +671,7 @@ export default function DcDocumentsPage() {
                 <Maximize className="h-8 w-8" />
               </div>
               <h3 className="text-xl font-bold text-slate-800">Perluasan</h3>
-              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Semua Kategori</p>
+              <p className="mt-2 text-xs font-medium text-slate-500 uppercase tracking-wider">Penambahan Area</p>
             </button>
           </div>
         </DialogContent>
