@@ -196,39 +196,51 @@ export default function DcDocumentDetailPage() {
     return (
       <div key={compKey} className="relative group/slot w-full sm:w-auto">
         {slotDocuments.length > 0 ? (
-          <div className="flex flex-col gap-3 w-full sm:items-end">
+          <div className="flex flex-col gap-2 w-full sm:items-end">
             {slotDocuments.map((doc, index) => (
-              <div key={doc.id} className="flex flex-col sm:flex-row items-end sm:items-center gap-2 w-full sm:w-auto">
-                <div className="flex items-center gap-1.5 shrink-0">
+              <div key={doc.id} className="flex flex-col gap-1 w-full sm:w-[260px] shrink-0">
+                <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group/doc">
                   {doc.drive_file_id || doc.file_name ? (
-                    <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100">
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      <span className="truncate max-w-[120px]">{slotDocuments.length > 1 ? `${type} ${index + 1}` : type}</span>
+                    <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
+                      <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs font-semibold text-slate-700 truncate">{doc.file_name || (slotDocuments.length > 1 ? `${type} ${index + 1}` : type)}</span>
+                        <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{type}</span>
+                      </div>
                     </a>
                   ) : (
-                    <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-                      <UploadCloud className="h-4 w-4 shrink-0" />
-                      Upload {type}
+                    <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 overflow-hidden flex-1 px-1 text-left" title={`Upload ${type}`}>
+                      <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-slate-50 text-slate-400 group-hover/doc:bg-red-50 group-hover/doc:text-red-500 transition-colors">
+                        <UploadCloud className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs font-semibold text-slate-500 group-hover/doc:text-red-600 transition-colors truncate">Upload File</span>
+                        <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider truncate">{type}</span>
+                      </div>
                     </button>
                   )}
-                  <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(doc); setNoteText(doc.notes || ""); setNoteModalOpen(true); }} className="flex shrink-0 items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Catatan">
-                    <MessageSquare className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => handleDelete(doc.id)} className="flex shrink-0 items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Dokumen">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-80 group-hover/doc:opacity-100 transition-opacity pr-1">
+                    <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(doc); setNoteText(doc.notes || ""); setNoteModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Catatan">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDelete(doc.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Dokumen">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 {doc.notes && (
-                  <div className="text-[11px] text-slate-600 bg-yellow-50/50 border border-yellow-200/60 rounded-md px-2.5 py-1.5 w-full sm:max-w-[200px] break-words" title={doc.notes}>
-                    <span className="font-bold text-yellow-700/80 mr-1">Catatan:</span>{doc.notes}
+                  <div className="ml-1 pl-2.5 border-l-2 border-yellow-300 py-0.5 text-[10px] text-slate-600 break-words">
+                    <span className="font-semibold text-yellow-700 mr-1">Catatan:</span>{doc.notes}
                   </div>
                 )}
               </div>
             ))}
-            <div className="flex justify-end w-full">
-              <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-transparent px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:bg-red-50" title="Tambah file lagi">
-                <Plus className="h-3 w-3 shrink-0" />
-                Tambah File
+            <div className="flex justify-end w-full mt-1">
+              <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 text-[10px] font-semibold text-red-600 hover:text-red-700 transition-colors bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md" title="Tambah file lagi">
+                <Plus className="w-3 h-3" />
+                Tambah File {type}
               </button>
             </div>
           </div>
