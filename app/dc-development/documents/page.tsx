@@ -543,8 +543,8 @@ export default function DcDocumentsPage() {
                     <th className="px-6 py-4">No</th>
                     <th className="px-6 py-4">Kode</th>
                     <th className="px-6 py-4">Nama Proyek</th>
-                    <th className="px-6 py-4">Cabang</th>
-                    <th className="px-6 py-4">Induk Cabang</th>
+                    {/* <th className="px-6 py-4">Cabang</th> */}
+                    {/* <th className="px-6 py-4">Induk Cabang</th> */}
                     <th className="px-6 py-4">DC Induk</th>
                     <th className="px-6 py-4">Tipe</th>
                     <th className="px-6 py-4">Status</th>
@@ -561,8 +561,8 @@ export default function DcDocumentsPage() {
                           <span className="font-semibold text-slate-900">{archive.archive_name}</span>
                           {archive.location_name && <div className="mt-0.5 text-xs text-slate-500">{archive.location_name}</div>}
                         </td>
-                        <td className="px-6 py-5 font-medium text-slate-700">{archive.branch_name}</td>
-                        <td className="px-6 py-5 font-medium text-slate-700">{getArchiveParentBranch(archive)}</td>
+                        {/* <td className="px-6 py-5 font-medium text-slate-700">{archive.branch_name}</td> */}
+                        {/* <td className="px-6 py-5 font-medium text-slate-700">{getArchiveParentBranch(archive)}</td> */}
                         <td className="px-6 py-5 text-slate-600">
                           {archive.parent_dc_code ? (
                             <div className="font-medium">
