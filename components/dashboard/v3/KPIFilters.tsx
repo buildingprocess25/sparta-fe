@@ -79,8 +79,7 @@ export function KPIFilters({
           coordinator: coordinatorValue,
           support: supportValue,
           job_type: selectedJobType,
-          period: selectedPeriod,
-          search
+          period: selectedPeriod
         });
         if (ignore) return;
         const next = res.data || emptyFilters;
@@ -97,7 +96,7 @@ export function KPIFilters({
     }
     loadFilters();
     return () => { ignore = true; };
-  }, [coordinatorValue, isCoordinator, isSupport, onCabangChange, onCoordinatorChange, onFiltersLoaded, onSupportChange, role, search, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, supportValue, userInfo.cabang]);
+  }, [coordinatorValue, isCoordinator, isSupport, onCabangChange, onCoordinatorChange, onFiltersLoaded, onSupportChange, role, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, supportValue, userInfo.cabang]);
 
   const coordinatorOptions = useMemo(() => {
     if (isCoordinator && userName && !hasOption(filtersData.coordinators, userName)) return [userName, ...filtersData.coordinators];
@@ -128,7 +127,7 @@ export function KPIFilters({
                 }
               }}
               className="h-11 w-full rounded-full border border-slate-200/80 bg-white/50 pl-11 pr-4 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 hover:bg-white focus-visible:border-red-400 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-red-500/10"
-              placeholder="Cari ULOK atau nama personil lalu tekan Enter..."
+              placeholder="Cari nama BM, B&M Manager, Koordinator, atau Support..."
             />
           </div>
         </div>

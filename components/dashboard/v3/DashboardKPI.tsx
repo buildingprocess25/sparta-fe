@@ -6,7 +6,10 @@ import {
   type PerformanceJobType,
   type PerformancePeriod,
   type PerformanceSummaryData,
-  type PerformanceTableMetric
+  type PerformanceTableMetric,
+  type PerformanceTableRow,
+  type PerformancePersonSearchResult,
+  type PerformancePersonRole
 } from "@/lib/api/performance-v3";
 import { KPIFilters } from "./KPIFilters";
 import { KpiDrilldownModal } from "./KpiDrilldownModal";
@@ -17,13 +20,6 @@ import { AlertTriangle, Banknote, CheckCircle2, Clock3, FileText, Gauge, Loader2
 import { cn } from "@/lib/utils";
 
 const Skeleton = ({ className }: { className?: string }) => <div className={cn("animate-pulse rounded-md bg-slate-200", className)} />;
-
-type ModalState = {
-  type: PerformanceCardType;
-  title: string;
-  support?: string;
-  supportMetric?: PerformanceTableMetric;
-} | null;
 
 type MetricCardConfig = {
   id: PerformanceCardType;
@@ -54,15 +50,15 @@ export function DashboardKPI({
   const [selectedSupport, setSelectedSupport] = useState("ALL");
   const [selectedPeriod, setSelectedPeriod] = useState<PerformancePeriod>("all");
   const [selectedJobType, setSelectedJobType] = useState<PerformanceJobType>("ALL");
-  const [search, setSearch] = useState("");
-  const [selectedSupportRow, setSelectedSupportRow] = useState<any>(null);
+  const [personSearch, setPersonSearch] = useState("");
+  const [selectedSupportRow, setSelectedSupportRow] = useState<PerformanceTableRow | null>(null);
   const [modalState, setModalState] = useState<{
     type: PerformanceCardType;
     title: string;
     support?: string;
     supportMetric?: PerformanceTableMetric;
     globalSearchQuery?: string;
-    globalSearchResults?: { name: string; role: string }[];
+    globalSearchResults?: PerformancePersonSearchResult[];
   } | null>(null);
   const [filterOptions, setFilterOptions] = useState<PerformanceFiltersData>({ cabangs: [], coordinators: [], supports: [] });
 
@@ -80,44 +76,46 @@ export function DashboardKPI({
         coordinator: selectedCoordinator,
         support: selectedSupport,
         job_type: selectedJobType,
-        period: selectedPeriod,
-        search
-      });
+        period: selectedPeriod      });
       setData(res.data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal memuat data Performance Internal SAT.");
     } finally {
       setLoading(false);
     }
-  }, [role, search, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, userInfo]);
+  }, [role, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, userInfo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const openCard = (type: PerformanceCardType, title: string) => setModalState({ type, title });
 
   const handleSearchSubmit = (query: string) => {
-    if (!query) return;
-    const results: { name: string; role: string }[] = [];
-    const q = query.toLowerCase();
-    
-    filterOptions.approvalActors?.branch_manager?.forEach(name => {
-      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Manager' });
-    });
-    filterOptions.approvalActors?.bm_manager?.forEach(name => {
-      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Building & Maintenance Manager' });
-    });
-    filterOptions.coordinators?.forEach(name => {
-      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Building Coordinator' });
-    });
-    filterOptions.supports?.forEach(name => {
-      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Building Support' });
-    });
-    
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return;
+    const results: PerformancePersonSearchResult[] = [];
+    const seen = new Set<string>();
+    const q = cleanQuery.toLowerCase();
+
+    const addResult = (name: string, roleId: PerformancePersonRole, roleLabel: string) => {
+      const normalizedName = name.trim();
+      if (!normalizedName || !normalizedName.toLowerCase().includes(q)) return;
+      const key = `${roleId}:${normalizedName.toUpperCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push({ name: normalizedName, role: roleLabel, roleId });
+    };
+
+    filterOptions.approvalActors?.branch_manager?.forEach((name) => addResult(name, "branch_manager", "Branch Manager"));
+    filterOptions.approvalActors?.bm_manager?.forEach((name) => addResult(name, "bm_manager", "Branch Building & Maintenance Manager"));
+    filterOptions.coordinators?.forEach((name) => addResult(name, "coordinator", "Branch Building Coordinator"));
+    filterOptions.supports?.forEach((name) => addResult(name, "support", "Branch Building Support"));
+
+    setPersonSearch("");
     setModalState({
       type: "all",
       title: "Hasil Pencarian Personil",
-      globalSearchQuery: query,
-      globalSearchResults: results
+      globalSearchQuery: cleanQuery,
+      globalSearchResults: results.sort((a, b) => a.name.localeCompare(b.name))
     });
   };
 
@@ -392,13 +390,13 @@ export function DashboardKPI({
         selectedSupport={selectedSupport}
         selectedPeriod={selectedPeriod}
         selectedJobType={selectedJobType}
-        search={search}
+        search={personSearch}
         onCabangChange={setSelectedCabang}
         onCoordinatorChange={setSelectedCoordinator}
         onSupportChange={setSelectedSupport}
         onPeriodChange={setSelectedPeriod}
         onJobTypeChange={setSelectedJobType}
-        onSearchChange={setSearch}
+        onSearchChange={setPersonSearch}
         onSearchSubmit={handleSearchSubmit}
         onFiltersLoaded={setFilterOptions}
       />
@@ -451,7 +449,7 @@ export function DashboardKPI({
           selectedSupport={selectedSupport}
           selectedPeriod={selectedPeriod}
           selectedJobType={selectedJobType}
-          search={search}
+          search=""
           onSupportClick={(row) => setSelectedSupportRow(row)}
         />
       </div>
@@ -483,7 +481,7 @@ export function DashboardKPI({
         supportFilter={modalState?.support ?? selectedSupport}
         period={selectedPeriod}
         jobType={selectedJobType}
-        search={modalState?.globalSearchQuery ?? search}
+        search=""
         supportMetric={modalState?.supportMetric}
         availableCoordinators={filterOptions.coordinators}
         availableSupports={filterOptions.supports}

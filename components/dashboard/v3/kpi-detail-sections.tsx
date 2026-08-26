@@ -1,5 +1,5 @@
 import type { PerformanceDetailData } from "@/lib/api/performance-v3";
-import { formatDateKpi, formatNumberKpi, formatPercentKpi, formatRupiahKpi, formatSignedDays } from "./kpi-formatters";
+import { formatDateKpi, formatNumberKpi, formatRupiahKpi, formatSignedDays } from "./kpi-formatters";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Clock } from "lucide-react";
 
@@ -43,7 +43,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </div>
       </section>
 
-      {(detail.selected_card === "sla_approval" || detail.selected_card === "all") && (
+      {(detail.selected_card === "sla_approval" || detail.selected_card === "all") && section.sla_approval.events.length > 0 && (
         <section>
           <SectionHeader title="Timeline SLA Approval" />
           <div className="grid grid-cols-1 gap-4">

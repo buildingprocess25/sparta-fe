@@ -15,7 +15,7 @@ export type PerformanceCardType =
 export type PerformancePeriod = "1m" | "3m" | "6m" | "12m" | "ytd" | "all";
 export type PerformanceJobType = "ALL" | "REGULER" | "RENOVASI";
 export type PerformanceSlaRole = "support" | "coordinator" | "bm_manager" | "branch_manager";
-export type PerformancePersonRole = "coordinator" | "support";
+export type PerformancePersonRole = "coordinator" | "support" | "bm_manager" | "branch_manager";
 export type PerformanceDocument = "rab" | "spk" | "tambah_spk" | "il" | "ktk";
 export type PerformanceTableMetric =
   | "jhk_notaris_to_end_spk"
@@ -149,6 +149,12 @@ export type PerformanceTableRow = Record<PerformanceTableMetric, number | null> 
   nama_support: string;
   total_ulok: number;
   incomplete_ulok: number;
+};
+
+export type PerformancePersonSearchResult = {
+  name: string;
+  role: string;
+  roleId: PerformancePersonRole;
 };
 
 const base = API_URL.replace(/\/$/, "");

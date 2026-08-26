@@ -26,6 +26,7 @@ import {
   type PerformanceOptionStat,
   type PerformanceOptionStatsData,
   type PerformancePeriod,
+  type PerformancePersonSearchResult,
   type PerformancePersonRole,
   type PerformanceSlaRole,
   type PerformanceTableMetric
@@ -53,7 +54,7 @@ interface KpiDrilldownModalProps {
   availableCoordinators?: string[];
   availableSupports?: string[];
   approvalActors?: Record<PerformanceSlaRole, string[]>;
-  globalSearchResults?: { name: string; role: string }[];
+  globalSearchResults?: PerformancePersonSearchResult[];
 }
 
 type DrilldownStep = "search_results" | "select_role" | "select_doc" | "select_name" | "list_ulok" | "select_scope";
@@ -495,7 +496,7 @@ export function KpiDrilldownModal({
                 {globalSearchResults?.map((result, idx) => (
                   <tr 
                     key={idx} 
-                    onClick={() => { setSelectedName(result.name); setStep("list_ulok"); }}
+                    onClick={() => { setSelectedRole(result.roleId); setSelectedName(result.name); setStep("list_ulok"); }}
                     className="group cursor-pointer hover:bg-red-50/50 transition-colors"
                   >
                     <td className="px-4 py-3 font-bold text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">
@@ -582,6 +583,8 @@ export function KpiDrilldownModal({
                   <tr>
                     <th className="px-4 py-3">ULOK</th>
                     <th className="px-4 py-3">Cabang</th>
+                    <th className="px-4 py-3">PIC Terkait</th>
+                    <th className="px-4 py-3">Status Data</th>
                     {isCostM2 ? (
                       <>
                         <th className="px-4 py-3 text-right">Terbangun</th>
@@ -627,6 +630,22 @@ export function KpiDrilldownModal({
                         </span>
                       </td>
                       <td className="px-4 py-3 font-bold text-slate-700">{row.cabang ?? "-"}</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-slate-600">
+                        <span className="block truncate">Support: {row.supports.join(", ") || "-"}</span>
+                        <span className="mt-1 block truncate text-slate-400">Koord: {row.coordinators.join(", ") || "-"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex flex-wrap gap-1.5">
+                          {([
+                            { label: "RAB", active: row.scopes?.some((scope) => scope.has_rab) },
+                            { label: "SPK", active: row.scopes?.some((scope) => scope.has_spk) },
+                            { label: "ST", active: row.scopes?.some((scope) => scope.has_st) },
+                            { label: "KTK", active: row.scopes?.some((scope) => scope.has_opname) }
+                          ]).map((item) => (
+                            <span key={`${row.nomor_ulok}-${item.label}`} className={cn("rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ring-1", item.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-400 ring-slate-200")}>{item.label}</span>
+                          ))}
+                        </span>
+                      </td>
                       {isCostM2 ? (
                         <>
                           <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value !== null && row.value !== undefined ? formatRupiahKpi(row.value) : "-"}</span></td>
@@ -664,7 +683,7 @@ export function KpiDrilldownModal({
                       )}
                     </tr>
                   ))}
-                  {!rows.length && <tr><td colSpan={isCostM2 ? 5 : (kpiType === "all" ? 4 : 3)} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
+                  {!rows.length && <tr><td colSpan={isCostM2 ? 7 : 5} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
                 </tbody>
               </table>
             </div>
