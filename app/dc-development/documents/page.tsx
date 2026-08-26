@@ -46,6 +46,7 @@ type NoteDisplay = {
   category: string;
   itemTitle: string;
   format: string;
+  isCategoryNote?: boolean;
 };
 
 type GroupedProjectNotes = {
@@ -206,6 +207,24 @@ export default function DcDocumentsPage() {
     const resolveNote = (note: DcDocument): NoteDisplay => {
       const [jenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
       const stageKey = normalizeNoteStage(note.stage);
+
+      if (jenisKey.startsWith("CAT_NOTE_")) {
+        const utamaId = jenisKey.replace("CAT_NOTE_", "");
+        for (const utama of getDcDocumentConfigForStage(stageKey)) {
+          if (utama.id === utamaId) {
+            return {
+              note,
+              stageKey,
+              stageLabel: NOTE_STAGE_LABELS[stageKey],
+              category: utama.title,
+              itemTitle: "Catatan Kategori (Umum)",
+              format: "Kategori Utama",
+              isCategoryNote: true
+            };
+          }
+        }
+      }
+
       const customItem = customItemMap.get(jenisKey);
       if (customItem) {
         return {
@@ -728,25 +747,27 @@ export default function DcDocumentsPage() {
                             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">{categoryGroup.notes.length}</span>
                           </div>
                           <div className="grid gap-2">
-                            {categoryGroup.notes.map(item => (
-                              <article key={item.note.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                            {categoryGroup.notes
+                              .sort((a, b) => (b.isCategoryNote ? 1 : 0) - (a.isCategoryNote ? 1 : 0))
+                              .map(item => (
+                              <article key={item.note.id} className={`rounded-xl border p-4 shadow-sm ${item.isCategoryNote ? 'border-red-200 bg-gradient-to-r from-red-50 to-white' : 'border-slate-200 bg-white'}`}>
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                   <div className="min-w-0">
-                                    <div className="text-sm font-bold leading-snug text-slate-900">{item.itemTitle}</div>
+                                    <div className={`text-sm font-bold leading-snug ${item.isCategoryNote ? 'text-red-900' : 'text-slate-900'}`}>{item.itemTitle}</div>
                                     <div className="mt-1 flex flex-wrap items-center gap-2">
-                                      <Badge variant="outline" className="rounded-md bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                                      <Badge variant="outline" className={`rounded-md text-[10px] font-bold uppercase tracking-wider ${item.isCategoryNote ? 'border-red-200 bg-red-100 text-red-700' : 'bg-slate-50 text-slate-600'}`}>
                                         {item.format}
                                       </Badge>
-                                      {!item.note.drive_file_id && !item.note.file_name && (
+                                      {!item.note.drive_file_id && !item.note.file_name && !item.isCategoryNote && (
                                         <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">Catatan saja</span>
                                       )}
                                     </div>
                                   </div>
-                                  <div className="text-right text-[11px] font-semibold text-slate-400">
+                                  <div className={`text-right text-[11px] font-semibold ${item.isCategoryNote ? 'text-red-400' : 'text-slate-400'}`}>
                                     {new Date(item.note.created_at || "").toLocaleDateString("id-ID")}
                                   </div>
                                 </div>
-                                <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium leading-relaxed text-slate-700">
+                                <div className={`mt-3 rounded-lg px-3 py-2 text-sm font-medium leading-relaxed ${item.isCategoryNote ? 'bg-red-100/50 text-red-800' : 'bg-slate-50 text-slate-700'}`}>
                                   {item.note.notes}
                                 </div>
                                 <div className="mt-2 text-[11px] font-medium text-slate-400">

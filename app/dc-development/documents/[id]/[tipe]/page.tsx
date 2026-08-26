@@ -260,7 +260,10 @@ export default function DcDocumentDetailPage() {
         });
       } else if (noteUploadContext) {
         if (!archive) throw new Error("Arsip tidak ditemukan");
-        const compositeKey = formatKey(noteUploadContext.key, noteUploadContext.type);
+        const compositeKey = noteUploadContext.type 
+          ? formatKey(noteUploadContext.key, noteUploadContext.type)
+          : noteUploadContext.key;
+          
         await uploadDcDocuments({
           actor_email: actor.actor_email,
           actor_role: actor.actor_role,
@@ -429,26 +432,59 @@ export default function DcDocumentDetailPage() {
           <Accordion type="multiple" defaultValue={docConfig.map(d => d.id)} className="space-y-4">
             {docConfig.map((utama, uIdx) => (
               <AccordionItem key={utama.id} value={utama.id} className="border-0 rounded-2xl bg-white shadow-sm overflow-hidden">
-                <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 font-black shrink-0 text-lg">
-                      {uIdx + 1}
+                <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors [&>svg]:ml-4">
+                  <div className="flex flex-1 items-center justify-between gap-4 text-left">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 font-black shrink-0 text-lg">
+                        {uIdx + 1}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800 uppercase tracking-tight">{utama.title}</h3>
+                        <p className="text-xs font-medium text-slate-500 mt-0.5 uppercase tracking-wider">Kategori Dokumen Utama</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-800 uppercase tracking-tight">{utama.title}</h3>
-                      <p className="text-xs font-medium text-slate-500 mt-0.5 uppercase tracking-wider">Kategori Dokumen Utama</p>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const catNoteKey = `CAT_NOTE_${utama.id}`;
+                        const catNoteDoc = documents.find(d => d.document_type === catNoteKey);
+                        const hasNote = !!catNoteDoc?.notes;
+                        return (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={hasNote ? "default" : "outline"}
+                            className={`rounded-lg shadow-sm transition-all ${hasNote ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"}`}
+                            onClick={(event) => { 
+                              event.stopPropagation();
+                              if (catNoteDoc) {
+                                setEditingNoteDoc(catNoteDoc);
+                                setNoteUploadContext(null);
+                                setNoteText(catNoteDoc.notes || "");
+                              } else {
+                                setEditingNoteDoc(null);
+                                setNoteUploadContext({ key: catNoteKey, type: "" });
+                                setNoteText("");
+                              }
+                              setNoteModalOpen(true);
+                            }}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            {hasNote ? "Lihat Catatan Kategori" : "Catatan Kategori"}
+                          </Button>
+                        );
+                      })()}
+                      {utama.title === "DATA PENTING LAINNYA" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={(event) => { event.stopPropagation(); openCreateCustomItemModal(); }}
+                          className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Tambah Item
+                        </Button>
+                      )}
                     </div>
-                    {utama.title === "DATA PENTING LAINNYA" && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={(event) => { event.stopPropagation(); openCreateCustomItemModal(); }}
-                        className="ml-2 bg-red-600 text-white hover:bg-red-700"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Tambah Item
-                      </Button>
-                    )}
                   </div>
                 </AccordionTrigger>
 
