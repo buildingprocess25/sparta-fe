@@ -584,7 +584,6 @@ export function KpiDrilldownModal({
                     <th className="px-4 py-3">ULOK</th>
                     <th className="px-4 py-3">Cabang</th>
                     <th className="px-4 py-3">PIC Terkait</th>
-                    <th className="px-4 py-3">Status Data</th>
                     {isCostM2 ? (
                       <>
                         <th className="px-4 py-3 text-right">Terbangun</th>
@@ -634,18 +633,6 @@ export function KpiDrilldownModal({
                         <span className="block truncate">Support: {row.supports.join(", ") || "-"}</span>
                         <span className="mt-1 block truncate text-slate-400">Koord: {row.coordinators.join(", ") || "-"}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="flex flex-wrap gap-1.5">
-                          {([
-                            { label: "RAB", active: row.scopes?.some((scope) => scope.has_rab) },
-                            { label: "SPK", active: row.scopes?.some((scope) => scope.has_spk) },
-                            { label: "ST", active: row.scopes?.some((scope) => scope.has_st) },
-                            { label: "KTK", active: row.scopes?.some((scope) => scope.has_opname) }
-                          ]).map((item) => (
-                            <span key={`${row.nomor_ulok}-${item.label}`} className={cn("rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ring-1", item.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-400 ring-slate-200")}>{item.label}</span>
-                          ))}
-                        </span>
-                      </td>
                       {isCostM2 ? (
                         <>
                           <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value !== null && row.value !== undefined ? formatRupiahKpi(row.value) : "-"}</span></td>
@@ -683,7 +670,7 @@ export function KpiDrilldownModal({
                       )}
                     </tr>
                   ))}
-                  {!rows.length && <tr><td colSpan={isCostM2 ? 7 : 5} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
+                  {!rows.length && <tr><td colSpan={isCostM2 ? 6 : 4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
                 </tbody>
               </table>
             </div>
