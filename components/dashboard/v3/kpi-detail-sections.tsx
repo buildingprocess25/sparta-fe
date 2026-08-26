@@ -117,8 +117,12 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
           <SectionHeader title="Kerja Tambah/Kurang" />
           <p className="mb-4 text-xs font-semibold text-slate-500">{section.kerja_tambah_kurang.formula}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Kerja Tambah" value={formatRupiahKpi(section.kerja_tambah_kurang.kerja_tambah)} highlight={detail.selected_card === "kerja_tambah"} />
-            <Field label="Kerja Kurang" value={formatRupiahKpi(section.kerja_tambah_kurang.kerja_kurang)} highlight={detail.selected_card === "kerja_kurang"} />
+            {(section.kerja_tambah_kurang.kerja_tambah !== null && section.kerja_tambah_kurang.kerja_tambah !== undefined || detail.selected_card === "kerja_tambah") && (
+              <Field label="Kerja Tambah" value={formatRupiahKpi(section.kerja_tambah_kurang.kerja_tambah)} highlight={detail.selected_card === "kerja_tambah"} />
+            )}
+            {(section.kerja_tambah_kurang.kerja_kurang !== null && section.kerja_tambah_kurang.kerja_kurang !== undefined || detail.selected_card === "kerja_kurang") && (
+              <Field label="Kerja Kurang" value={formatRupiahKpi(section.kerja_tambah_kurang.kerja_kurang)} highlight={detail.selected_card === "kerja_kurang"} />
+            )}
           </div>
         </section>
       )}
