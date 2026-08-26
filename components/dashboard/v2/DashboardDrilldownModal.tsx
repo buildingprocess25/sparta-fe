@@ -1584,7 +1584,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         const commonExcluded = ['id_toko', 'lingkup_pekerjaan', 'proyek', 'nomor_ulok', 'nama_toko', 'kode_toko'];
 
         if (type === 'PENAWARAN') {
-            const excludedKeys = ['id', 'created_at', 'updated_at', 'link_pdf_gabungan', 'link_pdf_non_sbo', 'link_pdf_rekapitulasi', 'link_pdf_sph', 'logo', 'pemberi_persetujuan', 'waktu_persetujuan', 'file_asuransi', 'pemberi_persetujuan_koordinator', 'waktu_persetujuan_koordinator', 'nama_persetujuan_koordinator', 'pemberi_persetujuan_manager', 'waktu_persetujuan_manager', 'nama_persetujuan_manager', 'pemberi_persetujuan_direktur', 'waktu_persetujuan_direktur', 'nama_persetujuan_direktur', ...commonExcluded];
+            const excludedKeys = ['id', 'created_at', 'updated_at', 'link_pdf_gabungan', 'link_pdf_non_sbo', 'link_pdf_rekapitulasi', 'link_pdf_sph', 'logo', 'pemberi_persetujuan', 'waktu_persetujuan', 'file_asuransi', 'pemberi_persetujuan_koordinator', 'waktu_persetujuan_koordinator', 'nama_persetujuan_koordinator', 'pemberi_persetujuan_manager', 'waktu_persetujuan_manager', 'nama_persetujuan_manager', 'pemberi_persetujuan_direktur', 'waktu_persetujuan_direktur', 'nama_persetujuan_direktur', 'waktu_penolakan', 'ditolak_oleh', 'durasi_pekerjaan', 'kategori_lokasi', 'no_polis', 'berlaku_polis', 'luas_bangunan', 'luas_terbangun', 'luas_area_terbuka', 'alasan_penolakan', 'catatan_penolakan', ...commonExcluded];
             const keys = Object.keys(data).filter(k => !excludedKeys.includes(k) && data[k] !== null && data[k] !== '' && String(data[k]).toUpperCase() !== 'NULL' && typeof data[k] !== 'object');
 
             const lowerData: any = {};
