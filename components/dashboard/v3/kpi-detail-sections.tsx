@@ -43,7 +43,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </div>
       </section>
 
-      {detail.selected_card === "sla_approval" && (
+      {(detail.selected_card === "sla_approval" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Timeline SLA Approval" />
           <div className="grid grid-cols-1 gap-4">
@@ -75,7 +75,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </section>
       )}
 
-      {detail.selected_card === "cost_m2" && (
+      {(detail.selected_card === "cost_m2" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Breakdown Cost / m2" />
           <p className="mb-4 text-xs font-semibold text-slate-500">{section.cost_m2.formula}</p>
@@ -87,7 +87,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </section>
       )}
 
-      {detail.selected_card === "jhk" && (
+      {(detail.selected_card === "jhk" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Durasi JHK" badge={`Actual ${formatNumberKpi(section.jhk.avg_days, " hari")} / Target ${formatNumberKpi(section.jhk.avg_target_days, " hari")}`} />
           <div className="grid grid-cols-1 gap-3">
@@ -101,7 +101,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </section>
       )}
 
-      {detail.selected_card === "denda" && (
+      {(detail.selected_card === "denda" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Denda" />
           <p className="mb-4 text-xs font-semibold text-slate-500">{section.denda.policy}</p>
@@ -112,22 +112,22 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </section>
       )}
 
-      {(detail.selected_card === "kerja_tambah" || detail.selected_card === "kerja_kurang") && (
+      {(detail.selected_card === "kerja_tambah" || detail.selected_card === "kerja_kurang" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Kerja Tambah/Kurang" />
           <p className="mb-4 text-xs font-semibold text-slate-500">{section.kerja_tambah_kurang.formula}</p>
           <div className="grid grid-cols-1">
-            {detail.selected_card === "kerja_tambah" && (
+            {(detail.selected_card === "kerja_tambah" || detail.selected_card === "all") && (
               <Field label="Kerja Tambah" value={formatRupiahKpi(section.kerja_tambah_kurang.kerja_tambah)} highlight />
             )}
-            {detail.selected_card === "kerja_kurang" && (
+            {(detail.selected_card === "kerja_kurang" || detail.selected_card === "all") && (
               <Field label="Kerja Kurang" value={formatRupiahKpi(section.kerja_tambah_kurang.kerja_kurang)} highlight />
             )}
           </div>
         </section>
       )}
 
-      {detail.selected_card === "ketepatan_st" && (
+      {(detail.selected_card === "ketepatan_st" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Ketepatan Serah Terima" />
           <p className="mb-4 text-xs font-semibold text-slate-500">{section.ketepatan_st.formula}</p>
@@ -135,7 +135,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
         </section>
       )}
 
-      {detail.selected_card === "sla_ktk" && (
+      {(detail.selected_card === "sla_ktk" || detail.selected_card === "all") && (
         <section>
           <SectionHeader title="Finalisasi KTK" />
           <p className="mb-4 text-xs font-semibold text-slate-500">{section.sla_ktk.formula}</p>

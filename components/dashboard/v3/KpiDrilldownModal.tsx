@@ -53,9 +53,10 @@ interface KpiDrilldownModalProps {
   availableCoordinators?: string[];
   availableSupports?: string[];
   approvalActors?: Record<PerformanceSlaRole, string[]>;
+  globalSearchResults?: { name: string; role: string }[];
 }
 
-type DrilldownStep = "select_role" | "select_doc" | "select_name" | "list_ulok" | "select_scope";
+type DrilldownStep = "search_results" | "select_role" | "select_doc" | "select_name" | "list_ulok" | "select_scope";
 
 const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string }> = [
   { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200" },
@@ -158,6 +159,11 @@ export function KpiDrilldownModal({
     setDetail(null);
     setSelectedDoc(null);
     setSelectedName(null);
+
+    if (kpiType === "all") {
+      setStep("search_results");
+      return;
+    }
 
     if (supportMetric) {
       setSelectedRole("support");
@@ -346,6 +352,10 @@ export function KpiDrilldownModal({
       return;
     }
     if (step === "list_ulok") {
+      if (kpiType === "all") {
+        setStep("search_results");
+        return;
+      }
       if (supportMetric) return onClose();
       setStep(kpiType === "sla_approval" ? "select_doc" : "select_name");
       return;
@@ -468,6 +478,50 @@ export function KpiDrilldownModal({
     );
   };
 
+  const renderSearchResults = () => {
+    return (
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-normal text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Nama Personil</th>
+                  <th className="px-4 py-3">Role</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {globalSearchResults?.map((result, idx) => (
+                  <tr 
+                    key={idx} 
+                    onClick={() => { setSelectedName(result.name); setStep("list_ulok"); }}
+                    className="group cursor-pointer hover:bg-red-50/50 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-bold text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">
+                      {result.name}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">
+                        {result.role}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {(!globalSearchResults || globalSearchResults.length === 0) && (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                      Personil tidak ditemukan.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderScopeSelection = () => {
     const row = scopeSelectionRow;
     const scopes = row?.scopes?.length ? row.scopes : [{ lingkup_pekerjaan: "LAINNYA", toko_id: 0 }];
@@ -533,6 +587,10 @@ export function KpiDrilldownModal({
                         <th className="px-4 py-3 text-right">Bangunan</th>
                         <th className="px-4 py-3 text-right">Area Terbuka</th>
                       </>
+                    ) : kpiType === "all" ? (
+                      <>
+                        <th className="px-4 py-3 text-right">Status Proyek</th>
+                      </>
                     ) : (
                       <>
                         <th className="px-4 py-3 text-right">
@@ -574,6 +632,20 @@ export function KpiDrilldownModal({
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.bangunan !== null && row.bangunan !== undefined ? formatRupiahKpi(row.bangunan) : "-"}</td>
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.area_terbuka !== null && row.area_terbuka !== undefined ? formatRupiahKpi(row.area_terbuka) : "-"}</td>
                         </>
+                      ) : kpiType === "all" ? (
+                        <>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">
+                            {(() => {
+                              const scope = row.scopes?.length ? row.scopes[0] : null;
+                              if (!scope) return "-";
+                              if (scope.has_st) return "Selesai (ST)";
+                              if (scope.has_opname) return "Opname Final / KTK";
+                              if (scope.has_spk) return "SPK / Progress";
+                              if (scope.has_rab) return "RAB";
+                              return "Inisiasi";
+                            })()}
+                          </td>
+                        </>
                       ) : (
                         <>
                           <td className="px-4 py-3 text-right font-bold text-slate-800">
@@ -591,7 +663,7 @@ export function KpiDrilldownModal({
                       )}
                     </tr>
                   ))}
-                  {!rows.length && <tr><td colSpan={isCostM2 ? 5 : 3} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
+                  {!rows.length && <tr><td colSpan={isCostM2 ? 5 : (kpiType === "all" ? 4 : 3)} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -639,6 +711,7 @@ export function KpiDrilldownModal({
             </div>
           </DialogHeader>
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-transparent">
+            {step === "search_results" && renderSearchResults()}
             {step === "select_role" && renderRole()}
             {step === "select_doc" && renderDoc()}
             {step === "select_name" && renderName()}

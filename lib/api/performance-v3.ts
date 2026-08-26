@@ -9,7 +9,8 @@ export type PerformanceCardType =
   | "kerja_tambah"
   | "kerja_kurang"
   | "ketepatan_st"
-  | "sla_ktk";
+  | "sla_ktk"
+  | "all";
 
 export type PerformancePeriod = "1m" | "3m" | "6m" | "12m" | "ytd" | "all";
 export type PerformanceJobType = "ALL" | "REGULER" | "RENOVASI";

@@ -18,6 +18,7 @@ interface KPIFiltersProps {
   onPeriodChange: (val: PerformancePeriod) => void;
   onJobTypeChange: (val: PerformanceJobType) => void;
   onSearchChange: (val: string) => void;
+  onSearchSubmit?: (val: string) => void;
   onFiltersLoaded?: (filters: PerformanceFiltersData) => void;
 }
 
@@ -46,6 +47,7 @@ export function KPIFilters({
   onPeriodChange,
   onJobTypeChange,
   onSearchChange,
+  onSearchSubmit,
   onFiltersLoaded
 }: KPIFiltersProps) {
   const [filtersData, setFiltersData] = useState<PerformanceFiltersData>(emptyFilters);
@@ -119,8 +121,14 @@ export function KPIFilters({
               id="performance-search"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onSearchSubmit?.(search);
+                }
+              }}
               className="h-11 w-full rounded-full border border-slate-200/80 bg-white/50 pl-11 pr-4 text-sm font-semibold text-slate-800 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 hover:bg-white focus-visible:border-red-400 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-red-500/10"
-              placeholder="Cari ULOK atau nama toko..."
+              placeholder="Cari ULOK atau nama personil lalu tekan Enter..."
             />
           </div>
         </div>

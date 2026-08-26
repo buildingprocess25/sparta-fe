@@ -55,8 +55,15 @@ export function DashboardKPI({
   const [selectedPeriod, setSelectedPeriod] = useState<PerformancePeriod>("all");
   const [selectedJobType, setSelectedJobType] = useState<PerformanceJobType>("ALL");
   const [search, setSearch] = useState("");
-  const [modalState, setModalState] = useState<ModalState>(null);
-  const [selectedSupportRow, setSelectedSupportRow] = useState<any | null>(null);
+  const [selectedSupportRow, setSelectedSupportRow] = useState<any>(null);
+  const [modalState, setModalState] = useState<{
+    type: PerformanceCardType;
+    title: string;
+    support?: string;
+    supportMetric?: PerformanceTableMetric;
+    globalSearchQuery?: string;
+    globalSearchResults?: { name: string; role: string }[];
+  } | null>(null);
   const [filterOptions, setFilterOptions] = useState<PerformanceFiltersData>({ cabangs: [], coordinators: [], supports: [] });
 
   const role = userInfo.roles[0] || "USER";
@@ -87,6 +94,32 @@ export function DashboardKPI({
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const openCard = (type: PerformanceCardType, title: string) => setModalState({ type, title });
+
+  const handleSearchSubmit = (query: string) => {
+    if (!query) return;
+    const results: { name: string; role: string }[] = [];
+    const q = query.toLowerCase();
+    
+    filterOptions.approvalActors?.branch_manager?.forEach(name => {
+      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Manager' });
+    });
+    filterOptions.approvalActors?.bm_manager?.forEach(name => {
+      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Building & Maintenance Manager' });
+    });
+    filterOptions.coordinators?.forEach(name => {
+      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Building Coordinator' });
+    });
+    filterOptions.supports?.forEach(name => {
+      if (name.toLowerCase().includes(q)) results.push({ name, role: 'Branch Building Support' });
+    });
+    
+    setModalState({
+      type: "all",
+      title: "Hasil Pencarian Personil",
+      globalSearchQuery: query,
+      globalSearchResults: results
+    });
+  };
 
   const cards = useMemo<MetricCardConfig[]>(() => {
     const summary = data?.cards;
@@ -366,6 +399,7 @@ export function DashboardKPI({
         onPeriodChange={setSelectedPeriod}
         onJobTypeChange={setSelectedJobType}
         onSearchChange={setSearch}
+        onSearchSubmit={handleSearchSubmit}
         onFiltersLoaded={setFilterOptions}
       />
 
@@ -449,11 +483,12 @@ export function DashboardKPI({
         supportFilter={modalState?.support ?? selectedSupport}
         period={selectedPeriod}
         jobType={selectedJobType}
-        search={search}
+        search={modalState?.globalSearchQuery ?? search}
         supportMetric={modalState?.supportMetric}
         availableCoordinators={filterOptions.coordinators}
         availableSupports={filterOptions.supports}
         approvalActors={filterOptions.approvalActors}
+        globalSearchResults={modalState?.globalSearchResults}
       />
     </main>
   );
