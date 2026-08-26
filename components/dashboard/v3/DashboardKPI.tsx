@@ -342,7 +342,7 @@ export function DashboardKPI({
           </div>
           <h1 className="mt-4 text-4xl lg:text-5xl font-semibold tracking-tighter text-slate-900 drop-shadow-sm">Performance Internal SAT</h1>
           <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
-            Monitor dan evaluasi ringkasan ULOK secara komprehensif. Menampilkan analitik biaya, durasi pekerjaan, denda, dan efisiensi serah terima proyek.
+            Monitor dan evaluasi performance dari internal SAT. Menampilkan analitik biaya, durasi pekerjaan, denda, dan efisiensi serah terima proyek.
           </p>
         </div>
 

@@ -32,7 +32,7 @@ import {
 } from "@/lib/api/performance-v3";
 import { KpiDetailSections } from "./kpi-detail-sections";
 import { KpiTimeline } from "./kpi-timeline";
-import { formatNumberKpi, formatRupiahKpi } from "./kpi-formatters";
+import { formatNumberKpi, formatRupiahKpi, formatSignedDays } from "./kpi-formatters";
 import { cn } from "@/lib/utils";
 
 interface KpiDrilldownModalProps {
@@ -58,10 +58,10 @@ interface KpiDrilldownModalProps {
 type DrilldownStep = "select_role" | "select_doc" | "select_name" | "list_ulok" | "select_scope";
 
 const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string }> = [
-  { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-  { id: "coordinator", label: "Branch Building Coordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200" },
+  { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200" },
   { id: "bm_manager", label: "Branch Building & Maintenance Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200" },
-  { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200" }
+  { id: "coordinator", label: "Branch Building Coordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200" },
+  { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200" }
 ];
 
 const docOptions: Array<{ id: PerformanceDocument; label: string; roles: PerformanceSlaRole[]; icon: React.ElementType }> = [
@@ -367,15 +367,30 @@ export function KpiDrilldownModal({
         <p className="mt-2 text-sm font-bold text-slate-500">Tentukan perspektif evaluasi performa</p>
       </div>
       <div className="grid w-full max-w-xl grid-cols-1 gap-5 sm:grid-cols-2">
-        {allowedRoles.map((role) => {
+        {allowedRoles.map((role, index) => {
+          const isLastAndOdd = allowedRoles.length % 2 !== 0 && index === allowedRoles.length - 1;
           const Icon = role.icon;
           return (
-            <button key={role.id} type="button" onClick={() => { setSelectedRole(role.id); setStep("select_name"); }} className="group relative flex flex-col items-center gap-4 rounded-[24px] border border-slate-200/60 bg-white/50 p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-              <div className={cn("flex h-16 w-16 items-center justify-center rounded-2xl ring-1 ring-inset transition-transform duration-300 group-hover:scale-110", role.tone)}>
-                <Icon className="h-7 w-7" aria-hidden="true" />
+            <button 
+              key={role.id} 
+              type="button" 
+              onClick={() => { setSelectedRole(role.id); setStep("select_name"); }} 
+              className={cn(
+                "group relative flex rounded-[24px] border border-slate-200/60 bg-white/50 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20",
+                isLastAndOdd 
+                  ? "flex-col sm:flex-row sm:col-span-2 items-center sm:justify-between text-center sm:text-left gap-4 sm:px-8" 
+                  : "flex-col items-center text-center gap-4"
+              )}
+            >
+              <div className={cn("flex items-center gap-4", isLastAndOdd ? "flex-col sm:flex-row" : "flex-col")}>
+                <div className={cn("flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset transition-transform duration-300 group-hover:scale-110", role.tone)}>
+                  <Icon className="h-7 w-7" aria-hidden="true" />
+                </div>
+                <span className="text-sm font-bold tracking-tight text-slate-800">{role.label}</span>
               </div>
-              <span className="text-sm font-bold tracking-tight text-slate-800">{role.label}</span>
-              {renderOptionStat(statById(optionStats.roles, role.id))}
+              <div className={cn("flex", isLastAndOdd ? "[&>span]:mt-0 sm:[&>span]:justify-end" : "w-full")}>
+                {renderOptionStat(statById(optionStats.roles, role.id))}
+              </div>
             </button>
           );
         })}
@@ -520,8 +535,14 @@ export function KpiDrilldownModal({
                       </>
                     ) : (
                       <>
-                        <th className="px-4 py-3 text-right">Nilai</th>
-                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">
+                          {kpiType === "denda" ? "Total Denda" :
+                           kpiType === "kerja_tambah" || kpiType === "kerja_kurang" ? "Total Rupiah" :
+                           kpiType === "jhk" ? "Durasi (Hari)" :
+                           kpiType === "ketepatan_st" ? "Ketepatan ST" :
+                           kpiType === "sla_ktk" ? "SLA KTK (Hari)" :
+                           kpiType === "sla_approval" ? "Rata-rata Hari" : "Nilai"}
+                        </th>
                       </>
                     )}
                   </tr>
@@ -555,13 +576,22 @@ export function KpiDrilldownModal({
                         </>
                       ) : (
                         <>
-                          <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value_label}</span></td>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-500">{row.secondary_label}</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800">
+                            <span className={cn("rounded-full bg-slate-100 px-2.5 py-1 text-xs", kpiType === "ketepatan_st" && row.value !== null && row.value !== undefined && row.value < 0 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : kpiType === "ketepatan_st" && row.value !== null && row.value !== undefined && row.value > 0 ? "bg-red-50 text-red-700 ring-1 ring-red-200" : "")}>
+                              {(() => {
+                                if (row.value === null || row.value === undefined) return "-";
+                                if (kpiType === "denda" || kpiType === "kerja_tambah" || kpiType === "kerja_kurang") return formatRupiahKpi(row.value);
+                                if (kpiType === "jhk" || kpiType === "sla_ktk" || kpiType === "sla_approval") return formatNumberKpi(row.value, " hari");
+                                if (kpiType === "ketepatan_st") return formatSignedDays(row.value).split(" / ")[0];
+                                return row.value_label;
+                              })()}
+                            </span>
+                          </td>
                         </>
                       )}
                     </tr>
                   ))}
-                  {!rows.length && <tr><td colSpan={isCostM2 ? 5 : 4} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
+                  {!rows.length && <tr><td colSpan={isCostM2 ? 5 : 3} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada ULOK untuk pilihan ini.</td></tr>}
                 </tbody>
               </table>
             </div>

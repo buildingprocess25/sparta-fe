@@ -45,7 +45,7 @@ export function KpiDetailSections({ detail }: { detail: PerformanceDetailData })
 
       {detail.selected_card === "sla_approval" && (
         <section>
-          <SectionHeader title="Timeline SLA Approval" badge={`Rata-rata: ${formatNumberKpi(section.sla_approval.avg_days, " hari")}`} />
+          <SectionHeader title="Timeline SLA Approval" />
           <div className="grid grid-cols-1 gap-4">
             {section.sla_approval.events.map((event) => (
               <div key={`${event.document}-${event.role}-${event.approvedAt}`} className="group flex flex-col sm:flex-row sm:items-start gap-4 rounded-[24px] bg-white/70 p-5 shadow-[0_4px_20px_rgb(0,0,0,0.02)] ring-1 ring-slate-200/60 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:ring-red-100">
