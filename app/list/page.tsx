@@ -2178,7 +2178,7 @@ export default function DaftarDokumenPage() {
 
     const handleViewPDFOnline = useCallback(async (detail: NormalizedDetail) => {
         try {
-            if (detail.tipe === 'PENGAWASAN' && detail.link_pdf) {
+            if (detail.tipe === 'PENGAWASAN' && detail.is_pdf_pending && detail.link_pdf) {
                 window.open(getProxyUrl(detail.link_pdf), '_blank', 'noopener,noreferrer');
                 return;
             }
@@ -4110,7 +4110,7 @@ export default function DaftarDokumenPage() {
                                                 className="bg-red-600 hover:bg-red-700 text-white"
                                                 disabled={downloadingId === selectedDetail.id}
                                                 onClick={() => {
-                                                    if (selectedDetail.tipe === 'PENGAWASAN' && selectedDetail.link_pdf) {
+                                                    if (selectedDetail.tipe === 'PENGAWASAN' && selectedDetail.is_pdf_pending && selectedDetail.link_pdf) {
                                                         window.open(getProxyUrl(selectedDetail.link_pdf), '_blank', 'noopener,noreferrer');
                                                         return;
                                                     }

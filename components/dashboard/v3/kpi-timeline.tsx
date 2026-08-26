@@ -81,14 +81,14 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         .sort((a: any, b: any) => (b._spkEndDate - a._spkEndDate) || (b._documentDate - a._documentDate))[0] ?? null;
 
     const openPengawasanDocument = async (sub: any) => {
-        if (sub.url) {
-            window.open(getProxyUrl(sub.url), '_blank', 'noopener,noreferrer');
-            return;
-        }
-
         const idPengawasanGantt = Number(sub.idPengawasanGantt);
         if (Number.isFinite(idPengawasanGantt) && idPengawasanGantt > 0) {
             await viewGeneratedPdfOnline(idPengawasanGantt, 'PENGAWASAN' as any);
+            return;
+        }
+
+        if (sub.url) {
+            window.open(getProxyUrl(sub.url), '_blank', 'noopener,noreferrer');
         }
     };
 
