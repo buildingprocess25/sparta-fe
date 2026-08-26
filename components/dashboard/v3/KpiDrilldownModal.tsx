@@ -126,7 +126,8 @@ export function KpiDrilldownModal({
   supportMetric,
   availableCoordinators = [],
   availableSupports = [],
-  approvalActors
+  approvalActors,
+  globalSearchResults
 }: KpiDrilldownModalProps) {
   const [step, setStep] = useState<DrilldownStep>("select_role");
   const [selectedRole, setSelectedRole] = useState<PerformanceSlaRole | PerformancePersonRole | null>(null);
