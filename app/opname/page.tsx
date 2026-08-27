@@ -185,7 +185,36 @@ const getOpnameReviewSortRank = (status?: string | null) => {
     if (isPendingOpnameStatus(status)) return 0;
     if (isApprovedOpnameStatus(status) || isRejectedOpnameStatus(status)) return 2;
     return 1;
+};const isContractorFirstOpname = (item?: Pick<OpnameItem, 'workflow_version'> | null) =>
+    item?.workflow_version === 'contractor_first';
+
+const getOpnameSourceRef = (item: OpnameItem, rabRef?: RABDetailItem) =>
+    rabRef || item.rab_item || item.instruksi_lapangan_item;
+
+const buildRabItemFromOpname = (item: OpnameItem): RABDetailItem | null => {
+    const source = getOpnameSourceRef(item);
+    if (!source) return null;
+    const isIl = Boolean(item.id_instruksi_lapangan_item || item.instruksi_lapangan_item);
+    return {
+        id: isIl ? -Number(source.id) : Number(source.id),
+        id_rab: 'id_rab' in source ? Number(source.id_rab) || 0 : 0,
+        source_type: isIl ? 'IL' : 'RAB',
+        id_instruksi_lapangan_item: isIl ? Number(source.id) : undefined,
+        kategori_pekerjaan: source.kategori_pekerjaan || 'Lainnya',
+        jenis_pekerjaan: source.jenis_pekerjaan || '-',
+        satuan: source.satuan || '-',
+        volume: Number(source.volume) || 0,
+        harga_material: Number(source.harga_material) || 0,
+        harga_upah: Number(source.harga_upah) || 0,
+        total_material: Number(source.total_material) || 0,
+        total_upah: Number(source.total_upah) || 0,
+        total_harga: Number(source.total_harga) || 0,
+        catatan: 'Contractor-first opname',
+    };
 };
+
+const getContractorFirstRejectNote = (item: OpnameItem) =>
+    item.alasan_penolakan_support || item.catatan || '';
 // =============================================================================
 // SUB-COMPONENTS
 // =============================================================================
@@ -1118,6 +1147,41 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 )}
 
                                 {activeView === 'form' ? (
+                                    <>
+                                    {/* Support Re-Review Section */}
+                                    {(() => {
+                                        const pendingRevisions = existingOpname.filter((item) => isContractorFirstOpname(item) && item.status === "pending" && (item.revision_no || 0) > 0);
+                                        if (pendingRevisions.length === 0) return null;
+                                        return (
+                                            <div className="mb-6 p-5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm">
+                                                <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-4 border-b border-blue-200 pb-2">
+                                                    <Clock className="w-4 h-4" /> Review Revisi Kontraktor ({pendingRevisions.length})
+                                                </h3>
+                                                <div className="space-y-3">
+                                                    {pendingRevisions.map(item => {
+                                                        const sourceRef = item.rab_item || item.instruksi_lapangan_item;
+                                                        return (
+                                                            <div key={item.id} className="p-4 bg-white border border-blue-100 rounded-lg shadow-sm flex flex-col md:flex-row gap-4 justify-between items-start">
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
+                                                                        <Badge className="bg-amber-100 text-amber-800 border-none">Revisi ke-{item.revision_no}</Badge>
+                                                                    </div>
+                                                                    <div className="text-xs text-slate-600 space-y-1 mt-2">
+                                                                        <p><span className="font-semibold">Volume Akhir:</span> {item.volume_akhir}</p>
+                                                                        <p><span className="font-semibold">Desain/Kualitas/Spek:</span> {item.desain} / {item.kualitas} / {item.spesifikasi}</p>
+                                                                        {item.catatan && <p><span className="font-semibold">Catatan:</span> {item.catatan}</p>}
+                                                                    </div>
+                                                                </div>
+                                                                <SupportReReviewActions item={item} onReviewed={() => handleSelectRab(selectedRab?.id?.toString() || '')} />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                    
                                     /* Section 2: Form Input */
                                     <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                                         <div className="border-b pb-2 mb-4 flex items-center justify-between">
@@ -1395,7 +1459,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
 
                                     </div>
-                                ) : (
+                                </>) : (
                                     /* History View */
                                     <OpnameHistoryView opnameList={existingOpname} rabItems={rabItems} />
                                 )}
@@ -1997,6 +2061,24 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                                                         const hargaMaterial = Number(sourceRef?.harga_material || 0);
                                                         const hargaUpah = Number(sourceRef?.harga_upah || 0);
                                                         const isPending = item.status?.toLowerCase() === 'pending';
+                                                        const isRejectedForRevision = isContractorFirstOpname(item) && item.status?.toLowerCase() === 'ditolak' && !item.locked_at;
+
+                                                        if (isRejectedForRevision) {
+                                                            return (
+                                                                <div key={j} className="p-4 bg-red-50/20 border-b border-red-100 last:border-b-0">
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
+                                                                        <StatusBadge status={item.status} />
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-1.5 mb-3">
+                                                                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {satuan}</span>
+                                                                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hargaMaterial)}</span>
+                                                                        <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hargaUpah)}</span>
+                                                                    </div>
+                                                                    <ContractorRevisionForm item={item} sourceRef={sourceRef} onReviseSuccess={refreshData} />
+                                                                </div>
+                                                            );
+                                                        }
 
                                                         return (
                                                             <div key={j} className={`p-4 hover:bg-slate-50/50 transition-colors ${isPending ? 'bg-amber-50/30' : ''}`}>
@@ -2192,6 +2274,141 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 // MAIN PAGE COMPONENT
 // =============================================================================
 
+function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: any; sourceRef: any; onReviseSuccess: () => void; }) {
+    const { showAlert } = useGlobalAlert();
+    const [volumeAkhir, setVolumeAkhir] = useState(item.volume_akhir ? String(item.volume_akhir) : '');
+    const [desain, setDesain] = useState(item.desain || '');
+    const [kualitas, setKualitas] = useState(item.kualitas || '');
+    const [spesifikasi, setSpesifikasi] = useState(item.spesifikasi || '');
+    const [catatan, setCatatan] = useState(item.catatan || '');
+    const [foto, setFoto] = useState<File | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!volumeAkhir || !desain || !kualitas || !spesifikasi) {
+            showAlert({ message: 'Harap lengkapi field wajib', type: 'warning' });
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            const { reviseContractorFirstOpname } = await import('@/lib/api');
+            const formData = new FormData();
+            formData.append('volume_akhir', volumeAkhir);
+            formData.append('desain', desain);
+            formData.append('kualitas', kualitas);
+            formData.append('spesifikasi', spesifikasi);
+            if (catatan) formData.append('catatan', catatan);
+            if (foto) formData.append('file_foto_opname', foto);
+            
+            const hMaterial = Number(sourceRef?.harga_material) || 0;
+            const hUpah = Number(sourceRef?.harga_upah) || 0;
+            const hSatuan = hMaterial + hUpah;
+            const volRab = Number(sourceRef?.volume) || 0;
+            const volAkhirNum = Number(volumeAkhir) || 0;
+            const selisih_volume = Number((volAkhirNum - volRab).toFixed(4));
+            const total_harga_opname = Math.round(volAkhirNum * hSatuan);
+            const total_selisih = total_harga_opname - Math.round(volRab * hSatuan);
+
+            formData.append('selisih_volume', String(selisih_volume));
+            formData.append('total_selisih', String(total_selisih));
+            formData.append('total_harga_opname', String(total_harga_opname));
+
+            await reviseContractorFirstOpname(item.id, formData as any);
+            showAlert({ message: 'Revisi berhasil disubmit.', type: 'success' });
+            onReviseSuccess();
+        } catch(err: any) {
+            showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    return (
+        <div className="mt-4 p-4 border border-blue-200 bg-white rounded-lg shadow-sm">
+            <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Form Revisi (Ditolak)</h4>
+            
+            <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs border border-red-200 rounded">
+                <span className="font-bold">Alasan Penolakan:</span> {item.catatan || 'Tidak ada alasan.'}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               <div>
+                   <label className="text-xs font-bold text-slate-700">Volume Akhir *</label>
+                   <input type="text" className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={volumeAkhir} onChange={(e) => setVolumeAkhir(normalizeVolumeInput(e.target.value))} />
+               </div>
+               <div>
+                   <label className="text-xs font-bold text-slate-700">Desain *</label>
+                   <select className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={desain} onChange={(e) => setDesain(e.target.value)}>
+                       <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
+                   </select>
+               </div>
+               <div>
+                   <label className="text-xs font-bold text-slate-700">Kualitas *</label>
+                   <select className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={kualitas} onChange={(e) => setKualitas(e.target.value)}>
+                       <option value="">-- Pilih --</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option>
+                   </select>
+               </div>
+               <div>
+                   <label className="text-xs font-bold text-slate-700">Spesifikasi *</label>
+                   <select className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={spesifikasi} onChange={(e) => setSpesifikasi(e.target.value)}>
+                       <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
+                   </select>
+               </div>
+               <div>
+                   <label className="text-xs font-bold text-slate-700">Foto Bukti (Opsional)</label>
+                   <input type="file" accept="image/*" className="w-full p-1.5 text-xs border rounded mt-1" onChange={(e) => e.target.files && setFoto(e.target.files[0])} />
+               </div>
+               <div className="lg:col-span-3">
+                   <label className="text-xs font-bold text-slate-700">Catatan Revisi</label>
+                   <textarea className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)}></textarea>
+               </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6" onClick={handleSubmit} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                    Kirim Revisi
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: () => void; }) {
+    const { showAlert } = useGlobalAlert();
+    const [isProcessing, setIsProcessing] = useState(false);
+    
+    const handleAction = async (decision: 'disetujui' | 'ditolak') => {
+        let alasan = '';
+        if (decision === 'ditolak') {
+            alasan = window.prompt('Masukkan alasan penolakan revisi:') || '';
+            if (!alasan) return;
+        }
+        
+        setIsProcessing(true);
+        try {
+            const { reviewContractorFirstOpname } = await import('@/lib/api');
+            await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan });
+            showAlert({ message: 'Review berhasil disimpan.', type: 'success' });
+            onReviewed();
+        } catch(err: any) {
+            showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+    
+    return (
+        <div className="flex gap-2">
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleAction('disetujui')} disabled={isProcessing}>
+                <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
+            </Button>
+            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => handleAction('ditolak')} disabled={isProcessing}>
+                <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
+            </Button>
+        </div>
+    );
+}
+
 export default function OpnamePage() {
     const router = useRouter();
     const { showAlert } = useGlobalAlert();
@@ -2255,3 +2472,9 @@ export default function OpnamePage() {
         </div>
     );
 }
+
+
+
+
+
+
