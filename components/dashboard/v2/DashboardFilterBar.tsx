@@ -15,6 +15,8 @@ interface DashboardFilterBarProps {
     isRefreshing: boolean;
     jobType: 'ALL' | 'RENOVASI' | 'REGULER';
     onJobTypeChange: (value: 'ALL' | 'RENOVASI' | 'REGULER') => void;
+    tipeBangunan: 'ALL' | 'RUKO' | 'NON_RUKO';
+    onTipeBangunanChange: (value: 'ALL' | 'RUKO' | 'NON_RUKO') => void;
 }
 
 export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
@@ -27,7 +29,9 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     onRefresh,
     isRefreshing,
     jobType,
-    onJobTypeChange
+    onJobTypeChange,
+    tipeBangunan,
+    onTipeBangunanChange
 }) => {
     const [localSearch, setLocalSearch] = useState(searchQuery);
 
@@ -114,6 +118,23 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                         <SelectItem value="ALL"><span className="font-semibold text-slate-800">Semua Tipe Proyek</span></SelectItem>
                         <SelectItem value="RENOVASI"><span className="font-medium text-slate-700">Renovasi</span></SelectItem>
                         <SelectItem value="REGULER"><span className="font-medium text-slate-700">Reguler</span></SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            <div className="w-full md:w-48">
+                <Select value={tipeBangunan} onValueChange={(val: any) => onTipeBangunanChange(val)}>
+                    <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-[42px] focus:ring-1 focus:ring-red-500">
+                        <SelectValue>
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                {tipeBangunan === 'ALL' ? 'Semua Tipe Bangunan' : tipeBangunan === 'RUKO' ? 'Ruko' : 'Non Ruko'}
+                            </div>
+                        </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        <SelectItem value="ALL"><span className="font-semibold text-slate-800">Semua Tipe Bangunan</span></SelectItem>
+                        <SelectItem value="RUKO"><span className="font-medium text-slate-700">Ruko</span></SelectItem>
+                        <SelectItem value="NON_RUKO"><span className="font-medium text-slate-700">Non Ruko</span></SelectItem>
                     </SelectContent>
                 </Select>
             </div>

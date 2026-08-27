@@ -16,6 +16,8 @@ interface DashboardViewV2Props {
     isRefreshing: boolean;
     jobType: 'ALL' | 'RENOVASI' | 'REGULER';
     onJobTypeChange: (val: 'ALL' | 'RENOVASI' | 'REGULER') => void;
+    tipeBangunan: 'ALL' | 'RUKO' | 'NON_RUKO';
+    onTipeBangunanChange: (val: 'ALL' | 'RUKO' | 'NON_RUKO') => void;
 
     // Extracted from page.tsx
     searchQuery: string;
@@ -34,6 +36,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
     isRefreshing,
     jobType,
     onJobTypeChange,
+    tipeBangunan,
+    onTipeBangunanChange,
     searchQuery,
     onSearchChange,
     stats
@@ -219,6 +223,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         isRefreshing={isRefreshing}
                         jobType={jobType}
                         onJobTypeChange={onJobTypeChange}
+                        tipeBangunan={tipeBangunan}
+                        onTipeBangunanChange={onTipeBangunanChange}
                     />
 
                     <div className="mt-2">

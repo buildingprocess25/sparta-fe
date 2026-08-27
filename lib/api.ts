@@ -4867,9 +4867,13 @@ export const fetchDashboardSingle = async (params: { search?: string; id?: numbe
  * GET /api/dashboard/all?search=...
  * Mengambil semua data toko + seluruh relasi turunan.
  */
-export const fetchDashboardAll = async (search?: string) => {
+export const fetchDashboardAll = async (search?: string, tipeBangunan?: 'ALL' | 'RUKO' | 'NON_RUKO') => {
     let url = `${API_URL.replace(/\/$/, "")}/api/dashboard/all`;
-    if (search) url += `?search=${encodeURIComponent(search)}`;
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+    if (tipeBangunan && tipeBangunan !== "ALL") params.append("tipe_bangunan", tipeBangunan);
+    const queryString = params.toString();
+    if (queryString) url += `?${queryString}`;
     return safeFetchJSON(url);
 };
 

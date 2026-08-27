@@ -50,6 +50,7 @@ export function DashboardKPI({
   const [selectedSupport, setSelectedSupport] = useState("ALL");
   const [selectedPeriod, setSelectedPeriod] = useState<PerformancePeriod>("all");
   const [selectedJobType, setSelectedJobType] = useState<PerformanceJobType>("ALL");
+  const [selectedTipeBangunan, setSelectedTipeBangunan] = useState<"ALL" | "RUKO" | "NON_RUKO">("ALL");
   const [personSearch, setPersonSearch] = useState("");
   const [selectedSupportRow, setSelectedSupportRow] = useState<PerformanceTableRow | null>(null);
   const [modalState, setModalState] = useState<{
@@ -76,6 +77,7 @@ export function DashboardKPI({
         coordinator: selectedCoordinator,
         support: selectedSupport,
         job_type: selectedJobType,
+        tipe_bangunan: selectedTipeBangunan,
         period: selectedPeriod      });
       setData(res.data);
     } catch (err: unknown) {
@@ -83,7 +85,7 @@ export function DashboardKPI({
     } finally {
       setLoading(false);
     }
-  }, [role, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, userInfo]);
+  }, [role, selectedCabang, selectedCoordinator, selectedJobType, selectedPeriod, selectedSupport, selectedTipeBangunan, userInfo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -299,54 +301,73 @@ export function DashboardKPI({
                    <h3 className="text-sm font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
                  </div>
               </div>
-              <div className="mt-5 flex-1">
-                 {loading ? <Skeleton className="h-8 w-24" /> : (
-                   <span className={cn("inline-flex items-center rounded-xl px-3 py-1.5 text-lg font-semibold tracking-tight ring-1",
-                     card.value.includes("+") || card.value.includes("lambat") ? "bg-red-50 text-red-700 ring-red-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                   )}>
-                     {card.value}
-                   </span>
-                 )}
-              </div>
+              <div className="mt-4 flex-1">
+                 {loading ? <Skeleton className="h-8 w-24" /> : <p className="text-3xl font-bold tracking-tight text-slate-800 drop-shadow-sm">{card.value}</p>}
+                 <p className="mt-1 text-xs font-medium text-slate-500">{card.helper}</p>
+               </div>
             </div>
           );
 
-        default:
+        case "denda":
+        case "kerja_tambah":
+        case "kerja_kurang":
           return (
             <div className="flex h-full w-full flex-col justify-between">
-              <div>
-                 <h3 className="text-base font-semibold tracking-tight text-slate-800">{card.title}</h3>
-              </div>
-              <div className="mt-4 flex items-end justify-between">
-                <div className="flex flex-col gap-1">
-                  {loading ? <Skeleton className="h-8 w-24" /> : <p className="text-2xl font-semibold tracking-tight text-slate-800">{card.value}</p>}
-                  {card.sumValue && card.sumValue !== "-" && !loading && (
-                    <p className="text-xs font-semibold text-slate-500">Sum {card.sumValue}</p>
-                  )}
-                </div>
-                <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md transition-transform duration-300 group-hover:-rotate-6", card.tone)}>
+              <div className="flex items-center gap-3">
+                 <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md", card.tone)}>
                    <Icon className="h-4 w-4" aria-hidden="true" />
-                </div>
-              </div>
+                 </div>
+                 <div>
+                   <h3 className="text-sm font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
+                 </div>
+               </div>
+               <div className="mt-4 flex-1">
+                 {loading ? <Skeleton className="h-8 w-32" /> : <p className="text-2xl font-bold tracking-tight text-slate-800 drop-shadow-sm">{card.value}</p>}
+                 {card.sumValue && !loading && (
+                   <p className="mt-1 text-[11px] font-semibold text-slate-500">Total: <span className="text-slate-700">{card.sumValue}</span></p>
+                 )}
+               </div>
             </div>
           );
+
+        case "sla_ktk":
+          return (
+             <div className="flex h-full w-full flex-col justify-between sm:flex-row sm:items-center">
+               <div>
+                 <div className="flex items-center gap-3">
+                   <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md transition-transform duration-300 group-hover:scale-110", card.tone)}>
+                     <Icon className="h-4 w-4" aria-hidden="true" />
+                   </div>
+                   <h3 className="text-base font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
+                 </div>
+                 <p className="mt-2 max-w-sm text-xs font-medium text-slate-500">{card.helper}</p>
+               </div>
+               <div className="mt-4 sm:mt-0 sm:text-right">
+                 {loading ? <Skeleton className="h-10 w-24 sm:ml-auto" /> : <p className="text-4xl font-bold tracking-tighter text-slate-800 drop-shadow-sm">{card.value}</p>}
+               </div>
+             </div>
+          );
+        default:
+          return null;
       }
     };
 
     return (
       <button
         key={card.id}
-        type="button"
         onClick={() => openCard(card.id, card.title)}
         className={cn(
-          "group relative flex w-full flex-col justify-between overflow-hidden rounded-[24px] bg-white/40 p-5 lg:p-6 text-left shadow-[0_4px_20px_rgb(0,0,0,0.02)] ring-1 ring-slate-200/50 backdrop-blur-2xl transition-all duration-300 hover:-translate-y-1 hover:bg-white/60 hover:shadow-[0_8px_30px_rgb(220,38,38,0.06)] hover:ring-red-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20"
+          "group relative flex w-full flex-col overflow-hidden rounded-3xl bg-white/70 p-5 text-left ring-1 ring-slate-200/60 backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-white hover:shadow-lg hover:shadow-slate-200/50 hover:ring-slate-300",
+          card.span === 2 ? "sm:col-span-2" : "col-span-1",
+          card.rowSpan === 2 ? "row-span-2" : "row-span-1"
         )}
       >
+        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-gradient-to-br from-transparent to-slate-100/50 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        
         {renderContent()}
 
-        <div className="mt-5 flex w-full items-center justify-between border-t border-slate-200/40 pt-4">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500 ring-1 ring-slate-200/60">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <div className="mt-6 flex w-full items-center justify-between border-t border-slate-100 pt-4">
+          <div className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-500">
             {card.count} Data Valid
           </div>
           <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-red-600 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2">
@@ -390,12 +411,14 @@ export function DashboardKPI({
         selectedSupport={selectedSupport}
         selectedPeriod={selectedPeriod}
         selectedJobType={selectedJobType}
+        selectedTipeBangunan={selectedTipeBangunan}
         search={personSearch}
         onCabangChange={setSelectedCabang}
         onCoordinatorChange={setSelectedCoordinator}
         onSupportChange={setSelectedSupport}
         onPeriodChange={setSelectedPeriod}
         onJobTypeChange={setSelectedJobType}
+        onTipeBangunanChange={setSelectedTipeBangunan}
         onSearchChange={setPersonSearch}
         onSearchSubmit={handleSearchSubmit}
         onFiltersLoaded={setFilterOptions}

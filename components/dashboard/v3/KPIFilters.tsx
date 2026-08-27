@@ -11,12 +11,14 @@ interface KPIFiltersProps {
   selectedSupport: string;
   selectedPeriod: PerformancePeriod;
   selectedJobType: PerformanceJobType;
+  selectedTipeBangunan: "ALL" | "RUKO" | "NON_RUKO";
   search: string;
   onCabangChange: (val: string) => void;
   onCoordinatorChange: (val: string) => void;
   onSupportChange: (val: string) => void;
   onPeriodChange: (val: PerformancePeriod) => void;
   onJobTypeChange: (val: PerformanceJobType) => void;
+  onTipeBangunanChange: (val: "ALL" | "RUKO" | "NON_RUKO") => void;
   onSearchChange: (val: string) => void;
   onSearchSubmit?: (val: string) => void;
   onFiltersLoaded?: (filters: PerformanceFiltersData) => void;
@@ -40,12 +42,14 @@ export function KPIFilters({
   selectedSupport,
   selectedPeriod,
   selectedJobType,
+  selectedTipeBangunan,
   search,
   onCabangChange,
   onCoordinatorChange,
   onSupportChange,
   onPeriodChange,
   onJobTypeChange,
+  onTipeBangunanChange,
   onSearchChange,
   onSearchSubmit,
   onFiltersLoaded
@@ -143,6 +147,19 @@ export function KPIFilters({
                 <SelectItem value="ALL" className="rounded-lg cursor-pointer">Semua Proyek</SelectItem>
                 <SelectItem value="REGULER" className="rounded-lg cursor-pointer">Reguler</SelectItem>
                 <SelectItem value="RENOVASI" className="rounded-lg cursor-pointer">Renovasi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-full sm:w-auto">
+            <Select value={selectedTipeBangunan} onValueChange={(value) => onTipeBangunanChange(value as "ALL" | "RUKO" | "NON_RUKO")}>
+              <SelectTrigger className="h-11 rounded-full border-slate-200/80 bg-white/50 px-4 font-semibold text-slate-700 hover:bg-white focus:ring-4 focus:ring-red-500/10">
+                <SelectValue placeholder="Tipe Bangunan" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                <SelectItem value="ALL" className="rounded-lg cursor-pointer">Semua Tipe Bangunan</SelectItem>
+                <SelectItem value="RUKO" className="rounded-lg cursor-pointer">Ruko</SelectItem>
+                <SelectItem value="NON_RUKO" className="rounded-lg cursor-pointer">Non Ruko</SelectItem>
               </SelectContent>
             </Select>
           </div>

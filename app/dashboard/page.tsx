@@ -1188,17 +1188,12 @@ const getStoreQualityScore = (items: any[]) => {
 // =============================================================================
 
 const dashboardCache = {
-
     projects: null as any[] | null,
-
     cabangList: [] as string[],
-
     opnameMap: {} as Record<number, any[]>,
-
     timestamp: 0,
-
     email: '',
-
+    tipeBangunan: 'ALL' as 'ALL' | 'RUKO' | 'NON_RUKO',
 };
 
 const normalizeDashboardBranchOption = (branch?: string | null): string =>
@@ -1270,6 +1265,7 @@ function DashboardPageContent() {
     const [jobType, setJobType] = useState<'ALL' | 'REGULER' | 'RENOVASI'>('ALL');
 
     const [selectedCabang, setSelectedCabang] = useState('ALL');
+    const [selectedTipeBangunan, setSelectedTipeBangunan] = useState<'ALL' | 'RUKO' | 'NON_RUKO'>('ALL');
 
 
 
@@ -1587,7 +1583,7 @@ function DashboardPageContent() {
 
         setIsLoading(false);
 
-    }, [user]);
+    }, [user, selectedTipeBangunan]);
 
 
 
@@ -1624,34 +1620,20 @@ function DashboardPageContent() {
     ) => {
 
         const now = Date.now();
-
-        const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail;
-
-
+        const isCacheValid = !forceRefresh && dashboardCache.projects && (now - dashboardCache.timestamp < CACHE_TTL) && dashboardCache.email === userEmail && dashboardCache.tipeBangunan === selectedTipeBangunan;
 
         if (isCacheValid) {
-
             const cachedProjects = dashboardCache.projects!.filter((p: any) => !isHeadOfficeProject(p));
-
             setProjects(cachedProjects);
-
             setCabangList(dashboardCache.cabangList.filter((cabang) => !isHeadOfficeCabang(cabang)));
-
             setOpnameItemsMap(dashboardCache.opnameMap);
-
             return;
-
         }
 
-
-
         setIsDataLoading(true);
-
         try {
-
             // Fetch dari API real
-
-            const json = await fetchDashboardAll();
+            const json = await fetchDashboardAll(undefined, selectedTipeBangunan);
 
             let data = json.data || [];
 
@@ -1753,8 +1735,8 @@ function DashboardPageContent() {
             dashboardCache.opnameMap = opnameMap;
 
             dashboardCache.timestamp = now;
-
             dashboardCache.email = userEmail;
+            dashboardCache.tipeBangunan = selectedTipeBangunan;
 
 
 
@@ -3288,9 +3270,9 @@ function DashboardPageContent() {
                                 stats={stats}
 
                                 jobType={jobType}
-
                                 onJobTypeChange={setJobType}
-
+                                tipeBangunan={selectedTipeBangunan}
+                                onTipeBangunanChange={setSelectedTipeBangunan}
                             />
 
                         )}
