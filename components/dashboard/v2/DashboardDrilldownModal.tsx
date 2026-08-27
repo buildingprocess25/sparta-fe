@@ -2629,6 +2629,11 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         const spList = extraData?.list || [];
         const fR = (val: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val));
 
+        const getProxyUrl = (url: string) => {
+            if (!url || typeof url !== 'string' || !url.startsWith('http')) return url;
+            return `${API_URL.replace(/\/$/, "")}/api/denda/actions/proxy-file?url=${encodeURIComponent(url)}`;
+        };
+
         return (
             <div className="w-full h-full flex flex-col bg-slate-50/20 relative">
                 <div className="px-8 pt-8 pb-4">
