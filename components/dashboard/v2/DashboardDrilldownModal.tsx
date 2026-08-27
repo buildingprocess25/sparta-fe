@@ -81,7 +81,7 @@ const formatStatusLabel = (status: string) => {
         .join(' ');
 };
 
-type DrilldownView = 'stage_summary' | 'list_ulok' | 'timeline' | 'detail' | 'cost_m2' | 'jhk_pekerjaan_list' | 'keterlambatan_list' | 'lingkup_selection' | 'il_list_view';
+type DrilldownView = 'stage_summary' | 'list_ulok' | 'timeline' | 'detail' | 'cost_m2' | 'jhk_pekerjaan_list' | 'keterlambatan_list' | 'lingkup_selection' | 'il_list_view' | 'surat_peringatan_list';
 
 interface DashboardDrilldownModalProps {
     isOpen: boolean;
@@ -92,6 +92,7 @@ interface DashboardDrilldownModalProps {
     searchQuery?: string;
     stats?: any;
     extraStats?: any;
+    extraData?: any;
 }
 
 export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = ({
@@ -102,7 +103,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
     allProjects,
     searchQuery,
     stats,
-    extraStats
+    extraStats,
+    extraData
 }) => {
     const [view, setView] = useState<DrilldownView>('list_ulok');
     const [selectedProject, setSelectedProject] = useState<any | null>(null);
@@ -141,6 +143,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 setView('jhk_pekerjaan_list');
             } else if (initialCardType === 'KETERLAMBATAN') {
                 setView('keterlambatan_list');
+            } else if (initialCardType === 'SURAT_PERINGATAN_LIST') {
+                setView('surat_peringatan_list');
             } else {
                 setView('list_ulok');
             }
@@ -2621,6 +2625,91 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
         );
     };
 
+    const renderSuratPeringatanList = () => {
+        const spList = extraData?.list || [];
+        const fR = (val: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val));
+
+        return (
+            <div className="w-full h-full flex flex-col bg-slate-50/20 relative">
+                <div className="px-8 pt-8 pb-4">
+                    <div className="bg-gradient-to-br from-red-50 to-white p-6 rounded-2xl border border-red-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3"></div>
+                        <div className="relative z-10">
+                            <h4 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-red-500" />
+                                Daftar Surat Peringatan
+                            </h4>
+                            <p className="text-sm text-slate-500 font-medium">Menampilkan {spList.length} surat peringatan aktif</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="p-8 md:p-10 pt-4 flex-1 overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-1 gap-4">
+                        {spList.map((sp: any, idx: number) => (
+                            <div
+                                key={idx}
+                                className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 group hover:border-red-200 hover:shadow-md transition-all"
+                            >
+                                <div className="flex flex-col gap-3 flex-1 w-full">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100 group-hover:scale-105 transition-transform">
+                                            <AlertTriangle className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h5 className="font-bold text-slate-800 flex items-center gap-2 flex-wrap">
+                                                {sp.nomor_surat || sp.nomor_ulok || 'Surat Peringatan'}
+                                                {sp.sp_level && (
+                                                    <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-0 font-bold">
+                                                        SP {sp.sp_level}
+                                                    </Badge>
+                                                )}
+                                                <Badge className="bg-slate-100 text-slate-600 border-0">
+                                                    {formatStatusLabel(sp.status)}
+                                                </Badge>
+                                            </h5>
+                                            <p className="text-sm font-semibold text-slate-600 mt-1">{sp.nama_kontraktor || '-'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs font-medium text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex-wrap">
+                                        <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {formatDateIndo(sp.created_at)}</div>
+                                        {sp.cabang && <div className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" /> {sp.cabang}</div>}
+                                    </div>
+                                    <p className="text-sm text-slate-600 font-medium">Alasan: {sp.alasan_lainnya || sp.alasan_sp?.replace(/_/g, ' ') || '-'}</p>
+                                </div>
+                                <div className="flex items-center gap-3 w-full lg:w-auto justify-end border-t border-slate-100 pt-4 lg:border-0 lg:pt-0 shrink-0">
+                                    {sp.link_pdf && (
+                                        <Button
+                                            variant="outline"
+                                            className="rounded-xl border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 shadow-sm font-semibold"
+                                            onClick={() => viewGeneratedPdfOnline(sp.link_pdf)}
+                                        >
+                                            <FileText className="w-4 h-4 mr-2" />
+                                            Dokumen
+                                        </Button>
+                                    )}
+                                    <Button
+                                        className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 shadow-md font-semibold"
+                                        onClick={() => window.open(`/surat-peringatan/${sp.id}`, '_blank')}
+                                    >
+                                        <AlertTriangle className="w-4 h-4 mr-2" />
+                                        Detail
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                        {spList.length === 0 && (
+                            <div className="text-center py-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                <AlertTriangle className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                <h3 className="text-lg font-bold text-slate-700">Tidak ada Surat Peringatan</h3>
+                                <p className="text-slate-500 mt-1">Belum ada surat peringatan aktif untuk cabang ini.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={onClose} />
@@ -2635,6 +2724,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                     {view === 'keterlambatan_list' && renderKeterlambatanList()}
                     {view === 'lingkup_selection' && renderLingkupSelection()}
                     {view === 'il_list_view' && renderILListView()}
+                    {view === 'surat_peringatan_list' && renderSuratPeringatanList()}
                     {view === 'timeline' && renderTimeline()}
                     {view === 'detail' && (
                         <div className="h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
