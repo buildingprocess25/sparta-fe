@@ -2692,13 +2692,6 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                             Dokumen
                                         </Button>
                                     )}
-                                    <Button
-                                        className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 shadow-md font-semibold"
-                                        onClick={() => window.open(`/surat-peringatan/${sp.id}`, '_blank')}
-                                    >
-                                        <AlertTriangle className="w-4 h-4 mr-2" />
-                                        Detail
-                                    </Button>
                                 </div>
                             </div>
                         ))}
