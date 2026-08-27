@@ -2790,11 +2790,12 @@ export const reviewContractorFirstOpname = async (id: number, payload: SupportCo
     return result;
 };
 
-export const reviseContractorFirstOpname = async (id: number, payload: ContractorFirstOpnameRevisionPayload): Promise<{ status: string; message: string; data: OpnameItem }> => {
-    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/revision`, {
+export const reviseContractorFirstOpname = async (id: number, payload: ContractorFirstOpnameRevisionPayload | FormData): Promise<{ status: string; message: string; data: OpnameItem }> => {
+    const isFormData = payload instanceof FormData;
+    const res = await apiFetch(`${API_URL.replace(/\/\$/, "")}/api/opname/${id}/revision`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        body: isFormData ? payload : JSON.stringify(payload),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan revisi opname kontraktor."));
@@ -6013,3 +6014,5 @@ export async function exportGlobalDcData(
   a.remove();
   window.URL.revokeObjectURL(downloadUrl);
 }
+
+
