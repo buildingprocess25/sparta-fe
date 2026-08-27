@@ -112,6 +112,9 @@ export const fetchDendaActionCandidates = async (): Promise<{ status: string; da
 export const fetchDendaActionKontraktor = async (): Promise<{ status: string; data: string[] }> =>
     safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions/kontraktor`);
 
+export const fetchActiveSpByKontraktor = async (nama_kontraktor: string): Promise<{ status: string; data: DendaAction[] }> =>
+    safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/denda/actions/kontraktor/list?nama_kontraktor=${encodeURIComponent(nama_kontraktor)}`);
+
 export const fetchDendaActions = async (params: {
     id_toko?: number;
     id_opname_final?: number;

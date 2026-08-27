@@ -12,6 +12,7 @@ import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNo
 import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
 import { parseCurrency } from '@/lib/utils';
 import { DatePicker } from '@/components/ui/date-picker';
+import { fetchActiveSpByKontraktor, type DendaAction } from '@/lib/denda-actions-api';
 
 const getCabangCode = (cabangName: string) => {
     const map: Record<string, string> = {
@@ -95,6 +96,7 @@ export default function SPKPage() {
     const [selectedRabObj, setSelectedRabObj] = useState<any>(null);
     const [revisiData, setRevisiData] = useState({ isRevisi: false, sequence: '', rowIndex: null });
     const [revisiMinStartDate, setRevisiMinStartDate] = useState('');
+    const [activeSpWarnings, setActiveSpWarnings] = useState<DendaAction[]>([]);
 
     const [form, setForm] = useState({
         nomor_ulok: '',
@@ -135,6 +137,29 @@ export default function SPKPage() {
         loadBackdatePolicy();
         loadApprovedRabs(cabang, canViewAllBranches(user.roles, isSHUser));
     }, [user, router]);
+
+    useEffect(() => {
+        if (form.nama_kontraktor) {
+            fetchActiveSpByKontraktor(form.nama_kontraktor)
+                .then(res => {
+                    if (res.data) {
+                        const active = res.data.filter((sp: any) => 
+                            sp.is_active && 
+                            ['APPROVED', 'SENT_TO_CONTRACTOR', 'VIEWED_BY_CONTRACTOR', 'ACKNOWLEDGED_BY_CONTRACTOR'].includes(sp.status)
+                        );
+                        setActiveSpWarnings(active);
+                    } else {
+                        setActiveSpWarnings([]);
+                    }
+                })
+                .catch(err => {
+                    console.error("Gagal mengecek status SP kontraktor:", err);
+                    setActiveSpWarnings([]);
+                });
+        } else {
+            setActiveSpWarnings([]);
+        }
+    }, [form.nama_kontraktor]);
 
     const loadBackdatePolicy = async () => {
         try {
@@ -583,6 +608,12 @@ export default function SPKPage() {
                                             value={form.nama_kontraktor} 
                                             placeholder="Otomatis dari RAB"
                                         />
+                                        {activeSpWarnings.length > 0 && (
+                                            <div className="mt-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg flex items-start gap-2 animate-in fade-in">
+                                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 animate-pulse" />
+                                                <span>Kontraktor ini memiliki <strong>{activeSpWarnings.length} Surat Peringatan aktif</strong>. Harap pertimbangkan dengan seksama sebelum menyetujui SPK.</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-slate-700">Kode Cabang Penomoran</label>
