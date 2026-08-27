@@ -4075,6 +4075,51 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }).filter((d: any) => d.items.length > 0);
     }, [memoConfig, searchQuery]);
 
+    const isWorkItemBlockedByOpname = useCallback((item: any, textKey?: string) => {
+        if (!item) return textKey ? blockedOpnameItemKeys.has(textKey) : false;
+
+        const sourceType = String(item.source_type || 'RAB').toUpperCase();
+        const sourceKey = getWorkItemKey(item);
+
+        if (sourceType === 'RAB' || sourceType === 'IL') {
+            return blockedOpnameItemKeys.has(sourceKey);
+        }
+
+        return blockedOpnameItemKeys.has(sourceKey) || (textKey ? blockedOpnameItemKeys.has(textKey) : false);
+    }, [blockedOpnameItemKeys]);
+
+    const findWorkItemForMemo = useCallback((catName: any, itemJenis: any, currentItem?: any) => {
+        if (currentItem && currentItem.source_type !== 'PLACEHOLDER' && currentItem.source_type !== 'HISTORY') {
+            return currentItem;
+        }
+
+        const textKey = `${String(catName).toUpperCase()}|${String(itemJenis).toUpperCase()}`;
+        const candidates = (rabItems || []).filter((candidate: any) =>
+            isSameWorkText(candidate.kategori_pekerjaan, catName) &&
+            isSameWorkText(candidate.jenis_pekerjaan, itemJenis)
+        );
+        const available = candidates.filter((candidate: any) => !isWorkItemBlockedByOpname(candidate, textKey));
+
+        return available.find((candidate: any) => candidate.source_type === 'IL') ?? available[0] ?? candidates[0] ?? null;
+    }, [rabItems, isWorkItemBlockedByOpname]);
+
+    const findMemoItemForSubmit = useCallback((catName: any, itemJenis: any) => {
+        const candidates: any[] = [];
+        memoConfig.forEach((cat: any) => {
+            if (!isSameWorkText(cat.category.name, catName)) return;
+            (cat.items || []).forEach((item: any) => {
+                if (isSameWorkText(item.jenis_pekerjaan || cat.category.name, itemJenis)) {
+                    candidates.push(item);
+                }
+            });
+        });
+
+        const textKey = `${String(catName).toUpperCase()}|${String(itemJenis).toUpperCase()}`;
+        const available = candidates.filter((candidate: any) => !isWorkItemBlockedByOpname(candidate, textKey));
+
+        return available.find((candidate: any) => candidate.source_type === 'IL') ?? available[0] ?? candidates[0] ?? null;
+    }, [memoConfig, isWorkItemBlockedByOpname]);
+
     const activeItemsCount = useMemo(() => {
         let count = 0;
         memoConfig.forEach((cat: any) => {
@@ -4083,14 +4128,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const currentStatus = memoInputs[key]?.status;
                 if (currentStatus !== 'Selesai') {
                     count++;
-                } else if (!blockedOpnameItemKeys.has(key)) {
-                    const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, cat.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan || cat.category.name));
+                } else if (!isWorkItemBlockedByOpname(item, key)) {
+                    const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan || cat.category.name, item);
                     if (rItem) count++;
                 }
             });
         });
         return count;
-    }, [memoConfig, memoInputs, blockedOpnameItemKeys, rabItems]);
+    }, [memoConfig, memoInputs, isWorkItemBlockedByOpname, findWorkItemForMemo]);
 
     const handleSetStatus = (catName: string, itemJenis: string, status: string) => {
         setIsDirty(true);
@@ -4267,7 +4312,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             for (const item of cat.items) {
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-                const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
+                const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
                 
                 if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
                 
@@ -4290,8 +4335,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
-                    const rItem = rabItems?.find((r: any) => isSameWorkText(r.kategori_pekerjaan, cat.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
+                    const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
                     const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : (rItem ? rItem.volume : 0);
                     if (volA === null || String(volA) === '') return false;
                     if (!input.desain || input.desain === '') return false;
@@ -4320,7 +4365,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         return true;
-    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, blockedOpnameItemKeys, rabItems, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
+    }, [memoConfig, memoInputs, latestStatusMapState, latestIdMapState, isWorkItemBlockedByOpname, findWorkItemForMemo, isDirty, canCreateNextHandover, nextHandoverDate, minNextHandoverDate]);
 
     const getDateStr = (dayIndexOffset: number) => {
         if (!spkInfo) return '';
@@ -4349,7 +4394,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     for (const item of cat.items) {
                         const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                         const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-                        const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
+                        const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
                         
                         if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
                         
@@ -4379,7 +4424,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             validationErrors.push(`Tambahan hari keterlambatan untuk "${item.jenis_pekerjaan}" wajib diisi.`);
                         }
 
-                        if (input.status === 'Selesai' && !blockedOpnameItemKeys.has(key)) {
+                        if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
                             const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
                             if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
                             if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
@@ -4439,7 +4484,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const effectiveStatus = val.status || existingStatus;
                 if (!effectiveStatus) return false;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
-                const needsOpnameFill = isAlreadySelesai && !blockedOpnameItemKeys.has(key);
+                const pipeIdx = key.indexOf('|');
+                const itemForKey = pipeIdx === -1 ? null : findMemoItemForSubmit(key.substring(0, pipeIdx), key.substring(pipeIdx + 1));
+                const needsOpnameFill = isAlreadySelesai && (itemForKey ? !isWorkItemBlockedByOpname(itemForKey, key) : !blockedOpnameItemKeys.has(key));
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
                 
                 return needsOpnameFill ? isOpnameTouched(val) : !isSavedOnCurrentDate;
@@ -4472,13 +4519,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const statusSafe = statusLower;
                 const lateDaysSafe = Number(val.lateDays) || 0;
 
-                const isOpnameBlocked = blockedOpnameItemKeys.has(key);
+                const memoItem = findMemoItemForSubmit(catName, itemJenis);
+                const isOpnameBlocked = memoItem ? isWorkItemBlockedByOpname(memoItem, key) : blockedOpnameItemKeys.has(key);
                 const isOpnameActive = statusSafe === 'selesai' && !isOpnameBlocked;
 
                 let opnameData: any = undefined;
                 let fileOpname: File | null = null;
                 if (isOpnameActive) {
-                    const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, catName) && isSameWorkText(r.jenis_pekerjaan, itemJenis));
+                    const rItem = findWorkItemForMemo(catName, itemJenis, memoItem);
                     if (rItem && val.desain && val.kualitas && val.spesifikasi) {
                         const hargaSatuan = Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0);
                         const volAwal = Number(rItem.volume || 0);
@@ -4884,8 +4932,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
 
                                                         const renderOpnameForm = () => {
-                                                            if (currentStatus !== 'Selesai' || blockedOpnameItemKeys.has(key)) return null;
-                                                            const rItem = rabItems.find((r: any) => isSameWorkText(r.kategori_pekerjaan, d.category.name) && isSameWorkText(r.jenis_pekerjaan, item.jenis_pekerjaan));
+                                                            if (currentStatus !== 'Selesai' || isWorkItemBlockedByOpname(item, key)) return null;
+                                                            const rItem = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                             if (!rItem) return null;
 
                                                             const hargaSatuan = Number(rItem?.harga_material || 0) + Number(rItem?.harga_upah || 0);
@@ -5097,7 +5145,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                         <>
                                                                                             {/* 1. Pengawasan Catatan & Foto Form (SELALU MUNCUL saat status diisi) */}
                                                                                             <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
-                                                                                                {currentStatus === 'Selesai' && blockedOpnameItemKeys.has(key) && (
+                                                                                                {currentStatus === 'Selesai' && isWorkItemBlockedByOpname(item, key) && (
                                                                                                     <div className="mb-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 flex items-center gap-2">
                                                                                                         <CheckCircle className="w-5 h-5 flex-shrink-0" />
                                                                                                         <div>
