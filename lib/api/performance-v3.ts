@@ -34,6 +34,7 @@ export type PerformanceQueryParams = {
   job_type?: PerformanceJobType;
   period?: PerformancePeriod;
   search?: string;
+  tipe_bangunan?: "ALL" | "RUKO" | "NON_RUKO";
 };
 
 export type PerformanceSummaryData = {
