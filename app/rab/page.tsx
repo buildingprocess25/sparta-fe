@@ -1594,7 +1594,7 @@ function RABPageContent() {
             <div>
               <p className="font-bold text-red-800 text-base">Peringatan: Status Surat Peringatan Aktif</p>
               <p className="mt-1 text-red-700 text-sm">
-                Perusahaan Anda saat ini memiliki <strong>{activeWarnings.length} Surat Peringatan aktif</strong>. Harap berikan performa terbaik pada penawaran proyek selanjutnya, dan pastikan Anda meninjau evaluasi sebelumnya di menu Surat Peringatan.
+                Perusahaan Anda saat ini berstatus <strong>{Array.from(new Set(activeWarnings.map(sp => sp.sp_level).filter(Boolean))).sort().map(level => `SP${level}`).join(', ')}</strong>. Harap berikan performa terbaik pada penawaran proyek selanjutnya, dan pastikan Anda meninjau evaluasi sebelumnya di menu Surat Peringatan.
               </p>
             </div>
           </div>

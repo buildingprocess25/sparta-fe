@@ -611,7 +611,7 @@ export default function SPKPage() {
                                         {activeSpWarnings.length > 0 && (
                                             <div className="mt-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg flex items-start gap-2 animate-in fade-in">
                                                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 animate-pulse" />
-                                                <span>Kontraktor ini memiliki <strong>{activeSpWarnings.length} Surat Peringatan aktif</strong>. Harap pertimbangkan dengan seksama sebelum menyetujui SPK.</span>
+                                                <span>Kontraktor ini berstatus <strong>{Array.from(new Set(activeSpWarnings.map(sp => sp.sp_level).filter(Boolean))).sort().map(level => `SP${level}`).join(', ')}</strong> aktif. Harap pertimbangkan dengan seksama sebelum menyetujui SPK.</span>
                                             </div>
                                         )}
                                     </div>
