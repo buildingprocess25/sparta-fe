@@ -4490,7 +4490,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         opnameData = {
                             id_toko: Number(projectData?.id_toko),
                             id_rab_item: rItem.source_type === 'RAB' || rItem.source_type === undefined ? Number(rItem.id) : undefined,
-                            id_instruksi_lapangan_item: rItem.source_type === 'IL' ? Number(rItem.id) : undefined,
+                            id_instruksi_lapangan_item: rItem.source_type === 'IL' ? Number(rItem.id_instruksi_lapangan_item) : undefined,
                             volume_akhir: volAkhir,
                             selisih_volume: selisihVolume,
                             total_selisih: totalSelisih,
