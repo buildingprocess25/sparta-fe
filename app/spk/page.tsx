@@ -142,8 +142,9 @@ export default function SPKPage() {
         if (form.nama_kontraktor) {
             fetchActiveSpByKontraktor(form.nama_kontraktor)
                 .then(res => {
-                    if (res.data) {
-                        const active = res.data.filter((sp: any) => 
+                    if (res.data && Array.isArray((res.data as any).actions || res.data)) {
+                        const sourceArray = Array.isArray(res.data) ? res.data : (res.data as any).actions;
+                        const active = sourceArray.filter((sp: any) => 
                             sp.is_active && 
                             ['APPROVED', 'SENT_TO_CONTRACTOR', 'VIEWED_BY_CONTRACTOR', 'ACKNOWLEDGED_BY_CONTRACTOR'].includes(sp.status)
                         );
