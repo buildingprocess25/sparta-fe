@@ -2681,7 +2681,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                         <Button
                                             variant="outline"
                                             className="rounded-xl border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 shadow-sm font-semibold"
-                                            onClick={() => viewGeneratedPdfOnline(sp.link_pdf)}
+                                            onClick={() => window.open(getProxyUrl(sp.link_pdf), '_blank', 'noopener,noreferrer')}
                                         >
                                             <FileText className="w-4 h-4 mr-2" />
                                             Dokumen
