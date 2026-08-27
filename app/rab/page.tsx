@@ -35,6 +35,7 @@ import {
   fetchRabProjectPlanningRequests,
   type RabProjectPlanningRequest,
 } from '@/lib/api';
+import { fetchDendaActions, type DendaAction } from '@/lib/denda-actions-api';
 
 const toRupiah = (num: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num || 0);
 const formatAngka = (num: number) => (num || num === 0) ? num.toLocaleString('id-ID') : '0';
@@ -445,6 +446,9 @@ function RABPageContent() {
     && Number.isInteger(requestedPlanningId)
     && requestedPlanningId > 0
     && (requestedScope === 'SIPIL' || requestedScope === 'ME');  
+  
+  const [activeWarnings, setActiveWarnings] = useState<DendaAction[]>([]);
+
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
@@ -535,6 +539,22 @@ function RABPageContent() {
   const isSuperHuman = user?.isSuperHuman ?? false;
   const isContractor = user?.roles?.some(role => role.includes('KONTRAKTOR')) ?? false;
   const isReadOnly = isViewOnlyUser(user?.roles, isSuperHuman) && !isContractor;
+
+  useEffect(() => {
+    if (isContractor) {
+      fetchDendaActions({ action_type: 'SP' })
+        .then(res => {
+          if (res.data) {
+            const active = res.data.filter(sp => 
+              sp.is_active && 
+              ['APPROVED', 'SENT_TO_CONTRACTOR', 'VIEWED_BY_CONTRACTOR', 'ACKNOWLEDGED_BY_CONTRACTOR'].includes(sp.status)
+            );
+            setActiveWarnings(active);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [isContractor]);
 
   useEffect(() => {
     // Simpan otomatis jika tidak dalam mode loading, bukan readonly, tidak sedang edit revisi (currentRabId == null),
@@ -1563,6 +1583,18 @@ function RABPageContent() {
               <p className="font-bold">Form berasal dari Permintaan RAB Project Planning</p>
               <p className="mt-1 text-blue-700">
                 ULOK, wilayah, dan lingkup dikunci. Lengkapi item pekerjaan, volume, durasi, kategori lokasi, serta data asuransi.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeWarnings.length > 0 && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border-l-4 border-l-red-600 border border-red-200 bg-gradient-to-r from-red-50 to-red-100 p-4 text-red-900 shadow-sm animate-in fade-in slide-in-from-top-2">
+            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-red-600 animate-pulse" />
+            <div>
+              <p className="font-bold text-red-800 text-base">Peringatan: Status Surat Peringatan Aktif</p>
+              <p className="mt-1 text-red-700 text-sm">
+                Perusahaan Anda saat ini memiliki <strong>{activeWarnings.length} Surat Peringatan aktif</strong>. Harap berikan performa terbaik pada penawaran proyek selanjutnya, dan pastikan Anda meninjau evaluasi sebelumnya di menu Surat Peringatan.
               </p>
             </div>
           </div>
