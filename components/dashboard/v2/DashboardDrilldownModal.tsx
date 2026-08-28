@@ -1967,22 +1967,19 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
             // sort descending by id (latest created generally has higher ID)
             groupedDocs.sort((a, b) => b.id - a.id);
 
-            // Filter out dummy carry-forwards (no PDF AND no photos in any item)
-            const finalGroupedDocs = groupedDocs.filter(doc => doc.pdfUrl || doc.items.some((i: any) => i.dokumentasi || i.dokumentasiUrl));
-
             return (
                 <div className="w-full h-full flex flex-col bg-slate-50/20 relative">
                     <div className="px-8 pt-8 pb-4">
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div>
                                 <h4 className="text-lg font-bold text-slate-800 tracking-tight">Daftar Dokumen Pengawasan</h4>
-                                <p className="text-sm text-slate-500 font-medium">Menampilkan {finalGroupedDocs.length} dokumen pengawasan</p>
+                                <p className="text-sm text-slate-500 font-medium">Menampilkan {groupedDocs.length} dokumen pengawasan</p>
                             </div>
                         </div>
                     </div>
                     <div className="p-8 md:p-10 pt-4 flex-1 overflow-y-auto custom-scrollbar">
                         <div className="grid grid-cols-1 gap-4">
-                            {finalGroupedDocs.length > 0 ? finalGroupedDocs.map((doc: any, idx: number) => {
+                            {groupedDocs.length > 0 ? groupedDocs.map((doc: any, idx: number) => {
                                 const isSelesai = doc.items.every((i: any) => ['SELESAI', 'CLOSED', 'DONE', 'SESUAI'].includes((i.status || '').toUpperCase()));
                                 const isTerlambat = doc.items.some((i: any) => ['TERLAMBAT', 'LATE'].includes((i.status || '').toUpperCase()));
                                 const statusDesc = isSelesai ? 'SELESAI' : isTerlambat ? 'TERLAMBAT' : 'PROGRESS';
@@ -1992,14 +1989,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     <div
                                         key={idx}
                                         className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:border-purple-200 hover:shadow-md transition-all cursor-pointer"
-                                        onClick={() => {
-                                            const isPureLegacy = doc.pdfUrl && doc.items.every((i: any) => !i.dokumentasi && !i.dokumentasiUrl);
-                                            if (isPureLegacy) {
-                                                window.open(doc.pdfUrl, '_blank');
-                                            } else {
-                                                setSelectedMemoForDrawer({ project: doc.projectData, items: doc.items, dateKey: doc.tanggal, pdfUrl: doc.pdfUrl });
-                                            }
-                                        }}
+                                        onClick={() => setSelectedMemoForDrawer({ project: doc.projectData, items: doc.items, dateKey: doc.tanggal, pdfUrl: doc.pdfUrl })}
                                     >
                                         <div className="flex flex-col gap-2">
                                             <div className="flex items-center gap-3">
