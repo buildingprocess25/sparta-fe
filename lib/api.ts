@@ -2758,11 +2758,12 @@ export const submitOpnameBulk = async (
     }
 };
 
-export const submitContractorCheckpointOpname = async (payload: ContractorCheckpointOpnameSubmitPayload): Promise<{ status: string; message: string; data: { opname_final: any; items: OpnameItem[]; routed_to: string; target_pengawasan_gantt_id: number | null } }> => {
+export const submitContractorCheckpointOpname = async (payload: ContractorCheckpointOpnameSubmitPayload | FormData): Promise<{ status: string; message: string; data: { opname_final: any; items: OpnameItem[]; routed_to: string; target_pengawasan_gantt_id: number | null } }> => {
+    const isFormData = payload instanceof FormData;
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/checkpoint-submit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: isFormData ? {} : { "Content-Type": "application/json" },
+        body: isFormData ? payload : JSON.stringify(payload),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(buildApiErrorMessage(result, "Gagal menyimpan opname checkpoint kontraktor."));
@@ -2792,7 +2793,7 @@ export const reviewContractorFirstOpname = async (id: number, payload: SupportCo
 
 export const reviseContractorFirstOpname = async (id: number, payload: ContractorFirstOpnameRevisionPayload | FormData): Promise<{ status: string; message: string; data: OpnameItem }> => {
     const isFormData = payload instanceof FormData;
-    const res = await apiFetch(`${API_URL.replace(/\/\$/, "")}/api/opname/${id}/revision`, {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/opname/${id}/revision`, {
         method: "PATCH",
         headers: isFormData ? {} : { "Content-Type": "application/json" },
         body: isFormData ? payload : JSON.stringify(payload),

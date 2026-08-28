@@ -1847,11 +1847,11 @@ function GanttBoard() {
         if (handoverReadiness.isReady) return "Syarat ST terpenuhi";
 
         const warnings: string[] = [];
-        
+
         if (handoverReadiness.missingPengawasan > 0) {
             warnings.push(`${handoverReadiness.missingPengawasan} item belum Selesai (masih Progress/Terlambat)`);
         }
-        
+
         if (handoverReadiness.pendingOpnameDates.length > 0) {
             const datesStr = handoverReadiness.pendingOpnameDates.slice(0, 2).join(', ');
             warnings.push(`Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
@@ -3498,30 +3498,30 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: () => void; }) {
+function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (updated?: any) => void; }) {
     const { showAlert } = useGlobalAlert();
     const [isProcessing, setIsProcessing] = useState(false);
-    
+
     const handleAction = async (decision: 'disetujui' | 'ditolak') => {
         let alasan = '';
         if (decision === 'ditolak') {
             alasan = window.prompt('Masukkan alasan penolakan revisi:') || '';
             if (!alasan) return;
         }
-        
+
         setIsProcessing(true);
         try {
             const { reviewContractorFirstOpname } = await import('@/lib/api');
-            await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan });
+            const result = await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan });
             showAlert({ message: 'Review berhasil disimpan.', type: 'success' });
-            onReviewed();
+            onReviewed(result.data);
         } catch(err: any) {
             showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
         } finally {
             setIsProcessing(false);
         }
     };
-    
+
     return (
         <div className="flex gap-2">
             <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleAction('disetujui')} disabled={isProcessing}>
@@ -3534,7 +3534,7 @@ function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (
     );
 }
 
-function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onReviewed: () => void; }) {
+function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onReviewed: (updated?: any) => void; }) {
     return (
         <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 shadow-sm overflow-hidden animate-in slide-in-from-top-1">
             <div className="bg-gradient-to-r from-orange-100 to-amber-100 px-4 py-3 border-b border-orange-200 flex justify-between items-center">
@@ -3565,16 +3565,16 @@ function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onRevi
                         <div className="font-semibold text-sm text-slate-800">{opname.spesifikasi}</div>
                     </div>
                 </div>
-                
-                {opname.foto_opname && (
+
+                {opname.foto && (
                     <div className="bg-white p-2.5 border rounded-lg shadow-sm flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700">Foto Opname</span>
-                        <a href={opname.foto_opname} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                        <a href={opname.foto} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
                             <FileText className="w-4 h-4" /> Lihat Foto
                         </a>
                     </div>
                 )}
-                
+
                 <div className="pt-2 border-t flex justify-end">
                     {opname.status === 'pending' ? <SupportReReviewActions item={opname} onReviewed={onReviewed} /> : <span className="text-xs font-bold text-red-600">Ditolak oleh Support</span>}
                 </div>
@@ -3592,17 +3592,25 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const isContractorFirstCheckpoint = activeCheckpointData?.workflow_version === "contractor_first";
     const isContractorSubmit = appMode === "kontraktor" && isContractorFirstCheckpoint;
     const isReadOnly = isContractorSubmit ? false : !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
-    
+
+    const [opnameItems, setOpnameItems] = useState<any[]>([]);
     const contractorOpnames = useMemo(() => {
         const map = new Map<string, any>();
-        if (activeCheckpointData?.opname_data) {
-            for (const op of activeCheckpointData.opname_data) {
-                map.set(`${op.kategori_pekerjaan.toUpperCase()}|${op.jenis_pekerjaan.toUpperCase()}`, op);
-            }
-        }
+        const checkpointId = Number(activeCheckpointData?.id_pengawasan_gantt ?? activeCheckpointData?.id ?? 0);
+        (opnameItems || []).forEach((op: any) => {
+            if (op?.workflow_version !== 'contractor_first') return;
+            if (checkpointId && Number(op.id_pengawasan_gantt_target) !== checkpointId) return;
+            map.set(getOpnameItemKey(op), op);
+            const workTextKey = getOpnameWorkTextKey(op);
+            if (workTextKey) map.set(workTextKey, op);
+        });
         return map;
-    }, [activeCheckpointData]);
+    }, [activeCheckpointData, opnameItems]);
 
+    const handleContractorOpnameReviewed = useCallback((updated?: any) => {
+        if (!updated?.id) return;
+        setOpnameItems((prev) => prev.map((op) => Number(op.id) === Number(updated.id) ? updated : op));
+    }, []);
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean, volume_akhir?: string | number, desain?: string, kualitas?: string, spesifikasi?: string, catatan_opname?: string, file_opname?: File | null, existing_foto?: string, opnameTouched?: boolean }>>({});
@@ -3615,7 +3623,6 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [forcedStBlockerItems, setForcedStBlockerItems] = useState<any[]>([]);
-    const [opnameItems, setOpnameItems] = useState<any[]>([]);
 
     const getEffectiveWorkStart = useCallback(() => {
         const spkStart = parseDateAny(spkInfo?.startDate || '');
@@ -3951,7 +3958,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         // Peta semua tugas dan cek apakah items-nya valid (belum selesai/harus tampil)
         const baseTasks = chartData.processedTasks || [];
         const baseTaskNames = new Set(baseTasks.map((task: any) => String(task.name || '').toUpperCase()));
-        
+
         // [PERBAIKAN]: Saring forcedStBlockerItems agar item yang dipaksa masuk karena "Selesai namun belum opname" BENAR-BENAR ada di rabItems
         const validForcedStBlockerItems = forcedStBlockerItems.filter((item: any) => {
             const key = `${String(item.kategori_pekerjaan).toUpperCase()}|${String(item.jenis_pekerjaan || item.kategori_pekerjaan).toUpperCase()}`;
@@ -4031,7 +4038,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (!r.start || !r.end) return;
                 const e = parseInt(r.end) + shift - 1 + (parseInt(r.keterlambatan) || 0);
                 if (day === e) isLastDay = true;
-                
+
                 if (chartData?.supervisionDays) {
                     const sortedDays = Object.keys(chartData.supervisionDays).map(Number).sort((a, b) => a - b);
                     for (const sd of sortedDays) {
@@ -4138,9 +4145,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
                 const wasSupervisedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase());
-                
-                const isForcedMissingOpname = validForcedStBlockerItems.some((fi: any) => 
-                    fi.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && 
+
+                const isForcedMissingOpname = validForcedStBlockerItems.some((fi: any) =>
+                    fi.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() &&
                     (fi.jenis_pekerjaan || fi.kategori_pekerjaan).toUpperCase() === jenisPekerjaan.toUpperCase()
                 );
 
@@ -4171,7 +4178,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const term = searchQuery.toLowerCase();
         return memoConfig.map((d: any) => {
             const matchCat = d.category.name.toLowerCase().includes(term);
-            const filteredItems = d.items.filter((item: any) => 
+            const filteredItems = d.items.filter((item: any) =>
                 item.jenis_pekerjaan.toLowerCase().includes(term) || matchCat
             );
             return { ...d, items: filteredItems };
@@ -4231,7 +4238,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const currentStatus = memoInputs[key]?.status;
                 if (currentStatus !== 'Selesai') {
                     count++;
-                } else if (!isWorkItemBlockedByOpname(item, key)) {
+                } else if (activeCheckpointData?.workflow_version !== 'contractor_first' && !isWorkItemBlockedByOpname(item, key)) {
                     const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan || cat.category.name, item);
                     if (rItem) count++;
                 }
@@ -4416,9 +4423,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                 const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
-                
+
                 if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
-                
+
                 if (isAlreadySelesai && !needsOpnameFill) continue;
 
                 const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
@@ -4438,7 +4445,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     }
                 }
 
-                if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
+                if (input.status === 'Selesai' && activeCheckpointData?.workflow_version !== 'contractor_first' && !isWorkItemBlockedByOpname(item, key)) {
                     const rItem = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
                     const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : (rItem ? rItem.volume : 0);
                     if (volA === null || String(volA) === '') return false;
@@ -4489,8 +4496,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (!cat.items) continue;
             for (const item of cat.items) {
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
-                if (isWorkItemBlockedByOpname(item, key)) continue;
-                
+                const rItemForExisting = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
+                const existingOpnameKey = rItemForExisting ? getWorkItemKey(rItemForExisting) : key;
+                if (contractorOpnames.has(existingOpnameKey) || contractorOpnames.has(key)) continue;
+
                 const input = memoInputs[key] || ({} as any);
                 const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
                 if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
@@ -4503,8 +4512,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (!rItem) continue;
 
                 const isIL = rItem.source_type === 'IL';
-                const baseVol = isIL ? Number(rItem.il_volume || 0) : Number(rItem.volume || 0);
-                const hargaSatuan = isIL ? Number(rItem.il_harga_satuan || 0) : Number(rItem.harga_satuan || 0);
+                const baseVol = Number(rItem.volume || 0);
+                const hargaSatuan = Number(rItem.harga_satuan ?? (Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0)));
 
                 const selisihVolume = Number(volA) - baseVol;
                 const totalSelisih = selisihVolume * hargaSatuan;
@@ -4518,7 +4527,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     desain: input.desain,
                     kualitas: input.kualitas,
                     spesifikasi: input.spesifikasi,
-                    catatan_opname: input.catatan_opname || '',
+                    catatan: input.catatan_opname || '',
                     front_index: itemsToSubmit.length
                 };
 
@@ -4536,9 +4545,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         if (validationErrors.length > 0) {
-            showAlert({ 
-                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`, 
-                type: 'error' 
+            showAlert({
+                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`,
+                type: 'error'
             });
             return;
         }
@@ -4552,16 +4561,21 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         try {
             const payloadData = {
                 id_toko: Number(id_toko),
-                id_pengawasan_gantt: Number(activeCheckpointData?.id || selectedGanttId),
+                id_pengawasan_gantt: Number(activeCheckpointData?.id_pengawasan_gantt),
                 email_pembuat: user?.email || '',
                 items: itemsToSubmit
             };
+
+            if (!payloadData.id_pengawasan_gantt) {
+                throw new Error('Checkpoint pengawasan contractor-first tidak valid.');
+            }
 
             const formData = new FormData();
             formData.append('data', JSON.stringify(payloadData));
             filesMap.forEach((fm) => {
                 formData.append(`file_foto_opname`, fm.file, `opname_` + fm.index + `_` + fm.file.name);
             });
+            formData.append('file_foto_opname_indexes', JSON.stringify(filesMap.map((fm) => fm.index)));
 
             const { submitContractorCheckpointOpname } = await import('@/lib/api');
             const res = await submitContractorCheckpointOpname(formData as any);
@@ -4605,11 +4619,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                         const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                         const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
-                        
+
                         if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
-                        
-                        
-                        
+
+
+
                         // Jika sudah selesai dan BUKAN butuh opname, lewati (tidak bisa diedit)
                         if (isAlreadySelesai && !needsOpnameFill) continue;
 
@@ -4626,11 +4640,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
 
                         const memoItem = findMemoItemForSubmit(cat.category.name, item.jenis_pekerjaan);
-                        const opnameItemKey = memoItem ? getOpnameItemKey(memoItem) : null;
+                        const opnameItemKey = memoItem ? getWorkItemKey(memoItem) : null;
                         const opname = opnameItemKey ? contractorOpnames.get(opnameItemKey) : null;
-                        if (activeCheckpointData?.workflow_version === 'contractor_first' && opname && opname.status === 'pending') {
-                            validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum di-review (Setuju/Tolak).`);
-                            continue;
+                        if (activeCheckpointData?.workflow_version === 'contractor_first') {
+                            const opnameStatus = String(opname?.status || '').toLowerCase();
+                            if (!opname && input.status === 'Selesai') {
+                                validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum diisi kontraktor.`);
+                                continue;
+                            }
+                            if (opnameStatus === 'pending') {
+                                validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum di-review (Setuju/Tolak).`);
+                                continue;
+                            }
                         }
 
                         if (!input.status) {
@@ -4642,7 +4663,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             validationErrors.push(`Tambahan hari keterlambatan untuk "${item.jenis_pekerjaan}" wajib diisi.`);
                         }
 
-                        if (input.status === 'Selesai' && !isWorkItemBlockedByOpname(item, key)) {
+                        if (input.status === 'Selesai' && activeCheckpointData?.workflow_version !== 'contractor_first' && !isWorkItemBlockedByOpname(item, key)) {
                             const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
                             if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
                             if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
@@ -4658,7 +4679,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
                     }
                 }
-                
+
                 // Allow submit if it's just a visit log for empty days, but if we have items, we expect them to be edited.
                 if (editableItemCount === 0 && canCreateNextHandover && nextHandoverDate) {
                      // Empty day but Handover is being created. allowed.
@@ -4672,7 +4693,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                   validationErrors.push("Wajib mengisi tanggal serah terima berikutnya karena ada item terlambat dari pengawasan sebelumnya.");
              }
         }
-        
+
         if (canCreateNextHandover && !nextHandoverDate && memoConfig.length > 0) {
             validationErrors.push("Tanggal serah terima berikutnya wajib diisi (scroll ke paling bawah).");
         } else if (canCreateNextHandover && minNextHandoverDate && nextHandoverDate && nextHandoverDate < minNextHandoverDate) {
@@ -4680,9 +4701,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         }
 
         if (validationErrors.length > 0) {
-            showAlert({ 
-                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`, 
-                type: 'error' 
+            showAlert({
+                message: `Tidak dapat menyimpan. Terdapat data yang belum lengkap:\n\n- ${validationErrors.slice(0, 4).join('\n- ')}${validationErrors.length > 4 ? `\n...dan ${validationErrors.length - 4} peringatan lainnya.` : ''}`,
+                type: 'error'
             });
             return;
         }
@@ -4706,7 +4727,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const itemForKey = pipeIdx === -1 ? null : findMemoItemForSubmit(key.substring(0, pipeIdx), key.substring(pipeIdx + 1));
                 const needsOpnameFill = isAlreadySelesai && (itemForKey ? !isWorkItemBlockedByOpname(itemForKey, key) : !blockedOpnameItemKeys.has(key));
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
-                
+
                 return needsOpnameFill ? isOpnameTouched(val) : !isSavedOnCurrentDate;
             });
             const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
@@ -4866,27 +4887,27 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         if (batch.files.length > 0 || (batch.opnameFiles && batch.opnameFiles.length > 0)) {
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
-                            
+
                             const dokFiles = batch.files.filter((f: any) => f.field_name !== "file_opname");
                             const opFiles = batch.files.filter((f: any) => f.field_name === "file_opname");
-                            
+
                             dokFiles.forEach(({ file }: any) => formData.append('file_dokumentasi', file));
                             if (dokFiles.length > 0) {
                                 formData.append('file_dokumentasi_indexes', JSON.stringify(dokFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (opFiles.length > 0) {
                                 opFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
                                 formData.append('file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (batch.opnameFiles) {
                                 batch.opnameFiles.forEach(({ file }: any) => formData.append('file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
                                     formData.append('file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
                             }
-                            
+
                             insertResult = await submitPengawasanBulk(formData);
                         } else {
                             insertResult = await submitPengawasanBulk({ items: batch.items });
@@ -4919,7 +4940,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         if (batch.files.length > 0 || (batch.opnameFiles && batch.opnameFiles.length > 0)) {
                             const formData = new FormData();
                             formData.append('items', JSON.stringify(batch.items));
-                            
+
                             const dokFiles = batch.files.filter((f: any) => f.field_name !== "file_opname");
                             const opFiles = batch.files.filter((f: any) => f.field_name === "file_opname");
 
@@ -4927,19 +4948,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             if (dokFiles.length > 0) {
                                 formData.append('rev_file_dokumentasi_indexes', JSON.stringify(dokFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (opFiles.length > 0) {
                                 opFiles.forEach(({ file }: any) => formData.append('rev_file_foto_opname', file));
                                 formData.append('rev_file_foto_opname_indexes', JSON.stringify(opFiles.map(({ index }: any) => index)));
                             }
-                            
+
                             if (batch.opnameFiles) {
                                 batch.opnameFiles.forEach(({ file }: any) => formData.append('rev_file_foto_opname', file));
                                 if (batch.opnameFiles.length > 0) {
                                     formData.append('rev_file_foto_opname_indexes', JSON.stringify(batch.opnameFiles.map(({ index }: any) => index)));
                                 }
                             }
-                            
+
                             updateResult = await updatePengawasanBulk(formData);
                         } else {
                             updateResult = await updatePengawasanBulk({ items: batch.items });
@@ -5089,7 +5110,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         {!isLoadingHistory && memoConfig.length > 0 && (
                             <div className="relative group sticky -top-6 pt-6 pb-2 z-20 bg-white/95 backdrop-blur-md -mx-6 px-6 border-b border-slate-100/50">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
-                                <Input 
+                                <Input
                                     placeholder="Cari kategori atau item pekerjaan..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -5151,14 +5172,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                                                         const allowedStatuses = new Set<string>();
                                                         const rItemForStatus = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
-                                                        const opnameKeyForStatus = rItemForStatus ? getOpnameItemKey(rItemForStatus) : null;
+                                                        const opnameKeyForStatus = rItemForStatus ? getWorkItemKey(rItemForStatus) : null;
                                                         const opnameForStatus = opnameKeyForStatus ? contractorOpnames.get(opnameKeyForStatus) : null;
-                                                        
+
                                                         if (activeCheckpointData?.workflow_version === 'contractor_first') {
                                                             if (!opnameForStatus) {
                                                                 if (d.category.hideOnTerlambat) allowedStatuses.add('Progress');
                                                                 else allowedStatuses.add('Terlambat');
-                                                            } else if (opnameForStatus.status === 'disetujui' || isWorkItemBlockedByOpname(item, key)) {
+                                                            } else if (opnameForStatus.status === 'disetujui') {
                                                                 allowedStatuses.add('Selesai');
                                                             } else if (opnameForStatus.status === 'ditolak') {
                                                                 allowedStatuses.add('Selesai');
@@ -5172,6 +5193,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         }
 
                                                         const renderOpnameForm = () => {
+                                                            if (isContractorFirstCheckpoint && !isContractorSubmit) return null;
                                                             if ((!isContractorSubmit && currentStatus !== 'Selesai') || isWorkItemBlockedByOpname(item, key)) return null;
                                                             const rItem = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                             if (!rItem) return null;
@@ -5200,12 +5222,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             <p className="text-[9px] text-slate-500">(Mat: Rp {Number(rItem?.harga_material || 0).toLocaleString('id-ID')} | Upah: Rp {Number(rItem?.harga_upah || 0).toLocaleString('id-ID')})</p>
                                                                         </div>
                                                                     </div>
-                                                                    
+
                                                                     <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-200 flex flex-col xl:flex-row gap-4 xl:gap-6 w-full overflow-hidden">
                                                                         {/* Kolom 1: Volume & Biaya */}
                                                                         <div className="flex-1 min-w-[200px]">
                                                                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">1</span> Volume & Biaya</h4>
-                                                                            
+
                                                                             <div className="grid grid-cols-2 gap-2 mb-2">
                                                                                 <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm flex flex-col justify-center">
                                                                                     <label className="text-[9px] font-bold text-slate-400 uppercase block">Vol RAB</label>
@@ -5252,7 +5274,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-[8px]">3</span> Bukti & Catatan</h4>
                                                                             <div className="bg-white p-2.5 rounded-md border border-slate-200 shadow-sm flex flex-col h-[calc(100%-24px)]">
                                                                                 <textarea className="w-full flex-1 min-h-[55px] p-2 border border-slate-200 rounded text-[10px] font-medium text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 focus:bg-white resize-none mb-2.5 shadow-sm transition-colors placeholder:text-slate-400" placeholder="Keterangan opname, masalah, selisih volume..." value={memoInputs[key]?.catatan_opname || ''} onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'catatan_opname', e.target.value)} />
-                                                                                
+
                                                                                 <div className="pt-2 border-t border-slate-100">
                                                                                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1.5">Upload Foto *</label>
                                                                                     <input type="file" accept="image/*" onChange={(e) => handleSetField(d.category.name, item.jenis_pekerjaan, 'file_opname', e.target.files?.[0] || null)} className="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer outline-none" />
@@ -5380,6 +5402,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             />
                                                                                             <span className="text-xs text-slate-500">tambahan hari</span>
                                                                                         </div>
+                                                                                    )}
+
+                                                                                    {isContractorFirstCheckpoint && opnameForStatus?.status === 'pending' && (
+                                                                                        <SupportReviewOpnameInline opname={opnameForStatus} onReviewed={handleContractorOpnameReviewed} />
                                                                                     )}
 
                                                                                     {/* Input Catatan & Dokumentasi ketika sudah di-set status */}
@@ -5775,7 +5801,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         const term = searchQuery.toLowerCase();
         return groupedByCategory.map(group => {
             const matchCat = group.name.toLowerCase().includes(term);
-            const filteredItems = group.items.filter((item: any) => 
+            const filteredItems = group.items.filter((item: any) =>
                 item.jenis_pekerjaan?.toLowerCase().includes(term) || matchCat
             );
             return { ...group, items: filteredItems };
@@ -5967,7 +5993,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     {!isLoading && groupedByCategory.length > 0 && (
                         <div className="relative group sticky -top-6 pt-6 pb-2 z-20 bg-white/95 backdrop-blur-md -mx-6 px-6 border-b border-slate-100/50">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300" />
-                            <Input 
+                            <Input
                                 placeholder="Cari kategori atau item pekerjaan..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
