@@ -4,6 +4,7 @@ import { DashboardKPICards } from './DashboardKPICards';
 import { DashboardAnalytics } from './DashboardAnalytics';
 import { DashboardCharts } from './DashboardCharts';
 import { DashboardDrilldownModal } from './DashboardDrilldownModal';
+import { DashboardSPCard } from './DashboardSPCard';
 
 interface DashboardViewV2Props {
     projects: any[]; // Ini adalah filteredProjects dari page.tsx
@@ -44,6 +45,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [activeCard, setActiveCard] = useState<string | null>(null);
+    const [activeCardData, setActiveCardData] = useState<any>(null);
 
     const handleSearchChange = (val: string) => {
         onSearchChange(val);
@@ -54,8 +56,9 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
         }
     };
 
-    const handleCardClick = (cardType: string) => {
+    const handleCardClick = (cardType: string, data?: any) => {
         setActiveCard(cardType);
+        setActiveCardData(data || null);
         setIsModalOpen(true);
     };
 
@@ -217,7 +220,6 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         selectedBranch={selectedBranch}
                         onBranchChange={onBranchChange}
                         accessibleBranches={accessibleBranches}
-
                         isSuperAdmin={isSuperAdmin}
                         onRefresh={onRefresh}
                         isRefreshing={isRefreshing}
@@ -225,6 +227,11 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         onJobTypeChange={onJobTypeChange}
                         tipeBangunan={tipeBangunan}
                         onTipeBangunanChange={onTipeBangunanChange}
+                    />
+
+                    <DashboardSPCard 
+                        selectedBranch={selectedBranch}
+                        onCardClick={handleCardClick}
                     />
 
                     <div className="mt-2">
@@ -263,6 +270,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
                         searchQuery={searchQuery}
                         stats={stats}
                         extraStats={extraStats}
+                        extraData={activeCardData}
                     />
                 </div>
             </div>
