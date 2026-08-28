@@ -5075,6 +5075,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex flex-col gap-2">
+                                                                            {(memoInputs[key] as any)?.needsCurrentCheckpointCompletion && latestIdMapState.has(key) && (
+                                                                                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                                                                    <div className="flex items-center gap-2 font-bold">
+                                                                                        <AlertCircle className="w-3.5 h-3.5" />
+                                                                                        <span>Foto pengawasan tanggal ini belum tersimpan</span>
+                                                                                    </div>
+                                                                                    <p className="mt-1 text-[10px] opacity-75">Upload ulang dokumen/foto pengawasan untuk melengkapi checkpoint ini.</p>
+                                                                                </div>
+                                                                            )}
                                                                             {latestStatusKey && ['Terlambat', 'Progress'].includes(latestStatusKey) && !latestIdMapState.has(key) && (
                                                                                 <div className={`rounded-lg border px-3 py-2 text-xs ${latestStatusKey === 'Terlambat' ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
                                                                                     <div className="flex items-center justify-between gap-2">
@@ -5087,7 +5096,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             </span>
                                                                                         </div>
                                                                                     </div>
-                                                                                    <p className="mt-1 text-[10px] opacity-75">Perbarui status item ini untuk pengawasan hari ini.</p>
+                                                                                    <p className="mt-1 text-[10px] opacity-75">Pilih status dan upload dokumen/foto pengawasan untuk tanggal ini.</p>
                                                                                 </div>
 
                                                                             )}
