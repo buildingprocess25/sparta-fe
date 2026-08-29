@@ -300,11 +300,14 @@ const resolveProjectFromSource = (project?: string | null, nomorUlok?: string | 
   else if (upperProject.includes('PERPANJANGAN')) { proyek = 'Renovasi Perpanjangan'; isRenovasi = true; }
   else if (upperProject.includes('TUTUP')) { proyek = 'Renovasi Toko Tutup'; isRenovasi = true; }
   else if (upperProject.includes('PEREMAJAAN') || upperProject.includes('PERBAIKAN')) { proyek = 'Renovasi Peremajaan'; isRenovasi = true; }
-  else if (upperProject === 'RENOVASI') { proyek = 'Renovasi'; isRenovasi = true; }
+  else if (upperProject === 'RENOVASI') { proyek = ''; isRenovasi = true; }
   else if (upperProject === 'REGULER') { proyek = 'Reguler'; isRenovasi = false; }
-  else if (isRenovasi && (!proyek || !proyek.toLowerCase().startsWith('renovasi'))) { proyek = 'Renovasi'; }
+  else if (isRenovasi && (!proyek || !proyek.toLowerCase().startsWith('renovasi'))) { proyek = ''; }
 
-  return { proyek: proyek || (isRenovasi ? 'Renovasi' : 'Reguler'), isRenovasi };
+  let finalProyek = proyek || (isRenovasi ? '' : 'Reguler');
+  if (finalProyek === 'Renovasi') finalProyek = '';
+
+  return { proyek: finalProyek, isRenovasi };
 };
 
 const normalizeKategoriLokasi = (value?: string | null) => {
@@ -845,7 +848,7 @@ function RABPageContent() {
         const rabRef = detail.rab || {};
         const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
         const sourceParts = String(sourceUlok).split('-');
-        const isRenovasiUlok = String(sourceUlok || '').trim().toUpperCase().endsWith('-R');
+        const sourceProject = resolveProjectFromSource(tokoRef.proyek || source.proyek || source['Proyek'], sourceUlok);
         const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
         const targetScope = getOppositeRabScope(sourceScope) || currentScope;
         const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
@@ -857,8 +860,8 @@ function RABPageContent() {
           lokasiCabang: sourceParts[0] || prev.lokasiCabang,
           lokasiTanggal: sourceParts[1] || prev.lokasiTanggal,
           lokasiManual: sourceParts[2] || prev.lokasiManual,
-          isRenovasi: isRenovasiUlok,
-          proyek: isRenovasiUlok ? '' : 'Reguler',
+          isRenovasi: sourceProject.isRenovasi,
+          proyek: sourceProject.proyek,
           cabang: sourceCabang || prev.cabang,
           lingkupPekerjaan: targetScope,
           namaToko: tokoRef.nama_toko || source.nama_toko || prev.namaToko,
