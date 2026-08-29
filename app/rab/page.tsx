@@ -845,7 +845,7 @@ function RABPageContent() {
         const rabRef = detail.rab || {};
         const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
         const sourceParts = String(sourceUlok).split('-');
-        const sourceProject = resolveProjectFromSource(tokoRef.proyek, sourceUlok);
+        const isRenovasiUlok = String(sourceUlok || '').trim().toUpperCase().endsWith('-R');
         const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
         const targetScope = getOppositeRabScope(sourceScope) || currentScope;
         const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
@@ -857,8 +857,8 @@ function RABPageContent() {
           lokasiCabang: sourceParts[0] || prev.lokasiCabang,
           lokasiTanggal: sourceParts[1] || prev.lokasiTanggal,
           lokasiManual: sourceParts[2] || prev.lokasiManual,
-          isRenovasi: sourceProject.isRenovasi,
-          proyek: sourceProject.proyek,
+          isRenovasi: isRenovasiUlok,
+          proyek: isRenovasiUlok ? '' : 'Reguler',
           cabang: sourceCabang || prev.cabang,
           lingkupPekerjaan: targetScope,
           namaToko: tokoRef.nama_toko || source.nama_toko || prev.namaToko,
