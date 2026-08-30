@@ -372,11 +372,15 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
 
     const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
+    const unresolvedContractorOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => {
+        if (checkpoint.workflow_version !== 'contractor_first') return sum;
+        return sum + Math.max(0, Number(checkpoint.contractor_submitted_opname_items || 0) - Number(checkpoint.opname_items || 0));
+    }, 0);
     const missingPengawasan = Number(scope.missing_pengawasan_checkpoints || 0);
     const totalExpected = Number(scope.total_expected_items || 0);
     const totalSelesai = Number(scope.total_selesai_items || 0);
 
-    return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai === totalExpected;
+    return opnameItems > 0 && readyOpnameItems === 0 && unresolvedContractorOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai === totalExpected;
 }
 
 function GanttBoard() {
@@ -1844,6 +1848,12 @@ function GanttBoard() {
         const opnameItems = scopes.reduce((sum, scope) => (
             sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.opname_items || 0), 0)
         ), 0);
+        const unresolvedContractorOpnameItems = scopes.reduce((sum, scope) => (
+            sum + (scope.checkpoints || []).reduce((inner, checkpoint) => {
+                if (checkpoint.workflow_version !== 'contractor_first') return inner;
+                return inner + Math.max(0, Number(checkpoint.contractor_submitted_opname_items || 0) - Number(checkpoint.opname_items || 0));
+            }, 0)
+        ), 0);
         const incompleteExpectedItems = scopes.reduce((sum, scope) => {
             const expected = Number(scope.total_expected_items || 0);
             const selesai = Number(scope.total_selesai_items || 0);
@@ -1853,8 +1863,12 @@ function GanttBoard() {
         // ST selesai hanya jika semua scope (SIPIL+ME) sudah selesai pengawasan DAN opname
         const allOpnameDone = scopedWithGantt.length > 0 && scopedWithGantt.every(scope => {
             const scopeOpname = (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0);
+            const scopeUnresolvedContractor = (scope.checkpoints || []).reduce((sum, cp) => {
+                if (cp.workflow_version !== 'contractor_first') return sum;
+                return sum + Math.max(0, Number(cp.contractor_submitted_opname_items || 0) - Number(cp.opname_items || 0));
+            }, 0);
             const scopeMissing = Number(scope.missing_pengawasan_checkpoints || 0);
-            return scopeOpname > 0 && scopeMissing === 0;
+            return scopeOpname > 0 && scopeUnresolvedContractor === 0 && scopeMissing === 0;
         });
         const hasGeneratedPdf = Boolean(supervisionWorkspace?.unified_serah_terima_generated || masterHandoverPdfLink);
 
@@ -1892,6 +1906,7 @@ function GanttBoard() {
 
         const hasPendingFollowup = missingPengawasan > 0
             || readyOpnameItems > 0
+            || unresolvedContractorOpnameItems > 0
             || incompleteExpectedItems > 0
             || pendingOpnameDates.length > 0;
         const isReady = !hasPendingFollowup && allScopesReady;
@@ -1905,6 +1920,7 @@ function GanttBoard() {
             readyOpnameItems,
             missingPengawasan,
             opnameItems,
+            unresolvedContractorOpnameItems,
             allOpnameDone,
             incompleteExpectedItems,
             missingDates,
@@ -1930,6 +1946,8 @@ function GanttBoard() {
             warnings.push(`Opname parsial belum diinput (${datesStr}${handoverReadiness.pendingOpnameDates.length > 2 ? `, +${handoverReadiness.pendingOpnameDates.length - 2} lagi` : ''})`);
         } else if (handoverReadiness.readyOpnameItems > 0 && warnings.length === 0) {
             warnings.push(`${handoverReadiness.readyOpnameItems} item menunggu opname`);
+        } else if (handoverReadiness.unresolvedContractorOpnameItems > 0) {
+            warnings.push(`${handoverReadiness.unresolvedContractorOpnameItems} opname kontraktor belum disetujui support`);
         } else if (warnings.length === 0) {
             warnings.push("Menunggu opname selesai");
         }
@@ -4368,7 +4386,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 const memoInput = memoInputs[key] as any;
-                if (isContractorSubmit && (memoInput?.contractorCarryOverOnly || (memoInput?.needsCurrentCheckpointCompletion && ['progress', 'terlambat'].includes(latestStatusLower)))) {
+                if (isContractorSubmit && (memoInput?.previousStatus || memoInput?.contractorCarryOverOnly || (memoInput?.needsCurrentCheckpointCompletion && ['progress', 'terlambat'].includes(latestStatusLower)))) {
                     return false;
                 }
 

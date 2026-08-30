@@ -2592,6 +2592,8 @@ export type OpnameListFilters = {
     id_instruksi_lapangan_item?: number;
     status?:          string;
     tipe_opname?:     "OPNAME" | "OPNAME_FINAL";
+    workflow_version?: "legacy" | "contractor_first";
+    assigned_to?: "contractor" | "support";
 };
 
 export type ContractorCheckpointOpnameItemPayload = {
@@ -2819,6 +2821,8 @@ export const fetchOpnameList = async (
     if (filters?.id_instruksi_lapangan_item) params.append("id_instruksi_lapangan_item", filters.id_instruksi_lapangan_item.toString());
     if (filters?.status)          params.append("status", filters.status);
     if (filters?.tipe_opname)     params.append("tipe_opname", filters.tipe_opname);
+    if (filters?.workflow_version) params.append("workflow_version", filters.workflow_version);
+    if (filters?.assigned_to)      params.append("assigned_to", filters.assigned_to);
     const url = `${base}/api/opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url);
 };

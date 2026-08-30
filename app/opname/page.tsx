@@ -215,6 +215,24 @@ const buildRabItemFromOpname = (item: OpnameItem): RABDetailItem | null => {
 
 const getContractorFirstRejectNote = (item: OpnameItem) =>
     item.alasan_penolakan_support || item.catatan || '';
+
+const isContractorMenuVisibleOpname = (item: OpnameItem) => {
+    if (!isContractorFirstOpname(item)) return true;
+    return isRejectedOpnameStatus(item.status);
+};
+const withFallbackTimeout = async <T,>(promise: Promise<T>, fallback: T, timeoutMs = 15000): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((resolve) => {
+                timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
+};
 // =============================================================================
 // SUB-COMPONENTS
 // =============================================================================
@@ -282,6 +300,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [searchQuery, setSearchQuery] = useState('');
     const [opnameItemSearchQuery, setOpnameItemSearchQuery] = useState('');
     const [activeView, setActiveView] = useState<'form' | 'history'>('form');
+    const [supportFlowView, setSupportFlowView] = useState<'legacy' | 'contractor_first'>('legacy');
     const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
     const [notificationTarget, setNotificationTarget] = useState<OpnameNotificationTarget | null>(null);
 
@@ -308,11 +327,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     // Load RAB list
     useEffect(() => {
         setIsLoading(true);
-        Promise.all([
-            fetchRABList(),
-            fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true })
+        Promise.allSettled([
+            withFallbackTimeout(fetchRABList(), { data: [] } as any),
+            withFallbackTimeout(fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }), { data: [] } as any)
         ])
-            .then(([res, instruksiRes]) => {
+            .then(([rabResult, instruksiResult]) => {
+                const res = rabResult.status === 'fulfilled' ? rabResult.value : { data: [] };
+                const instruksiRes = instruksiResult.status === 'fulfilled' ? instruksiResult.value : { data: [] };
                 const data = res.data || [];
                 const filtered = data.filter(item => {
                     const isApproved = item.status?.toUpperCase().includes('DISETUJUI') ||
@@ -1073,7 +1094,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                             )}
                         </div>
 
-                        {isOpnameFinalLocked && (
+                        {supportFlowView === 'legacy' && isOpnameFinalLocked && (
                             <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 flex items-start gap-3">
                                 <Lock className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
                                 <div>
@@ -1135,7 +1156,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 )}
 
                                 {/* Finalisasi Kerja Tambah Kurang */}
-                                {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
+                                {supportFlowView === 'legacy' && !isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
                                     <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${allApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div>
                                             <h4 className={`font-bold text-sm ${allApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
@@ -1160,7 +1181,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     </div>
                                 )}
 
-                                {hasExistingOpname && activeView === 'form' && (
+                                {supportFlowView === 'legacy' && hasExistingOpname && activeView === 'form' && (
                                     <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
                                         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                                         <div>
@@ -1172,7 +1193,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
                                 {activeView === 'form' ? (
                                     <>
-                                    {canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && approvedReadOnlyOpnameItems.length > 0 && (
+                                    {supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && approvedReadOnlyOpnameItems.length > 0 && (
                                         <div className="mb-6 p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
                                             <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4 border-b border-emerald-200 pb-2">
                                                 <CheckCircle className="w-4 h-4" /> Data Opname Disetujui - Read Only ({approvedReadOnlyOpnameItems.length})
@@ -1223,7 +1244,16 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     {/* Support Re-Review Section */}
                                     {(() => {
                                         const pendingRevisions = contractorFirstMenuReviewItems;
-                                        if (pendingRevisions.length === 0) return null;
+                                        if (supportFlowView !== 'contractor_first') return null;
+                                        if (pendingRevisions.length === 0) {
+                                            return (
+                                                <div className="mb-6 rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                                                    <CheckCircle className="mx-auto mb-3 h-10 w-10 text-slate-300" aria-hidden="true" />
+                                                    <h3 className="text-sm font-black text-slate-700">Tidak Ada Review Contractor-first</h3>
+                                                    <p className="mt-1 text-sm text-slate-500">Belum ada opname dari kontraktor yang ditolak pada pengawasan selesai lalu diajukan ulang.</p>
+                                                </div>
+                                            );
+                                        }
                                         return (
                                             <div className="mb-6 p-5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm">
                                                 <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-4 border-b border-blue-200 pb-2">
@@ -1747,7 +1777,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
             .then(({ opnameRes, filteredRab, ilTokoIds }) => {
                 const allOpname = opnameRes.data || [];
                 const validTokoIds = new Set(filteredRab.map(r => r.id_toko));
-                const filteredOpname = allOpname.filter(o => validTokoIds.has(o.id_toko) || ilTokoIds.has(o.id_toko));
+                const filteredOpname = allOpname.filter(o => (validTokoIds.has(o.id_toko) || ilTokoIds.has(o.id_toko)) && isContractorMenuVisibleOpname(o));
                 setOpnameList(filteredOpname);
             })
             .catch(err => console.error("Gagal memuat data:", err))
@@ -1806,7 +1836,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         try {
             // Load fresh opname data by id_toko — response includes toko + rab_item relations
             const opnameRes = await fetchOpnameList({ id_toko: tokoId, tipe_opname: 'OPNAME' });
-            const opnameData = opnameRes.data || [];
+            const opnameData = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
             setFilteredOpname(opnameData);
 
             // Update toko info from response if available
@@ -1842,7 +1872,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         setIsLoadingItems(true);
         try {
             const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko, tipe_opname: 'OPNAME' });
-            setFilteredOpname(opnameRes.data || []);
+            setFilteredOpname((opnameRes.data || []).filter(isContractorMenuVisibleOpname));
         } catch (err) {
             console.error(err);
         } finally {
@@ -2366,6 +2396,19 @@ function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: an
     const [foto, setFoto] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const satuan = sourceRef?.satuan || '';
+    const hargaMaterial = Number(sourceRef?.harga_material) || 0;
+    const hargaUpah = Number(sourceRef?.harga_upah) || 0;
+    const hargaSatuan = hargaMaterial + hargaUpah;
+    const volRab = Number(sourceRef?.volume) || 0;
+    const volAkhirNum = parseDecimalInput(volumeAkhir);
+    const selisihVolume = Number((volAkhirNum - volRab).toFixed(4));
+    const totalRab = Math.round(volRab * hargaSatuan);
+    const totalOpname = Math.round(volAkhirNum * hargaSatuan);
+    const selisihBiaya = totalOpname - totalRab;
+    const selisihTone = selisihBiaya > 0 ? 'text-red-700' : selisihBiaya < 0 ? 'text-emerald-700' : 'text-slate-800';
+    const selisihPrefix = selisihBiaya > 0 ? '+' : selisihBiaya < 0 ? '-' : '';
+
     const handleSubmit = async () => {
         if (!volumeAkhir || !desain || !kualitas || !spesifikasi) {
             showAlert({ message: 'Harap lengkapi field wajib', type: 'warning' });
@@ -2382,18 +2425,9 @@ function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: an
             if (catatan) formData.append('catatan', catatan);
             if (foto) formData.append('file_foto_opname', foto);
             
-            const hMaterial = Number(sourceRef?.harga_material) || 0;
-            const hUpah = Number(sourceRef?.harga_upah) || 0;
-            const hSatuan = hMaterial + hUpah;
-            const volRab = Number(sourceRef?.volume) || 0;
-            const volAkhirNum = Number(volumeAkhir) || 0;
-            const selisih_volume = Number((volAkhirNum - volRab).toFixed(4));
-            const total_harga_opname = Math.round(volAkhirNum * hSatuan);
-            const total_selisih = total_harga_opname - Math.round(volRab * hSatuan);
-
-            formData.append('selisih_volume', String(selisih_volume));
-            formData.append('total_selisih', String(total_selisih));
-            formData.append('total_harga_opname', String(total_harga_opname));
+            formData.append('selisih_volume', String(selisihVolume));
+            formData.append('total_selisih', String(selisihBiaya));
+            formData.append('total_harga_opname', String(totalOpname));
 
             await reviseContractorFirstOpname(item.id, formData as any);
             showAlert({ message: 'Revisi berhasil disubmit.', type: 'success' });
@@ -2406,50 +2440,94 @@ function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: an
     };
     
     return (
-        <div className="mt-4 p-4 border border-blue-200 bg-white rounded-lg shadow-sm">
-            <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Form Revisi (Ditolak)</h4>
-            
-            <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs border border-red-200 rounded">
-                <span className="font-bold">Alasan Penolakan:</span> {item.catatan || 'Tidak ada alasan.'}
+        <div className="mt-4 overflow-hidden rounded-lg border border-blue-200 bg-white shadow-sm">
+            <div className="border-b border-blue-100 bg-blue-50/70 px-4 py-3">
+                <h4 className="flex items-center gap-2 text-sm font-bold text-blue-800">
+                    <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                    Form Revisi (Ditolak)
+                </h4>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               <div>
-                   <label className="text-xs font-bold text-slate-700">Volume Akhir *</label>
-                   <input type="text" className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={volumeAkhir} onChange={(e) => setVolumeAkhir(normalizeVolumeInput(e.target.value))} />
-               </div>
-               <div>
-                   <label className="text-xs font-bold text-slate-700">Desain *</label>
-                   <select className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={desain} onChange={(e) => setDesain(e.target.value)}>
-                       <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
-                   </select>
-               </div>
-               <div>
-                   <label className="text-xs font-bold text-slate-700">Kualitas *</label>
-                   <select className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={kualitas} onChange={(e) => setKualitas(e.target.value)}>
-                       <option value="">-- Pilih --</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option>
-                   </select>
-               </div>
-               <div>
-                   <label className="text-xs font-bold text-slate-700">Spesifikasi *</label>
-                   <select className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" value={spesifikasi} onChange={(e) => setSpesifikasi(e.target.value)}>
-                       <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
-                   </select>
-               </div>
-               <div>
-                   <label className="text-xs font-bold text-slate-700">Foto Bukti (Opsional)</label>
-                   <input type="file" accept="image/*" className="w-full p-1.5 text-xs border rounded mt-1" onChange={(e) => e.target.files && setFoto(e.target.files[0])} />
-               </div>
-               <div className="lg:col-span-3">
-                   <label className="text-xs font-bold text-slate-700">Catatan Revisi</label>
-                   <textarea className="w-full p-2 text-sm border rounded mt-1 outline-none focus:border-blue-500" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)}></textarea>
-               </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6" onClick={handleSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                    Kirim Revisi
-                </Button>
+            <div className="space-y-4 p-4">
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <span className="font-bold">Alasan Penolakan:</span> {item.catatan || 'Tidak ada alasan.'}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
+                        <p className="text-xs font-bold uppercase text-slate-500">Volume RAB</p>
+                        <p className="mt-1 text-base font-extrabold text-slate-900">{volRab} <span className="text-xs font-semibold text-slate-500">{satuan}</span></p>
+                    </div>
+                    <div className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-blue-200">
+                        <label htmlFor={`revision-volume-${item.id}`} className="text-xs font-bold uppercase text-blue-700">Volume Akhir *</label>
+                        <div className="mt-1 flex items-center gap-2">
+                            <input
+                                id={`revision-volume-${item.id}`}
+                                name={`revision-volume-${item.id}`}
+                                type="text"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                className="min-w-0 flex-1 rounded-md border border-blue-200 px-2 py-1.5 text-base font-extrabold text-slate-900 outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                value={volumeAkhir}
+                                onChange={(e) => setVolumeAkhir(normalizeVolumeInput(e.target.value))}
+                            />
+                            <span className="text-xs font-semibold text-slate-500">{satuan}</span>
+                        </div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
+                        <p className="text-xs font-bold uppercase text-slate-500">Selisih Volume</p>
+                        <p className={`mt-1 text-base font-extrabold ${selisihVolume > 0 ? 'text-red-700' : selisihVolume < 0 ? 'text-emerald-700' : 'text-slate-900'}`}>
+                            {selisihVolume > 0 ? '+' : ''}{selisihVolume} <span className="text-xs font-semibold text-slate-500">{satuan}</span>
+                        </p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
+                        <p className="text-xs font-bold uppercase text-slate-500">Total RAB</p>
+                        <p className="mt-1 text-base font-extrabold text-slate-900">{formatRp(totalRab)}</p>
+                    </div>
+                    <div className="rounded-lg bg-blue-50 p-3 shadow-sm ring-1 ring-blue-200">
+                        <p className="text-xs font-bold uppercase text-blue-700">Total Opname</p>
+                        <p className="mt-1 text-base font-extrabold text-blue-700">{formatRp(totalOpname)}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 shadow-sm ring-1 ring-slate-200">
+                        <p className="text-xs font-bold uppercase text-slate-500">Selisih Biaya</p>
+                        <p className={`mt-1 text-base font-extrabold ${selisihTone}`}>{selisihPrefix}{formatRp(Math.abs(selisihBiaya))}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                   <div>
+                       <label htmlFor={`revision-desain-${item.id}`} className="text-xs font-bold text-slate-700">Desain *</label>
+                       <select id={`revision-desain-${item.id}`} name={`revision-desain-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" value={desain} onChange={(e) => setDesain(e.target.value)}>
+                           <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
+                       </select>
+                   </div>
+                   <div>
+                       <label htmlFor={`revision-kualitas-${item.id}`} className="text-xs font-bold text-slate-700">Kualitas *</label>
+                       <select id={`revision-kualitas-${item.id}`} name={`revision-kualitas-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" value={kualitas} onChange={(e) => setKualitas(e.target.value)}>
+                           <option value="">-- Pilih --</option><option value="Baik">Baik</option><option value="Tidak Baik">Tidak Baik</option>
+                       </select>
+                   </div>
+                   <div>
+                       <label htmlFor={`revision-spesifikasi-${item.id}`} className="text-xs font-bold text-slate-700">Spesifikasi *</label>
+                       <select id={`revision-spesifikasi-${item.id}`} name={`revision-spesifikasi-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" value={spesifikasi} onChange={(e) => setSpesifikasi(e.target.value)}>
+                           <option value="">-- Pilih --</option><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option>
+                       </select>
+                   </div>
+                   <div>
+                       <label htmlFor={`revision-foto-${item.id}`} className="text-xs font-bold text-slate-700">Foto Bukti (Opsional)</label>
+                       <input id={`revision-foto-${item.id}`} name={`revision-foto-${item.id}`} type="file" accept="image/*" className="mt-1 w-full rounded border p-1.5 text-xs focus-visible:ring-2 focus-visible:ring-blue-500/20" onChange={(e) => e.target.files && setFoto(e.target.files[0])} />
+                   </div>
+                   <div className="lg:col-span-3">
+                       <label htmlFor={`revision-note-${item.id}`} className="text-xs font-bold text-slate-700">Catatan Revisi</label>
+                       <textarea id={`revision-note-${item.id}`} name={`revision-note-${item.id}`} className="mt-1 w-full rounded border p-2 text-sm outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20" rows={2} value={catatan} onChange={(e) => setCatatan(e.target.value)}></textarea>
+                   </div>
+                </div>
+                <div className="flex justify-end">
+                    <Button size="sm" className="bg-blue-600 px-6 font-bold text-white hover:bg-blue-700" onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="mr-2 h-4 w-4" aria-hidden="true" />}
+                        Kirim Revisi
+                    </Button>
+                </div>
             </div>
         </div>
     );
