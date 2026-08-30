@@ -3638,7 +3638,32 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     });
                     setBlockedOpnameItemKeys(blockedOpnameIds);
 
-                    setLiveHistory(dataLive);
+                    const hasPengawasanDocument = (row: any) =>
+                        Boolean(String(row?.dokumentasi || '').trim() || String(row?.dokumentasi_base64 || '').trim());
+                    const workKeyOf = (row: any) => `${String(row.kategori_pekerjaan || '').toUpperCase()}|${String(row.jenis_pekerjaan || '').toUpperCase()}`;
+                    const comparePengawasanPriority = (a: any, b: any) => {
+                        const aMissingDoc = hasPengawasanDocument(a) ? 1 : 0;
+                        const bMissingDoc = hasPengawasanDocument(b) ? 1 : 0;
+                        if (aMissingDoc !== bMissingDoc) return aMissingDoc - bMissingDoc;
+
+                        const aLate = String(a?.status || '').toLowerCase() === 'terlambat' ? 0 : 1;
+                        const bLate = String(b?.status || '').toLowerCase() === 'terlambat' ? 0 : 1;
+                        if (aLate !== bLate) return aLate - bLate;
+
+                        return Number(a?.id || 0) - Number(b?.id || 0);
+                    };
+                    const currentRowsByWorkKey = new Map<string, any>();
+
+                    dataLive.forEach((p: any) => {
+                        if (!p.kategori_pekerjaan || !p.jenis_pekerjaan || !p.status) return;
+                        const key = workKeyOf(p);
+                        const current = currentRowsByWorkKey.get(key);
+                        if (!current || comparePengawasanPriority(p, current) < 0) {
+                            currentRowsByWorkKey.set(key, p);
+                        }
+                    });
+                    const preferredLiveHistory = Array.from(currentRowsByWorkKey.values());
+                    setLiveHistory(preferredLiveHistory);
 
                     const initial: Record<string, any> = {};
                     const map = new Map<string, string>();
@@ -3658,19 +3683,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         return categoryLateDays;
                     };
 
-                    dataLive.forEach((p: any) => {
+                    preferredLiveHistory.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
-                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            const key = workKeyOf(p);
+                            const hasDocument = hasPengawasanDocument(p);
                             if (p.id) idMap.set(key, p.id);
-                            if (p.status.toLowerCase() !== 'selesai') {
+                            if (p.status.toLowerCase() !== 'selesai' || !hasDocument) {
                                 initial[key] = {
                                     status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
                                     lateDays: 0,
                                     catatan: p.catatan || '',
                                     file: null,
                                     dokumentasiUrl: p.dokumentasi || null,
-                                    isSaved: Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim()),
-                                    needsCurrentCheckpointCompletion: !Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim())
+                                    isSaved: hasDocument,
+                                    needsCurrentCheckpointCompletion: !hasDocument
                                 };
                             }
                         }
