@@ -206,7 +206,9 @@ function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontrakto
         (scope.checkpoints || []).forEach((checkpoint) => {
             const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
             if (checkpointDate) {
-                ends.push(checkpointDate);
+                const effectiveDate = mode === 'kontraktor' ? addDays(checkpointDate, -1) : checkpointDate;
+                starts.push(effectiveDate);
+                ends.push(effectiveDate);
             }
         });
     });
@@ -214,8 +216,9 @@ function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontrakto
     (workspace.unified_dates || []).forEach((dateStr) => {
         const d = parseDate(dateStr);
         if (d) {
-            starts.push(d);
-            ends.push(d);
+            const effectiveDate = mode === 'kontraktor' ? addDays(d, -1) : d;
+            starts.push(effectiveDate);
+            ends.push(effectiveDate);
         }
     });
 
@@ -225,8 +228,9 @@ function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontrakto
             (scope.checkpoints || []).forEach((checkpoint) => {
                 const checkpointDate = parseDate(checkpoint.tanggal_pengawasan);
                 if (checkpointDate) {
-                    starts.push(checkpointDate);
-                    ends.push(checkpointDate);
+                    const effectiveDate = mode === 'kontraktor' ? addDays(checkpointDate, -1) : checkpointDate;
+                    starts.push(effectiveDate);
+                    ends.push(effectiveDate);
                 }
             });
         });
