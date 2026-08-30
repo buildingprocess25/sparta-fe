@@ -150,6 +150,15 @@ type GanttDetailResponse = Awaited<ReturnType<typeof fetchGanttDetail>>;
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const PENGAWASAN_UPLOAD_BATCH_SIZE = 1;
+const buildDriveProxyHref = (url?: string | null): string => {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (raw.startsWith('/api/') || raw.includes('/api/proxy-file') || raw.includes('/api/denda/actions/proxy-file')) return raw;
+    if (/^https?:\/\//i.test(raw)) {
+        return `${API_URL.replace(/\/$/, '')}/api/proxy-file?url=${encodeURIComponent(raw)}`;
+    }
+    return raw;
+};
 const PENGAWASAN_MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 function parseCalendarDate(value?: string | null): Date | null {
@@ -182,6 +191,12 @@ function formatPengawasanDateKey(value?: string | null): string {
     return `${dd}/${mm}/${yyyy}`;
 }
 
+function subtractOneCalendarDayKey(value?: string | null): string {
+    const parsed = parseCalendarDate(value);
+    if (!parsed) return '';
+    parsed.setDate(parsed.getDate() - 1);
+    return formatPengawasanDateKey(formatCalendarDate(parsed));
+}
 type PengawasanFileMap = {
     index: number;
     file: File;
@@ -650,6 +665,7 @@ function GanttBoard() {
             // saat halaman pertama kali dimuat. Mengoverride di sini dengan kondisi
             // (spk_start_date || spk_duration) akan membuat filter SPK error karena
             // scope yang WAITING_FOR_BM_APPROVAL pun bisa punya spk_start_date.
+            return response.data;
         } catch (error: any) {
             if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(null);
@@ -745,7 +761,7 @@ function GanttBoard() {
     const handleGenerateUnifiedHandover = useCallback(async () => {
         const scopes = supervisionWorkspace?.scopes || [];
         const allReady = scopes.length > 0 && scopes.every(isScopeReadyForSt);
-        if (!supervisionWorkspace || (!supervisionWorkspace.unified_serah_terima_ready && !allReady)) return;
+        if (!supervisionWorkspace || !allReady) return;
         setIsGeneratingHandover(true);
         try {
             await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok);
@@ -837,8 +853,14 @@ function GanttBoard() {
             return;
         }
 
-        if (currentAppMode === 'pic' && urlUlok) {
-            loadSupervisionWorkspace(urlUlok);
+        if (urlUlok) {
+            void (async () => {
+                const workspace = await loadSupervisionWorkspace(urlUlok);
+                if (currentAppMode === 'kontraktor') {
+                    const firstScope = workspace?.scopes?.find((scope: SupervisionScope) => scope.gantt_id);
+                    if (firstScope) await loadDataByToko(firstScope.id_toko);
+                }
+            })();
         } else if (urlIdToko) {
             loadDataByToko(parseInt(urlIdToko), urlIdRab ? parseInt(urlIdRab) : undefined);
         } else if (urlIdRab) {
@@ -1005,6 +1027,10 @@ function GanttBoard() {
         try {
             const res = await fetchGanttDetailByToko(idToko);
             const { rab, filtered_categories, gantt_data, toko, instruksi_lapangan_items } = res;
+
+            if (appMode === 'kontraktor' && toko?.nomor_ulok) {
+                void loadSupervisionWorkspace(toko.nomor_ulok);
+            }
 
             const validRabId = rab?.id || fallbackIdRab;
 
@@ -1703,7 +1729,7 @@ function GanttBoard() {
     // Map dari tanggal pengawasan (DD/MM/YYYY) → data checkpoint agregat dari semua scopes
     // Digunakan untuk pewarnaan header kolom: hijau/merah/biru (Poin 7, 8, 9)
     const pengawasanCheckpointMap = useMemo(() => {
-        const map = new Map<string, { total_items: number; filled_items: number; selesai_items: number }>();
+        const map = new Map<string, { total_items: number; filled_items: number; selesai_items: number; ready_opname_items: number; opname_items: number; contractor_submitted_opname_items: number }>();
         (supervisionWorkspace?.scopes || []).forEach(scope => {
             (scope.checkpoints || []).forEach((cp: any) => {
                 const dateKey = String(cp.tanggal_pengawasan || '').trim();
@@ -1713,11 +1739,17 @@ function GanttBoard() {
                     existing.total_items += Number(cp.total_items || 0);
                     existing.filled_items += Number(cp.filled_items || 0);
                     existing.selesai_items += Number(cp.selesai_items || 0);
+                    existing.ready_opname_items += Number(cp.ready_opname_items || 0);
+                    existing.opname_items += Number(cp.opname_items || 0);
+                    existing.contractor_submitted_opname_items += Number(cp.contractor_submitted_opname_items || 0);
                 } else {
                     map.set(dateKey, {
                         total_items: Number(cp.total_items || 0),
                         filled_items: Number(cp.filled_items || 0),
                         selesai_items: Number(cp.selesai_items || 0),
+                        ready_opname_items: Number(cp.ready_opname_items || 0),
+                        opname_items: Number(cp.opname_items || 0),
+                        contractor_submitted_opname_items: Number(cp.contractor_submitted_opname_items || 0),
                     });
                 }
             });
@@ -1725,6 +1757,36 @@ function GanttBoard() {
         return map;
     }, [supervisionWorkspace]);
 
+    const contractorOpnameSlotMap = useMemo(() => {
+        const map = new Map<string, { scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>();
+        if (appMode !== 'kontraktor') return map;
+
+        (supervisionWorkspace?.scopes || []).forEach((scope) => {
+            (scope.checkpoints || []).forEach((checkpoint) => {
+                if (checkpoint.workflow_version !== 'contractor_first') return;
+                const slotDate = subtractOneCalendarDayKey(checkpoint.tanggal_pengawasan);
+                if (!slotDate) return;
+
+                const existing = map.get(slotDate);
+                if (existing) {
+                    existing.checkpoint = {
+                        ...existing.checkpoint,
+                        total_items: Number(existing.checkpoint.total_items || 0) + Number(checkpoint.total_items || 0),
+                        filled_items: Number(existing.checkpoint.filled_items || 0) + Number(checkpoint.filled_items || 0),
+                        selesai_items: Number(existing.checkpoint.selesai_items || 0) + Number(checkpoint.selesai_items || 0),
+                        ready_opname_items: Number(existing.checkpoint.ready_opname_items || 0) + Number(checkpoint.ready_opname_items || 0),
+                        opname_items: Number(existing.checkpoint.opname_items || 0) + Number(checkpoint.opname_items || 0),
+                        contractor_submitted_opname_items: Number(existing.checkpoint.contractor_submitted_opname_items || 0) + Number(checkpoint.contractor_submitted_opname_items || 0),
+                    } as SupervisionCheckpoint;
+                    return;
+                }
+
+                map.set(slotDate, { scope, checkpoint: { ...checkpoint } });
+            });
+        });
+
+        return map;
+    }, [appMode, supervisionWorkspace]);
     const targetStInfo = useMemo(() => {
         const candidates = (supervisionWorkspace?.scopes || []).flatMap((scope) => {
             const explicitTarget = parseLocalDate(scope.st_target_date);
@@ -1782,6 +1844,11 @@ function GanttBoard() {
         const opnameItems = scopes.reduce((sum, scope) => (
             sum + (scope.checkpoints || []).reduce((inner, checkpoint) => inner + Number(checkpoint.opname_items || 0), 0)
         ), 0);
+        const incompleteExpectedItems = scopes.reduce((sum, scope) => {
+            const expected = Number(scope.total_expected_items || 0);
+            const selesai = Number(scope.total_selesai_items || 0);
+            return sum + Math.max(0, expected - selesai);
+        }, 0);
         const allScopesReady = scopedWithGantt.length > 0 && readyScopes.length === scopedWithGantt.length;
         // ST selesai hanya jika semua scope (SIPIL+ME) sudah selesai pengawasan DAN opname
         const allOpnameDone = scopedWithGantt.length > 0 && scopedWithGantt.every(scope => {
@@ -1825,8 +1892,9 @@ function GanttBoard() {
 
         const hasPendingFollowup = missingPengawasan > 0
             || readyOpnameItems > 0
+            || incompleteExpectedItems > 0
             || pendingOpnameDates.length > 0;
-        const isReady = !hasPendingFollowup && (Boolean(supervisionWorkspace?.unified_serah_terima_ready) || allScopesReady);
+        const isReady = !hasPendingFollowup && allScopesReady;
         const isGenerated = hasGeneratedPdf && allOpnameDone && !hasPendingFollowup;
 
         return {
@@ -1838,6 +1906,7 @@ function GanttBoard() {
             missingPengawasan,
             opnameItems,
             allOpnameDone,
+            incompleteExpectedItems,
             missingDates,
             pendingOpnameDates,
         };
@@ -1850,6 +1919,10 @@ function GanttBoard() {
 
         if (handoverReadiness.missingPengawasan > 0) {
             warnings.push(`${handoverReadiness.missingPengawasan} item belum Selesai (masih Progress/Terlambat)`);
+        }
+
+        if (handoverReadiness.incompleteExpectedItems > 0) {
+            warnings.push(`${handoverReadiness.incompleteExpectedItems} item pekerjaan belum selesai pengawasan`);
         }
 
         if (handoverReadiness.pendingOpnameDates.length > 0) {
@@ -1942,7 +2015,7 @@ function GanttBoard() {
         const uniqueMap = new Map<string, any>();
         filteredTokoList.forEach((toko) => {
             const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
-            const val = appMode === 'pic'
+            const val = (appMode === 'pic' || appMode === 'kontraktor')
                 ? `ulok-${encodeURIComponent(toko.nomor_ulok)}`
                 : (() => {
                     const tID = toko.id_toko || toko.id;
@@ -2526,7 +2599,7 @@ function GanttBoard() {
 
                 </div>
 
-                {appMode === 'pic' && (isWorkspaceLoading || supervisionWorkspace) && (
+                {(appMode === 'pic' || appMode === 'kontraktor') && (isWorkspaceLoading || supervisionWorkspace) && (
                     <section className="mb-8 space-y-5">
                         {isWorkspaceLoading ? (
                             <Card className="border-slate-200 bg-white shadow-sm">
@@ -2600,6 +2673,7 @@ function GanttBoard() {
                                                 setShowTargetStModal({ dateString, dayIndex });
                                             }}
                                             showLegend={showDateLegend}
+                                            mode={appMode === 'kontraktor' ? 'kontraktor' : 'pic'}
                                             isBelumSpk={(() => {
                                                 const all = allTokoList.filter(t => t.nomor_ulok === projectData.ulokClean);
                                                 return all.length > 0 && all.filter(t => spkTokoIds.has(Number(t.id_toko || t.id))).length === 0;
@@ -2956,7 +3030,7 @@ function GanttBoard() {
                         )}
                     </div>
                 )}
-                {!(appMode === 'pic' && supervisionWorkspace) && (
+                {!((appMode === 'pic' || appMode === 'kontraktor') && supervisionWorkspace) && (
                     <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                         <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
                             <div className="flex justify-center gap-6">
@@ -3011,20 +3085,33 @@ function GanttBoard() {
                                                         isPengawasan = true;
                                                     }
                                                 }
-                                                // --- Poin 1: Hanya BRANCH BUILDING SUPPORT yang bisa input ---
-                                                const isClickable = appMode === 'pic' && isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved;
+                                                const contractorSlot = contractorOpnameSlotMap.get(fullDateString);
+                                                const isContractorOpnameSlot = Boolean(contractorSlot);
+                                                const showCheckpointMarker = appMode === 'kontraktor' ? isContractorOpnameSlot : isPengawasan;
+                                                const markerTitle = appMode === 'kontraktor' ? 'Hari Opname Kontraktor' : 'Hari Pengawasan';
+
+                                                // --- Poin 1: Hanya BRANCH BUILDING SUPPORT yang bisa input pengawasan; kontraktor hanya slot opname H-1 ---
+                                                const isClickable = appMode === 'pic'
+                                                    ? isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved
+                                                    : isContractorOpnameSlot && !isReadOnly && isScopeSpkApproved;
 
                                                 // --- Poin 7, 8, 9: Warna header berdasarkan status pengawasan ---
                                                 // Gunakan pengawasanCheckpointMap (dari supervisionWorkspace.checkpoints)
                                                 // untuk data akurat per tanggal pengawasan
                                                 let pengawasanHeaderColor = 'bg-blue-50 text-blue-700'; // default: pending
                                                 let pengawasanDotColor = 'bg-blue-500';
-                                                if (isPengawasan && fullDateString) {
-                                                    const cpData = pengawasanCheckpointMap.get(fullDateString);
+                                                if (showCheckpointMarker && fullDateString) {
+                                                    const cpData = appMode === 'kontraktor' && contractorSlot
+                                                        ? contractorSlot.checkpoint
+                                                        : pengawasanCheckpointMap.get(fullDateString);
 
                                                     if (cpData !== undefined) {
-                                                        const totalItems = cpData.total_items;
-                                                        const filledItems = cpData.filled_items;
+                                                        const totalItems = Number(cpData.total_items || 0);
+                                                        const filledItems = Number(cpData.filled_items || 0);
+                                                        const readyOpnameItems = Number(cpData.ready_opname_items || 0);
+                                                        const opnameItems = Number(cpData.opname_items || 0);
+                                                        const contractorSubmittedOpnameItems = Number(cpData.contractor_submitted_opname_items || 0);
+                                                        const isContractorSlotSubmitted = appMode === 'kontraktor' && (contractorSubmittedOpnameItems > 0 || opnameItems > 0);
                                                         const today = new Date();
                                                         today.setHours(0, 0, 0, 0);
 
@@ -3050,12 +3137,19 @@ function GanttBoard() {
                                                             }
                                                         }
 
-                                                        if (totalItems === 0 && expectedItemsOnThisDay === 0) {
-                                                            // Poin 7: Tidak ada item yang ter-hit → auto-green
+                                                        const isCheckpointFilled = totalItems > 0 && filledItems >= Math.max(totalItems, expectedItemsOnThisDay) && readyOpnameItems === 0;
+
+                                                        if (isCheckpointFilled || isContractorSlotSubmitted) {
+                                                            // Contractor-first: checkpoint yang sudah terisi/submitted harus hijau,
+                                                            // termasuk tanggal future dan item carry-over dari checkpoint sebelumnya.
+                                                            pengawasanHeaderColor = 'bg-green-50 text-green-700';
+                                                            pengawasanDotColor = 'bg-green-500';
+                                                        } else if (totalItems === 0 && expectedItemsOnThisDay === 0) {
+                                                            // Poin 7: Tidak ada item yang ter-hit -> auto-green
                                                             pengawasanHeaderColor = 'bg-green-50 text-green-700';
                                                             pengawasanDotColor = 'bg-green-500';
                                                         } else if (totalItems === 0 && expectedItemsOnThisDay > 0) {
-                                                            // Ada item terjadwal, tapi belum diisi satupun!
+                                                            // Ada item terjadwal, tapi belum diisi satupun.
                                                             if (isPast) {
                                                                 pengawasanHeaderColor = 'bg-red-50 text-red-700';
                                                                 pengawasanDotColor = 'bg-red-500';
@@ -3064,31 +3158,59 @@ function GanttBoard() {
                                                                 pengawasanDotColor = 'bg-blue-500';
                                                             }
                                                         } else if (filledItems >= expectedItemsOnThisDay && filledItems > 0) {
-                                                            // Poin 8: Semua item sudah punya status (progress/terlambat/selesai) → hijau
-                                                            // Note: Kita gunakan >= expectedItemsOnThisDay karena bisa ada item carry-over dari tanggal sebelumnya
+                                                            // Poin 8: Semua item sudah punya status (progress/terlambat/selesai) -> hijau
                                                             pengawasanHeaderColor = 'bg-green-50 text-green-700';
                                                             pengawasanDotColor = 'bg-green-500';
                                                         } else if (isPast) {
-                                                            // Poin 9: Sudah lewat hari ini, belum semua terisi → merah
+                                                            // Poin 9: Sudah lewat hari ini, belum semua terisi -> merah
                                                             pengawasanHeaderColor = 'bg-red-50 text-red-700';
                                                             pengawasanDotColor = 'bg-red-500';
                                                         }
-                                                        // else: masih pending/future → biru (default)
+                                                        // else: masih pending/future -> biru (default)
                                                     }
                                                 }
 
 
                                                 return (
-                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (isPengawasan && !isPengawasanReadOnly ? '' : '')}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
+                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : showCheckpointMarker ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (showCheckpointMarker && !isPengawasanReadOnly ? '' : '')}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                                         onClick={() => {
                                                             if (isClickable) {
+                                                                if (appMode === 'kontraktor' && contractorSlot && supervisionWorkspace) {
+                                                                    const slotScopes = supervisionWorkspace.scopes
+                                                                        .map((scope) => {
+                                                                            const scopeCheckpoint = (scope.checkpoints || []).find((checkpoint) =>
+                                                                                checkpoint.workflow_version === 'contractor_first' &&
+                                                                                subtractOneCalendarDayKey(checkpoint.tanggal_pengawasan) === fullDateString
+                                                                            );
+                                                                            return scopeCheckpoint ? { scope, checkpoint: scopeCheckpoint } : null;
+                                                                        })
+                                                                        .filter(Boolean) as Array<{ scope: SupervisionScope; checkpoint: SupervisionCheckpoint }>;
+
+                                                                    const flowScopes = slotScopes.length > 0 ? slotScopes : [contractorSlot];
+                                                                    const first = flowScopes[0];
+                                                                    setUnifiedMemoFlow({
+                                                                        scopes: flowScopes,
+                                                                        index: 0,
+                                                                        dayIndex: i,
+                                                                        dateString: first.checkpoint.tanggal_pengawasan,
+                                                                    });
+                                                                    loadDataByToko(first.scope.id_toko);
+                                                                    setActiveHeaderClick({
+                                                                        dayIndex: i,
+                                                                        dateString: first.checkpoint.tanggal_pengawasan,
+                                                                        label: first.checkpoint.tanggal_pengawasan.slice(0, 5),
+                                                                    });
+                                                                    setShowMemoModal(true);
+                                                                    return;
+                                                                }
+
                                                                 setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
                                                                 setShowMemoModal(true);
                                                             }
                                                         }}>
                                                         <span>{label}</span>
-                                                        {isPengawasan && <div className={`w-1.5 h-1.5 rounded-full ${pengawasanDotColor} mt-1`} title="Hari Pengawasan" />}
-                                                        {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
+                                                        {showCheckpointMarker && <div className={`w-1.5 h-1.5 rounded-full ${pengawasanDotColor} mt-1`} title={markerTitle} />}
+                                                        {isLiveDay && !showCheckpointMarker && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
                                                     </div>
                                                 )
 
@@ -3352,6 +3474,16 @@ function GanttBoard() {
                         setShowMemoModal(true);
                     }}
                     onSuccess={async (options?: { openOpname?: boolean }) => {
+                        const completedDraftKey = activeMemoGanttId && activeHeaderClick
+                            ? `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`
+                            : null;
+                        if (completedDraftKey) {
+                            setUnifiedMemoDrafts((prev) => {
+                                const next = { ...prev };
+                                delete next[completedDraftKey];
+                                return next;
+                            });
+                        }
                         setShowMemoModal(false);
                         // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
                         if (activeMemoGanttId) loadGanttDetail(activeMemoGanttId);
@@ -3501,19 +3633,27 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (updated?: any) => void; }) {
     const { showAlert } = useGlobalAlert();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showRejectDialog, setShowRejectDialog] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
 
-    const handleAction = async (decision: 'disetujui' | 'ditolak') => {
-        let alasan = '';
-        if (decision === 'ditolak') {
-            alasan = window.prompt('Masukkan alasan penolakan revisi:') || '';
-            if (!alasan) return;
+    const submitDecision = async (decision: 'disetujui' | 'ditolak', alasan = '') => {
+        const trimmedReason = alasan.trim();
+        if (decision === 'ditolak' && !trimmedReason) {
+            showAlert({ message: 'Alasan penolakan wajib diisi.', type: 'warning' });
+            return;
         }
 
         setIsProcessing(true);
         try {
             const { reviewContractorFirstOpname } = await import('@/lib/api');
-            const result = await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan });
-            showAlert({ message: 'Review berhasil disimpan.', type: 'success' });
+            const result = await reviewContractorFirstOpname(item.id, {
+                id_opname_item: item.id,
+                decision,
+                alasan_penolakan_support: trimmedReason,
+            });
+            setShowRejectDialog(false);
+            setRejectReason('');
+            showAlert({ message: decision === 'disetujui' ? 'Opname berhasil disetujui.' : 'Opname berhasil ditolak.', type: 'success' });
             onReviewed(result.data);
         } catch(err: any) {
             showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
@@ -3523,67 +3663,120 @@ function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (
     };
 
     return (
-        <div className="flex gap-2">
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleAction('disetujui')} disabled={isProcessing}>
-                <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
-            </Button>
-            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => handleAction('ditolak')} disabled={isProcessing}>
-                <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
-            </Button>
-        </div>
+        <>
+            <div className="flex gap-2">
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => submitDecision('disetujui')} disabled={isProcessing}>
+                    <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
+                </Button>
+                <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => setShowRejectDialog(true)} disabled={isProcessing}>
+                    <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
+                </Button>
+            </div>
+
+            {showRejectDialog && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="border-b border-red-100 bg-red-50 px-5 py-4">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                    <ThumbsDown className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">Tolak Opname</h3>
+                                    <p className="mt-1 text-sm font-semibold text-red-700">Tuliskan alasan agar kontraktor bisa memperbaiki item ini.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-3 px-5 py-4">
+                            <label className="text-xs font-black uppercase text-slate-500">Alasan Penolakan</label>
+                            <textarea
+                                className="min-h-28 w-full resize-none rounded-lg border border-slate-300 bg-white p-3 text-sm font-medium text-slate-800 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-100"
+                                placeholder="Contoh: volume tidak sesuai foto lapangan, kualitas perlu diperbaiki..."
+                                value={rejectReason}
+                                onChange={(event) => setRejectReason(event.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+                            <Button type="button" variant="outline" className="font-semibold" onClick={() => setShowRejectDialog(false)} disabled={isProcessing}>Batal</Button>
+                            <Button type="button" className="bg-red-600 font-bold text-white hover:bg-red-700" onClick={() => submitDecision('ditolak', rejectReason)} disabled={isProcessing || !rejectReason.trim()}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                                Tolak Opname
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
 function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onReviewed: (updated?: any) => void; }) {
+    const sourceItem = opname.rab_item || opname.instruksi_lapangan_item || {};
+    const volumeRab = Number(sourceItem.volume || 0);
+    const hargaSatuan = Number(sourceItem.harga_satuan ?? (Number(sourceItem.harga_material || 0) + Number(sourceItem.harga_upah || 0)));
+    const totalRab = Number(sourceItem.total_harga ?? Math.round(volumeRab * hargaSatuan));
+    const totalOpname = Number(opname.total_harga_opname ?? Math.round(Number(opname.volume_akhir || 0) * hargaSatuan));
+    const selisih = Number(opname.total_selisih ?? (totalOpname - totalRab));
+    const fotoHref = opname.id ? `${API_URL.replace(/\/$/, '')}/api/opname/${opname.id}/foto` : opname.foto;
+    const formatMoney = (value: number) => `Rp ${Math.round(value || 0).toLocaleString('id-ID')}`;
+
     return (
-        <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 shadow-sm overflow-hidden animate-in slide-in-from-top-1">
-            <div className="bg-gradient-to-r from-orange-100 to-amber-100 px-4 py-3 border-b border-orange-200 flex justify-between items-center">
+        <div className="mt-4 overflow-hidden rounded-xl border border-orange-200 bg-orange-50 shadow-sm animate-in slide-in-from-top-1">
+            <div className="border-b border-orange-200 bg-gradient-to-r from-orange-100 to-amber-100 px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-orange-500 p-1.5 rounded-full"><Clock className="w-4 h-4 text-white"/></div>
+                    <div className="rounded-full bg-orange-500 p-1.5"><Clock className="h-4 w-4 text-white"/></div>
                     <div>
-                        <h5 className="font-bold text-orange-900 text-sm">Review Opname Kontraktor</h5>
-                        <p className="text-[10px] text-orange-700 font-medium mt-0.5">Kontraktor telah mensubmit opname. Harap direview.</p>
+                        <h5 className="text-sm font-bold text-orange-900">Review Opname Kontraktor</h5>
+                        <p className="mt-0.5 text-[10px] font-medium text-orange-700">Kontraktor telah mensubmit opname. Harap direview.</p>
                     </div>
                 </div>
             </div>
-            <div className="p-4 space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-white p-2.5 border rounded-lg shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Volume Akhir</span>
-                        <div className="font-semibold text-sm text-slate-800">{opname.volume_akhir}</div>
-                    </div>
-                    <div className="bg-white p-2.5 border rounded-lg shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Desain</span>
-                        <div className="font-semibold text-sm text-slate-800">{opname.desain}</div>
-                    </div>
-                    <div className="bg-white p-2.5 border rounded-lg shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Kualitas</span>
-                        <div className="font-semibold text-sm text-slate-800">{opname.kualitas}</div>
-                    </div>
-                    <div className="bg-white p-2.5 border rounded-lg shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Spesifikasi</span>
-                        <div className="font-semibold text-sm text-slate-800">{opname.spesifikasi}</div>
-                    </div>
+            <div className="space-y-4 p-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <InfoBox label="Volume RAB" value={`${volumeRab} ${sourceItem.satuan || ''}`.trim()} />
+                    <InfoBox label="Volume Akhir" value={`${opname.volume_akhir} ${sourceItem.satuan || ''}`.trim()} />
+                    <InfoBox label="Total RAB" value={formatMoney(totalRab)} />
+                    <InfoBox label="Total Opname" value={formatMoney(totalOpname)} />
+                    <InfoBox label="Selisih" value={`${selisih >= 0 ? '+' : '-'} ${formatMoney(Math.abs(selisih))}`} valueClassName={selisih > 0 ? 'text-red-700' : selisih < 0 ? 'text-emerald-700' : 'text-slate-800'} />
+                    <InfoBox label="Desain" value={opname.desain || '-'} />
+                    <InfoBox label="Kualitas" value={opname.kualitas || '-'} />
+                    <InfoBox label="Spesifikasi" value={opname.spesifikasi || '-'} />
                 </div>
 
-                {opname.foto && (
-                    <div className="bg-white p-2.5 border rounded-lg shadow-sm flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700">Foto Opname</span>
-                        <a href={opname.foto} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                            <FileText className="w-4 h-4" /> Lihat Foto
-                        </a>
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                    <div className="rounded-lg border bg-white p-3 shadow-sm">
+                        <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Catatan</span>
+                        <p className="whitespace-pre-wrap text-sm font-semibold text-slate-800">{opname.catatan || '-'}</p>
                     </div>
-                )}
+                    {opname.foto && (
+                        <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm">
+                            <span className="text-xs font-bold text-slate-700">Foto Opname</span>
+                            <a href={fotoHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100">
+                                <FileText className="h-4 w-4" /> Lihat Foto
+                            </a>
+                        </div>
+                    )}
+                </div>
 
-                <div className="pt-2 border-t flex justify-end">
-                    {opname.status === 'pending' ? <SupportReReviewActions item={opname} onReviewed={onReviewed} /> : <span className="text-xs font-bold text-red-600">Ditolak oleh Support</span>}
+                <div className="flex justify-end border-t pt-3">
+                    {opname.status === 'pending'
+                        ? <SupportReReviewActions item={opname} onReviewed={onReviewed} />
+                        : <span className={`text-xs font-bold ${opname.status === 'disetujui' ? 'text-green-700' : 'text-red-600'}`}>{opname.status === 'disetujui' ? 'Disetujui Support' : 'Ditolak oleh Support'}</span>}
                 </div>
             </div>
         </div>
     );
 }
 
-
+function InfoBox({ label, value, valueClassName = 'text-slate-800' }: { label: string; value: React.ReactNode; valueClassName?: string }) {
+    return (
+        <div className="rounded-lg border bg-white p-2.5 shadow-sm">
+            <span className="mb-1 block text-[10px] font-bold uppercase text-slate-500">{label}</span>
+            <div className={`text-sm font-semibold ${valueClassName}`}>{value}</div>
+        </div>
+    );
+}
 function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, activeCheckpointData, appMode }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
@@ -3591,6 +3784,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const canCreateInstruksiLapangan = (user?.isSuperHuman ?? false) || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
     const isContractorFirstCheckpoint = activeCheckpointData?.workflow_version === "contractor_first";
     const isContractorSubmit = appMode === "kontraktor" && isContractorFirstCheckpoint;
+    const contractorSlotDisplayDate = isContractorSubmit
+        ? subtractOneCalendarDayKey(activeCheckpointData?.tanggal_pengawasan || activeHeaderClick?.dateString)
+        : '';
+    const modalDateLabel = isContractorSubmit ? (contractorSlotDisplayDate || activeHeaderClick.dateString) : activeHeaderClick.dateString;
     const isReadOnly = isContractorSubmit ? false : !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
 
     const [opnameItems, setOpnameItems] = useState<any[]>([]);
@@ -3600,12 +3797,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         (opnameItems || []).forEach((op: any) => {
             if (op?.workflow_version !== 'contractor_first') return;
             if (checkpointId && Number(op.id_pengawasan_gantt_target) !== checkpointId) return;
+            const targetStatus = String(op?.target_pengawasan_status || '').trim().toLowerCase();
+            if (!isContractorSubmit && op?.status === 'pending' && Number(op?.revision_no || 1) > 1 && targetStatus === 'selesai') return;
             map.set(getOpnameItemKey(op), op);
             const workTextKey = getOpnameWorkTextKey(op);
             if (workTextKey) map.set(workTextKey, op);
         });
         return map;
-    }, [activeCheckpointData, opnameItems]);
+    }, [activeCheckpointData, isContractorSubmit, opnameItems]);
 
     const handleContractorOpnameReviewed = useCallback((updated?: any) => {
         if (!updated?.id) return;
@@ -3728,6 +3927,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             ])
                 .then(([resLive, resAll, resOpname]) => {
                     const dataLive = resLive.data || [];
+                    const dataLiveForInitial = [...dataLive].sort((a: any, b: any) => {
+                        const aHasDoc = Boolean(String(a.dokumentasi || '').trim() || String(a.dokumentasi_base64 || '').trim());
+                        const bHasDoc = Boolean(String(b.dokumentasi || '').trim() || String(b.dokumentasi_base64 || '').trim());
+                        if (aHasDoc !== bHasDoc) return Number(aHasDoc) - Number(bHasDoc);
+                        return Number(a.id || 0) - Number(b.id || 0);
+                    });
                     if (dataLive.length > 0) {
                         setCurrentPengawasanGanttId(dataLive[0].id_pengawasan_gantt);
                     } else {
@@ -3740,7 +3945,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const blockedOpnameIds = new Set<string>();
                     dataOpname.forEach((op: any) => {
                         const status = (op.status || '').toLowerCase();
-                        if (['pending', 'disetujui', 'selesai', 'progress'].includes(status)) {
+                        if (['pending', 'disetujui', 'ditolak', 'selesai', 'progress'].includes(status)) {
                             blockedOpnameIds.add(getOpnameItemKey(op));
                             const workTextKey = getOpnameWorkTextKey(op);
                             if (workTextKey) blockedOpnameIds.add(workTextKey);
@@ -3768,21 +3973,38 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         return categoryLateDays;
                     };
 
-                    dataLive.forEach((p: any) => {
+                    dataLiveForInitial.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                             const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
-                            if (p.id) idMap.set(key, p.id);
-                            if (p.status.toLowerCase() !== 'selesai') {
-                                initial[key] = {
-                                    status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
-                                    lateDays: 0,
-                                    catatan: p.catatan || '',
-                                    file: null,
-                                    dokumentasiUrl: p.dokumentasi || null,
-                                    isSaved: Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim()),
-                                    needsCurrentCheckpointCompletion: !Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim())
-                                };
+                            const hasDokumentasi = Boolean(String(p.dokumentasi || '').trim() || String(p.dokumentasi_base64 || '').trim());
+                            const statusLower = String(p.status || '').trim().toLowerCase();
+                            const isContractorCarryOverOnly = isContractorSubmit
+                                && !hasDokumentasi
+                                && ['progress', 'terlambat'].includes(statusLower)
+                                && dataAll.some((prev: any) => {
+                                    if (!prev?.kategori_pekerjaan || !prev?.jenis_pekerjaan) return false;
+                                    const prevKey = `${prev.kategori_pekerjaan.toUpperCase()}|${prev.jenis_pekerjaan.toUpperCase()}`;
+                                    if (prevKey !== key) return false;
+                                    const prevDate = prev.tanggal_pengawasan ?? getPengawasanDateById(prev.id_pengawasan_gantt);
+                                    const prevNumeric = parseDateNumeric(prevDate);
+                                    const prevHasDokumentasi = Boolean(String(prev.dokumentasi || '').trim() || String(prev.dokumentasi_base64 || '').trim());
+                                    return Boolean(prevNumeric && prevNumeric < currentDateNumeric && prevHasDokumentasi);
+                                });
+                            const existingInitial = initial[key];
+                            if (existingInitial?.needsCurrentCheckpointCompletion && hasDokumentasi) {
+                                return;
                             }
+                            if (p.id) idMap.set(key, p.id);
+                            initial[key] = {
+                                status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+                                lateDays: 0,
+                                catatan: p.catatan || '',
+                                file: null,
+                                dokumentasiUrl: p.dokumentasi || null,
+                                isSaved: hasDokumentasi,
+                                needsCurrentCheckpointCompletion: !hasDokumentasi,
+                                contractorCarryOverOnly: isContractorCarryOverOnly
+                            };
                         }
                     });
 
@@ -3887,7 +4109,20 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         : [];
                     setForcedStBlockerItems(forcedStItems);
 
-                    const mergedInitial = { ...initial, ...(draft || {}) };
+                    const mergedInitial = { ...initial };
+                    Object.entries(draft || {}).forEach(([draftKey, draftValue]: [string, any]) => {
+                        const freshValue = initial[draftKey];
+                        if (freshValue?.isSaved && !freshValue?.needsCurrentCheckpointCompletion && !draftValue?.file && !draftValue?.file_opname) {
+                            mergedInitial[draftKey] = freshValue;
+                            return;
+                        }
+                        mergedInitial[draftKey] = { ...(freshValue || {}), ...(draftValue || {}) };
+                        if (freshValue?.dokumentasiUrl && !draftValue?.file) {
+                            mergedInitial[draftKey].dokumentasiUrl = freshValue.dokumentasiUrl;
+                            mergedInitial[draftKey].isSaved = freshValue.isSaved;
+                            mergedInitial[draftKey].needsCurrentCheckpointCompletion = freshValue.needsCurrentCheckpointCompletion;
+                        }
+                    });
                     setMemoInputs(mergedInitial);
                     // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
                     // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
@@ -3906,7 +4141,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     setIsLoadingHistory(false);
                 });
         });
-    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart, targetStDate]);
+    }, [selectedGanttId, spkInfo, projectData, activeHeaderClick, getEffectiveWorkStart, targetStDate, isContractorSubmit, activeCheckpointData]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
@@ -4133,6 +4368,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 }
 
                 const memoInput = memoInputs[key] as any;
+                if (isContractorSubmit && (memoInput?.contractorCarryOverOnly || (memoInput?.needsCurrentCheckpointCompletion && ['progress', 'terlambat'].includes(latestStatusLower)))) {
+                    return false;
+                }
 
                 let isUnfinishedFromPreviousPengawasan = false;
                 if (['progress', 'terlambat'].includes(latestStatusLower) && !!memoInput?.previousStatus) {
@@ -4171,7 +4409,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, isContractorSubmit]);
 
     const filteredMemoConfig = useMemo(() => {
         if (!searchQuery.trim()) return memoConfig;
@@ -4423,13 +4661,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
                 const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
+                const needsDocumentationRetry = Boolean((memoInputs[key] as any)?.needsCurrentCheckpointCompletion && latestIdMapState.has(key));
 
                 if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
 
-                if (isAlreadySelesai && !needsOpnameFill) continue;
+                if (isAlreadySelesai && !needsOpnameFill && !needsDocumentationRetry) continue;
 
                 const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
-                if (isSavedOnCurrentDate && !needsOpnameFill) continue;
+                if (isSavedOnCurrentDate && !needsOpnameFill && !needsDocumentationRetry) continue;
 
                 editableItemCount += 1;
 
@@ -4727,7 +4966,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const itemForKey = pipeIdx === -1 ? null : findMemoItemForSubmit(key.substring(0, pipeIdx), key.substring(pipeIdx + 1));
                 const needsOpnameFill = isAlreadySelesai && (itemForKey ? !isWorkItemBlockedByOpname(itemForKey, key) : !blockedOpnameItemKeys.has(key));
                 const isSavedOnCurrentDate = !!(val as any)?.isSaved && latestIdMapState.has(key);
+                const needsDocumentationRetry = Boolean((val as any)?.needsCurrentCheckpointCompletion && latestIdMapState.has(key));
 
+                if (needsDocumentationRetry) return Boolean(val.file);
                 return needsOpnameFill ? isOpnameTouched(val) : !isSavedOnCurrentDate;
             });
             const shouldOpenOpname = false; // Option B: Standalone modal dinonaktifkan karena form opname sudah inline
@@ -5063,9 +5304,9 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             </div>
                             <div>
                                 <h2 className="font-bold text-xl text-slate-800 leading-tight">
-                                    {isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan"}
+                                    {isContractorSubmit ? "Opname Kontraktor" : (isLastSupervisionDay ? "Serah Terima" : "Memo Pengawasan")}
                                 </h2>
-                                <p className="text-sm text-slate-500 font-medium">{activeHeaderClick.dateString}</p>
+                                <p className="text-sm text-slate-500 font-medium">{modalDateLabel}</p>
                                 {(scopeLabel || flowStep) && (
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
                                         {scopeLabel && (
@@ -5320,7 +5561,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                             )}
                                                                             {!isReadOnly && renderOpnameForm()}
                                                                         </div>
-                                                                    ) : (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
+                                                                    ) : !isContractorSubmit && (memoInputs[key] as any)?.isSaved && latestIdMapState.has(key) ? (
                                                                         <div className={`flex items-center justify-between p-3 rounded-xl border shadow-sm w-full ${currentStatus === 'Terlambat' ? 'bg-red-50 border-red-200/60' : 'bg-blue-50 border-blue-200/60'}`}>
                                                                             <div className="flex items-center gap-2.5">
                                                                                 {currentStatus === 'Terlambat' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Clock className="w-5 h-5 text-blue-500" />}
@@ -5330,7 +5571,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 )}
                                                                             </div>
                                                                             {memoInputs[key]?.dokumentasiUrl && (
-                                                                                <a href={memoInputs[key].dokumentasiUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
+                                                                                <a href={buildDriveProxyHref(memoInputs[key].dokumentasiUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors shrink-0">
                                                                                     <FileText className="w-3.5 h-3.5" /> Lihat Dokumen
                                                                                 </a>
                                                                             )}
@@ -5454,6 +5695,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                         </>
                                                                                     ) : null}
                                                                                 </>
+                                                                            ) : isContractorSubmit ? (
+                                                                                opnameForStatus ? (
+                                                                                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
+                                                                                        <span className="text-xs font-semibold text-slate-600">Opname sudah diajukan</span>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div className="flex flex-col gap-2">
+                                                                                        {renderOpnameForm()}
+                                                                                    </div>
+                                                                                )
                                                                             ) : (
                                                                                 <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center">
                                                                                     <span className="text-xs font-semibold text-slate-400">Belum ada status pengawasan</span>
@@ -6234,6 +6485,12 @@ export default function Page() {
         </Suspense>
     );
 }
+
+
+
+
+
+
 
 
 

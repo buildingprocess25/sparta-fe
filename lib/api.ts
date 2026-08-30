@@ -1960,6 +1960,7 @@ export type GanttDetailData = {
 export type SupervisionCheckpoint = {
     id_pengawasan_gantt: number;
     tanggal_pengawasan: string;
+    workflow_version?: 'legacy' | 'contractor_first';
     total_items: number;
     selesai_items: number;
     filled_items: number;
@@ -1967,14 +1968,17 @@ export type SupervisionCheckpoint = {
     missing_documentation_items?: number;
     ready_opname_items: number;
     opname_items: number;
+    contractor_submitted_opname_items?: number;
 };
 
 export type UnifiedSupervisionCheckpoint = {
     tanggal_pengawasan: string;
+    workflow_version?: 'legacy' | 'contractor_first';
     total_items: number;
     selesai_items: number;
     ready_opname_items: number;
     opname_items: number;
+    contractor_submitted_opname_items?: number;
     scopes: Array<{
         id_toko: number;
         gantt_id: number | null;
@@ -6015,5 +6019,8 @@ export async function exportGlobalDcData(
   a.remove();
   window.URL.revokeObjectURL(downloadUrl);
 }
+
+
+
 
 

@@ -546,10 +546,30 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     }, [rabItems, latestOpnameByItemKey]);
 
     const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || allApproved;
+    const shouldLockLegacyMenuInputForSupport = canLockOpnameFinal && !shouldShowReadOnlyOpnameItems;
+    const canEditOpnameMenu = !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
+
+    const contractorFirstMenuReviewItems = useMemo(() => {
+        return existingOpname.filter((item) => {
+            const targetStatus = String((item as any).target_pengawasan_status || '').trim().toLowerCase();
+            return isContractorFirstOpname(item)
+                && String(item.status || '').trim().toLowerCase() === 'pending'
+                && Number(item.revision_no || 0) > 0
+                && targetStatus === 'selesai';
+        });
+    }, [existingOpname]);
+
+    const approvedReadOnlyOpnameItems = useMemo(() => {
+        return Array.from(latestOpnameByItemKey.values())
+            .filter((item) => isApprovedOpnameStatus(item.status))
+            .sort((a, b) => Number(a.id) - Number(b.id));
+    }, [latestOpnameByItemKey]);
 
     // Group items by category. Before all-approved/finalized, only rejected items can be revised here.
     // After all-approved/finalized, show every item as a read-only final review.
     const groupedItems = useMemo(() => {
+        if (shouldLockLegacyMenuInputForSupport) return [];
+
         const map = new Map<string, RABDetailItem[]>();
         rabItems.forEach(item => {
             const itemKey = getWorkItemKey(item);
@@ -567,7 +587,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             map.get(cat)!.push(item);
         });
         return Array.from(map.entries()).map(([name, items]) => ({ name, items })).filter(g => g.items.length > 0);
-    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems]);
+    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems, shouldLockLegacyMenuInputForSupport]);
     const filteredGroupedItems = useMemo(() => {
         if (!opnameItemSearchQuery.trim()) return groupedItems;
         const term = opnameItemSearchQuery.toLowerCase();
@@ -694,8 +714,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     // Submit Opname per item (single) — uses bulk endpoint with 1 item for consistency
     const handleSubmitItem = async (rabItem: RABDetailItem) => {
-        if (isReadOnly) {
-            showAlert({ message: "Role ini hanya memiliki akses view.", type: "warning" });
+        if (!canEditOpnameMenu) {
+            showAlert({ message: "Input opname dari menu ini dikunci untuk Branch Building Support. Untuk data legacy, isi opname melalui Gantt Chart.", type: "warning" });
             return;
         }
         if (!selectedRab) return;
@@ -817,6 +837,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     /** Bulk Submit All Items in the form */
     const handleSubmitAll = async () => {
+        if (!canEditOpnameMenu) {
+            showAlert({ message: "Input opname dari menu ini dikunci untuk Branch Building Support. Untuk data legacy, isi opname melalui Gantt Chart.", type: "warning" });
+            return;
+        }
         if (!selectedRab || rabItems.length === 0) return;
 
         // Collect only items that are still editable in the form.
@@ -1148,14 +1172,62 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
                                 {activeView === 'form' ? (
                                     <>
+                                    {canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && approvedReadOnlyOpnameItems.length > 0 && (
+                                        <div className="mb-6 p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
+                                            <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4 border-b border-emerald-200 pb-2">
+                                                <CheckCircle className="w-4 h-4" /> Data Opname Disetujui - Read Only ({approvedReadOnlyOpnameItems.length})
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {approvedReadOnlyOpnameItems.map(item => {
+                                                    const itemKey = getOpnameItemKey(item);
+                                                    const rabRef = rabItems.find((r) => getWorkItemKey(r) === itemKey);
+                                                    const sourceRef = rabRef || item.rab_item || item.instruksi_lapangan_item;
+                                                    const hargaSatuan = (Number((sourceRef as any)?.harga_material) || 0) + (Number((sourceRef as any)?.harga_upah) || 0);
+                                                    const volRab = Number((sourceRef as any)?.volume) || 0;
+                                                    const volAkhir = Number(item.volume_akhir) || 0;
+                                                    const totalRab = Math.round(volRab * hargaSatuan);
+                                                    const totalOpname = Math.round(volAkhir * hargaSatuan);
+                                                    const workflowLabel = isContractorFirstOpname(item) ? 'Contractor-first' : 'Legacy';
+                                                    return (
+                                                        <div key={item.id} className="p-4 bg-white border border-emerald-100 rounded-lg shadow-sm">
+                                                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                                                <div>
+                                                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                                        <span className="font-bold text-slate-800 text-sm">{(sourceRef as any)?.jenis_pekerjaan || '-'}</span>
+                                                                        <Badge className="bg-slate-100 text-slate-700 border-none">{workflowLabel}</Badge>
+                                                                        <StatusBadge status={item.status} />
+                                                                    </div>
+                                                                    <p className="text-xs text-slate-500">{(sourceRef as any)?.kategori_pekerjaan || '-'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-xs">
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume RAB</p><p className="font-bold text-slate-800 mt-1">{volRab} {(sourceRef as any)?.satuan || ''}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Volume Akhir</p><p className="font-bold text-slate-800 mt-1">{item.volume_akhir} {(sourceRef as any)?.satuan || ''}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total RAB</p><p className="font-bold text-slate-800 mt-1">{formatRp(totalRab)}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Total Opname</p><p className="font-bold text-emerald-700 mt-1">{formatRp(totalOpname)}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-bold text-slate-400 uppercase">Selisih</p><p className={`font-bold mt-1 ${totalOpname - totalRab > 0 ? 'text-blue-600' : totalOpname - totalRab < 0 ? 'text-red-600' : 'text-slate-700'}`}>{formatRp(totalOpname - totalRab)}</p></div>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2 text-xs">
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Desain</p><p className="font-semibold text-slate-800 mt-1">{item.desain || '-'}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Kualitas</p><p className="font-semibold text-slate-800 mt-1">{item.kualitas || '-'}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Spesifikasi</p><p className="font-semibold text-slate-800 mt-1">{item.spesifikasi || '-'}</p></div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="font-bold text-slate-400 uppercase">Catatan</p><p className="font-semibold text-slate-800 mt-1">{item.catatan || '-'}</p></div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Support Re-Review Section */}
                                     {(() => {
-                                        const pendingRevisions = existingOpname.filter((item) => isContractorFirstOpname(item) && item.status === "pending" && (item.revision_no || 0) > 0);
+                                        const pendingRevisions = contractorFirstMenuReviewItems;
                                         if (pendingRevisions.length === 0) return null;
                                         return (
                                             <div className="mb-6 p-5 rounded-xl border border-blue-200 bg-blue-50/50 shadow-sm">
                                                 <h3 className="font-bold text-blue-800 flex items-center gap-2 mb-4 border-b border-blue-200 pb-2">
-                                                    <Clock className="w-4 h-4" /> Review Revisi Kontraktor ({pendingRevisions.length})
+                                                    <Clock className="w-4 h-4" /> Review Opname Kontraktor - Menu Opname ({pendingRevisions.length})
                                                 </h3>
                                                 <div className="space-y-3">
                                                     {pendingRevisions.map(item => {
@@ -1165,7 +1237,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                 <div>
                                                                     <div className="flex items-center gap-2 mb-1">
                                                                         <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
-                                                                        <Badge className="bg-amber-100 text-amber-800 border-none">Revisi ke-{item.revision_no}</Badge>
+                                                                        <Badge className="bg-amber-100 text-amber-800 border-none">{Number(item.revision_no || 1) > 1 ? `Revisi ke-${item.revision_no}` : 'Pengajuan ulang'}</Badge>
                                                                     </div>
                                                                     <div className="text-xs text-slate-600 space-y-1 mt-2">
                                                                         <p><span className="font-semibold">Volume Akhir:</span> {item.volume_akhir}</p>
@@ -1189,7 +1261,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <ClipboardList className="w-4 h-4 text-emerald-600" />
                                                 2. Input Volume Akhir & Verifikasi Pekerjaan
                                             </h3>
-                                            {groupedItems.length > 0 && !isReadOnly && !shouldShowReadOnlyOpnameItems && (
+                                            {groupedItems.length > 0 && canEditOpnameMenu && (
                                                 <Button
                                                     size="sm"
                                                     onClick={handleSubmitAll}
@@ -1215,11 +1287,21 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             </div>
                                         )}
 
+                                        {shouldLockLegacyMenuInputForSupport && !shouldShowReadOnlyOpnameItems && (
+                                            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 flex items-start gap-3">
+                                                <Lock className="w-4 h-4 mt-0.5 text-slate-500 shrink-0" />
+                                                <div>
+                                                    <p className="font-bold text-slate-800">Input opname legacy dikunci di menu Opname.</p>
+                                                    <p className="text-xs mt-1">Menu ini dipakai Branch Building Support untuk finalisasi KTK/read-only dan review ulang opname contractor-first. Untuk data legacy, pengisian opname tetap melalui Gantt Chart.</p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
                                                 <Info className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                                <h4 className="font-bold text-slate-600">{shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Selesai'}</h4>
-                                                <p className="text-sm mt-1">{shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.'}</p>
+                                                <h4 className="font-bold text-slate-600">{shouldLockLegacyMenuInputForSupport ? 'Tidak Ada Input di Menu Ini' : shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Selesai'}</h4>
+                                                <p className="text-sm mt-1">{shouldLockLegacyMenuInputForSupport ? 'Untuk legacy, input opname dilakukan lewat Gantt Chart. Untuk contractor-first, hanya pengajuan ulang dari pengawasan Selesai yang muncul untuk direview di sini.' : shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.'}</p>
                                             </div>
                                         ) : filteredGroupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
@@ -1321,7 +1403,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                                     type="text"
                                                                                                     inputMode="decimal"
                                                                                                     className="w-full p-2 border border-slate-300 rounded text-sm bg-emerald-50 focus:bg-white focus:border-emerald-500 focus:outline-none font-bold pr-12"
-                                                                                                    disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
+                                                                                                    disabled={!canEditOpnameMenu}
                                                                                                     value={input.volume_akhir}
                                                                                                     onChange={(e) => handleSetInput(item.id, 'volume_akhir', normalizeVolumeInput(e.target.value))}
                                                                                                 />
@@ -1363,7 +1445,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Desain *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
+                                                                                                disabled={!canEditOpnameMenu}
                                                                                                 value={input.desain || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'desain', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1374,7 +1456,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Kualitas *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
+                                                                                                disabled={!canEditOpnameMenu}
                                                                                                 value={input.kualitas || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'kualitas', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1385,7 +1467,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                         <div>
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Spesifikasi *</label>
                                                                                             <select className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none bg-slate-50"
-                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
+                                                                                                disabled={!canEditOpnameMenu}
                                                                                                 value={input.spesifikasi || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'spesifikasi', e.target.value)}>
                                                                                                 <option value="">-- Pilih --</option>
@@ -1402,7 +1484,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Catatan</label>
                                                                                             <textarea
                                                                                                 className="w-full p-2 border border-slate-300 rounded mt-1 text-xs focus:border-emerald-500 focus:outline-none placeholder:text-slate-400 bg-slate-50 flex-1 resize-none min-h-15"
-                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
+                                                                                                disabled={!canEditOpnameMenu}
                                                                                                 placeholder="Keterangan tambahan..."
                                                                                                 value={input.catatan || ''}
                                                                                                 onChange={(e) => handleSetInput(item.id, 'catatan', e.target.value)}
@@ -1413,7 +1495,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                             <input
                                                                                                 type="file"
                                                                                                 accept="image/*"
-                                                                                                disabled={isReadOnly || shouldShowReadOnlyOpnameItems}
+                                                                                                disabled={!canEditOpnameMenu}
                                                                                                 className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 mt-1 cursor-pointer border border-slate-200 rounded p-1"
                                                                                                 onChange={(e) => handleSetInput(item.id, 'file', e.target.files?.[0] || null)}
                                                                                             />
@@ -1433,7 +1515,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                                                 </div>
  
                                                                                 {/* Per-item Submit Button */}
-                                                                                {!isReadOnly && !shouldShowReadOnlyOpnameItems && (
+                                                                                {canEditOpnameMenu && (
                                                                                     <div className="flex justify-end pt-3 mt-3 border-t border-slate-200">
                                                                                         <Button
                                                                                             size="sm"
@@ -2376,18 +2458,21 @@ function ContractorRevisionForm({ item, sourceRef, onReviseSuccess }: { item: an
 function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: () => void; }) {
     const { showAlert } = useGlobalAlert();
     const [isProcessing, setIsProcessing] = useState(false);
-    
-    const handleAction = async (decision: 'disetujui' | 'ditolak') => {
-        let alasan = '';
-        if (decision === 'ditolak') {
-            alasan = window.prompt('Masukkan alasan penolakan revisi:') || '';
-            if (!alasan) return;
+    const [showRejectDialog, setShowRejectDialog] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
+
+    const handleAction = async (decision: 'disetujui' | 'ditolak', alasan = '') => {
+        if (decision === 'ditolak' && !alasan.trim()) {
+            showAlert({ message: 'Alasan penolakan wajib diisi.', type: 'error' });
+            return;
         }
-        
+
         setIsProcessing(true);
         try {
             const { reviewContractorFirstOpname } = await import('@/lib/api');
-            await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan });
+            await reviewContractorFirstOpname(item.id, { id_opname_item: item.id, decision, alasan_penolakan_support: alasan.trim() });
+            setShowRejectDialog(false);
+            setRejectReason('');
             showAlert({ message: 'Review berhasil disimpan.', type: 'success' });
             onReviewed();
         } catch(err: any) {
@@ -2396,16 +2481,53 @@ function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (
             setIsProcessing(false);
         }
     };
-    
+
     return (
-        <div className="flex gap-2">
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleAction('disetujui')} disabled={isProcessing}>
-                <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
-            </Button>
-            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => handleAction('ditolak')} disabled={isProcessing}>
-                <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
-            </Button>
-        </div>
+        <>
+            <div className="flex gap-2">
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 font-bold" onClick={() => handleAction('disetujui')} disabled={isProcessing}>
+                    <ThumbsUp className="w-4 h-4 mr-1.5" /> Setuju
+                </Button>
+                <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 font-bold" onClick={() => setShowRejectDialog(true)} disabled={isProcessing}>
+                    <ThumbsDown className="w-4 h-4 mr-1.5" /> Tolak
+                </Button>
+            </div>
+
+            {showRejectDialog && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="border-b border-red-100 bg-red-50 px-5 py-4">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                    <ThumbsDown className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">Tolak Revisi Opname</h3>
+                                    <p className="mt-1 text-sm font-semibold text-red-700">Tuliskan alasan agar kontraktor bisa memperbaiki item ini.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-3 px-5 py-4">
+                            <label className="text-xs font-black uppercase text-slate-500">Alasan Penolakan</label>
+                            <textarea
+                                className="min-h-28 w-full resize-none rounded-lg border border-slate-300 bg-white p-3 text-sm font-medium text-slate-800 outline-none transition focus:border-red-400 focus:ring-4 focus:ring-red-100"
+                                placeholder="Contoh: volume revisi belum sesuai, foto bukti belum jelas..."
+                                value={rejectReason}
+                                onChange={(event) => setRejectReason(event.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+                            <Button type="button" variant="outline" className="font-semibold" onClick={() => setShowRejectDialog(false)} disabled={isProcessing}>Batal</Button>
+                            <Button type="button" className="bg-red-600 font-bold text-white hover:bg-red-700" onClick={() => handleAction('ditolak', rejectReason)} disabled={isProcessing || !rejectReason.trim()}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                                Tolak Revisi
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
@@ -2472,6 +2594,8 @@ export default function OpnamePage() {
         </div>
     );
 }
+
+
 
 
 

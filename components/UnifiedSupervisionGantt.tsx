@@ -183,7 +183,7 @@ type CheckpointScopeSummary = {
     blockedByEarlierCheckpoint: boolean;
 };
 
-function buildTimeline(workspace: SupervisionWorkspace): Timeline | null {
+function buildTimeline(workspace: SupervisionWorkspace, mode: 'pic' | 'kontraktor' = 'pic'): Timeline | null {
     const starts: Date[] = [];
     const ends: Date[] = [];
 
@@ -281,18 +281,20 @@ export default function UnifiedSupervisionGantt({
     onTargetStClick,
     showLegend = true,
     isBelumSpk = false,
+    mode = 'pic',
 }: {
     workspace: SupervisionWorkspace;
     onCheckpointClick?: (checkpoint: UnifiedSupervisionCheckpoint, dayIndex: number) => void;
     onTargetStClick?: (dateString: string, dayIndex: number) => void;
     showLegend?: boolean;
     isBelumSpk?: boolean;
+    mode?: 'pic' | 'kontraktor';
 }) {
     const [details, setDetails] = useState<ScopeDetail[]>([]);
     const [ganttFallbackTimeline, setGanttFallbackTimeline] = useState<Timeline | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState("");
-    const workspaceTimeline = useMemo(() => buildTimeline(workspace), [workspace]);
+    const workspaceTimeline = useMemo(() => buildTimeline(workspace, mode), [mode, workspace]);
     const baseTimeline = workspaceTimeline ?? ganttFallbackTimeline;
     const timeline = useMemo(() => {
         if (!baseTimeline) return null;
@@ -337,10 +339,14 @@ export default function UnifiedSupervisionGantt({
     const checkpointByDate = useMemo(() => {
         const map = new Map<string, UnifiedSupervisionCheckpoint>();
         (workspace.unified_checkpoints || []).forEach((checkpoint) => {
-            map.set(checkpoint.tanggal_pengawasan, checkpoint);
+            const sourceDate = parseDate(checkpoint.tanggal_pengawasan);
+            const slotDate = mode === 'kontraktor' && sourceDate
+                ? formatFullDate(addDays(sourceDate, -1))
+                : checkpoint.tanggal_pengawasan;
+            map.set(slotDate, checkpoint);
         });
         return map;
-    }, [workspace.unified_checkpoints]);
+    }, [mode, workspace.unified_checkpoints]);
 
     const activeUnfinishedCheckpointDates = useMemo(() => {
         const dates = new Set<string>();
@@ -845,6 +851,39 @@ export default function UnifiedSupervisionGantt({
             const unifiedOpname = Number(checkpoint.opname_items || 0);
             const unifiedTotal = Number(checkpoint.total_items || 0);
 
+            if (mode === 'kontraktor') {
+                const supportFullDate = String(checkpoint.tanggal_pengawasan || fullDate);
+                const supportDayIndex = Math.max(1, timeline.dates.findIndex(d => formatFullDate(d) === supportFullDate) + 1) || dayIndex;
+                const contractorSummaries = summarizeCheckpointScopes(checkpoint, supportDayIndex, supportFullDate);
+                const submittedScopeIds = new Set(
+                    activeScopes
+                        .filter(entry => Number(entry.checkpoint?.contractor_submitted_opname_items ?? entry.checkpoint?.opname_items ?? 0) > 0)
+                        .map(entry => Number(entry.id_toko))
+                );
+                const relevantScopes = contractorSummaries.filter(summary => summary.expectedItems > 0 || summary.hasCheckpointData);
+                const submittedScopes = relevantScopes.filter(summary => submittedScopeIds.has(summary.scopeId));
+
+                if (relevantScopes.length > 0 && submittedScopes.length === relevantScopes.length) {
+                    map.set(fullDate, "filled");
+                } else if (submittedScopes.length > 0 || Number(checkpoint.contractor_submitted_opname_items ?? unifiedOpname) > 0) {
+                    map.set(fullDate, "needsInput");
+                } else {
+                    map.set(fullDate, "normal");
+                }
+                return;
+            }
+
+            const checkpointSummaries = summarizeCheckpointScopes(checkpoint, dayIndex, fullDate);
+            const allRelevantScopesComplete = checkpointSummaries.length > 0 && checkpointSummaries.every(summary =>
+                summary.hasCheckpointData &&
+                summary.filledItems >= summary.expectedItems &&
+                summary.readyOpnameItems === 0 &&
+                summary.missingDocumentationItems === 0
+            );
+            if (allRelevantScopesComplete) {
+                map.set(fullDate, "filled");
+                return;
+            }
             if (isToday) {
                 map.set(fullDate, "todayCheckpoint");
                 return;
@@ -892,6 +931,11 @@ export default function UnifiedSupervisionGantt({
                     }
 
 
+                    const allScopesFilledPengawasan = scopesWithExpectedWork.every(entry =>
+                        Number(entry.checkpoint?.total_items || 0) > 0 &&
+                        Number(entry.checkpoint?.filled_items || 0) >= Number(entry.checkpoint?.total_items || 0)
+                    );
+
                     const allScopesOpnameDone = scopesWithExpectedWork.every(entry =>
                         Number(entry.checkpoint?.opname_items || 0) > 0
                     );
@@ -902,13 +946,14 @@ export default function UnifiedSupervisionGantt({
                     );
 
                     if (anyScopeMissingOpname) {
-                        // Pengawasan ada (status selesai) tapi ada scope yang belum opname → merah
+                        // Pengawasan selesai tapi opname untuk checkpoint ini belum ada -> merah.
                         map.set(fullDate, "needsInput");
-                    } else if (allScopesOpnameDone) {
-                        // Semua scope sudah opname → hijau
+                    } else if (allScopesOpnameDone || allScopesFilledPengawasan) {
+                        // Contractor-first: Progress/Terlambat yang sudah tersimpan tidak boleh membuat checkpoint lama menggantung
+                        // ketika review opname itemnya sudah diarahkan ke checkpoint berikutnya.
                         map.set(fullDate, "filled");
                     } else {
-                        // Sudah isi pengawasan (mungkin baru progress) → biru
+                        // Sudah isi sebagian pengawasan (mungkin baru progress) -> biru.
                         map.set(fullDate, "normal");
                     }
                 } else {
@@ -931,7 +976,7 @@ export default function UnifiedSupervisionGantt({
         });
 
         return map;
-    }, [activeUnfinishedCheckpointDates, checkpointByDate, details, timeline]);
+    }, [activeUnfinishedCheckpointDates, checkpointByDate, details, mode, timeline]);
 
     const resolveCheckpointVisualState = (
         fullDate: string,
@@ -940,6 +985,8 @@ export default function UnifiedSupervisionGantt({
         fallbackState?: CheckpointVisualState
     ): CheckpointVisualState | undefined => {
         if (!checkpoint) return fallbackState;
+
+        if (fallbackState === "filled" || fallbackState === "needsInput") return fallbackState;
 
         const parsedDate = parseDate(fullDate);
         const today = new Date();
