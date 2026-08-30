@@ -2150,6 +2150,9 @@ function GanttBoard() {
         loadSupervisionWorkspace(raw);
     };
 
+    const isCreatingGantt = appMode === 'kontraktor' && projectData?.ganttId === null;
+    const shouldRenderUnifiedWorkspace = (appMode === 'pic' || appMode === 'kontraktor') && !isCreatingGantt && (isWorkspaceLoading || supervisionWorkspace);
+
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
 
@@ -2617,7 +2620,7 @@ function GanttBoard() {
 
                 </div>
 
-                {(appMode === 'pic' || appMode === 'kontraktor') && (isWorkspaceLoading || supervisionWorkspace) && (
+                {shouldRenderUnifiedWorkspace && (
                     <section className="mb-8 space-y-5">
                         {isWorkspaceLoading ? (
                             <Card className="border-slate-200 bg-white shadow-sm">
@@ -3048,7 +3051,7 @@ function GanttBoard() {
                         )}
                     </div>
                 )}
-                {!((appMode === 'pic' || appMode === 'kontraktor') && supervisionWorkspace) && (
+                {!shouldRenderUnifiedWorkspace && (
                     <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                         <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
                             <div className="flex justify-center gap-6">
