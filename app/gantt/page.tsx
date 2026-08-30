@@ -364,6 +364,50 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     return opnameItems > 0 && readyOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai === totalExpected;
 }
 
+const OPNAME_DRAFT_FIELDS = [
+    'volume_akhir',
+    'desain',
+    'kualitas',
+    'spesifikasi',
+    'catatan_opname',
+    'file_opname',
+    'existing_foto',
+    'opnameTouched',
+];
+
+function mergeMemoInitialWithDraft(initial: Record<string, any>, draft?: Record<string, any>) {
+    if (!draft) return initial;
+
+    const merged: Record<string, any> = { ...initial, ...draft };
+
+    Object.entries(initial).forEach(([key, freshValue]) => {
+        const draftValue = draft[key];
+        if (!draftValue) return;
+
+        const freshHasDocument = Boolean(
+            String(freshValue?.dokumentasiUrl || '').trim() || freshValue?.isSaved
+        );
+        if (!freshHasDocument) return;
+
+        const reconciled = {
+            ...draftValue,
+            ...freshValue,
+            needsCurrentCheckpointCompletion: false,
+        };
+
+        OPNAME_DRAFT_FIELDS.forEach((field) => {
+            const value = draftValue[field];
+            if (value !== undefined && value !== null && value !== '') {
+                reconciled[field] = value;
+            }
+        });
+
+        merged[key] = reconciled;
+    });
+
+    return merged;
+}
+
 function GanttBoard() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -3350,6 +3394,14 @@ function GanttBoard() {
                         setShowMemoModal(true);
                     }}
                     onSuccess={async (options?: { openOpname?: boolean }) => {
+                        if (activeMemoGanttId && activeHeaderClick) {
+                            const key = `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
+                            setUnifiedMemoDrafts((prev) => {
+                                const next = { ...prev };
+                                delete next[key];
+                                return next;
+                            });
+                        }
                         setShowMemoModal(false);
                         // Selalu reload gantt data untuk refresh pengawasanDates, walaupun lanjut ke Opname
                         if (activeMemoGanttId) loadGanttDetail(activeMemoGanttId);
@@ -3803,7 +3855,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         : [];
                     setForcedStBlockerItems(forcedStItems);
 
-                    const mergedInitial = { ...initial, ...(draft || {}) };
+                    const mergedInitial = mergeMemoInitialWithDraft(initial, draft);
                     setMemoInputs(mergedInitial);
                     // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
                     // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
