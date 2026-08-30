@@ -328,13 +328,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     useEffect(() => {
         setIsLoading(true);
         Promise.allSettled([
-            withFallbackTimeout(fetchRABList(), { data: [] } as any),
-            withFallbackTimeout(fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }), { data: [] } as any)
+            withFallbackTimeout(fetchRABList(), { status: 'error', data: [] as RABListItem[] }),
+            withFallbackTimeout(fetchInstruksiLapanganList({ status: 'Disetujui' }, { suppressGlobalError: true }), { status: 'error', data: [] as any[] })
         ])
             .then(([rabResult, instruksiResult]) => {
                 const res = rabResult.status === 'fulfilled' ? rabResult.value : { data: [] };
                 const instruksiRes = instruksiResult.status === 'fulfilled' ? instruksiResult.value : { data: [] };
-                const data = res.data || [];
+                const data = (res.data || []) as RABListItem[];
                 const filtered = data.filter(item => {
                     const isApproved = item.status?.toUpperCase().includes('DISETUJUI') ||
                         item.status?.toUpperCase().includes('APPROVED');
@@ -1052,6 +1052,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     </div>
 
                     <CardContent className="p-6 md:p-8 bg-slate-50/50">
+                        {/* Mode Selector */}
+                        <div className="mb-6 flex gap-2 p-1 bg-slate-100 rounded-lg w-full md:w-max mx-auto md:mx-0 shadow-inner">
+                            <button
+                                onClick={() => setSupportFlowView('legacy')}
+                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex-1 md:flex-none ${supportFlowView === 'legacy' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                            >
+                                Legacy / Finalisasi KTK
+                            </button>
+                            <button
+                                onClick={() => setSupportFlowView('contractor_first')}
+                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex-1 md:flex-none ${supportFlowView === 'contractor_first' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                            >
+                                Contractor-first / Review Revisi
+                            </button>
+                        </div>
+
                         {/* Section 1: Select ULOK */}
                         <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
                             <h3 className="font-bold text-slate-700 border-b pb-2 mb-4 flex items-center gap-2">
@@ -1284,7 +1300,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         );
                                     })()}
                                     
-                                    /* Section 2: Form Input */
+                                    {/* Section 2: Form Input */}
+                                    {supportFlowView === 'legacy' && (
                                     <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                                         <div className="border-b pb-2 mb-4 flex items-center justify-between">
                                             <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -1571,6 +1588,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
 
                                     </div>
+                                    )}
                                 </>) : (
                                     /* History View */
                                     <OpnameHistoryView opnameList={existingOpname} rabItems={rabItems} />
