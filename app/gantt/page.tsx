@@ -4776,8 +4776,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const hargaSatuan = Number(rItem.harga_satuan ?? (Number(rItem.harga_material || 0) + Number(rItem.harga_upah || 0)));
 
                 const selisihVolume = Number(volA) - baseVol;
-                const totalSelisih = selisihVolume * hargaSatuan;
-                const totalHarga = Number(volA) * hargaSatuan;
+                const totalSelisih = Math.round(selisihVolume * hargaSatuan);
+                const totalHarga = Math.round(Number(volA) * hargaSatuan);
 
                 const itemData: any = {
                     volume_akhir: Number(volA),
