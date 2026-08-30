@@ -1597,7 +1597,7 @@ function GanttBoard() {
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
 
-        let processedTasks = [...tasks];
+        let processedTasks = tasks.map(t => ({ ...t }));
         let maxTaskEndDay = 0;
         let effectiveEndDates: Record<number, number> = {};
 
