@@ -185,8 +185,13 @@ const getOpnameReviewSortRank = (status?: string | null) => {
     if (isPendingOpnameStatus(status)) return 0;
     if (isApprovedOpnameStatus(status) || isRejectedOpnameStatus(status)) return 2;
     return 1;
-};const isContractorFirstOpname = (item?: Pick<OpnameItem, 'workflow_version'> | null) =>
+};
+
+const isContractorFirstOpname = (item?: Pick<OpnameItem, 'workflow_version'> | null) =>
     item?.workflow_version === 'contractor_first';
+
+const isLegacyOpname = (item?: Pick<OpnameItem, 'workflow_version'> | null) =>
+    !item?.workflow_version || item.workflow_version === 'legacy';
 
 const getOpnameSourceRef = (item: OpnameItem, rabRef?: RABDetailItem) =>
     rabRef || item.rab_item || item.instruksi_lapangan_item;
@@ -217,7 +222,7 @@ const getContractorFirstRejectNote = (item: OpnameItem) =>
     item.alasan_penolakan_support || item.catatan || '';
 
 const isContractorMenuVisibleOpname = (item: OpnameItem) => {
-    if (!isContractorFirstOpname(item)) return true;
+    if (isLegacyOpname(item)) return true;
     const targetStatus = String(item.target_pengawasan_status || '').trim().toLowerCase();
     return isRejectedOpnameStatus(item.status) && targetStatus === 'selesai';
 };
@@ -549,9 +554,14 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         });
     };
 
+    const legacyOpnameItems = useMemo(
+        () => existingOpname.filter((item) => isLegacyOpname(item)),
+        [existingOpname]
+    );
+
     const latestOpnameByItemKey = useMemo(() => {
         const latest = new Map<string, OpnameItem>();
-        existingOpname.forEach((item) => {
+        legacyOpnameItems.forEach((item) => {
             const itemKey = getOpnameItemKey(item);
             const current = latest.get(itemKey);
             if (!current || Number(item.id) > Number(current.id)) {
@@ -559,17 +569,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             }
         });
         return latest;
-    }, [existingOpname]);
+    }, [legacyOpnameItems]);
 
-    // Check if all items are approved (for Opname button and finalized read-only view)
+    const hasLegacyRejectedForReinput = useMemo(
+        () => Array.from(latestOpnameByItemKey.values()).some((item) => isRejectedOpnameStatus(item.status)),
+        [latestOpnameByItemKey]
+    );
+
+    // Check if all legacy items are approved (for KTK finalization and finalized read-only view)
     const allApproved = useMemo(() => {
         if (rabItems.length === 0) return false;
         return rabItems.every((item) => isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status));
     }, [rabItems, latestOpnameByItemKey]);
 
-    const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || allApproved;
-    const shouldLockLegacyMenuInputForSupport = canLockOpnameFinal && !shouldShowReadOnlyOpnameItems;
-    const canEditOpnameMenu = !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
+    const shouldShowReadOnlyOpnameItems = supportFlowView === 'legacy' && (isOpnameFinalLocked || allApproved);
+    const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput;
+    const canEditOpnameMenu = supportFlowView === 'legacy' && !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
 
     const contractorFirstMenuReviewItems = useMemo(() => {
         return existingOpname.filter((item) => {
@@ -587,9 +602,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             .sort((a, b) => Number(a.id) - Number(b.id));
     }, [latestOpnameByItemKey]);
 
-    // Group items by category. Before all-approved/finalized, only rejected items can be revised here.
-    // After all-approved/finalized, show every item as a read-only final review.
+    // Legacy menu: initial support input stays in Gantt; this form only re-submits contractor-rejected legacy opname.
     const groupedItems = useMemo(() => {
+        if (supportFlowView !== 'legacy') return [];
         if (shouldLockLegacyMenuInputForSupport) return [];
 
         const map = new Map<string, RABDetailItem[]>();
@@ -599,8 +614,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const status = latestOpname?.status;
 
             if (!shouldShowReadOnlyOpnameItems) {
-                const isBlocked = isPendingOpnameStatus(status) || isApprovedOpnameStatus(status);
-                if (isBlocked) return;
                 if (!isRejectedOpnameStatus(status)) return;
             }
 
@@ -609,7 +622,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             map.get(cat)!.push(item);
         });
         return Array.from(map.entries()).map(([name, items]) => ({ name, items })).filter(g => g.items.length > 0);
-    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems, shouldLockLegacyMenuInputForSupport]);
+    }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems, shouldLockLegacyMenuInputForSupport, supportFlowView]);
     const filteredGroupedItems = useMemo(() => {
         if (!opnameItemSearchQuery.trim()) return groupedItems;
         const term = opnameItemSearchQuery.toLowerCase();
@@ -626,7 +639,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const getRejectedOpname = (rabItemId: number) => {
         const item = rabItems.find((rabItem) => Number(rabItem.id) === Number(rabItemId));
         const itemKey = item ? getWorkItemKey(item) : `rab:${rabItemId}`;
-        return existingOpname.find(o => getOpnameItemKey(o) === itemKey && o.status?.toLowerCase() === 'ditolak');
+        const latest = latestOpnameByItemKey.get(itemKey);
+        return isRejectedOpnameStatus(latest?.status) ? latest : undefined;
     };
 
     // Actual kunci logic (extracted so GlobalAlert can call it)
@@ -643,9 +657,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
         setIsSubmitting(true);
         try {
-            // Deduplicate opname items by id_rab_item (take latest)
+            // Deduplicate legacy opname items by work item key (take latest)
             const latestOpnames = new Map<string, OpnameItem>();
-            existingOpname.forEach(item => {
+            legacyOpnameItems.forEach(item => {
                 const itemKey = getOpnameItemKey(item);
                 if (!latestOpnames.has(itemKey) || Number(item.id) > Number(latestOpnames.get(itemKey)!.id)) {
                     latestOpnames.set(itemKey, item);
@@ -763,7 +777,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const totalHargaOpname = Math.round(volAkhir * hargaSatuan);
 
             // Check if existing opname for this item (for upsert via id)
-            const existingRecord = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(rabItem));
+            const existingRecord = latestOpnameByItemKey.get(getWorkItemKey(rabItem));
 
             const itemPayload: Record<string, any> = {
                 id_toko: selectedRab.id_toko,
@@ -799,7 +813,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             });
             // Sum existing approved/pending opnames + this new one
             const latestOpnames = new Map<string, OpnameItem>();
-            existingOpname.forEach(o => {
+            legacyOpnameItems.forEach(o => {
                 const itemKey = getOpnameItemKey(o);
                 if (!latestOpnames.has(itemKey) || Number(o.id) > Number(latestOpnames.get(itemKey)!.id)) {
                     latestOpnames.set(itemKey, o);
@@ -865,12 +879,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         }
         if (!selectedRab || rabItems.length === 0) return;
 
-        // Collect only items that are still editable in the form.
-        const blockedStatuses = new Set(['pending', 'disetujui', 'selesai', 'progress']);
+        // Collect only legacy items rejected by contractor; initial legacy input remains in Gantt Chart.
         const itemsToSubmit = rabItems.filter(item => {
-            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
-            const status = existing?.status?.toLowerCase() || '';
-            return !blockedStatuses.has(status);
+            const existing = latestOpnameByItemKey.get(getWorkItemKey(item));
+            return isRejectedOpnameStatus(existing?.status);
         });
 
         if (itemsToSubmit.length === 0) {
@@ -896,7 +908,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const selisihVol = Number((volAkhir - volRab).toFixed(4));
             const price = (Number(item.harga_material) || 0) + (Number(item.harga_upah) || 0);
             
-            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(item));
+            const existing = latestOpnameByItemKey.get(getWorkItemKey(item));
             
             payloadItems.push({
                 id: existing?.id,
@@ -958,7 +970,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                         if (sub) {
                             grandTotalOpname += sub.total_harga_opname;
                         } else {
-                            const existing = existingOpname.find(o => getOpnameItemKey(o) === getWorkItemKey(r));
+                            const existing = latestOpnameByItemKey.get(getWorkItemKey(r));
                             if (existing) {
                                 grandTotalOpname += Math.round(Number(existing.total_harga_opname) || (Number(existing.volume_akhir) * price));
                             }
@@ -1005,7 +1017,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     };
 
     // Check if there's existing opname data for this project
-    const hasExistingOpname = existingOpname.length > 0;
+    const visibleOpnameCount = supportFlowView === 'legacy' ? legacyOpnameItems.length : contractorFirstMenuReviewItems.length;
+    const hasExistingOpname = visibleOpnameCount > 0;
 
     return (
         <>
@@ -1045,7 +1058,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 >
                                     <Clock className="w-4 h-4 inline mr-1.5" />Riwayat
                                     {hasExistingOpname && (
-                                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{existingOpname.length}</span>
+                                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{visibleOpnameCount}</span>
                                     )}
                                 </button>
                             </div>
@@ -1183,7 +1196,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                             <p className={`text-xs mt-0.5 ${allApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
                                                 {allApproved
                                                     ? 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.'
-                                                    : `Semua item harus berstatus Disetujui (${existingOpname.filter(o => o.status?.toLowerCase() === 'disetujui').length}/${rabItems.length} item disetujui oleh Kontraktor).`
+                                                    : `Semua item harus berstatus Disetujui (${Array.from(latestOpnameByItemKey.values()).filter(o => isApprovedOpnameStatus(o.status)).length}/${rabItems.length} item disetujui oleh Kontraktor).`
                                                 }
                                             </p>
                                         </div>
@@ -1202,8 +1215,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
                                         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                                         <div>
-                                            <p className="text-sm font-bold text-amber-800">Data opname sudah pernah disubmit ({existingOpname.length} item).</p>
-                                            <p className="text-xs text-amber-600 mt-0.5">Submit kembali akan membuat data opname baru. Lihat tab <b>Riwayat</b> untuk data yang sudah ada.</p>
+                                            <p className="text-sm font-bold text-amber-800">Data opname legacy sudah pernah disubmit ({legacyOpnameItems.length} item).</p>
+                                            <p className="text-xs text-amber-600 mt-0.5">Menu ini hanya membuka submit ulang untuk item legacy yang ditolak. Lihat tab <b>Riwayat</b> untuk data lengkap.</p>
                                         </div>
                                     </div>
                                 )}
@@ -1592,7 +1605,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     )}
                                 </>) : (
                                     /* History View */
-                                    <OpnameHistoryView opnameList={existingOpname} rabItems={rabItems} />
+                                    <OpnameHistoryView opnameList={supportFlowView === 'legacy' ? legacyOpnameItems : contractorFirstMenuReviewItems} rabItems={rabItems} />
                                 )}
                             </>
                         )}
@@ -2691,6 +2704,9 @@ export default function OpnamePage() {
         </div>
     );
 }
+
+
+
 
 
 

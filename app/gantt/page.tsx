@@ -4414,9 +4414,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         return false;
                     }
                 }
-
                 const memoInput = memoInputs[key] as any;
-                if (isContractorSubmit && (memoInput?.previousStatus || memoInput?.contractorCarryOverOnly || (memoInput?.needsCurrentCheckpointCompletion && ['progress', 'terlambat'].includes(latestStatusLower)))) {
+                const rejectedContractorOpname = contractorOpnames.get(getWorkItemKey(item)) || contractorOpnames.get(key);
+                const isRejectedContractorOpname = rejectedContractorOpname?.workflow_version === 'contractor_first' && String(rejectedContractorOpname?.status || '').toLowerCase() === 'ditolak';
+                if (isContractorSubmit && !isRejectedContractorOpname && (memoInput?.previousStatus || memoInput?.contractorCarryOverOnly || (memoInput?.needsCurrentCheckpointCompletion && ['progress', 'terlambat'].includes(latestStatusLower)))) {
                     return false;
                 }
 
@@ -4442,7 +4443,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 // masih Progress/Terlambat dari tanggal pengawasan sebelumnya, atau
                 // DI-SUPERVISI PADA HARI INI (ada record di database untuk hari ini),
                 // ATAU merupakan opname nyangkut yang dipaksa tampil
-                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday && !isForcedMissingOpname) return false;
+                if (!isScheduledToday && !isSkippedCompletely && !isUnfinishedFromPreviousPengawasan && !wasSupervisedToday && !isForcedMissingOpname && !isRejectedContractorOpname) return false;
 
                 // Jika Selesai, tampilkan HANYA JIKA diselesaikan pada tanggal ini (hari yang diklik)
                 // KECUALI jika ini adalah opname nyangkut yang dipaksa tampil
@@ -4457,7 +4458,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, isContractorSubmit]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, isContractorSubmit, contractorOpnames]);
 
     const filteredMemoConfig = useMemo(() => {
         if (!searchQuery.trim()) return memoConfig;
@@ -5484,7 +5485,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                                                         const renderOpnameForm = () => {
                                                             if (isContractorFirstCheckpoint && !isContractorSubmit) return null;
-                                                            if ((!isContractorSubmit && currentStatus !== 'Selesai') || isWorkItemBlockedByOpname(item, key)) return null;
+                                                            const isRejectedContractorRevision = isContractorSubmit && opnameForStatus?.workflow_version === 'contractor_first' && String(opnameForStatus?.status || '').toLowerCase() === 'ditolak';
+                                                            if ((!isContractorSubmit && currentStatus !== 'Selesai') || (!isRejectedContractorRevision && isWorkItemBlockedByOpname(item, key))) return null;
                                                             const rItem = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                             if (!rItem) return null;
 
@@ -6534,6 +6536,9 @@ export default function Page() {
         </Suspense>
     );
 }
+
+
+
 
 
 
