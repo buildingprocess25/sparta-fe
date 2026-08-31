@@ -52,7 +52,7 @@ export const DC_DOCUMENT_CONFIG: DokumenUtama[] = [
         title: 'Perizinan dan sertifikasi legal proyek',
         jenis: [
           { key: 'A_1', title: 'Sertifikat Tanah', slots: [{ type: 'PDF/JPEG', label: 'Upload PDF/JPEG' }] },
-          { key: 'A_2', title: 'IMB atau PPG', slots: [{ type: 'PDF/JPEG', label: 'Upload PDF/JPEG' }] },
+          { key: 'A_2', title: 'IMB atau PBG', slots: [{ type: 'PDF/JPEG', label: 'Upload PDF/JPEG' }] },
           { key: 'A_3', title: 'AMDAL atau UKL-UPL', slots: [{ type: 'PDF/JPEG', label: 'Upload PDF/JPEG' }] },
           { key: 'A_4', title: 'SLO PLN', slots: [{ type: 'PDF/JPEG', label: 'Upload PDF/JPEG' }] },
           { key: 'A_5', title: 'NIDI PLN', slots: [{ type: 'PDF/JPEG', label: 'Upload PDF/JPEG' }] },
@@ -297,7 +297,7 @@ export const DC_DOCUMENT_LEGENDS = [
   { abbrev: 'IMB', meaning: 'Izin Mendirikan Bangunan' },
   { abbrev: 'AMDAL', meaning: 'Analisis Mengenai Dampak Lingkungan' },
   { abbrev: 'UKL - UPL', meaning: 'Upaya Pengelolaan Lingkungan Hidup dan Upaya Pemantauan Lingkungan Hidup' },
-  { abbrev: 'PPG', meaning: 'Persetujuan Bangunan Gedung' },
+  { abbrev: 'PBG', meaning: 'Persetujuan Bangunan Gedung' },
   { abbrev: 'NIDI', meaning: 'Nomor Identitas Instalasi Tenaga Listrik' },
   { abbrev: 'SLF', meaning: 'Sertifikat Layak Fungsi' },
   { abbrev: 'SLO', meaning: 'Sertifikat Layak Operasional' },
