@@ -58,11 +58,16 @@ const formatTanggalShort = (dateStr: string | null | undefined): string => {
     return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+type WorkflowVersion = 'legacy' | 'contractor_first';
+
+type ProjectWorkflowMeta = Record<WorkflowVersion, boolean>;
+
 type OpnameFinalSummary = {
     id?: number | string;
     created_at?: string | null;
     status?: string | null;
     status_opname_final?: string | null;
+    workflow_version?: WorkflowVersion | string | null;
 };
 
 type OpnameNotificationTarget = {
@@ -179,6 +184,18 @@ const isApprovedOpnameStatus = (status?: string | null) => {
 const isRejectedOpnameStatus = (status?: string | null) => {
     const normalized = normalizeOpnameStatus(status);
     return normalized === 'ditolak' || normalized === 'terlambat';
+};
+
+const buildLatestOpnameMap = (items: OpnameItem[]) => {
+    const latest = new Map<string, OpnameItem>();
+    items.forEach((item) => {
+        const itemKey = getOpnameItemKey(item);
+        const current = latest.get(itemKey);
+        if (!current || Number(item.id) > Number(current.id)) {
+            latest.set(itemKey, item);
+        }
+    });
+    return latest;
 };
 
 const getOpnameReviewSortRank = (status?: string | null) => {
@@ -306,7 +323,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [searchQuery, setSearchQuery] = useState('');
     const [opnameItemSearchQuery, setOpnameItemSearchQuery] = useState('');
     const [activeView, setActiveView] = useState<'form' | 'history'>('form');
-    const [supportFlowView, setSupportFlowView] = useState<'legacy' | 'contractor_first'>('legacy');
+    const [supportFlowView, setSupportFlowView] = useState<WorkflowVersion>('legacy');
+    const [projectWorkflowByTokoId, setProjectWorkflowByTokoId] = useState<Record<number, ProjectWorkflowMeta>>({});
+    const [isWorkflowIndexLoading, setIsWorkflowIndexLoading] = useState(false);
     const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
     const [notificationTarget, setNotificationTarget] = useState<OpnameNotificationTarget | null>(null);
 
@@ -353,16 +372,86 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             .finally(() => setIsLoading(false));
     }, []);
 
-    // Filter RAB List by search
+    useEffect(() => {
+        if (rabList.length === 0) {
+            setProjectWorkflowByTokoId({});
+            return;
+        }
+
+        let cancelled = false;
+        const projectIds = new Set(rabList.map((item) => Number(item.id_toko)).filter(Boolean));
+        const next: Record<number, ProjectWorkflowMeta> = {};
+        projectIds.forEach((id) => {
+            next[id] = { legacy: false, contractor_first: false };
+        });
+
+        setIsWorkflowIndexLoading(true);
+        Promise.allSettled([
+            withFallbackTimeout(fetchOpnameList({ workflow_version: 'legacy' }), { status: 'error', data: [] as OpnameItem[] }),
+            withFallbackTimeout(fetchOpnameList({ workflow_version: 'contractor_first' }), { status: 'error', data: [] as OpnameItem[] })
+        ])
+            .then(([legacyResult, contractorFirstResult]) => {
+                if (cancelled) return;
+                const legacyRows = legacyResult.status === 'fulfilled' ? (legacyResult.value.data || []) : [];
+                const contractorFirstRows = contractorFirstResult.status === 'fulfilled' ? (contractorFirstResult.value.data || []) : [];
+
+                legacyRows.forEach((item) => {
+                    const idToko = Number(item.id_toko);
+                    if (projectIds.has(idToko)) next[idToko].legacy = true;
+                });
+                contractorFirstRows.forEach((item) => {
+                    const idToko = Number(item.id_toko);
+                    if (projectIds.has(idToko)) next[idToko].contractor_first = true;
+                });
+
+                setProjectWorkflowByTokoId(next);
+            })
+            .catch((err) => {
+                console.error('Gagal memuat index workflow opname:', err);
+                if (!cancelled) setProjectWorkflowByTokoId(next);
+            })
+            .finally(() => {
+                if (!cancelled) setIsWorkflowIndexLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [rabList]);
+
+    const workflowFilteredRabList = useMemo(() => {
+        return rabList.filter((r) => projectWorkflowByTokoId[Number(r.id_toko)]?.[supportFlowView]);
+    }, [rabList, projectWorkflowByTokoId, supportFlowView]);
+
+    // Filter RAB List by search and active workflow tab
     const filteredRabList = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        return rabList.filter(r =>
+        return workflowFilteredRabList.filter(r =>
             (r.nomor_ulok || '').toLowerCase().includes(q) ||
             (r.nama_toko || '').toLowerCase().includes(q) ||
             (r.cabang || '').toLowerCase().includes(q) ||
             (r.proyek || '').toLowerCase().includes(q)
         );
-    }, [rabList, searchQuery]);
+    }, [workflowFilteredRabList, searchQuery]);
+
+    const resetSelectedProject = useCallback(() => {
+        setSelectedRab(null);
+        setRabItems([]);
+        setTokoDetail(null);
+        setOpnameInputs({});
+        setExistingOpname([]);
+        setIsOpnameFinalLocked(false);
+        setNotificationTarget(null);
+        setOpnameItemSearchQuery('');
+        setActiveView('form');
+    }, []);
+
+    const handleSupportFlowViewChange = useCallback((next: WorkflowVersion) => {
+        if (next === supportFlowView) return;
+        setSupportFlowView(next);
+        setSearchQuery('');
+        resetSelectedProject();
+    }, [resetSelectedProject, supportFlowView]);
 
     // Handle RAB selection
     const handleSelectRab = async (rabId: string) => {
@@ -443,7 +532,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             // Check locked opname status
             let lockedOpnameFinal = false;
             try {
-                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci' });
+                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci', workflow_version: supportFlowView });
                 const finalData = finalRes.data as unknown;
                 let finalItems: OpnameFinalSummary[] = [];
                 if (Array.isArray(finalData)) {
@@ -498,19 +587,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         const validMode = targetMode === 'finalisasi_ktk' || targetMode === 'revisi_ktk' ? targetMode : null;
         const targetOpnameFinalId = params.get('opname_final_id');
         const targetKey = [targetTokoId, validMode, targetOpnameFinalId].filter(Boolean).join('|');
-        if (!targetTokoId || isLoading || rabList.length === 0 || autoSelectedTokoId === targetKey) return;
+        if (!targetTokoId || isLoading || rabList.length === 0 || isWorkflowIndexLoading || autoSelectedTokoId === targetKey) return;
 
         const targetProject = rabList.find(item => String(item.id_toko) === targetTokoId);
         if (!targetProject) return;
 
         setAutoSelectedTokoId(targetKey);
+        if (validMode === 'revisi_ktk') {
+            setSupportFlowView('legacy');
+        }
         if (validMode) {
             setNotificationTarget({ mode: validMode, opnameFinalId: targetOpnameFinalId });
             setActiveView('form');
         }
         setSearchQuery(targetProject.nama_toko || targetProject.nomor_ulok || "");
         handleSelectRab(String(targetProject.id));
-    }, [autoSelectedTokoId, isLoading, rabList]);
+    }, [autoSelectedTokoId, isLoading, isWorkflowIndexLoading, rabList]);
 
     // Handle input change
     const handleSetInput = async (itemId: number, field: string, value: any) => {
@@ -559,30 +651,36 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         [existingOpname]
     );
 
-    const latestOpnameByItemKey = useMemo(() => {
-        const latest = new Map<string, OpnameItem>();
-        legacyOpnameItems.forEach((item) => {
-            const itemKey = getOpnameItemKey(item);
-            const current = latest.get(itemKey);
-            if (!current || Number(item.id) > Number(current.id)) {
-                latest.set(itemKey, item);
-            }
-        });
-        return latest;
-    }, [legacyOpnameItems]);
+    const contractorFirstOpnameItems = useMemo(
+        () => existingOpname.filter((item) => isContractorFirstOpname(item)),
+        [existingOpname]
+    );
+
+    const latestOpnameByItemKey = useMemo(() => buildLatestOpnameMap(legacyOpnameItems), [legacyOpnameItems]);
+    const latestContractorFirstOpnameByItemKey = useMemo(() => buildLatestOpnameMap(contractorFirstOpnameItems), [contractorFirstOpnameItems]);
 
     const hasLegacyRejectedForReinput = useMemo(
         () => Array.from(latestOpnameByItemKey.values()).some((item) => isRejectedOpnameStatus(item.status)),
         [latestOpnameByItemKey]
     );
 
-    // Check if all legacy items are approved (for KTK finalization and finalized read-only view)
-    const allApproved = useMemo(() => {
+    // Check if all items are approved for KTK finalization and finalized read-only view.
+    const legacyAllApproved = useMemo(() => {
         if (rabItems.length === 0) return false;
         return rabItems.every((item) => isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status));
     }, [rabItems, latestOpnameByItemKey]);
 
-    const shouldShowReadOnlyOpnameItems = supportFlowView === 'legacy' && (isOpnameFinalLocked || allApproved);
+    const contractorFirstAllApproved = useMemo(() => {
+        if (rabItems.length === 0) return false;
+        return rabItems.every((item) => isApprovedOpnameStatus(latestContractorFirstOpnameByItemKey.get(getWorkItemKey(item))?.status));
+    }, [rabItems, latestContractorFirstOpnameByItemKey]);
+
+    const activeWorkflowAllApproved = supportFlowView === 'contractor_first' ? contractorFirstAllApproved : legacyAllApproved;
+    const activeLatestOpnameByItemKey = supportFlowView === 'contractor_first' ? latestContractorFirstOpnameByItemKey : latestOpnameByItemKey;
+    const activeWorkflowOpnameItems = supportFlowView === 'contractor_first' ? contractorFirstOpnameItems : legacyOpnameItems;
+    const activeApprovedCount = Array.from(activeLatestOpnameByItemKey.values()).filter((item) => isApprovedOpnameStatus(item.status)).length;
+
+    const shouldShowReadOnlyOpnameItems = supportFlowView === 'legacy' && (isOpnameFinalLocked || legacyAllApproved);
     const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput;
     const canEditOpnameMenu = supportFlowView === 'legacy' && !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
 
@@ -653,20 +751,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: "Finalisasi Kerja Tambah Kurang hanya dapat dilakukan oleh Branch Building Support.", type: "warning" });
             return;
         }
-        if (!selectedRab || !allApproved) return;
+        if (!selectedRab || !activeWorkflowAllApproved) return;
 
         setIsSubmitting(true);
         try {
-            // Deduplicate legacy opname items by work item key (take latest)
-            const latestOpnames = new Map<string, OpnameItem>();
-            legacyOpnameItems.forEach(item => {
-                const itemKey = getOpnameItemKey(item);
-                if (!latestOpnames.has(itemKey) || Number(item.id) > Number(latestOpnames.get(itemKey)!.id)) {
-                    latestOpnames.set(itemKey, item);
-                }
-            });
+            const latestOpnames = buildLatestOpnameMap(activeWorkflowOpnameItems);
 
-            // Build items payload with new API fields
             const opnameItemsData = Array.from(latestOpnames.values()).map(item => {
                 const itemKey = getOpnameItemKey(item);
                 const rabRef = rabItems.find(r => getWorkItemKey(r) === itemKey);
@@ -674,10 +764,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 const totalHargaOpname = Math.round((Number(item.volume_akhir) || 0) * hargaSatuan);
 
                 return {
-                    id: item.id, // existing opname item id for upsert
+                    id: item.id,
                     id_toko: selectedRab.id_toko,
-                    id_rab_item: rabRef?.source_type === 'IL' ? undefined : Number(item.id_rab_item),
-                    id_instruksi_lapangan_item: rabRef?.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item) : undefined,
+                    id_rab_item: rabRef?.source_type === 'IL' ? undefined : Number(item.id_rab_item ?? rabRef?.id),
+                    id_instruksi_lapangan_item: rabRef?.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item ?? rabRef?.id_instruksi_lapangan_item) : undefined,
                     status: item.status || 'disetujui',
                     volume_akhir: item.volume_akhir,
                     selisih_volume: item.selisih_volume,
@@ -695,7 +785,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 throw new Error('ID Opname tidak ditemukan. Simpan item opname terlebih dahulu sebelum finalisasi Kerja Tambah Kurang.');
             }
 
-            // Calculate grand totals
             let grandTotalRab = 0;
             let grandTotalOpname = 0;
 
@@ -718,13 +807,18 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 grand_total_opname: String(Math.round(grandTotalOpname)),
                 grand_total_rab: String(Math.round(grandTotalRab)),
                 opname_item: opnameItemsData,
+                workflow_version: supportFlowView,
             });
 
-            showAlert({ message: 'Proses Kerja Tambah Kurang berhasil difinalisasi dan dikirim untuk approval Koordinator.', type: "success" });
-            // Refresh data
+            showAlert({
+                message: supportFlowView === 'contractor_first'
+                    ? 'Finalisasi KTK contractor-first berhasil dikirim untuk approval Koordinator.'
+                    : 'Proses Kerja Tambah Kurang berhasil difinalisasi dan dikirim untuk approval Koordinator.',
+                type: "success"
+            });
             handleSelectRab(selectedRab.id.toString());
         } catch (err: any) {
-            showAlert({ message: `Gagal finalisasi Kerja Tambah Kurang: ${err.message}`, type: "error" });
+            showAlert({ message: 'Gagal finalisasi Kerja Tambah Kurang: ' + err.message, type: "error" });
         } finally {
             setIsSubmitting(false);
         }
@@ -736,10 +830,12 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             showAlert({ message: "Finalisasi Kerja Tambah Kurang hanya dapat dilakukan oleh Branch Building Support.", type: "warning" });
             return;
         }
-        if (!selectedRab || !allApproved) return;
+        if (!selectedRab || !activeWorkflowAllApproved) return;
         showAlert({
             title: 'Finalisasi Kerja Tambah Kurang',
-            message: 'Finalisasi proses Kerja Tambah Kurang untuk proyek ini? Setelah difinalisasi, data akan masuk proses approval Koordinator.',
+            message: supportFlowView === 'contractor_first'
+                ? 'Finalisasi KTK contractor-first untuk proyek ini? Pastikan semua item sudah disetujui support.'
+                : 'Finalisasi proses Kerja Tambah Kurang untuk proyek ini? Setelah difinalisasi, data akan masuk proses approval Koordinator.',
             type: 'warning',
             confirmMode: true,
             confirmText: 'Ya, Finalisasi',
@@ -1017,7 +1113,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     };
 
     // Check if there's existing opname data for this project
-    const visibleOpnameCount = supportFlowView === 'legacy' ? legacyOpnameItems.length : contractorFirstMenuReviewItems.length;
+    const visibleOpnameCount = supportFlowView === 'legacy' ? legacyOpnameItems.length : contractorFirstOpnameItems.length;
     const hasExistingOpname = visibleOpnameCount > 0;
 
     return (
@@ -1069,13 +1165,13 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                         {/* Mode Selector */}
                         <div className="mb-6 flex gap-2 p-1 bg-slate-100 rounded-lg w-full md:w-max mx-auto md:mx-0 shadow-inner">
                             <button
-                                onClick={() => setSupportFlowView('legacy')}
+                                onClick={() => handleSupportFlowViewChange('legacy')}
                                 className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex-1 md:flex-none ${supportFlowView === 'legacy' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
                             >
                                 Legacy / Finalisasi KTK
                             </button>
                             <button
-                                onClick={() => setSupportFlowView('contractor_first')}
+                                onClick={() => handleSupportFlowViewChange('contractor_first')}
                                 className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex-1 md:flex-none ${supportFlowView === 'contractor_first' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
                             >
                                 Contractor-first / Review Revisi
@@ -1100,10 +1196,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 />
                             </div>
 
-                            {isLoading ? (
+                            {isLoading || isWorkflowIndexLoading ? (
                                 <div className="p-4 text-center text-slate-500 bg-slate-50 rounded-lg text-sm">
                                     <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
-                                    Memuat data proyek...
+                                    {isLoading ? 'Memuat data proyek...' : 'Memuat index workflow opname...'}
                                 </div>
                             ) : (
                                 <div className="relative">
@@ -1113,6 +1209,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         onChange={(e) => handleSelectRab(e.target.value)}
                                     >
                                         <option value="">— Pilih Proyek —</option>
+                                        {filteredRabList.length === 0 && (
+                                            <option value="" disabled>Tidak ada ULOK {supportFlowView === 'legacy' ? 'legacy' : 'contractor-first'} yang perlu diproses</option>
+                                        )}
                                         {filteredRabList.map(rab => (
                                             <option key={rab.id} value={rab.id}>
                                                 {formatUlokWithDash(rab.nomor_ulok)} - {rab.nama_toko} ({(rab as any).source_type === 'IL_ONLY' ? `IL${(rab as any).lingkup_pekerjaan ? ` - ${(rab as any).lingkup_pekerjaan}` : ''}` : rab.proyek})
@@ -1124,7 +1223,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                             )}
                         </div>
 
-                        {supportFlowView === 'legacy' && isOpnameFinalLocked && (
+                        {isOpnameFinalLocked && (
                             <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 flex items-start gap-3">
                                 <Lock className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
                                 <div>
@@ -1186,24 +1285,26 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 )}
 
                                 {/* Finalisasi Kerja Tambah Kurang */}
-                                {supportFlowView === 'legacy' && !isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
-                                    <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${allApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
+                                {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
+                                    <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${activeWorkflowAllApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
                                         <div>
-                                            <h4 className={`font-bold text-sm ${allApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
+                                            <h4 className={`font-bold text-sm ${activeWorkflowAllApproved ? 'text-emerald-800' : 'text-slate-500'}`}>
                                                 <Lock className="w-4 h-4 inline mr-1.5" />
                                                 Finalisasi Proses Kerja Tambah Kurang
                                             </h4>
-                                            <p className={`text-xs mt-0.5 ${allApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                {allApproved
-                                                    ? 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.'
-                                                    : `Semua item harus berstatus Disetujui (${Array.from(latestOpnameByItemKey.values()).filter(o => isApprovedOpnameStatus(o.status)).length}/${rabItems.length} item disetujui oleh Kontraktor).`
+                                            <p className={`text-xs mt-0.5 ${activeWorkflowAllApproved ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                {activeWorkflowAllApproved
+                                                    ? (supportFlowView === 'contractor_first'
+                                                        ? 'Semua item contractor-first telah disetujui Support. Klik untuk finalisasi KTK.'
+                                                        : 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.')
+                                                    : `Semua item harus berstatus Disetujui (${activeApprovedCount}/${rabItems.length} item disetujui oleh ${supportFlowView === 'contractor_first' ? 'Support' : 'Kontraktor'}).`
                                                 }
                                             </p>
                                         </div>
                                         <Button
                                             onClick={handleKunciOpnameFinal}
-                                            disabled={!allApproved || isSubmitting}
-                                            className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${allApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
+                                            disabled={!activeWorkflowAllApproved || isSubmitting}
+                                            className={`font-bold text-sm px-6 shadow-md shrink-0 ml-4 ${activeWorkflowAllApproved ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed text-slate-500'}`}
                                         >
                                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
                                             Finalisasi Proses Kerja Tambah Kurang
@@ -1605,7 +1706,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     )}
                                 </>) : (
                                     /* History View */
-                                    <OpnameHistoryView opnameList={supportFlowView === 'legacy' ? legacyOpnameItems : contractorFirstMenuReviewItems} rabItems={rabItems} />
+                                    <OpnameHistoryView opnameList={activeWorkflowOpnameItems} rabItems={rabItems} />
                                 )}
                             </>
                         )}

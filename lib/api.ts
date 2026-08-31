@@ -2936,6 +2936,7 @@ export const fetchOpnameFinalList = async (filters?: {
     cabang?: string;
     nama_kontraktor?: string;
     tipe_opname?: "OPNAME" | "OPNAME_FINAL";
+    workflow_version?: "legacy" | "contractor_first";
 }, options?: ApiRequestOptions) => {
     const base = API_URL.replace(/\/$/, "");
     const params = new URLSearchParams();
@@ -2946,6 +2947,7 @@ export const fetchOpnameFinalList = async (filters?: {
     if (filters?.cabang) params.append("cabang", filters.cabang);
     if (filters?.nama_kontraktor) params.append("nama_kontraktor", filters.nama_kontraktor);
     if (filters?.tipe_opname) params.append("tipe_opname", filters.tipe_opname);
+    if (filters?.workflow_version) params.append("workflow_version", filters.workflow_version);
     const url = `${base}/api/final_opname${params.toString() ? `?${params}` : ""}`;
     return safeFetchJSON(url, options);
 };
@@ -2968,6 +2970,7 @@ export const kunciOpnameFinal = async (id: number, payload: {
     grand_total_opname: string;
     grand_total_rab: string;
     opname_item: any[];
+    workflow_version?: "legacy" | "contractor_first";
 }) => {
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/final_opname/${id}/kunci_opname_final`, {
         method: "POST",
