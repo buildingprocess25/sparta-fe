@@ -84,6 +84,32 @@ const isNoPpnArea = (toko: any, cabangFallback = "") => {
 
     return identity.some(value => value === "BATAM" || value === "BINTAN" || /\bBATAM\b|\bBINTAN\b/.test(value));
 };
+const toIsoDateOnly = (value?: string | null) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    const isoMatch = raw.match(/^\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) return isoMatch[0];
+    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+        const [, dd, mm, yyyy] = slashMatch;
+        return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toISOString().slice(0, 10);
+};
+const maxIsoDate = (...values: Array<string | null | undefined>) =>
+    values.map(toIsoDateOnly).filter(Boolean).sort().at(-1) || "";
+const buildSpkDateBounds = (spk?: any) => ({
+    start: toIsoDateOnly(spk?.waktu_mulai),
+    end: maxIsoDate(spk?.effective_waktu_selesai, spk?.st_target_date, spk?.pertambahan_spk_approved_until, spk?.denda_until_date, spk?.waktu_selesai)
+});
+const formatDateId = (value?: string | null) => {
+    const iso = toIsoDateOnly(value);
+    if (!iso) return "-";
+    const [yyyy, mm, dd] = iso.split("-");
+    return `${dd}/${mm}/${yyyy}`;
+};
 
 export default function InstruksiLapanganPage() {
     const router = useRouter();
@@ -93,6 +119,7 @@ export default function InstruksiLapanganPage() {
     const [selectedToko, setSelectedToko] = useState<any>(null);
     const [selectedSpkId, setSelectedSpkId] = useState('');
     const [spkStartDate, setSpkStartDate] = useState('');
+    const [spkEndDate, setSpkEndDate] = useState('');
     const [prices, setPrices] = useState<any>({});
     const [tableRows, setTableRows] = useState<any[]>([]);
     const [rejectedInstruksiList, setRejectedInstruksiList] = useState<any[]>([]);
@@ -205,11 +232,9 @@ export default function InstruksiLapanganPage() {
             setLampiranFileName(null);
             setLampiranFile(null);
             
-            let startDate = '';
-            if (spkItem.waktu_mulai) {
-                startDate = spkItem.waktu_mulai.split('T')[0];
-            }
-            setSpkStartDate(startDate);
+            const bounds = buildSpkDateBounds(spkItem);
+            setSpkStartDate(bounds.start);
+            setSpkEndDate(bounds.end);
             setTanggalMulai('');
             setTanggalSelesai('');
             
@@ -369,6 +394,15 @@ export default function InstruksiLapanganPage() {
         if (!tanggalMulai || !tanggalSelesai) {
             return showAlert("Peringatan", "Tanggal mulai dan tanggal selesai wajib diisi.", "warning");
         }
+        if (spkStartDate && tanggalMulai < spkStartDate) {
+            return showAlert("Peringatan", `Tanggal mulai tidak boleh sebelum tanggal mulai SPK (${formatDateId(spkStartDate)}).`, "warning");
+        }
+        if (tanggalSelesai < tanggalMulai) {
+            return showAlert("Peringatan", "Tanggal selesai tidak boleh sebelum tanggal mulai.", "warning");
+        }
+        if (spkEndDate && tanggalSelesai > spkEndDate) {
+            return showAlert("Peringatan", `Tanggal selesai tidak boleh melewati batas efektif SPK/ST (${formatDateId(spkEndDate)}).`, "warning");
+        }
 
         const detailItems = tableRows
             .filter(row => row.jenisPekerjaan && parseDecimalInput(String(row.volume ?? "")) > 0)
@@ -508,12 +542,18 @@ export default function InstruksiLapanganPage() {
                                     {isReadOnly ? (
                                         <Input readOnly value={tanggalMulai} className="bg-slate-100 text-slate-500 font-semibold cursor-not-allowed border-slate-200" />
                                     ) : (
-                                        <DatePicker
-                                            value={tanggalMulai}
-                                            onChange={(val) => setTanggalMulai(val)}
-                                            min={spkStartDate}
-                                            disabled={!selectedToko}
-                                        />
+                                        <>
+                                            <DatePicker
+                                                value={tanggalMulai}
+                                                onChange={(val) => setTanggalMulai(val)}
+                                                min={spkStartDate}
+                                                max={spkEndDate}
+                                                disabled={!selectedToko}
+                                            />
+                                            {selectedToko && (spkStartDate || spkEndDate) && (
+                                                <p className="text-xs text-slate-500">Rentang SPK: {formatDateId(spkStartDate)} s/d {formatDateId(spkEndDate)}</p>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                                 <div className="space-y-2">
@@ -525,6 +565,7 @@ export default function InstruksiLapanganPage() {
                                             value={tanggalSelesai}
                                             onChange={(val) => setTanggalSelesai(val)}
                                             min={tanggalMulai || spkStartDate}
+                                            max={spkEndDate}
                                             disabled={!selectedToko}
                                         />
                                     )}

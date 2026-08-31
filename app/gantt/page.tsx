@@ -5458,29 +5458,29 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                     {d.items.map((item: any, j: number) => {
                                                         const key = `${d.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                                                         const latestStatusKey = latestStatusMapState.get(key);
-                                                        const currentStatus = memoInputs[key]?.status || latestStatusKey;
+                                                        let currentStatus = memoInputs[key]?.status || latestStatusKey;
                                                         const lateDays = memoInputs[key]?.lateDays || 0;
 
                                                         const allowedStatuses = new Set<string>();
                                                         const rItemForStatus = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                         const opnameKeyForStatus = rItemForStatus ? getWorkItemKey(rItemForStatus) : null;
                                                         const opnameForStatus = opnameKeyForStatus ? contractorOpnames.get(opnameKeyForStatus) : null;
-
                                                         if (activeCheckpointData?.workflow_version === 'contractor_first') {
-                                                            if (!opnameForStatus) {
+                                                            const opnameStatus = String(opnameForStatus?.status || '').trim().toLowerCase();
+                                                            if (!opnameForStatus || opnameStatus === 'ditolak') {
                                                                 if (d.category.hideOnTerlambat) allowedStatuses.add('Progress');
                                                                 else allowedStatuses.add('Terlambat');
-                                                            } else if (opnameForStatus.status === 'disetujui') {
+                                                            } else if (opnameStatus === 'disetujui') {
                                                                 allowedStatuses.add('Selesai');
-                                                            } else if (opnameForStatus.status === 'ditolak') {
-                                                                allowedStatuses.add('Selesai');
-                                                                if (d.category.hideOnTerlambat) allowedStatuses.add('Progress');
-                                                                else allowedStatuses.add('Terlambat');
                                                             }
                                                         } else {
                                                             allowedStatuses.add('Selesai');
                                                             if (!d.category.hideOnTerlambat) allowedStatuses.add('Terlambat');
                                                             if (!d.category.hideOnProgress) allowedStatuses.add('Progress');
+                                                        }
+
+                                                        if (currentStatus && !allowedStatuses.has(currentStatus)) {
+                                                            currentStatus = '';
                                                         }
 
                                                         const renderOpnameForm = () => {
@@ -6536,6 +6536,7 @@ export default function Page() {
         </Suspense>
     );
 }
+
 
 
 
