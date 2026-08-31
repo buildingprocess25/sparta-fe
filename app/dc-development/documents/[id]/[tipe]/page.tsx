@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/context/SessionContext";
 import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType } from "@/lib/api";
 import { DC_DOCUMENT_LEGENDS, getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
@@ -53,6 +54,12 @@ export default function DcDocumentDetailPage() {
   const [customItemTitle, setCustomItemTitle] = useState("");
   const [customItemSlots, setCustomItemSlots] = useState<DcDocumentUploadSlotType[]>(["PDF/JPEG"]);
   const [savingCustomItem, setSavingCustomItem] = useState(false);
+  
+  const [editModeCategories, setEditModeCategories] = useState<Set<string>>(new Set());
+  const [draftFiles, setDraftFiles] = useState<Record<string, File[]>>({});
+  const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
+  const [savingCategory, setSavingCategory] = useState<string | null>(null);
+  
   const actor = useMemo(() => ({
     actor_email: user?.email || "",
     actor_role: user?.role || "",
@@ -135,27 +142,105 @@ export default function DcDocumentDetailPage() {
 
   const formatKey = (jenisKey: string, type: string) => `${jenisKey}__${type.replace(/\//g, '_')}`;
 
-  const handleFileUpload = async (jenisKey: string, type: string, files: File[]) => {
-    if (!archive || !actor.actor_email || files.length === 0) return;
+  const toggleEditMode = (utamaId: string) => {
+    setEditModeCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(utamaId)) next.delete(utamaId);
+      else next.add(utamaId);
+      return next;
+    });
+  };
 
-    const compositeKey = formatKey(jenisKey, type);
-    setUploadingKey(compositeKey);
+  const handleSimpanBatch = async (utamaId: string) => {
+    if (!archive || !actor.actor_email) return;
+
+    const utama = docConfig.find(d => d.id === utamaId);
+    if (!utama) return;
+    
+    let allJenis = utama.details.flatMap(d => d.jenis);
+    if (utama.title === "DATA PENTING LAINNYA") {
+       allJenis = [
+         ...allJenis, 
+         ...customDocumentItemsForStage.map(ci => ({
+           key: getCustomItemKey(ci),
+           title: ci.title,
+           slots: ci.slots.map(s => ({ type: s as 'PDF/JPEG' | 'AUTOCAD' | 'WORD' | 'EXCEL' | 'PPT', label: '' }))
+         }))
+       ];
+    }
+    
+    for (const jenis of allJenis) {
+       let hasDoc = false;
+       for (const slot of jenis.slots) {
+         const compKey = formatKey(jenis.key, slot.type);
+         const hasLocal = (draftFiles[compKey] && draftFiles[compKey].length > 0);
+         const hasServer = documents.some(d => d.document_type === compKey && d.drive_file_id);
+         if (hasLocal || hasServer) {
+           hasDoc = true;
+           break;
+         }
+       }
+       
+       if (!hasDoc) {
+         const localNote = draftNotes[jenis.key]?.trim();
+         const serverNote = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes?.trim();
+         if (!localNote && !serverNote) {
+            alert(`Item "${jenis.title}" belum memiliki dokumen. Anda WAJIB mengisi catatan!`);
+            return;
+         }
+       }
+    }
+    
+    setSavingCategory(utamaId);
     try {
-      await uploadDcDocuments({
-        actor_email: actor.actor_email,
-        actor_role: actor.actor_role,
-        project_id: archive.project_id,
-        entity_type: "DC_ARCHIVE_PROJECT",
-        document_type: compositeKey,
-        stage: tipe,
-      }, files);
-
-      // Reload docs
+      for (const jenis of allJenis) {
+        for (const slot of jenis.slots) {
+          const compKey = formatKey(jenis.key, slot.type);
+          const files = draftFiles[compKey];
+          if (files && files.length > 0) {
+             await uploadDcDocuments({
+               actor_email: actor.actor_email,
+               actor_role: actor.actor_role,
+               project_id: archive.project_id,
+               entity_type: "DC_ARCHIVE_PROJECT",
+               document_type: compKey,
+               stage: tipe
+             }, files);
+          }
+        }
+        
+        const localNote = draftNotes[jenis.key];
+        if (localNote !== undefined) {
+           await uploadDcDocuments({
+               actor_email: actor.actor_email,
+               actor_role: actor.actor_role,
+               project_id: archive.project_id,
+               entity_type: "DC_ARCHIVE_PROJECT",
+               document_type: `ITEM_NOTE_${jenis.key}`,
+               stage: tipe,
+               notes: localNote
+           }, []);
+        }
+      }
+      
+      setDraftFiles(prev => {
+        const next = {...prev};
+        allJenis.forEach(j => j.slots.forEach(s => delete next[formatKey(j.key, s.type)]));
+        return next;
+      });
+      setDraftNotes(prev => {
+        const next = {...prev};
+        allJenis.forEach(j => delete next[j.key]);
+        return next;
+      });
+      
+      toggleEditMode(utamaId);
       await loadData();
-    } catch {
-      alert("Gagal mengupload dokumen");
+    } catch (err) {
+       console.error(err);
+       alert(getErrorMessage(err, "Terjadi kesalahan saat menyimpan data."));
     } finally {
-      setUploadingKey(null);
+       setSavingCategory(null);
     }
   };
 
@@ -170,11 +255,24 @@ export default function DcDocumentDetailPage() {
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files ?? []);
     if (selectedFiles.length === 0 || !activeUploadContext) return;
-    handleFileUpload(activeUploadContext.key, activeUploadContext.type, selectedFiles);
+    const compKey = formatKey(activeUploadContext.key, activeUploadContext.type);
+    setDraftFiles(prev => ({
+      ...prev,
+      [compKey]: [...(prev[compKey] || []), ...selectedFiles]
+    }));
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveDraftFile = (compKey: string, index: number) => {
+    setDraftFiles(prev => {
+      const files = prev[compKey] || [];
+      const newFiles = [...files];
+      newFiles.splice(index, 1);
+      return { ...prev, [compKey]: newFiles };
+    });
   };
 
   const handleDelete = async (docId: number) => {
@@ -188,19 +286,20 @@ export default function DcDocumentDetailPage() {
     }
   };
 
-  const renderDocumentSlot = (jenisKey: string, type: string) => {
+  const renderDocumentSlot = (jenisKey: string, type: string, isEditMode: boolean) => {
     const compKey = formatKey(jenisKey, type);
     const slotDocuments = documents.filter(d => d.document_type === compKey);
+    const localFiles = draftFiles[compKey] || [];
     const isUploading = uploadingKey === compKey;
 
-    return (
-      <div key={compKey} className="relative group/slot w-full sm:w-auto">
-        {slotDocuments.length > 0 ? (
-          <div className="flex flex-col gap-2 w-full sm:items-end">
-            {slotDocuments.map((doc, index) => (
-              <div key={doc.id} className="flex flex-col gap-1 w-full sm:w-[260px] shrink-0">
-                <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group/doc">
-                  {doc.drive_file_id || doc.file_name ? (
+    if (!isEditMode) {
+      return (
+        <div key={compKey} className="relative group/slot w-full sm:w-auto">
+          {slotDocuments.length > 0 ? (
+            <div className="flex flex-col gap-2 w-full sm:items-end">
+              {slotDocuments.map((doc, index) => (
+                <div key={doc.id} className="flex flex-col gap-1 w-full sm:w-[260px] shrink-0">
+                  <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm hover:border-emerald-300 hover:shadow-md transition-all group/doc">
                     <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1" title={doc.file_name || type}>
                       <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
                         <FileText className="w-3.5 h-3.5" />
@@ -210,56 +309,62 @@ export default function DcDocumentDetailPage() {
                         <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{type}</span>
                       </div>
                     </a>
-                  ) : (
-                    <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 overflow-hidden flex-1 px-1 text-left" title={`Upload ${type}`}>
-                      <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-slate-50 text-slate-400 group-hover/doc:bg-red-50 group-hover/doc:text-red-500 transition-colors">
-                        <UploadCloud className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs font-semibold text-slate-500 group-hover/doc:text-red-600 transition-colors truncate">Upload File</span>
-                        <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider truncate">{type}</span>
-                      </div>
-                    </button>
-                  )}
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-80 group-hover/doc:opacity-100 transition-opacity pr-1">
-                    <button onClick={() => { setNoteUploadContext(null); setEditingNoteDoc(doc); setNoteText(doc.notes || ""); setNoteModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Catatan">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => handleDelete(doc.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Dokumen">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </div>
-                {doc.notes && (
-                  <div className="ml-1 pl-2.5 border-l-2 border-yellow-300 py-0.5 text-[10px] text-slate-600 break-words">
-                    <span className="font-semibold text-yellow-700 mr-1">Catatan:</span>{doc.notes}
-                  </div>
-                )}
-              </div>
-            ))}
-            <div className="flex justify-end w-full mt-1">
-              <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 text-[10px] font-semibold text-red-600 hover:text-red-700 transition-colors bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md" title="Tambah file lagi">
-                <Plus className="w-3 h-3" />
-                Tambah File {type}
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2 text-xs font-semibold text-slate-400">
+              Belum ada dokumen {type}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // EDIT MODE
+    return (
+      <div key={compKey} className="relative group/slot w-full sm:w-auto">
+        <div className="flex flex-col gap-2 w-full sm:items-end">
+          {slotDocuments.map((doc, index) => (
+            <div key={doc.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-slate-200 bg-white shadow-sm w-full sm:w-[260px] shrink-0">
+              <a href={buildDcDocumentViewUrl(doc.id, actor, "view")} target="_blank" rel="noreferrer" className="flex items-center gap-2 overflow-hidden flex-1 px-1">
+                <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-emerald-50 text-emerald-600">
+                  <FileText className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs font-semibold text-slate-700 truncate">{doc.file_name || type}</span>
+                  <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{type}</span>
+                </div>
+              </a>
+              <button type="button" onClick={() => handleDelete(doc.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Dokumen">
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
-        ) : isUploading ? (
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Uploading...
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setEditingNoteDoc(null); setNoteUploadContext({ key: jenisKey, type }); setNoteText(""); setNoteModalOpen(true); }} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300" title="Tambah Catatan">
-              <MessageSquare className="h-4 w-4" />
+          ))}
+          {localFiles.map((file, index) => (
+            <div key={`local-${index}`} className="flex items-center justify-between gap-2 p-1.5 rounded-lg border border-blue-200 bg-blue-50/50 shadow-sm w-full sm:w-[260px] shrink-0">
+              <div className="flex items-center gap-2 overflow-hidden flex-1 px-1">
+                <div className="flex shrink-0 items-center justify-center w-7 h-7 rounded bg-blue-100 text-blue-600">
+                  <FileText className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs font-semibold text-slate-700 truncate">{file.name}</span>
+                  <span className="text-[9px] text-blue-500 font-bold uppercase tracking-wider">DRAFT {type}</span>
+                </div>
+              </div>
+              <button type="button" onClick={() => handleRemoveDraftFile(compKey, index)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Draft">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          <div className="flex justify-end w-full mt-1">
+            <button type="button" onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-1.5 text-[10px] font-semibold text-red-600 hover:text-red-700 transition-colors bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md">
+              <UploadCloud className="w-3 h-3" />
+              Upload {type}
             </button>
-            <button onClick={() => triggerUpload(jenisKey, type)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-300 hover:text-red-600 hover:shadow">
-              <UploadCloud className="h-4 w-4" />
-              {type}
-            </button>
           </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -458,6 +563,12 @@ export default function DcDocumentDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mr-4 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                        <Switch checked={editModeCategories.has(utama.id)} onCheckedChange={() => toggleEditMode(utama.id)} id={`switch-${utama.id}`} />
+                        <label htmlFor={`switch-${utama.id}`} className="text-xs font-semibold text-slate-700 cursor-pointer">
+                          Edit Mode
+                        </label>
+                      </div>
                       {(() => {
                         const catNoteKey = `CAT_NOTE_${utama.id}`;
                         const catNoteDoc = documents.find(d => d.document_type === catNoteKey);
@@ -523,7 +634,22 @@ export default function DcDocumentDetailPage() {
                               </div>
 
                               <div className="flex flex-col items-end gap-2 w-full sm:w-auto ml-9 sm:ml-0">
-                                {jenis.slots.map(slot => renderDocumentSlot(jenis.key, slot.type))}
+                                {jenis.slots.map(slot => renderDocumentSlot(jenis.key, slot.type, editModeCategories.has(utama.id)))}
+                                {editModeCategories.has(utama.id) && (
+                                  <div className="w-full sm:w-[260px] mt-2">
+                                    <Textarea
+                                      placeholder="Catatan item (wajib jika tanpa dokumen)..."
+                                      className="min-h-[80px] text-xs resize-none"
+                                      value={draftNotes[jenis.key] !== undefined ? draftNotes[jenis.key] : (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || "")}
+                                      onChange={(e) => setDraftNotes(prev => ({...prev, [jenis.key]: e.target.value}))}
+                                    />
+                                  </div>
+                                )}
+                                {!editModeCategories.has(utama.id) && documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes && (
+                                  <div className="w-full sm:w-[260px] mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
+                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -538,16 +664,42 @@ export default function DcDocumentDetailPage() {
                               </div>
 
                               <div className="flex flex-col items-end gap-2 w-full sm:w-auto ml-9 sm:ml-0">
-                                {customItem.slots.map(slotType => renderDocumentSlot(getCustomItemKey(customItem), slotType))}
-                                <button onClick={() => handleDeleteCustomItem(customItem)} className="flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300" title="Hapus Item Tambahan">
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                {customItem.slots.map(slotType => renderDocumentSlot(getCustomItemKey(customItem), slotType, editModeCategories.has(utama.id)))}
+                                {editModeCategories.has(utama.id) && (
+                                  <div className="w-full sm:w-[260px] mt-2">
+                                    <Textarea
+                                      placeholder="Catatan item..."
+                                      className="min-h-[80px] text-xs resize-none"
+                                      value={draftNotes[getCustomItemKey(customItem)] !== undefined ? draftNotes[getCustomItemKey(customItem)] : (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || "")}
+                                      onChange={(e) => setDraftNotes(prev => ({...prev, [getCustomItemKey(customItem)]: e.target.value}))}
+                                    />
+                                  </div>
+                                )}
+                                {!editModeCategories.has(utama.id) && documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes && (
+                                  <div className="w-full sm:w-[260px] mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
+                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes}
+                                  </div>
+                                )}
+                                {editModeCategories.has(utama.id) && (
+                                  <button type="button" onClick={() => handleDeleteCustomItem(customItem)} className="mt-2 flex items-center justify-center p-2 rounded-lg border border-red-200 bg-white text-red-500 transition-all hover:bg-red-50 hover:text-red-700 hover:border-red-300 w-full sm:w-[260px]" title="Hapus Item Tambahan">
+                                    <Trash2 className="h-4 w-4 mr-2" /> Hapus Item
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
+                    {editModeCategories.has(utama.id) && (
+                      <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                        <Button type="button" variant="outline" onClick={() => toggleEditMode(utama.id)}>Batal</Button>
+                        <Button type="button" onClick={() => handleSimpanBatch(utama.id)} disabled={savingCategory === utama.id} className="bg-red-600 hover:bg-red-700 text-white">
+                          {savingCategory === utama.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                          Simpan Semua
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </AccordionContent>
               </AccordionItem>
