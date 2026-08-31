@@ -370,7 +370,8 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
         return true;
     }
 
-    const opnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+    const checkpointOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.opname_items || 0), 0);
+    const opnameItems = Math.max(checkpointOpnameItems, Number(scope.opname_item_count || 0));
     const readyOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => sum + Number(checkpoint.ready_opname_items || 0), 0);
     const unresolvedContractorOpnameItems = (scope.checkpoints || []).reduce((sum, checkpoint) => {
         if (checkpoint.workflow_version !== 'contractor_first') return sum;
@@ -1835,6 +1836,24 @@ function GanttBoard() {
             ?? supervisionWorkspace.scopes.find((s) => s.link_pdf_serah_terima)
         )?.berkas_serah_terima_id ?? null
         : null;
+    const grandOpeningDocumentation = supervisionWorkspace?.grand_opening_documentation || null;
+    const grandOpeningUploadedCount = Number(grandOpeningDocumentation?.uploaded_count || 0);
+    const grandOpeningRequiredCount = Number(grandOpeningDocumentation?.required_count || 40);
+    const isGrandOpeningComplete = Boolean(grandOpeningDocumentation?.is_complete);
+    const grandOpeningProgressText = `${grandOpeningUploadedCount}/${grandOpeningRequiredCount} dokumen`;
+    const openGrandOpeningDocumentation = useCallback(() => {
+        if (!supervisionWorkspace) return;
+        const params = new URLSearchParams({
+            mode: 'grand-opening',
+            ulok: supervisionWorkspace.nomor_ulok || '',
+            nama_toko: supervisionWorkspace.nama_toko || '',
+            kode_toko: supervisionWorkspace.kode_toko || '',
+            cabang: supervisionWorkspace.cabang || '',
+        });
+        const tanggalSt = targetStInfo?.date ? formatDateForInput(targetStInfo.date) : '';
+        if (tanggalSt) params.set('tanggal_st', tanggalSt);
+        window.location.href = `/ftdokumen?${params.toString()}`;
+    }, [supervisionWorkspace, targetStInfo]);
     const handoverReadiness = useMemo(() => {
         const scopes = supervisionWorkspace?.scopes || [];
         const scopedWithGantt = scopes.filter(scope => Boolean(scope.gantt_id));
@@ -1862,7 +1881,8 @@ function GanttBoard() {
         const allScopesReady = scopedWithGantt.length > 0 && readyScopes.length === scopedWithGantt.length;
         // ST selesai hanya jika semua scope (SIPIL+ME) sudah selesai pengawasan DAN opname
         const allOpnameDone = scopedWithGantt.length > 0 && scopedWithGantt.every(scope => {
-            const scopeOpname = (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0);
+            const checkpointScopeOpname = (scope.checkpoints || []).reduce((sum, cp) => sum + Number(cp.opname_items || 0), 0);
+            const scopeOpname = Math.max(checkpointScopeOpname, Number(scope.opname_item_count || 0));
             const scopeUnresolvedContractor = (scope.checkpoints || []).reduce((sum, cp) => {
                 if (cp.workflow_version !== 'contractor_first') return sum;
                 return sum + Math.max(0, Number(cp.contractor_submitted_opname_items || 0) - Number(cp.opname_items || 0));
@@ -1909,12 +1929,16 @@ function GanttBoard() {
             || unresolvedContractorOpnameItems > 0
             || incompleteExpectedItems > 0
             || pendingOpnameDates.length > 0;
-        const isReady = !hasPendingFollowup && allScopesReady;
+        const coreReady = !hasPendingFollowup && allScopesReady;
+        const grandOpeningReady = hasGeneratedPdf || isGrandOpeningComplete;
+        const isReady = coreReady && grandOpeningReady;
         const isGenerated = hasGeneratedPdf && allOpnameDone && !hasPendingFollowup;
 
         return {
             isGenerated,
             isReady,
+            coreReady,
+            grandOpeningReady,
             readyScopeCount: readyScopes.length,
             totalScopeCount: scopedWithGantt.length,
             readyOpnameItems,
@@ -1926,10 +1950,13 @@ function GanttBoard() {
             missingDates,
             pendingOpnameDates,
         };
-    }, [masterHandoverPdfLink, supervisionWorkspace]);
+    }, [isGrandOpeningComplete, masterHandoverPdfLink, supervisionWorkspace]);
     const handoverStatusText = (() => {
         if (handoverReadiness.isGenerated) return "ST selesai";
         if (handoverReadiness.isReady) return "Syarat ST terpenuhi";
+        if (handoverReadiness.coreReady && !handoverReadiness.grandOpeningReady) {
+            return `Dokumentasi Grand Opening belum lengkap (${grandOpeningProgressText})`;
+        }
 
         const warnings: string[] = [];
 
@@ -2732,6 +2759,27 @@ function GanttBoard() {
                                                         ? <CheckCircle className="h-7 w-7 text-emerald-500" />
                                                         : <ClipboardCheck className="h-7 w-7 text-red-300" />}
                                                 </div>
+                                                {handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
+                                                    <div className={`rounded-lg border px-3 py-3 text-sm ${isGrandOpeningComplete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                                                        <div className="flex items-start gap-2">
+                                                            <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-black">Dokumentasi Grand Opening</p>
+                                                                <p className={`mt-1 text-xs font-semibold ${isGrandOpeningComplete ? "text-emerald-700" : "text-amber-800"}`}>Progress: {grandOpeningProgressText}</p>
+                                                            </div>
+                                                        </div>
+                                                        {!isGrandOpeningComplete && (
+                                                            <Button
+                                                                type="button"
+                                                                onClick={openGrandOpeningDocumentation}
+                                                                className="mt-3 h-10 w-full bg-red-600 font-bold text-white hover:bg-red-500"
+                                                            >
+                                                                <FileText className="mr-2 h-4 w-4" />
+                                                                Isi Dokumentasi Grand Opening
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {handoverReadiness.isGenerated ? (
                                                     <div className="flex flex-col gap-2">
                                                         <Button
@@ -2786,7 +2834,7 @@ function GanttBoard() {
                                                                         key={scope.id_toko}
                                                                         type="button"
                                                                         onClick={() => handleGenerateIndividualHandover(Number(scope.id_toko))}
-                                                                        disabled={!isScopeReady || isGenerating}
+                                                                        disabled={!isScopeReady || !handoverReadiness.grandOpeningReady || isGenerating}
                                                                         className={`h-11 w-full font-bold text-white disabled:bg-slate-200 disabled:text-slate-400 ${scopeName === 'SIPIL' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
                                                                     >
                                                                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
@@ -3380,15 +3428,11 @@ function GanttBoard() {
                                 <p className="text-xs font-black uppercase text-slate-500">Target ST</p>
                                 <p className={`mt-1 text-2xl font-black ${handoverReadiness.isGenerated ? "text-emerald-700" : "text-teal-700"}`}>{targetStText || showTargetStModal.dateString}</p>
                                 <p className="mt-1 text-sm font-semibold text-slate-600">
-                                    {handoverReadiness.isGenerated
-                                        ? "PDF Serah Terima sudah tersedia."
-                                        : handoverReadiness.isReady
-                                            ? "Semua syarat utama sudah terpenuhi. Serah Terima bisa digenerate."
-                                            : "Serah Terima belum bisa digenerate karena opname belum selesai."}
+                                    {handoverReadiness.isGenerated ? "PDF Serah Terima sudah tersedia." : handoverReadiness.isReady ? "Semua syarat sudah terpenuhi. Serah Terima bisa digenerate." : handoverReadiness.coreReady ? `Lengkapi Dokumentasi Grand Opening terlebih dahulu (${grandOpeningProgressText}).` : "Serah Terima belum bisa digenerate karena opname belum selesai."}
                                 </p>
                             </div>
 
-                            {!handoverReadiness.isReady && !handoverReadiness.isGenerated && (
+                            {!handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                     <p className="font-bold">Masih menunggu kelengkapan opname</p>
                                     <p className="mt-1 text-xs leading-relaxed">
@@ -3396,6 +3440,31 @@ function GanttBoard() {
                                             ? `${handoverReadiness.readyOpnameItems} item masih perlu masuk/selesai opname sebelum Generate Serah Terima aktif.`
                                             : "Belum ada item yang siap untuk Serah Terima pada lingkup aktif."}
                                     </p>
+                                </div>
+                            )}
+
+                            {handoverReadiness.coreReady && !handoverReadiness.isGenerated && (
+                                <div className={`rounded-lg border px-4 py-3 text-sm ${isGrandOpeningComplete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="font-black">Dokumentasi Grand Opening</p>
+                                            <p className="mt-1 text-xs font-semibold">{grandOpeningProgressText}</p>
+                                        </div>
+                                        {isGrandOpeningComplete ? <CheckCircle className="h-5 w-5 text-emerald-600" /> : <ClipboardCheck className="h-5 w-5 text-amber-600" />}
+                                    </div>
+                                    {!isGrandOpeningComplete && (
+                                        <Button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowTargetStModal(null);
+                                                openGrandOpeningDocumentation();
+                                            }}
+                                            className="mt-3 flex h-11 w-full items-center justify-center rounded-md bg-red-600 px-4 font-bold text-white transition hover:bg-red-500 shadow-sm"
+                                        >
+                                            <FileText className="mr-2 h-4 w-4" />
+                                            Isi Dokumentasi Grand Opening
+                                        </Button>
+                                    )}
                                 </div>
                             )}
 

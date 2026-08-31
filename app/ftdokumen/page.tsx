@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,7 @@ import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { PHOTO_POINTS, ALL_POINTS, TOTAL_PHOTOS, FLOOR_IMAGES, PAGE_LABELS, type PhotoPoint } from './photoPoints';
 import CameraModal from './CameraModal';
-import { submitDokumentasiBangunan, fetchDokumentasiBangunanPrefillOptions, fetchDokumentasiBangunanList } from '@/lib/api';
+import { submitDokumentasiBangunan, submitGrandOpeningDocumentation, fetchDokumentasiBangunanPrefillOptions, fetchDokumentasiBangunanList } from '@/lib/api';
 import { canViewAllBranches, isViewOnlyUser } from '@/lib/constants';
 
 
@@ -58,8 +59,15 @@ const emptyForm: FormData = {
 // MAIN PAGE
 // =============================================================================
 
-export default function FTDokumenPage() {
+function FTDokumenContent() {
     const { showAlert } = useGlobalAlert();
+    const searchParams = useSearchParams();
+    const isGrandOpeningMode = searchParams.get("mode") === "grand-opening";
+    const requestedUlok = searchParams.get("ulok") || "";
+    const requestedNamaToko = searchParams.get("nama_toko") || "";
+    const requestedKodeToko = searchParams.get("kode_toko") || "";
+    const requestedCabang = searchParams.get("cabang") || "";
+    const requestedTanggalSt = searchParams.get("tanggal_st") || "";
     const [currentStep, setCurrentStep] = useState<'form' | 'floorplan'>('form');
     const [formData, setFormData] = useState<FormData>(emptyForm);
     const [photos, setPhotos] = useState<Record<number, PhotoData>>({});
@@ -88,8 +96,8 @@ export default function FTDokumenPage() {
                 const [prefillRes, dokRes] = await Promise.all([
                     fetchDokumentasiBangunanPrefillOptions(
                         canViewAllBranches(user.roles, user.isSuperHuman ?? false)
-                            ? undefined
-                            : { cabang: user.cabang }
+                            ? { include_submitted: isGrandOpeningMode }
+                            : { cabang: user.cabang, include_submitted: isGrandOpeningMode }
                     ),
                     fetchDokumentasiBangunanList()
                 ]);
@@ -108,7 +116,7 @@ export default function FTDokumenPage() {
 
                 for (const item of prefillList) {
                     const ulok = item.nomor_ulok;
-                    if (!ulok || submittedUlokSet.has(String(ulok).trim().toUpperCase())) continue;
+                    if (!ulok || (!isGrandOpeningMode && submittedUlokSet.has(String(ulok).trim().toUpperCase()))) continue;
 
                     // Filter based on user branch
                     const rabCabang = item.cabang || '';
@@ -131,7 +139,32 @@ export default function FTDokumenPage() {
                     });
                 }
 
+                if (isGrandOpeningMode && requestedUlok && !options.some((option) => option.nomorUlok === requestedUlok)) {
+                    options.unshift({
+                        nomorUlok: requestedUlok,
+                        kontraktor: "",
+                        spkAwal: "",
+                        spkAkhir: "",
+                        tanggalSt: requestedTanggalSt,
+                        tanggalStSource: "NEEDS_ST",
+                        kodeToko: requestedKodeToko,
+                        namaToko: requestedNamaToko,
+                        cabang: requestedCabang || user.cabang || "",
+                    });
+                }
+
                 setUlokOptions(options);
+                if (isGrandOpeningMode && requestedUlok) {
+                    const requestedOption = options.find(option => option.nomorUlok === requestedUlok);
+                    setFormData(prev => ({
+                        ...prev,
+                        cabang: requestedCabang || requestedOption?.cabang || user.cabang || prev.cabang,
+                        nomorUlok: requestedUlok,
+                        kodeToko: requestedKodeToko || requestedOption?.kodeToko || prev.kodeToko,
+                        namaToko: requestedNamaToko || requestedOption?.namaToko || prev.namaToko,
+                        tanggalSt: requestedTanggalSt || requestedOption?.tanggalSt || prev.tanggalSt,
+                    }));
+                }
                 if (options.length === 0) {
                     showAlert({ message: 'Tidak ada data proyek/RAB yang terdaftar.', type: 'warning' });
                 }
@@ -144,7 +177,7 @@ export default function FTDokumenPage() {
         };
 
         loadUlokData();
-    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, isGrandOpeningMode, requestedUlok, requestedNamaToko, requestedKodeToko, requestedCabang, requestedTanggalSt]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const completedCount = Object.keys(photos).length;
     const progressPct = Math.round((completedCount / TOTAL_PHOTOS) * 100);
@@ -162,7 +195,7 @@ export default function FTDokumenPage() {
         if (!formData.nomorUlok) { showAlert({ message: 'Pilih Nomor ULOK terlebih dahulu.', type: 'warning' }); return; }
         if (!formData.namaToko) { showAlert({ message: 'Isi Nama Toko.', type: 'warning' }); return; }
         const selectedUlok = ulokOptions.find(u => u.nomorUlok === formData.nomorUlok);
-        if (formData.jenisToko === 'REGULAR' && selectedUlok?.tanggalStSource === 'NEEDS_ST') {
+        if (!isGrandOpeningMode && formData.jenisToko === 'REGULAR' && selectedUlok?.tanggalStSource === 'NEEDS_ST') {
             showAlert({ message: 'ST harus dibuat terlebih dahulu untuk ULOK ini.', type: 'warning' });
             return;
         }
@@ -233,8 +266,12 @@ export default function FTDokumenPage() {
                 sudut_foto_items: JSON.stringify(sudutItems)
             };
 
-            await submitDokumentasiBangunan(payloadFields, photos);
-            showAlert({ message: 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
+            if (isGrandOpeningMode) {
+                await submitGrandOpeningDocumentation(payloadFields, photos);
+            } else {
+                await submitDokumentasiBangunan(payloadFields, photos);
+            }
+            showAlert({ message: isGrandOpeningMode ? 'Dokumentasi Grand Opening lengkap. Serah Terima sudah bisa diproses.' : 'Dokumentasi berhasil disimpan dan sedang diproses!', type: 'success' });
             
             // Reset form
             setFormData({ ...emptyForm, cabang: user?.cabang || '', tanggalAmbilFoto: todayLocalIso() });
@@ -252,7 +289,7 @@ export default function FTDokumenPage() {
 
     return (
         <>
-            <AppNavbar title="Dokumentasi Bangunan Toko Baru" showBackButton backHref="/dashboard" />
+            <AppNavbar title={isGrandOpeningMode ? "Dokumentasi Grand Opening" : "Dokumentasi Bangunan Toko Baru"} showBackButton backHref={isGrandOpeningMode ? "/gantt" : "/dashboard"} />
 
             <main className="max-w-6xl mx-auto p-4 md:p-8 mt-4 pb-24">
                 {currentStep === 'form' ? (
@@ -687,5 +724,24 @@ function FloorPlanView({ formData, photos, currentPage, setCurrentPage, currentP
                 )}
             </CardContent>
         </Card>
+    );
+}
+export default function FTDokumenPage() {
+    return (
+        <Suspense fallback={
+            <>
+                <AppNavbar title="Dokumentasi Bangunan Toko Baru" showBackButton backHref="/dashboard" />
+                <main className="max-w-6xl mx-auto p-4 md:p-8 mt-4 pb-24">
+                    <Card className="shadow-sm border-slate-200">
+                        <CardContent className="flex min-h-64 items-center justify-center text-slate-500">
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin text-red-600" />
+                            Memuat dokumentasi...
+                        </CardContent>
+                    </Card>
+                </main>
+            </>
+        }>
+            <FTDokumenContent />
+        </Suspense>
     );
 }

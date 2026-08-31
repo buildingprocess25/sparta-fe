@@ -2010,6 +2010,7 @@ export type SupervisionScope = {
     opname_final_id: number | null;
     status_opname_final: string | null;
     opname_aksi: string | null;
+    opname_item_count?: number | null;
     berkas_serah_terima_id: number | null;
     link_pdf_serah_terima: string | null;
     spk_start_date: string | null;
@@ -2030,6 +2031,16 @@ export type SupervisionScope = {
     checkpoints: SupervisionCheckpoint[];
 };
 
+
+export type GrandOpeningDocumentationStatus = {
+    nomor_ulok: string;
+    dokumentasi_id: number | null;
+    required_count: number;
+    uploaded_count: number;
+    is_complete: boolean;
+    link_pdf: string | null;
+    submitted_at: string | null;
+};
 export type SupervisionWorkspace = {
     nomor_ulok: string;
     nama_toko: string | null;
@@ -2041,6 +2052,7 @@ export type SupervisionWorkspace = {
     serah_terima_generated: boolean;
     unified_serah_terima_ready?: boolean;
     unified_serah_terima_generated?: boolean;
+    grand_opening_documentation?: GrandOpeningDocumentationStatus | null;
     master_scope?: string;
     master_scope_id_toko?: number | null;
     master_gantt_id?: number | null;
@@ -4879,6 +4891,33 @@ export const submitDokumentasiBangunan = async (
     return result;
 };
 
+
+export const fetchGrandOpeningDocumentationStatus = async (nomorUlok: string): Promise<{ status: string; data: GrandOpeningDocumentationStatus }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dok/grand-opening/${encodeURIComponent(nomorUlok)}/status`);
+};
+
+export const submitGrandOpeningDocumentation = async (
+    fields: Record<string, string>,
+    photos: Record<number, { url: string; note: string | null; timestamp: string }>
+) => {
+    const url = `${API_URL.replace(/\/$/, "")}/api/dok/grand-opening`;
+    const form = new FormData();
+    Object.entries({ ...fields, jenis_dokumentasi: "GRAND_OPENING" }).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) form.append(key, value);
+    });
+
+    for (const [idStr, data] of Object.entries(photos)) {
+        if (data.url.startsWith('data:') || data.url.startsWith('/')) {
+            const blob = await compressImageUrlToBlob(data.url);
+            form.append(`foto_items_${idStr}`, blob, `grand_opening_${idStr}.jpg`);
+        }
+    }
+
+    const res = await apiFetch(url, { method: "POST", body: form });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.message || "Gagal menyimpan Dokumentasi Grand Opening.");
+    return result;
+};
 export const updateDokumentasiBangunan = async (
     id: number,
     fields: Record<string, string>,
