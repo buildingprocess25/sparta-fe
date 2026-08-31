@@ -1,12 +1,13 @@
 
 > sparta-fe@0.1.0 dev
-> next dev --port 3000
+> next dev
 
 ▲ Next.js 16.1.6 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://172.16.0.2:3000
+- Network:       http://192.168.177.1:3000
 - Environments: .env.local
 
 ✓ Starting...
-Creating turbopack project { dir: 'C:\\alfamart\\SPARTA\\sparta-fe', testMode: true }
-✓ Ready in 8.2s
+✓ Ready in 5.3s
+ GET /opname 200 in 3.2s (compile: 1929ms, render: 1315ms)
+ GET /manifest.webmanifest 200 in 612ms (compile: 531ms, render: 81ms)

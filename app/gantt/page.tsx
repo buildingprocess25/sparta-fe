@@ -3834,6 +3834,33 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [liveHistory, setLiveHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [memoInputs, setMemoInputs] = useState<Record<string, { status: string, lateDays: number, catatan: string, file: File | null, dokumentasiUrl: string | null, isSaved?: boolean, volume_akhir?: string | number, desain?: string, kualitas?: string, spesifikasi?: string, catatan_opname?: string, file_opname?: File | null, existing_foto?: string, opnameTouched?: boolean }>>({});
+
+    useEffect(() => {
+        if (!isContractorSubmit) return;
+        if (contractorOpnames.size === 0) return;
+
+        setMemoInputs(prev => {
+            const next = { ...prev };
+            let changed = false;
+            contractorOpnames.forEach((op, key) => {
+                if (op.status === 'ditolak' && !next[key]?.opnameTouched) {
+                    next[key] = {
+                        ...(next[key] || {}),
+                        volume_akhir: op.volume_akhir,
+                        desain: op.desain,
+                        kualitas: op.kualitas,
+                        spesifikasi: op.spesifikasi,
+                        catatan_opname: op.catatan,
+                        existing_foto: op.foto,
+                        opnameTouched: true
+                    };
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [contractorOpnames, isContractorSubmit]);
+
     const [isDirty, setIsDirty] = useState(false);
     const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
@@ -4758,7 +4785,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const rItemForExisting = findWorkItemForMemo(cat.category.name, item.jenis_pekerjaan, item);
                 const existingOpnameKey = rItemForExisting ? getWorkItemKey(rItemForExisting) : key;
-                if (contractorOpnames.has(existingOpnameKey) || contractorOpnames.has(key)) continue;
+                const existingOp = contractorOpnames.get(existingOpnameKey) || contractorOpnames.get(key);
+                if (existingOp && existingOp.status !== 'ditolak') continue;
 
                 const input = memoInputs[key] || ({} as any);
                 const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
@@ -5717,7 +5745,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     ) : null}
                                                                                 </>
                                                                             ) : isContractorSubmit ? (
-                                                                                opnameForStatus ? (
+                                                                                opnameForStatus && opnameForStatus.status !== 'ditolak' ? (
                                                                                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
                                                                                         <span className="text-xs font-semibold text-slate-600">Opname sudah diajukan</span>
                                                                                     </div>

@@ -2538,6 +2538,9 @@ export type OpnameItem = {
     workflow_version?: "legacy" | "contractor_first" | string;
     id_pengawasan_gantt_target?: number | null;
     tanggal_slot_opname?: string | null;
+    target_pengawasan_status?: string | null;
+    target_gantt_id?: number | null;
+    target_tanggal_pengawasan?: string | null;
     submitted_by_email?: string | null;
     submitted_at?: string | null;
     reviewed_by_email?: string | null;

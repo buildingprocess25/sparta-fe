@@ -218,7 +218,8 @@ const getContractorFirstRejectNote = (item: OpnameItem) =>
 
 const isContractorMenuVisibleOpname = (item: OpnameItem) => {
     if (!isContractorFirstOpname(item)) return true;
-    return isRejectedOpnameStatus(item.status);
+    const targetStatus = String(item.target_pengawasan_status || '').trim().toLowerCase();
+    return isRejectedOpnameStatus(item.status) && targetStatus === 'selesai';
 };
 const withFallbackTimeout = async <T,>(promise: Promise<T>, fallback: T, timeoutMs = 15000): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -1790,7 +1791,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 setRabList(filteredRab);
 
                 // Load all opnames (backend should filter by user access)
-                return fetchOpnameList({ tipe_opname: 'OPNAME' }).then(opnameRes => ({ opnameRes, filteredRab, ilTokoIds: new Set(nextIlTokoMap.keys()) }));
+                return fetchOpnameList({ tipe_opname: 'OPNAME', assigned_to: 'contractor' }).then(opnameRes => ({ opnameRes, filteredRab, ilTokoIds: new Set(nextIlTokoMap.keys()) }));
             })
             .then(({ opnameRes, filteredRab, ilTokoIds }) => {
                 const allOpname = opnameRes.data || [];
@@ -1853,7 +1854,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
         try {
             // Load fresh opname data by id_toko — response includes toko + rab_item relations
-            const opnameRes = await fetchOpnameList({ id_toko: tokoId, tipe_opname: 'OPNAME' });
+            const opnameRes = await fetchOpnameList({ id_toko: tokoId, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
             const opnameData = (opnameRes.data || []).filter(isContractorMenuVisibleOpname);
             setFilteredOpname(opnameData);
 
@@ -1889,7 +1890,7 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
         if (!selectedToko) return;
         setIsLoadingItems(true);
         try {
-            const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko, tipe_opname: 'OPNAME' });
+            const opnameRes = await fetchOpnameList({ id_toko: selectedToko.id_toko, tipe_opname: 'OPNAME', assigned_to: 'contractor' });
             setFilteredOpname((opnameRes.data || []).filter(isContractorMenuVisibleOpname));
         } catch (err) {
             console.error(err);
