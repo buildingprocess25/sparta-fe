@@ -381,7 +381,7 @@ function isScopeReadyForSt(scope: Partial<SupervisionScope>): boolean {
     const totalExpected = Number(scope.total_expected_items || 0);
     const totalSelesai = Number(scope.total_selesai_items || 0);
 
-    return opnameItems > 0 && readyOpnameItems === 0 && unresolvedContractorOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai === totalExpected;
+    return opnameItems > 0 && readyOpnameItems === 0 && unresolvedContractorOpnameItems === 0 && missingPengawasan === 0 && totalExpected > 0 && totalSelesai >= totalExpected;
 }
 
 function GanttBoard() {
@@ -557,6 +557,7 @@ function GanttBoard() {
     const [showMemoModal, setShowMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
     const [showTargetStModal, setShowTargetStModal] = useState<{ dateString: string; dayIndex: number } | null>(null);
+    const [showGrandOpeningModal, setShowGrandOpeningModal] = useState(false);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
@@ -1840,11 +1841,26 @@ function GanttBoard() {
     const grandOpeningUploadedCount = Number(grandOpeningDocumentation?.uploaded_count || 0);
     const grandOpeningRequiredCount = Number(grandOpeningDocumentation?.required_count || 40);
     const isGrandOpeningComplete = Boolean(grandOpeningDocumentation?.is_complete);
-    const grandOpeningProgressText = `${grandOpeningUploadedCount}/${grandOpeningRequiredCount} dokumen`;
-    const openGrandOpeningDocumentation = useCallback(() => {
-        if (!supervisionWorkspace) return;
+    const grandOpeningProgressText = `${grandOpeningUploadedCount}/${grandOpeningRequiredCount} dokumen wajib`;
+    const grandOpeningSpkStart = useMemo(() => {
+        const dates = (supervisionWorkspace?.scopes || [])
+            .map(scope => parseLocalDate(scope.spk_start_date))
+            .filter((date): date is Date => Boolean(date));
+        if (dates.length === 0) return '';
+        return formatDateForInput(new Date(Math.min(...dates.map(date => date.getTime()))));
+    }, [supervisionWorkspace]);
+    const grandOpeningSpkEnd = useMemo(() => {
+        const dates = (supervisionWorkspace?.scopes || [])
+            .map(scope => getScopeSpkEndDate(scope))
+            .filter((date): date is Date => Boolean(date));
+        if (dates.length === 0) return '';
+        return formatDateForInput(new Date(Math.max(...dates.map(date => date.getTime()))));
+    }, [supervisionWorkspace]);
+    const grandOpeningDocumentationUrl = useMemo(() => {
+        if (!supervisionWorkspace) return '';
         const params = new URLSearchParams({
             mode: 'grand-opening',
+            embedded: '1',
             ulok: supervisionWorkspace.nomor_ulok || '',
             nama_toko: supervisionWorkspace.nama_toko || '',
             kode_toko: supervisionWorkspace.kode_toko || '',
@@ -1852,8 +1868,28 @@ function GanttBoard() {
         });
         const tanggalSt = targetStInfo?.date ? formatDateForInput(targetStInfo.date) : '';
         if (tanggalSt) params.set('tanggal_st', tanggalSt);
-        window.location.href = `/ftdokumen?${params.toString()}`;
-    }, [supervisionWorkspace, targetStInfo]);
+        if (grandOpeningSpkStart) params.set('spk_awal', grandOpeningSpkStart);
+        if (grandOpeningSpkEnd) params.set('spk_akhir', grandOpeningSpkEnd);
+        return `/ftdokumen?${params.toString()}`;
+    }, [grandOpeningSpkEnd, grandOpeningSpkStart, supervisionWorkspace, targetStInfo]);
+    const openGrandOpeningDocumentation = useCallback(() => {
+        if (!grandOpeningDocumentationUrl) return;
+        setShowGrandOpeningModal(true);
+    }, [grandOpeningDocumentationUrl]);
+
+    useEffect(() => {
+        const handleGrandOpeningMessage = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type !== 'grand-opening:saved') return;
+            if (supervisionWorkspace?.nomor_ulok && event.data?.nomorUlok && event.data.nomorUlok !== supervisionWorkspace.nomor_ulok) return;
+            setShowGrandOpeningModal(false);
+            if (supervisionWorkspace?.nomor_ulok) {
+                void loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
+            }
+        };
+        window.addEventListener('message', handleGrandOpeningMessage);
+        return () => window.removeEventListener('message', handleGrandOpeningMessage);
+    }, [loadSupervisionWorkspace, supervisionWorkspace?.nomor_ulok]);
     const handoverReadiness = useMemo(() => {
         const scopes = supervisionWorkspace?.scopes || [];
         const scopedWithGantt = scopes.filter(scope => Boolean(scope.gantt_id));
@@ -3393,6 +3429,35 @@ function GanttBoard() {
                     </div>
                 )}
             </main>
+
+
+            {showGrandOpeningModal && grandOpeningDocumentationUrl && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
+                    <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-black text-slate-900">Dokumentasi Grand Opening</h2>
+                                <p className="mt-0.5 truncate text-sm font-semibold text-slate-500">
+                                    {supervisionWorkspace?.nomor_ulok || '-'} - {grandOpeningProgressText}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowGrandOpeningModal(false)}
+                                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                aria-label="Tutup Dokumentasi Grand Opening"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <iframe
+                            title="Dokumentasi Grand Opening"
+                            src={grandOpeningDocumentationUrl}
+                            className="h-full w-full flex-1 border-0 bg-slate-50"
+                        />
+                    </div>
+                </div>
+            )}
 
             {showTargetStModal && (
                 <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
