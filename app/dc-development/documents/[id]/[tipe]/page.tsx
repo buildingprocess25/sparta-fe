@@ -569,7 +569,8 @@ export default function DcDocumentDetailPage() {
                           Edit Mode
                         </label>
                       </div>
-                      {(() => {
+                      {/* 
+                      (() => {
                         const catNoteKey = `CAT_NOTE_${utama.id}`;
                         const catNoteDoc = documents.find(d => d.document_type === catNoteKey);
                         const hasNote = !!catNoteDoc?.notes;
@@ -597,7 +598,8 @@ export default function DcDocumentDetailPage() {
                             {hasNote ? "Lihat Catatan Kategori" : "Catatan Kategori"}
                           </Button>
                         );
-                      })()}
+                      })()
+                      */}
                       {utama.title === "DATA PENTING LAINNYA" && (
                         <Button
                           type="button"
