@@ -597,9 +597,16 @@ export default function DcDocumentsPage() {
                         </td>
                         <td className="px-6 py-5 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button size="sm" variant="outline" className="rounded-lg border-slate-200 bg-white font-medium text-slate-500 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-700" onClick={() => handleOpenNotes(archive)} title="Lihat Catatan">
-                              <MessageSquare className="h-4 w-4" />
-                            </Button>
+                            <div className="relative inline-block">
+                              <Button size="sm" variant="outline" className="rounded-lg border-slate-200 bg-white font-medium text-slate-500 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-700" onClick={() => handleOpenNotes(archive)} title="Lihat Catatan">
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                              {(archive.total_notes || 0) > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                                  {(archive.total_notes || 0) > 99 ? '99+' : archive.total_notes}
+                                </span>
+                              )}
+                            </div>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button size="sm" variant="outline" className="rounded-lg border-slate-200 bg-white font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:text-red-600" title="Ekspor data proyek">
