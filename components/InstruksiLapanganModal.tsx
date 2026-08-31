@@ -607,7 +607,7 @@ export default function InstruksiLapanganModal({
                                             <SelectTrigger className="bg-white">
                                                 <SelectValue placeholder="-- Pilih Toko Berdasarkan Cabang --" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent position="popper" side="bottom" className="z-[220] w-[var(--radix-select-trigger-width)] max-h-72">
                                                 {tokoList.map((toko: any) => (
                                                     <SelectItem key={toko.id} value={String(toko.id)}>
                                                         {toko.nomor_ulok} - {toko.nama_toko} ({toko.lingkup_pekerjaan})
@@ -646,7 +646,7 @@ export default function InstruksiLapanganModal({
                                                 <SelectTrigger className="bg-white">
                                                     <SelectValue placeholder="Pilih mode pengajuan" />
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent position="popper" side="bottom" className="z-[220] w-[var(--radix-select-trigger-width)] max-h-72">
                                                     <SelectItem value="new">Buat Instruksi Lapangan Baru</SelectItem>
                                                     {rejectedInstruksiList.map((il: any) => (
                                                         <SelectItem key={il.id} value={String(il.id)}>

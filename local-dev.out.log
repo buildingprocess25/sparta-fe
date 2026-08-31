@@ -8,4 +8,10 @@
 - Environments: .env.local
 
 ✓ Starting...
-✓ Ready in 3.1s
+✓ Ready in 8.5s
+ GET /gantt?ulok=Z001-3008-1234 200 in 11.5s (compile: 5.3s, render: 6.2s)
+ GET /manifest.webmanifest 200 in 934ms (compile: 826ms, render: 108ms)
+ GET /approval 200 in 479ms (compile: 268ms, render: 211ms)
+ GET /approval 200 in 168ms (compile: 25ms, render: 144ms)
+ GET /gantt?ulok=Z001-3008-1234 200 in 136ms (compile: 21ms, render: 114ms)
+ GET /manifest.webmanifest 200 in 46ms (compile: 22ms, render: 24ms)
