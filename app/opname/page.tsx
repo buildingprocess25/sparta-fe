@@ -386,22 +386,26 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         });
 
         setIsWorkflowIndexLoading(true);
-        Promise.allSettled([
-            withFallbackTimeout(fetchOpnameList({ workflow_version: 'legacy' }), { status: 'error', data: [] as OpnameItem[] }),
-            withFallbackTimeout(fetchOpnameList({ workflow_version: 'contractor_first' }), { status: 'error', data: [] as OpnameItem[] })
-        ])
-            .then(([legacyResult, contractorFirstResult]) => {
+        withFallbackTimeout(fetchOpnameFinalList(), { status: 'error', data: [] as OpnameFinalSummary[] }, 30000)
+            .then((res) => {
                 if (cancelled) return;
-                const legacyRows = legacyResult.status === 'fulfilled' ? (legacyResult.value.data || []) : [];
-                const contractorFirstRows = contractorFirstResult.status === 'fulfilled' ? (contractorFirstResult.value.data || []) : [];
+                const rawData = (res as any).data;
+                const rows: OpnameFinalSummary[] = Array.isArray(rawData)
+                    ? rawData
+                    : Array.isArray(rawData?.opname_final)
+                        ? rawData.opname_final
+                        : Array.isArray((res as any).opname_final)
+                            ? (res as any).opname_final
+                            : [];
 
-                legacyRows.forEach((item) => {
-                    const idToko = Number(item.id_toko);
-                    if (projectIds.has(idToko)) next[idToko].legacy = true;
-                });
-                contractorFirstRows.forEach((item) => {
-                    const idToko = Number(item.id_toko);
-                    if (projectIds.has(idToko)) next[idToko].contractor_first = true;
+                rows.forEach((item) => {
+                    const idToko = Number((item as any).id_toko);
+                    if (!projectIds.has(idToko)) return;
+                    if (item.workflow_version === 'contractor_first') {
+                        next[idToko].contractor_first = true;
+                    } else {
+                        next[idToko].legacy = true;
+                    }
                 });
 
                 setProjectWorkflowByTokoId(next);
@@ -670,15 +674,23 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         return rabItems.every((item) => isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status));
     }, [rabItems, latestOpnameByItemKey]);
 
-    const contractorFirstAllApproved = useMemo(() => {
-        if (rabItems.length === 0) return false;
-        return rabItems.every((item) => isApprovedOpnameStatus(latestContractorFirstOpnameByItemKey.get(getWorkItemKey(item))?.status));
-    }, [rabItems, latestContractorFirstOpnameByItemKey]);
+    const contractorFirstReviewStats = useMemo(() => {
+        const latestItems = Array.from(latestContractorFirstOpnameByItemKey.values());
+        const approved = latestItems.filter((item) => isApprovedOpnameStatus(item.status)).length;
+        const pending = latestItems.filter((item) => isPendingOpnameStatus(item.status)).length;
+        const rejected = latestItems.filter((item) => isRejectedOpnameStatus(item.status)).length;
+        return { total: latestItems.length, approved, pending, rejected };
+    }, [latestContractorFirstOpnameByItemKey]);
+
+    const contractorFirstAllApproved = contractorFirstReviewStats.total > 0 && contractorFirstReviewStats.approved === contractorFirstReviewStats.total;
 
     const activeWorkflowAllApproved = supportFlowView === 'contractor_first' ? contractorFirstAllApproved : legacyAllApproved;
     const activeLatestOpnameByItemKey = supportFlowView === 'contractor_first' ? latestContractorFirstOpnameByItemKey : latestOpnameByItemKey;
     const activeWorkflowOpnameItems = supportFlowView === 'contractor_first' ? contractorFirstOpnameItems : legacyOpnameItems;
-    const activeApprovedCount = Array.from(activeLatestOpnameByItemKey.values()).filter((item) => isApprovedOpnameStatus(item.status)).length;
+    const activeTotalCount = supportFlowView === 'contractor_first' ? contractorFirstReviewStats.total : rabItems.length;
+    const activeApprovedCount = supportFlowView === 'contractor_first'
+        ? contractorFirstReviewStats.approved
+        : Array.from(activeLatestOpnameByItemKey.values()).filter((item) => isApprovedOpnameStatus(item.status)).length;
 
     const shouldShowReadOnlyOpnameItems = supportFlowView === 'legacy' && (isOpnameFinalLocked || legacyAllApproved);
     const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput;
@@ -1284,6 +1296,27 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     </div>
                                 )}
 
+                                {supportFlowView === 'contractor_first' && (
+                                    <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+                                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                            <p className="text-[11px] font-black uppercase text-slate-400">Total Item</p>
+                                            <p className="mt-1 text-2xl font-black text-slate-800">{contractorFirstReviewStats.total}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                                            <p className="text-[11px] font-black uppercase text-amber-600">Belum Review</p>
+                                            <p className="mt-1 text-2xl font-black text-amber-700">{contractorFirstReviewStats.pending}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+                                            <p className="text-[11px] font-black uppercase text-emerald-600">Disetujui</p>
+                                            <p className="mt-1 text-2xl font-black text-emerald-700">{contractorFirstReviewStats.approved}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+                                            <p className="text-[11px] font-black uppercase text-red-600">Ditolak</p>
+                                            <p className="mt-1 text-2xl font-black text-red-700">{contractorFirstReviewStats.rejected}</p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Finalisasi Kerja Tambah Kurang */}
                                 {!isReadOnly && canLockOpnameFinal && !isOpnameFinalLocked && (
                                     <div className={`p-4 rounded-xl border shadow-sm flex items-center justify-between mb-6 ${activeWorkflowAllApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
@@ -1297,7 +1330,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                     ? (supportFlowView === 'contractor_first'
                                                         ? 'Semua item contractor-first telah disetujui Support. Klik untuk finalisasi KTK.'
                                                         : 'Semua item telah disetujui oleh Kontraktor. Klik untuk finalisasi dan kirim Kerja Tambah Kurang ke proses approval.')
-                                                    : `Semua item harus berstatus Disetujui (${activeApprovedCount}/${rabItems.length} item disetujui oleh ${supportFlowView === 'contractor_first' ? 'Support' : 'Kontraktor'}).`
+                                                    : `Semua item harus berstatus Disetujui (${activeApprovedCount}/${activeTotalCount} item disetujui oleh ${supportFlowView === 'contractor_first' ? 'Support' : 'Kontraktor'}).`
                                                 }
                                             </p>
                                         </div>
