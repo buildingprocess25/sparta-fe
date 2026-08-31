@@ -153,7 +153,6 @@ export default function InstruksiLapanganModal({
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState<{title: string, desc: string, type: 'info' | 'error' | 'success' | 'warning'}>({ title: "", desc: "", type: "info" });
     const submitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const loadedInitialTokoIdRef = useRef<number | null>(null);
 
     useEffect(() => {
         const userCabang = normalizeBranch(sessionStorage.getItem('loggedInUserCabang'));
@@ -210,18 +209,59 @@ export default function InstruksiLapanganModal({
     }, [selectedToko, spkList]);
 
     useEffect(() => {
-        if (!initialTokoId || !selectedToko || allTokoList.length === 0) return;
-        const sameUlokScopes = allTokoList.filter((t: any) =>
-            String(t.nomor_ulok || "").trim().toUpperCase() === String(selectedToko.nomor_ulok || "").trim().toUpperCase()
-        );
-        if (sameUlokScopes.length > 0) setTokoList(sameUlokScopes);
-    }, [initialTokoId, selectedToko, allTokoList]);
+        if (!initialTokoId || !selectedToko) return;
+        let isCancelled = false;
+
+        const syncSameUlokScopes = async () => {
+            const selectedUlok = String(selectedToko.nomor_ulok || "").trim().toUpperCase();
+            if (!selectedUlok) return;
+
+            const fromTokoList = allTokoList.filter((t: any) =>
+                String(t.nomor_ulok || "").trim().toUpperCase() === selectedUlok
+            );
+            const fromSpkList = spkList.filter((spk: any) =>
+                String(spk.nomor_ulok || "").trim().toUpperCase() === selectedUlok
+            );
+
+            const scopeMap = new Map<number, any>();
+            [selectedToko, ...fromTokoList].forEach((t: any) => {
+                const id = Number(t?.id);
+                if (id) scopeMap.set(id, t);
+            });
+
+            const missingTokoIds = Array.from(new Set(
+                fromSpkList
+                    .map((spk: any) => Number(spk.id_toko))
+                    .filter((id: number) => id && !scopeMap.has(id))
+            ));
+
+            const fetchedScopes = await Promise.all(
+                missingTokoIds.map((id: number) => fetchTokoDetail(id).then(res => res.data).catch(() => null))
+            );
+            if (isCancelled) return;
+
+            fetchedScopes.forEach((toko: any) => {
+                const id = Number(toko?.id);
+                if (id) scopeMap.set(id, toko);
+            });
+
+            const sameUlokScopes = Array.from(scopeMap.values())
+                .filter((t: any) => String(t.nomor_ulok || "").trim().toUpperCase() === selectedUlok)
+                .sort((a: any, b: any) => String(a.lingkup_pekerjaan || "").localeCompare(String(b.lingkup_pekerjaan || "")));
+
+            if (sameUlokScopes.length > 0) setTokoList(sameUlokScopes);
+        };
+
+        void syncSameUlokScopes();
+        return () => {
+            isCancelled = true;
+        };
+    }, [initialTokoId, selectedToko, allTokoList, spkList]);
 
     useEffect(() => {
-        if (!initialTokoId || !cabang || loadedInitialTokoIdRef.current === initialTokoId) return;
+        if (!initialTokoId || !cabang) return;
 
         let isCancelled = false;
-        loadedInitialTokoIdRef.current = initialTokoId;
         const loadInitialToko = async () => {
             setIsTokoLoading(true);
             try {
@@ -231,11 +271,7 @@ export default function InstruksiLapanganModal({
                 const toko = resDetail.data;
                 setSelectedToko(toko || null);
                 if (toko) {
-                    const sameUlokScopes = allTokoList.filter((t: any) =>
-                        String(t.nomor_ulok || "").trim().toUpperCase() === String(toko.nomor_ulok || "").trim().toUpperCase()
-                    );
-                    const scopedList = sameUlokScopes.some((t: any) => t.id === toko.id) ? sameUlokScopes : [toko, ...sameUlokScopes];
-                    setTokoList(scopedList);
+                    setTokoList(prev => prev.some(t => t.id === toko.id) ? prev : [toko, ...prev]);
                 }
                 setTableRows([]);
                 setRejectedInstruksiList([]);
@@ -253,18 +289,10 @@ export default function InstruksiLapanganModal({
                     if (isCancelled) return;
                     setPrices(priceData);
 
-                    const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
-                    if (isCancelled) return;
-                    const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
-                    setRejectedInstruksiList(rejected);
-
-                    if (rejected.length > 0) {
-                        showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
-                    }
+                    void loadRejectedInstruksiOptions(toko, () => isCancelled);
                 }
             } catch (error: any) {
                 if (!isCancelled) {
-                    loadedInitialTokoIdRef.current = null;
                     showAlert("Error", error.message, "error");
                 }
             } finally {
@@ -276,13 +304,29 @@ export default function InstruksiLapanganModal({
         return () => {
             isCancelled = true;
         };
-    }, [initialTokoId, cabang, allTokoList]);
+    }, [initialTokoId, cabang]);
 
     useEffect(() => {
         return () => {
             if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
         };
     }, []);
+
+    const loadRejectedInstruksiOptions = async (toko: any, isCancelled?: () => boolean) => {
+        if (!toko?.nomor_ulok) return;
+        try {
+            const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
+            if (isCancelled?.()) return;
+            const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
+            setRejectedInstruksiList(rejected);
+
+            if (rejected.length > 0) {
+                showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
+            }
+        } catch (error) {
+            console.warn("Gagal memuat daftar revisi Instruksi Lapangan", error);
+        }
+    };
 
     const handleTokoChange = async (tokoIdStr: string) => {
         const tokoId = Number(tokoIdStr);
@@ -314,13 +358,7 @@ export default function InstruksiLapanganModal({
                 const priceData = await fetchPricesData(toko.cabang || cabang, scope);
                 setPrices(priceData);
 
-                const listRes = await fetchInstruksiLapanganList({ nomor_ulok: toko.nomor_ulok });
-                const rejected = (listRes.data || []).filter((il: any) => il.status?.toUpperCase().includes('DITOLAK'));
-                setRejectedInstruksiList(rejected);
-
-                if (rejected.length > 0) {
-                    showAlert("Info", "Ada Instruksi Lapangan yang ditolak. Pilih mode revisi jika ingin memperbaiki dokumen lama, atau tetap buat IL baru.", "info");
-                }
+                void loadRejectedInstruksiOptions(toko);
             }
         } catch (error: any) {
             showAlert("Error", error.message, "error");
@@ -565,7 +603,7 @@ export default function InstruksiLapanganModal({
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label>Pilih Toko <span className="text-red-500">*</span></Label>
-                                        <Select onValueChange={handleTokoChange} value={selectedToko ? String(selectedToko.id) : ""} disabled={isTokoLoading || tokoList.length <= 1} required>
+                                        <Select onValueChange={handleTokoChange} value={selectedToko ? String(selectedToko.id) : ""} disabled={isTokoLoading} required>
                                             <SelectTrigger className="bg-white">
                                                 <SelectValue placeholder="-- Pilih Toko Berdasarkan Cabang --" />
                                             </SelectTrigger>
