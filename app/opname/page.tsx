@@ -424,8 +424,11 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     }, [rabList]);
 
     const workflowFilteredRabList = useMemo(() => {
-        return rabList.filter((r) => projectWorkflowByTokoId[Number(r.id_toko)]?.[supportFlowView]);
-    }, [rabList, projectWorkflowByTokoId, supportFlowView]);
+        return rabList.filter((r) => {
+            const meta = projectWorkflowByTokoId[Number(r.id_toko)];
+            return Boolean(meta?.legacy || meta?.contractor_first);
+        });
+    }, [rabList, projectWorkflowByTokoId]);
 
     // Filter RAB List by search and active workflow tab
     const filteredRabList = useMemo(() => {
@@ -450,12 +453,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         setActiveView('form');
     }, []);
 
-    const handleSupportFlowViewChange = useCallback((next: WorkflowVersion) => {
-        if (next === supportFlowView) return;
-        setSupportFlowView(next);
-        setSearchQuery('');
-        resetSelectedProject();
-    }, [resetSelectedProject, supportFlowView]);
 
     // Handle RAB selection
     const handleSelectRab = async (rabId: string) => {
@@ -478,6 +475,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         try {
             const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
             let workingItems: RABDetailItem[] = [];
+            let workflowForSelected: WorkflowVersion = 'legacy';
             if (isIlOnlyProject) {
                 setTokoDetail({
                     id: rab.id_toko,
@@ -510,6 +508,22 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 setRabItems(workingItems);
                 setExistingOpname(existingData);
 
+                const contractorFirstItemsForSelection = existingData.filter((item) => isContractorFirstOpname(item));
+                const latestContractorFirstForSelection = Array.from(buildLatestOpnameMap(contractorFirstItemsForSelection).values());
+                const hasContractorFirstMenuReview = contractorFirstItemsForSelection.some((item) => {
+                    const targetStatus = String((item as any).target_pengawasan_status || '').trim().toLowerCase();
+                    return isPendingOpnameStatus(item.status)
+                        && Number(item.revision_no || 0) > 0
+                        && targetStatus === 'selesai';
+                });
+                const contractorFirstReadyForFinalisasi = latestContractorFirstForSelection.length > 0
+                    && latestContractorFirstForSelection.every((item) => isApprovedOpnameStatus(item.status));
+                const inferredWorkflow: WorkflowVersion = hasContractorFirstMenuReview || contractorFirstReadyForFinalisasi
+                    ? 'contractor_first'
+                    : 'legacy';
+                workflowForSelected = inferredWorkflow;
+                setSupportFlowView(inferredWorkflow);
+
                 // Initialize opnameInputs based on existing opname data (parsial)
                 const initialInputs: any = {};
                 const safeItems = workingItems;
@@ -536,7 +550,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             // Check locked opname status
             let lockedOpnameFinal = false;
             try {
-                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci', workflow_version: supportFlowView });
+                const finalRes = await fetchOpnameFinalList({ id_toko: rab.id_toko, aksi: 'terkunci', workflow_version: workflowForSelected });
                 const finalData = finalRes.data as unknown;
                 let finalItems: OpnameFinalSummary[] = [];
                 if (Array.isArray(finalData)) {
@@ -597,9 +611,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         if (!targetProject) return;
 
         setAutoSelectedTokoId(targetKey);
-        if (validMode === 'revisi_ktk') {
-            setSupportFlowView('legacy');
-        }
         if (validMode) {
             setNotificationTarget({ mode: validMode, opnameFinalId: targetOpnameFinalId });
             setActiveView('form');
@@ -692,7 +703,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         ? contractorFirstReviewStats.approved
         : Array.from(activeLatestOpnameByItemKey.values()).filter((item) => isApprovedOpnameStatus(item.status)).length;
 
-    const shouldShowReadOnlyOpnameItems = supportFlowView === 'legacy' && (isOpnameFinalLocked || legacyAllApproved);
+    const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || activeWorkflowAllApproved;
     const shouldLockLegacyMenuInputForSupport = supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && !hasLegacyRejectedForReinput;
     const canEditOpnameMenu = supportFlowView === 'legacy' && !isReadOnly && !shouldShowReadOnlyOpnameItems && !shouldLockLegacyMenuInputForSupport;
 
@@ -707,10 +718,10 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     }, [existingOpname]);
 
     const approvedReadOnlyOpnameItems = useMemo(() => {
-        return Array.from(latestOpnameByItemKey.values())
+        return Array.from(activeLatestOpnameByItemKey.values())
             .filter((item) => isApprovedOpnameStatus(item.status))
             .sort((a, b) => Number(a.id) - Number(b.id));
-    }, [latestOpnameByItemKey]);
+    }, [activeLatestOpnameByItemKey]);
 
     // Legacy menu: initial support input stays in Gantt; this form only re-submits contractor-rejected legacy opname.
     const groupedItems = useMemo(() => {
@@ -1174,22 +1185,6 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                     </div>
 
                     <CardContent className="p-6 md:p-8 bg-slate-50/50">
-                        {/* Mode Selector */}
-                        <div className="mb-6 flex gap-2 p-1 bg-slate-100 rounded-lg w-full md:w-max mx-auto md:mx-0 shadow-inner">
-                            <button
-                                onClick={() => handleSupportFlowViewChange('legacy')}
-                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex-1 md:flex-none ${supportFlowView === 'legacy' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
-                            >
-                                Legacy / Finalisasi KTK
-                            </button>
-                            <button
-                                onClick={() => handleSupportFlowViewChange('contractor_first')}
-                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex-1 md:flex-none ${supportFlowView === 'contractor_first' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
-                            >
-                                Contractor-first / Review Revisi
-                            </button>
-                        </div>
-
                         {/* Section 1: Select ULOK */}
                         <div className="space-y-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
                             <h3 className="font-bold text-slate-700 border-b pb-2 mb-4 flex items-center gap-2">
@@ -1222,7 +1217,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                     >
                                         <option value="">— Pilih Proyek —</option>
                                         {filteredRabList.length === 0 && (
-                                            <option value="" disabled>Tidak ada ULOK {supportFlowView === 'legacy' ? 'legacy' : 'contractor-first'} yang perlu diproses</option>
+                                            <option value="" disabled>Tidak ada ULOK yang perlu diproses</option>
                                         )}
                                         {filteredRabList.map(rab => (
                                             <option key={rab.id} value={rab.id}>
@@ -1260,7 +1255,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                                     <InfoItem icon={<Hash className="w-4 h-4" />} label="No. ULOK" value={formatUlokWithDash(tokoDetail.nomor_ulok)} highlight />
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Nama Toko" value={tokoDetail.nama_toko} />
-                                    <InfoItem icon={<FileText className="w-4 h-4" />} label="Lingkup" value={tokoDetail.lingkup_pekerjaan || '-'} />
+                                    <InfoItem icon={<FileText className="w-4 h-4" />} label="Lingkup" value={(tokoDetail.lingkup_pekerjaan || '-') + ' - ' + (supportFlowView === 'contractor_first' ? 'Contractor-first' : 'Legacy')} />
                                     <InfoItem icon={<Building2 className="w-4 h-4" />} label="Kontraktor" value={tokoDetail.nama_kontraktor || '-'} />
                                 </div>
 
@@ -1357,7 +1352,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
                                 {activeView === 'form' ? (
                                     <>
-                                    {supportFlowView === 'legacy' && canLockOpnameFinal && !shouldShowReadOnlyOpnameItems && approvedReadOnlyOpnameItems.length > 0 && (
+                                    {canLockOpnameFinal && approvedReadOnlyOpnameItems.length > 0 && (
                                         <div className="mb-6 p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
                                             <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4 border-b border-emerald-200 pb-2">
                                                 <CheckCircle className="w-4 h-4" /> Data Opname Disetujui - Read Only ({approvedReadOnlyOpnameItems.length})
