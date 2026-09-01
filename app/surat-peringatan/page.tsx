@@ -26,7 +26,7 @@ import {
     type SpReason,
 } from "@/lib/denda-actions-api";
 import { formatRupiah, parseCurrency } from "@/lib/utils";
-import { canAccessBranchForUser, getSessionBranchCoverage, API_URL } from "@/lib/constants";
+import { canAccessBranchForUser, canViewAllBranches, getSessionBranchCoverage, API_URL } from "@/lib/constants";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, RefreshCw, Search, Upload, XCircle, ArrowLeft, Plus, FileDown } from "lucide-react";
 
 const SP_REASON_LABELS: Record<SpReason, string> = {
@@ -57,7 +57,7 @@ const matchesContractorCompany = (actionCompany?: string | null, userCompany?: s
     return actionName === sessionName || actionName.includes(sessionName) || sessionName.includes(actionName);
 };
 const canApprove = (roles: string[]) => roles.some((role) => role === "BRANCH BUILDING & MAINTENANCE MANAGER" || role.includes("SUPER HUMAN"));
-const canSubmit = (roles: string[]) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN") || role.includes("HEAD OFFICE"));
+const canSubmit = (roles: string[]) => roles.some((role) => role.includes("KOORDINATOR") || role.includes("COORDINATOR") || role.includes("SUPER HUMAN"));
 
 const getSpTimeline = (action: DendaAction) => {
     const hasPdf = Boolean(action.link_pdf);
@@ -119,14 +119,10 @@ export default function SuratPeringatanPage() {
 
     const filteredCandidates = useMemo(() => {
         let base = candidates;
-        
-        // Apply branch filter
-        if (user && !user.roles.includes("SUPER HUMAN")) {
-            if (user.isHO) {
-                base = base.filter((c) => normalize(c.cabang) === "HEAD OFFICE");
-            } else {
-                base = base.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
-            }
+        // Backend already enforces branch scope; this keeps the UI consistent with session coverage.
+        const userCanViewAllSpBranches = Boolean(user && (user.isHO || canViewAllBranches(user.roles ?? [], user.isSuperHuman ?? false)));
+        if (user && !userCanViewAllSpBranches) {
+            base = base.filter((c) => canAccessBranchForUser(c.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage()));
         }
         
         // Filter by selected contractor
@@ -159,9 +155,8 @@ export default function SuratPeringatanPage() {
             if (userIsContractor) {
                 if (!contractorVisibleSpStatuses.has(action.status)) return;
                 if (!matchesContractorCompany(action.nama_kontraktor, user?.namaPt)) return;
-            } else if (user && !user.roles.includes("SUPER HUMAN")) {
-                if (user.isHO && normalize(action.cabang) !== "HEAD OFFICE") return;
-                if (!user.isHO && !canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage())) return;
+            } else if (user && !user.isHO && !canViewAllBranches(user.roles ?? [], user.isSuperHuman ?? false)) {
+                if (!canAccessBranchForUser(action.cabang ?? "", user.roles ?? [], user.cabang ?? null, getSessionBranchCoverage())) return;
             }
             
             // Each action is a distinct process, no need to group multiple distinct ULOKs for the same contractor
@@ -335,21 +330,21 @@ export default function SuratPeringatanPage() {
         }
     };
 
-    const isHOUser = user?.isHO || userIsContractor || user?.roles?.some(r => r.includes("SUPER HUMAN"));
+    const userCanAccessSp = Boolean(user?.isHO || userIsContractor || userCanSubmit || userCanApprove);
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12 relative">
             <AppNavbar title="SURAT PERINGATAN" showBackButton backHref="/dashboard" />
 
-            {!isHOUser && user ? (
+            {!userCanAccessSp && user ? (
                 <main className="max-w-5xl mx-auto p-4 md:p-8 mt-4">
                     <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
                         <div className="p-4 bg-blue-50 rounded-full">
                             <Clock3 className="w-12 h-12 text-blue-400" />
                         </div>
-                        <h2 className="text-xl font-bold text-slate-700">Fitur Sedang Disiapkan (Ongoing)</h2>
+                        <h2 className="text-xl font-bold text-slate-700">Akses Surat Peringatan Tidak Tersedia</h2>
                         <p className="text-slate-500 max-w-sm text-sm leading-relaxed">
-                            Halo! Saat ini fitur <strong>Surat Peringatan</strong> masih dalam tahap pengembangan dan baru bisa diakses oleh tim HO. Ditunggu ya update selanjutnya!
+                            Role Anda belum memiliki akses ke fitur <strong>Surat Peringatan</strong>.
                         </p>
                     </div>
                 </main>

@@ -106,7 +106,7 @@ export default function ProjekPlanningPage() {
     const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
     const role = sessionStorage.getItem("userRole") || "";
     if (!email) { router.push("/auth"); return; }
-    if (!canAccessProjectPlanningByCabang(cabang) && !canViewAllBranches(role)) { router.replace("/dashboard"); return; }
+    if (!canAccessProjectPlanningByCabang(cabang, role) && !canViewAllBranches(role)) { router.replace("/dashboard"); return; }
     setUserEmail(email);
     setUserCabang(cabang);
     setUserRole(role.toUpperCase());
@@ -119,9 +119,8 @@ export default function ProjekPlanningPage() {
     catch { return d; }
   };
 
-  const { isCoor, isBM } = getPpRoles(userRole, userEmail);
-  const isBogorBm = isBM && userCabang.toUpperCase() === "BOGOR";
-  const canCreateFpd = (isCoor || isBogorBm) && !canViewAllBranches(userRole);
+  const { isCoor } = getPpRoles(userRole, userEmail);
+  const canCreateFpd = isCoor && !canViewAllBranches(userRole);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">

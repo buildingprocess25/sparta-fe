@@ -22,7 +22,7 @@ import {
   downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
-import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
+import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch } from "@/lib/constants";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
@@ -686,7 +686,7 @@ export default function DetailProjekPlanning() {
     const role = sessionStorage.getItem("userRole") || "";
     if (!email) { router.push("/auth"); return; }
     const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
-    if (!canAccessProjectPlanningByCabang(cabang) && !canViewAllBranches(role)) { router.replace("/dashboard"); return; }
+    if (!canAccessProjectPlanningByCabang(cabang, role) && !canViewAllBranches(role)) { router.replace("/dashboard"); return; }
     setUserEmail(email); setUserRole(role.toUpperCase());
     load();
   }, [id]);
@@ -917,8 +917,9 @@ export default function DetailProjekPlanning() {
   const backHref = searchParams.get("from") === "approval" ? "/approval" : "/projek-planning";
   const { isCoor, isBM, isBMRegional, isPP, isPPMgr } = getPpRoles(userRole, userEmail);
   const isBBMM = userRole.includes("MAINTENANCE MANAGER") || userRole.includes("BBMM");
-  const isBogorBm = (isBM || isBBMM) && (data.cabang || "").toUpperCase() === "BOGOR";
-  const canActAsSubmitter = isCoor || isBogorBm;
+  const canCoordinatorActAsBm = isCoor && canCoordinatorApproveBmForBranch(data.cabang);
+  const canActAsBm = isBM || isBBMM || canCoordinatorActAsBm;
+  const canActAsSubmitter = isCoor;
 
   const coordinatorFields = [
     data.link_fpd ? "fpd" : null,
@@ -1120,7 +1121,7 @@ export default function DetailProjekPlanning() {
             {/* Kategori 1: Dokumen Pengajuan Awal */}
             <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
               <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Dokumen Pengajuan ({(data.cabang || "").toUpperCase() === "BOGOR" ? "B&M Manager" : "Koordinator"})</h3>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Dokumen Pengajuan (Koordinator)</h3>
                 <span className="text-xs font-semibold text-red-700 bg-white px-2 py-0.5 rounded-md shadow-sm">{coordinatorFields.length} file</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/30">
@@ -1189,9 +1190,9 @@ export default function DetailProjekPlanning() {
         )}
 
         {/* BM Approval */}
-        {(data.status === "WAITING_BM_APPROVAL" || data.status === "WAITING_BM_APPROVAL_2") && (isBM || isBBMM) && (
+        {(data.status === "WAITING_BM_APPROVAL" || data.status === "WAITING_BM_APPROVAL_2") && canActAsBm && (
           <Card className="border-amber-200 bg-amber-50/50">
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager{data.status === "WAITING_BM_APPROVAL_2" ? " Tahap 2" : ""}</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-amber-800">Approval B&M Manager{canCoordinatorActAsBm ? " (Koordinator)" : ""}{data.status === "WAITING_BM_APPROVAL_2" ? " Tahap 2" : ""}</CardTitle></CardHeader>
             <CardContent className="p-4 flex gap-3 flex-col">
               {data.bm_alasan_penolakan && (
                 <div className="text-sm text-amber-800 bg-amber-100/50 p-3 rounded-lg border border-amber-200 mb-2">

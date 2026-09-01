@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle } from "lucide-react";
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
-import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches } from "@/lib/constants";
+import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
@@ -359,7 +359,8 @@ function FormProjekPlanningInner() {
     if (!email) { router.push("/auth"); return; }
     const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
     const role = sessionStorage.getItem("userRole") || "";
-    if (!canAccessProjectPlanningByCabang(cabang) || canViewAllBranches(role)) { router.replace("/dashboard"); return; }
+    const { isCoor } = getPpRoles(role, email);
+    if (!canAccessProjectPlanningByCabang(cabang, role) || canViewAllBranches(role) || !isCoor) { router.replace("/dashboard"); return; }
     setUserEmail(email);
     const nama = sessionStorage.getItem("nama_lengkap") || "";
     set("nama_pengaju", nama);
@@ -369,31 +370,28 @@ function FormProjekPlanningInner() {
       const role = sessionStorage.getItem("userRole") || "";
       const { isPP, isPPMgr } = getPpRoles(role, email);
 
-      // Jika BUKAN PP / PP Manager (artinya Coordinator atau BM), WAJIB difilter ke cabangnya sendiri
+      // Coordinator mengikuti scope cabang/session coverage, termasuk subdivisi CIKOKOL/CILEUNGSI.
       if (!isPP && !isPPMgr && cabang) {
-        // Cari pemetaan Ulok (Kode Cabang vs Nama Cabang)
-        const ulokEntry = Object.entries(BRANCH_TO_ULOK).find(([nama, kode]) =>
-          nama === cabang.toUpperCase() || kode === cabang.toUpperCase()
-        );
+        const branchCoverage = getSessionBranchCoverage();
+        const accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
+        const allowedCabang = new Set<string>(accessibleBranches);
 
-        const allowedCabang = [cabang.toUpperCase()];
-        if (ulokEntry) {
-          allowedCabang.push(ulokEntry[0]); // ex: KLATEN
-          allowedCabang.push(ulokEntry[1]); // ex: OZ01
-          // kode for ULOK display, nama for DB storage
-          // Jangan override cabang saat mode resubmit — cabang harus dari data proyek, bukan dari session user
-          if (!resubmitId) {
-            setManualCabang(ulokEntry[1] || ulokEntry[0]);
-            setManualCabangNama(ulokEntry[0] || cabang.toUpperCase());
-          }
-        } else {
-          if (!resubmitId) {
-            setManualCabang(cabang.toUpperCase());
-            setManualCabangNama(cabang.toUpperCase());
-          }
+        for (const branchName of accessibleBranches) {
+          const ulokCode = BRANCH_TO_ULOK[branchName];
+          if (ulokCode) allowedCabang.add(ulokCode.toUpperCase());
         }
 
-        data = data.filter(t => t.cabang && allowedCabang.includes(t.cabang.toUpperCase()));
+        if (!resubmitId) {
+          const primaryBranch = accessibleBranches[0] || cabang.toUpperCase();
+          setManualCabang(BRANCH_TO_ULOK[primaryBranch] || primaryBranch);
+          setManualCabangNama(primaryBranch);
+        }
+
+        data = data.filter(t => {
+          const tokoCabang = (t.cabang || "").toUpperCase();
+          const tokoUlok = (t.nomor_ulok || "").toUpperCase();
+          return Array.from(allowedCabang).some(ac => tokoCabang === ac || tokoUlok.startsWith(ac));
+        });
       }
       setTokoList(data);
     }).catch(console.error);
@@ -584,7 +582,7 @@ function FormProjekPlanningInner() {
       } else {
         res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
       }
-      const skipBmApproval = ["BOGOR", "BATAM"].includes(finalCabang.toUpperCase());
+      const skipBmApproval = ["BOGOR"].includes(finalCabang.toUpperCase());
       setAlertMsg({
         title: "Berhasil!",
         desc: skipBmApproval

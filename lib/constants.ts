@@ -254,7 +254,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "HEAD OFFICE": [
         "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
-        "menu-gantt", "menu-approval", "menu-daftardokumen",
+        "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-projek-planning", "menu-tarikan-data",
     ],
 
@@ -264,7 +264,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
         "menu-spk", "menu-opname", "menu-tambahspk",
-        "menu-gantt", "menu-dokumentasi", "menu-svdokumen",
+        "menu-gantt", "menu-sp", "menu-dokumentasi", "menu-svdokumen",
         "menu-approval", "menu-daftardokumen", "menu-projek-planning", "menu-tarikan-data",
     ],
 
@@ -367,8 +367,36 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-migrasi-dokumen", "menu-migrasi-il", "menu-migrasi-serah-terima", "menu-tarikan-data",
     ],
 };
-export const canAccessProjectPlanningByCabang = (cabang?: string | null): boolean =>
-    String(cabang ?? "").trim().toUpperCase() === "HEAD OFFICE";
+export const canAccessProjectPlanningByCabang = (
+    cabang?: string | null,
+    role?: string | string[] | null
+): boolean => {
+    if (String(cabang ?? "").trim().toUpperCase() === "HEAD OFFICE") return true;
+
+    const roles = Array.isArray(role)
+        ? role
+        : String(role ?? "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+    return roles
+        .map((item) => item.toUpperCase())
+        .some((item) =>
+            item.includes("BRANCH BUILDING COORDINATOR") ||
+            item.includes("KOORDINATOR") ||
+            item.includes("BRANCH BUILDING & MAINTENANCE MANAGER") ||
+            item.includes("MAINTENANCE MANAGER") ||
+            item.includes("BBMM") ||
+            item.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") ||
+            item.includes("REGIONAL MANAGER") ||
+            item.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") ||
+            item.includes("PP SPECIALIST") ||
+            item.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") ||
+            item.includes("PP MANAGER") ||
+            item.includes("SUPER HUMAN")
+        );
+};
 
 export const REGIONAL_MANAGER_ROLE = "BUILDING & MAINTENANCE REGIONAL MANAGER";
 export const ENERGY_SYSTEM_MANAGER_ROLE = "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER";
@@ -641,6 +669,11 @@ export const canAccessBranchForUser = (
  * Mapping nama cabang ke kode ULOK-nya.
  * Digunakan untuk keperluan API yang membutuhkan kode ULOK cabang.
  */
+
+export const BRANCHES_WITH_COORDINATOR_BM_APPROVAL = ["BATAM"] as const;
+
+export const canCoordinatorApproveBmForBranch = (branch?: string | null): boolean =>
+    BRANCHES_WITH_COORDINATOR_BM_APPROVAL.includes(normalizeBranchValue(branch) as typeof BRANCHES_WITH_COORDINATOR_BM_APPROVAL[number]);
 export const BRANCH_TO_ULOK: Record<string, string> = {
     "LUWU": "2VZ1",
     "KARAWANG": "1JZ1",

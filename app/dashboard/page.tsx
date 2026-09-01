@@ -1423,7 +1423,7 @@ function DashboardPageContent() {
 
 
 
-        if (!canAccessProjectPlanningByCabang(userCabang) && !isRegionalManager && !isSuperHuman) {
+        if (!canAccessProjectPlanningByCabang(userCabang, roles) && !isRegionalManager && !isSuperHuman) {
 
             allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
 
