@@ -28,7 +28,7 @@ import {
 
 import AppNavbar from '@/components/AppNavbar';
 
-import { ALL_MENUS, ROLE_CONFIG, API_URL, canAccessProjectPlanningByCabang, canViewAllBranches, canAccessBranchForUser, getParentBranch, getSubBranchesForParent, getAccessibleBranchesForUser, getSessionBranchCoverage, BRANCH_TO_ULOK } from '@/lib/constants';
+import { ALL_MENUS, ROLE_CONFIG, API_URL, canOpenProjectPlanningMenu, canViewAllBranches, canAccessBranchForUser, getParentBranch, getSubBranchesForParent, getAccessibleBranchesForUser, getSessionBranchCoverage, BRANCH_TO_ULOK } from '@/lib/constants';
 
 import { formatRupiah, parseCurrency, cn } from '@/lib/utils';
 
@@ -1423,7 +1423,7 @@ function DashboardPageContent() {
 
 
 
-        if (!canAccessProjectPlanningByCabang(userCabang, roles) && !isRegionalManager && !isSuperHuman) {
+        if (!canOpenProjectPlanningMenu(roles)) {
 
             allowedIds = allowedIds.filter(id => id !== "menu-projek-planning");
 

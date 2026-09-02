@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { fetchProjekPlanningList, type ProjekPlanningItem } from "@/lib/api";
-import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole } from "@/lib/constants";
+import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole, canOpenProjectPlanningMenu } from "@/lib/constants";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700 border-slate-300", icon: <FileText className="w-3 h-3" /> },
@@ -106,7 +106,7 @@ export default function ProjekPlanningPage() {
     const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
     const role = sessionStorage.getItem("userRole") || "";
     if (!email) { router.push("/auth"); return; }
-    if (!canAccessProjectPlanningByCabang(cabang, role) && !canViewAllBranches(role)) { router.replace("/dashboard"); return; }
+    if (!canOpenProjectPlanningMenu(role) || (!canAccessProjectPlanningByCabang(cabang, role) && !canViewAllBranches(role))) { router.replace("/dashboard"); return; }
     setUserEmail(email);
     setUserCabang(cabang);
     setUserRole(role.toUpperCase());

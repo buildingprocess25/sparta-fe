@@ -255,7 +255,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-projek-planning", "menu-tarikan-data",
+        "menu-tarikan-data",
     ],
 
     "BRANCH MANAGER": [
@@ -265,7 +265,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     "BRANCH BUILDING & MAINTENANCE MANAGER": [
         "menu-spk", "menu-opname", "menu-tambahspk",
         "menu-gantt", "menu-sp", "menu-dokumentasi", "menu-svdokumen",
-        "menu-approval", "menu-daftardokumen", "menu-projek-planning", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "BRANCH BUILDING COORDINATOR": [
@@ -332,15 +332,15 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
-        "menu-approval", "menu-projek-planning", "menu-daftardokumen", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "PROJECT PLANNING & DEVELOPMENT MANAGER": [
-        "menu-approval", "menu-projek-planning", "menu-daftardokumen", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
     ],
 
     "BUILDING & MAINTENANCE REGIONAL MANAGER": [
-        "menu-approval", "menu-projek-planning", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
     ],
 
     "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER": [
@@ -361,12 +361,14 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
-        "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-spk-backdate-policy", "menu-serah-terima-date-correction", "menu-projek-planning",
+        "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-spk-backdate-policy", "menu-serah-terima-date-correction",
         "menu-migrasi-rab", "menu-migrasi-spk", "menu-migrasi-tambahspk",
         "menu-migrasi-gantt", "menu-migrasi-pengawasan", "menu-migrasi-opname-final",
         "menu-migrasi-dokumen", "menu-migrasi-il", "menu-migrasi-serah-terima", "menu-tarikan-data",
     ],
 };
+export const canOpenProjectPlanningMenu = (role?: string | string[] | null): boolean =>
+    normalizeRoles(role).some((item) => item.includes("BRANCH BUILDING COORDINATOR") || item.includes("KOORDINATOR"));
 export const canAccessProjectPlanningByCabang = (
     cabang?: string | null,
     role?: string | string[] | null
