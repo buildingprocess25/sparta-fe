@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle } from "lucide-react";
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
-import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage } from "@/lib/constants";
+import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage, getParentBranch } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
@@ -381,18 +381,31 @@ function FormProjekPlanningInner() {
           if (ulokCode) allowedCabang.add(ulokCode.toUpperCase());
         }
 
-        if (!resubmitId) {
-          const primaryBranch = accessibleBranches[0] || cabang.toUpperCase();
-          setManualCabang(BRANCH_TO_ULOK[primaryBranch] || primaryBranch);
-          setManualCabangNama(primaryBranch);
-        }
-
         data = data.filter(t => {
           const tokoCabang = (t.cabang || "").toUpperCase();
           const tokoUlok = (t.nomor_ulok || "").toUpperCase();
           return Array.from(allowedCabang).some(ac => tokoCabang === ac || tokoUlok.startsWith(ac));
         });
       }
+
+      if (!resubmitId) {
+        // Tentukan default cabang untuk ULOK Manual
+        let primaryBranch = "HEAD OFFICE";
+        
+        if (!isPP && !isPPMgr && cabang && cabang.toUpperCase() !== "HEAD OFFICE") {
+          const branchCoverage = getSessionBranchCoverage();
+          const accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
+          primaryBranch = accessibleBranches[0] || cabang.toUpperCase();
+        }
+
+        // Resolusi cabang anak ke induknya untuk kode ULOK
+        const resolvedBranchName = getParentBranch(primaryBranch);
+        const ulokCode = BRANCH_TO_ULOK[resolvedBranchName] || resolvedBranchName;
+
+        setManualCabang(ulokCode);
+        setManualCabangNama(resolvedBranchName);
+      }
+
       setTokoList(data);
     }).catch(console.error);
 
