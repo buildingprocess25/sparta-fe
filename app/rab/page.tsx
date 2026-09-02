@@ -1688,7 +1688,7 @@ function RABPageContent() {
                   <Label>Proyek <span className="text-red-500">*</span></Label>
                   {formData.isRenovasi ? (
                     <Select 
-                      disabled={isProjectFieldLocked || hasProjectPlanningRequest}
+                      disabled={isReadOnly || hasProjectPlanningRequest || (crossScopeProjectLocked && formData.proyek !== 'Renovasi')}
                       value={formData.proyek || undefined} 
                       onValueChange={(val) => setFormData(prev => ({...prev, proyek: val}))}
                     >
