@@ -188,6 +188,7 @@ function FormProjekPlanningInner() {
                  luas_gudang: toFormText(rab?.luas_gudang) || prev.luas_gudang,
                  luas_area_parkir: toFormText(rab?.luas_area_parkir) || prev.luas_area_parkir,
                  luas_area_sales: toFormText(rab?.luas_area_sales) || prev.luas_area_sales,
+                 is_ruko: rab?.kategori_lokasi ? (String(rab.kategori_lokasi).toUpperCase() === "RUKO") : prev.is_ruko,
                }));
                setRabPrefillStatus("found");
                setRabPrefillMessage(`RAB approved ditemukan untuk ${finalUlok}. Data dasar FPD otomatis terisi dari RAB.`);
