@@ -324,6 +324,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         if (!rab) return;
 
         setSelectedRab(rab);
+        setRabItems([]);
+        setOpnameInputs({});
+        setExistingOpname([]);
         setIsLoadingDetail(true);
 
         try {
@@ -1129,7 +1132,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <Button
                                                     size="sm"
                                                     onClick={handleSubmitAll}
-                                                    disabled={isSubmitting}
+                                                    disabled={isSubmitting || isLoadingDetail}
                                                     className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs px-4 shadow-sm h-8"
                                                 >
                                                     {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Send className="w-3 h-3 mr-1.5" />}
