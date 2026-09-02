@@ -278,6 +278,7 @@ const normalizeRabScope = (value?: string | null) => {
   const upper = String(value ?? '').trim().toUpperCase();
   if (upper === 'SIPIL') return 'Sipil';
   if (upper === 'ME') return 'ME';
+  if (upper === 'GABUNGAN' || upper.includes('GABUNGAN') || upper === 'SIPIL + ME') return 'GABUNGAN';
   return upper;
 };
 
@@ -455,7 +456,7 @@ function RABPageContent() {
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
-    proyek: 'Reguler', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
+    proyek: 'Reguler', alamat: '', cabang: '', lingkupPekerjaan: 'GABUNGAN', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
     logo: '', // Base64 logo string
     noPolis: '', berlakuPolis: '', fileAsuransi: '', // URL link file asuransi (jika sudah ada dari revisi)
@@ -736,7 +737,7 @@ function RABPageContent() {
           proyek: projectValue || (isRenovasi ? 'Renovasi' : 'Reguler'),
           alamat: prefill.alamat || '',
           cabang: normalizeBranchName(prefill.cabang),
-          lingkupPekerjaan: prefill.lingkup_pekerjaan === 'SIPIL' ? 'Sipil' : 'ME',
+          lingkupPekerjaan: normalizeRabScope(prefill.lingkup_pekerjaan),
           luasAreaParkir: prefill.luas_area_parkir || '',
           luasAreaSales: prefill.luas_area_sales || '',
           luasGudang: prefill.luas_gudang || '',
@@ -822,38 +823,27 @@ function RABPageContent() {
           })
           .sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
-        if (!currentScope) {
-          const existingScopes = new Set(exactMatches.map(extractRabListScope).filter(Boolean));
-          const inferredScope = existingScopes.has('Sipil') && !existingScopes.has('ME')
-            ? 'ME'
-            : existingScopes.has('ME') && !existingScopes.has('Sipil')
-              ? 'Sipil'
-              : '';
-          if (inferredScope) {
-            setFormData(prev => ({ ...prev, lingkupPekerjaan: inferredScope }));
-            setTableRows([]);
-          }
-          return;
-        }
+        const existingScopes = Array.from(new Set(exactMatches.map(extractRabListScope).filter(Boolean)));
+        
+        // Cek jika proyek ini adalah proyek dengan legacy single scope (baru 1 lingkup yang ada)
+        if (existingScopes.length === 1 && (existingScopes[0] === 'Sipil' || existingScopes[0] === 'ME')) {
+            const sourceScope = existingScopes[0] as string;
+            const targetScope = getOppositeRabScope(sourceScope);
+            const source: any = exactMatches.find((r: any) => extractRabListScope(r) === sourceScope);
+            if (!source?.id) return;
 
-        const candidates = exactMatches.filter((rab: any) => extractRabListScope(rab) === getOppositeRabScope(currentScope));
-        const source: any = candidates[0];
-        if (!source?.id) return;
+            const detailResult = await fetchRABDetail(Number(source.id));
+            if (cancelled) return;
 
-        const detailResult = await fetchRABDetail(Number(source.id));
-        if (cancelled) return;
-
-        const detail = detailResult.data;
-        const tokoRef = detail.toko || {};
-        const rabRef = detail.rab || {};
-        const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
-        const sourceParts = String(sourceUlok).split('-');
-        const sourceProject = resolveProjectFromSource(tokoRef.proyek || source.proyek || source['Proyek'], sourceUlok);
-        const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
-        const targetScope = getOppositeRabScope(sourceScope) || currentScope;
-        const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
-        const sourceAsuransi = rabRef.file_asuransi || '';
-        const sourceLogo = rabRef.logo || '';
+            const detail = detailResult.data;
+            const tokoRef = detail.toko || {};
+            const rabRef = detail.rab || {};
+            const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
+            const sourceParts = String(sourceUlok).split('-');
+            const sourceProject = resolveProjectFromSource(tokoRef.proyek || source.proyek || source['Proyek'], sourceUlok);
+            const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
+            const sourceAsuransi = rabRef.file_asuransi || '';
+            const sourceLogo = rabRef.logo || '';
 
         setFormData(prev => ({
           ...prev,
@@ -885,9 +875,13 @@ function RABPageContent() {
 
         showAlert(
           "Data proyek otomatis terisi",
-          `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup otomatis diset ke ${targetScope} dan data proyek dikunci.`,
+          `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup otomatis diset ke ${targetScope} karena sebelumnya sudah ada ${sourceScope} (Legacy), dan data proyek dikunci.`,
           "info"
         );
+      } else {
+        // Jika tidak ada RAB sebelumnya atau sudah GABUNGAN / sudah ada keduanya, tidak ada yang perlu di prefill.
+        return;
+      }
       } catch (err) {
         console.log("Prefill RAB lintas lingkup dilewati:", err);
       }
@@ -1495,7 +1489,7 @@ function RABPageContent() {
     return { bgIcon: 'bg-blue-100 text-blue-600', btn: 'bg-blue-600 hover:bg-blue-700' };
   };
 
-  const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : [];
+  const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : formData.lingkupPekerjaan === 'GABUNGAN' ? [...SIPIL_CATEGORIES, ...ME_CATEGORIES] : [];
 
   const isRevisionSubmitMode = currentRabId !== null;
   const isInsuranceComplete = isRevisionSubmitMode || (
@@ -1753,7 +1747,15 @@ function RABPageContent() {
                       <Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                     )}
                   </div>
-                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked || hasProjectPlanningRequest || !!currentRabId} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2">
+                    <Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label>
+                    <Input 
+                      value={formData.lingkupPekerjaan === 'GABUNGAN' ? 'Sipil + ME' : formData.lingkupPekerjaan} 
+                      readOnly 
+                      className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" 
+                      tabIndex={-1} 
+                    />
+                  </div>
                   <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked} onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="text" inputMode="numeric" pattern="[0-9]*" name="durasiPekerjaan" readOnly={isProjectFieldLocked} value={formData.durasiPekerjaan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="Masukkan jumlah hari" className={projectInputClass} required /></div>
                 </div>
