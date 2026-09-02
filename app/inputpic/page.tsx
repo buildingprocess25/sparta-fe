@@ -1922,11 +1922,16 @@ export default function InputPICPage() {
         const params = new URLSearchParams(window.location.search);
         const targetTokoId = params.get('id_toko');
         const targetSpkId = params.get('id_spk');
-        const targetKey = [targetTokoId, targetSpkId].filter(Boolean).join('|');
-        if ((!targetTokoId && !targetSpkId) || autoSelectedPicTokoId === targetKey || ulokOptions.length === 0) return;
+        const targetUlok = params.get('ulok');
+        const targetKey = [targetTokoId, targetSpkId, targetUlok].filter(Boolean).join('|');
+        
+        if ((!targetTokoId && !targetSpkId && !targetUlok) || autoSelectedPicTokoId === targetKey || ulokOptions.length === 0) return;
 
-        const target = ulokOptions.find(option =>
-            option.scopes.some(scope => {
+        const target = ulokOptions.find(option => {
+            if (targetUlok) {
+                return option.nomor_ulok === targetUlok;
+            }
+            return option.scopes.some(scope => {
                 const matchToko = targetTokoId
                     ? String(scope.toko?.id ?? scope.spks[0]?.id_toko ?? '') === targetTokoId
                     : true;
@@ -1934,8 +1939,8 @@ export default function InputPICPage() {
                     ? scope.spks.some(spk => String(spk.id) === targetSpkId)
                     : true;
                 return matchToko && matchSpk;
-            })
-        );
+            });
+        });
         if (!target) return;
 
         setAutoSelectedPicTokoId(targetKey);

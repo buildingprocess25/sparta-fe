@@ -300,11 +300,14 @@ const resolveProjectFromSource = (project?: string | null, nomorUlok?: string | 
   else if (upperProject.includes('PERPANJANGAN')) { proyek = 'Renovasi Perpanjangan'; isRenovasi = true; }
   else if (upperProject.includes('TUTUP')) { proyek = 'Renovasi Toko Tutup'; isRenovasi = true; }
   else if (upperProject.includes('PEREMAJAAN') || upperProject.includes('PERBAIKAN')) { proyek = 'Renovasi Peremajaan'; isRenovasi = true; }
-  else if (upperProject === 'RENOVASI') { proyek = 'Renovasi'; isRenovasi = true; }
+  else if (upperProject === 'RENOVASI') { proyek = ''; isRenovasi = true; }
   else if (upperProject === 'REGULER') { proyek = 'Reguler'; isRenovasi = false; }
-  else if (isRenovasi && (!proyek || !proyek.toLowerCase().startsWith('renovasi'))) { proyek = 'Renovasi'; }
+  else if (isRenovasi && (!proyek || !proyek.toLowerCase().startsWith('renovasi'))) { proyek = ''; }
 
-  return { proyek: proyek || (isRenovasi ? 'Renovasi' : 'Reguler'), isRenovasi };
+  let finalProyek = proyek || (isRenovasi ? '' : 'Reguler');
+  if (finalProyek === 'Renovasi') finalProyek = '';
+
+  return { proyek: finalProyek, isRenovasi };
 };
 
 const normalizeKategoriLokasi = (value?: string | null) => {
@@ -845,7 +848,7 @@ function RABPageContent() {
         const rabRef = detail.rab || {};
         const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
         const sourceParts = String(sourceUlok).split('-');
-        const sourceProject = resolveProjectFromSource(tokoRef.proyek, sourceUlok);
+        const sourceProject = resolveProjectFromSource(tokoRef.proyek || source.proyek || source['Proyek'], sourceUlok);
         const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
         const targetScope = getOppositeRabScope(sourceScope) || currentScope;
         const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
@@ -956,7 +959,9 @@ function RABPageContent() {
                   return acc;
               }, {})
               : {};
-          setRevisionRejectReason(String(rabRef.alasan_penolakan || data.alasan_penolakan || '').trim());
+          const alasan = String(rabRef.alasan_penolakan || data.alasan_penolakan || '').trim();
+          const catatan = String(rabRef.catatan_penolakan || data.catatan_penolakan || '').trim();
+          setRevisionRejectReason(catatan ? `${alasan}\n\nCatatan General: ${catatan}` : alasan);
           setRevisionItemNotes(revisionNotes);
           
           let fetchedTokoDetail: TokoDetailPartial | null = null;
@@ -1441,7 +1446,7 @@ function RABPageContent() {
         const params = new URLSearchParams();
         if (idToko) params.append('id_toko', String(idToko));
         if (submitRes.data?.id) params.append('id_rab', String(submitRes.data.id));
-        params.append('locked', 'true');
+        params.append('locked', currentRabId !== null ? 'false' : 'true');
         
         showAlert("Berhasil", "RAB berhasil disimpan. Lanjut buat Gantt Chart agar RAB masuk proses approval.", "success");
         // Reset state revisi agar tidak terbawa ke halaman lain
@@ -1685,7 +1690,7 @@ function RABPageContent() {
                   <Label>Proyek <span className="text-red-500">*</span></Label>
                   {formData.isRenovasi ? (
                     <Select 
-                      disabled={isProjectFieldLocked || hasProjectPlanningRequest}
+                      disabled={isReadOnly || hasProjectPlanningRequest || (crossScopeProjectLocked && !!formData.proyek && formData.proyek !== 'Renovasi')}
                       value={formData.proyek || undefined} 
                       onValueChange={(val) => setFormData(prev => ({...prev, proyek: val}))}
                     >
@@ -1748,7 +1753,7 @@ function RABPageContent() {
                       <Input value={formData.cabang} readOnly className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" tabIndex={-1} />
                     )}
                   </div>
-                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked || hasProjectPlanningRequest} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked || hasProjectPlanningRequest || !!currentRabId} onValueChange={(val) => handleSelectChange('lingkupPekerjaan', val)} value={formData.lingkupPekerjaan} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Lingkup Pekerjaan --" /></SelectTrigger><SelectContent><SelectItem value="Sipil">Sipil</SelectItem><SelectItem value="ME">ME</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Kategori Lokasi <span className="text-red-500">*</span></Label><Select disabled={isProjectFieldLocked} onValueChange={(val) => handleSelectChange('kategoriLokasi', val)} value={formData.kategoriLokasi} required><SelectTrigger className={projectInputClass}><SelectValue placeholder="-- Pilih Kategori Lokasi --" /></SelectTrigger><SelectContent><SelectItem value="Ruko">Ruko</SelectItem><SelectItem value="Non Ruko">Non Ruko</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Durasi Pekerjaan (Hari) <span className="text-red-500">*</span></Label><Input type="text" inputMode="numeric" pattern="[0-9]*" name="durasiPekerjaan" readOnly={isProjectFieldLocked} value={formData.durasiPekerjaan} onChange={handleInputChange} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="Masukkan jumlah hari" className={projectInputClass} required /></div>
                 </div>
