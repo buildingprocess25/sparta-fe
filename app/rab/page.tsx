@@ -959,7 +959,9 @@ function RABPageContent() {
                   return acc;
               }, {})
               : {};
-          setRevisionRejectReason(String(rabRef.alasan_penolakan || data.alasan_penolakan || '').trim());
+          const alasan = String(rabRef.alasan_penolakan || data.alasan_penolakan || '').trim();
+          const catatan = String(rabRef.catatan_penolakan || data.catatan_penolakan || '').trim();
+          setRevisionRejectReason(catatan ? `${alasan}\n\nCatatan General: ${catatan}` : alasan);
           setRevisionItemNotes(revisionNotes);
           
           let fetchedTokoDetail: TokoDetailPartial | null = null;
@@ -1444,7 +1446,7 @@ function RABPageContent() {
         const params = new URLSearchParams();
         if (idToko) params.append('id_toko', String(idToko));
         if (submitRes.data?.id) params.append('id_rab', String(submitRes.data.id));
-        params.append('locked', 'true');
+        params.append('locked', currentRabId !== null ? 'false' : 'true');
         
         showAlert("Berhasil", "RAB berhasil disimpan. Lanjut buat Gantt Chart agar RAB masuk proses approval.", "success");
         // Reset state revisi agar tidak terbawa ke halaman lain

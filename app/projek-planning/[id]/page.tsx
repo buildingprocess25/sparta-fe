@@ -755,7 +755,11 @@ export default function DetailProjekPlanning() {
       catatan: isFullApprove ? combinedApprovalNotes : undefined,
       alasan_penolakan: gambarReviewAction === "REJECT" ? gambarRejectReason : undefined,
       rab_rejected_item_ids: rejectedIds,
-      rab_rejected_item_notes: combinedRabNotes,
+      rab_rejected_item_notes: rabRejectedItemNotes.trim() ? rabRejectedItemNotes.trim() : undefined,
+      rab_rejected_items: rabRejectedRows.filter(row => row.itemId).map(row => ({
+        id: Number(row.itemId),
+        note: row.note.trim()
+      }))
     };
     if (type === "bm_regional") await processBmRegionalApproval(id, payload);
     else if (type === "pp2") await processPpApproval2(id, payload);
