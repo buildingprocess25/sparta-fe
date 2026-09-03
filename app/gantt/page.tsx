@@ -3561,6 +3561,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
     const [showInstruksiModal, setShowInstruksiModal] = useState(false);
     const [instruksiToast, setInstruksiToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [validationToast, setValidationToast] = useState<string | null>(null);
     const [nextHandoverDate, setNextHandoverDate] = useState('');
     const [blockedOpnameItemKeys, setBlockedOpnameItemKeys] = useState<Set<string>>(new Set());
     const [currentPengawasanGanttId, setCurrentPengawasanGanttId] = useState<number | null>(null);
@@ -5343,7 +5344,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                     className="font-semibold text-slate-600"
                                     onClick={() => {
                                         if (isDirty) {
-                                            showAlert({ message: "Lakukan simpan dulu baru lanjut", type: "error" });
+                                            setValidationToast("Ada perubahan yang belum disimpan. Simpan dulu baru lanjut.");
+                                            setTimeout(() => setValidationToast(null), 3500);
                                         } else {
                                             onNavigateScope?.(nextScopeLabel ? flowStep.current : 0);
                                         }
@@ -5371,6 +5373,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         <AlertCircle className="h-5 w-5 shrink-0" />
                     )}
                     <span>{instruksiToast.message}</span>
+                </div>
+            )}
+
+            {validationToast && (
+                <div
+                    role="alert"
+                    className="fixed bottom-6 right-6 z-[10000] flex items-center gap-3 rounded-lg px-5 py-4 text-sm font-semibold text-slate-700 bg-white border-l-4 border-orange-500 shadow-xl animate-in fade-in slide-in-from-bottom-5 duration-300"
+                >
+                    <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0" />
+                    <span>{validationToast}</span>
                 </div>
             )}
 
