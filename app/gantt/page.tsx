@@ -5331,20 +5331,26 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             <Button variant="outline" className="font-semibold" onClick={onClose}>
                                 {(memoConfig.length > 0 && activeItemsCount === 0 && !canCreateNextHandover) ? "Tutup" : "Batal"}
                             </Button>
-                            {flowStep && flowStep.total > 1 && (
-                                <Button
-                                    variant="outline"
-                                    className="font-semibold text-slate-600"
-                                    onClick={() => onNavigateScope?.(nextScopeLabel ? flowStep.current : 0)}
-                                    disabled={isSubmitting}
-                                >
-                                    {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
-                                </Button>
-                            )}
                             {!isReadOnly && (memoConfig.length === 0 || activeItemsCount > 0 || canCreateNextHandover || isDirty) && (
                                 <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 px-8 font-bold shadow-md">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                                     Simpan
+                                </Button>
+                            )}
+                            {flowStep && flowStep.total > 1 && (
+                                <Button
+                                    variant="outline"
+                                    className="font-semibold text-slate-600"
+                                    onClick={() => {
+                                        if (isDirty) {
+                                            showAlert({ message: "Lakukan simpan dulu baru lanjut", type: "error" });
+                                        } else {
+                                            onNavigateScope?.(nextScopeLabel ? flowStep.current : 0);
+                                        }
+                                    }}
+                                    disabled={isSubmitting}
+                                >
+                                    {nextScopeLabel ? `Lanjut ke ${String(nextScopeLabel).toUpperCase()}` : 'Kembali ke SIPIL'}
                                 </Button>
                             )}
                         </div>
