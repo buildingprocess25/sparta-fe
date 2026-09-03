@@ -1146,7 +1146,6 @@ function ApprovalPageContent() {
 
                 if (type === 'PROJECT_PLANNING') {
                     if (isSuperHumanUser) return true;
-                    if (!isHOUser) return false;
 
                     const isBmManager = userRoles.some(r =>
                         r.includes('BRANCH BUILDING & MAINTENANCE MANAGER') ||
