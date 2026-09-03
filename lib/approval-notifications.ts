@@ -302,8 +302,6 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
     const roles = user.roles;
     const raw = item.raw ?? {};
 
-    if (!canSeeAll && !isHOUser) return false;
-
     const isBmManager = roles.some(role =>
         role.includes("BRANCH BUILDING & MAINTENANCE MANAGER") ||
         role.includes("MAINTENANCE MANAGER") ||
