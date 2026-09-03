@@ -619,6 +619,8 @@ const getStatusLabel = (status: string) => {
     if (upper === 'DRAFT') return 'Draft';
     if (upper === 'WAITING_BM_APPROVAL') return 'Pending B&M Mgr';
     if (upper === 'WAITING_PP_APPROVAL_1') return 'Pending PP (1)';
+    if (upper === 'WAITING_BM_APPROVAL_2') return 'Pending B&M Mgr (2)';
+    if (upper === 'WAITING_BM_REGIONAL_APPROVAL') return 'Pending B&M Regional';
     if (upper === 'PP_DESIGN_3D_REQUIRED') return 'Design 3D';
     if (upper === 'WAITING_RAB_UPLOAD') return 'Upload RAB';
     if (upper === 'WAITING_SBCS_APPROVAL') return 'Pending SBCS';
@@ -2487,11 +2489,15 @@ export default function DaftarDokumenPage() {
             if (statusFilter) {
                 const upper = (item.status ?? '').toUpperCase();
                 if (statusFilter === 'PENDING') {
-                    if (!upper.includes('PENDING') && !upper.includes('MENUNGGU') && upper !== 'WAITING_FOR_BM_APPROVAL') return false;
+                    const isRejected = upper.includes('REJECTED') || upper.includes('TOLAK') || upper.includes('DITOLAK') || upper === 'CANCELLED' || upper === 'EXPIRED' || upper === 'FINAL_REJECTED';
+                    const isApproved = upper.includes('APPROVED') || upper.includes('DISETUJUI') || upper === 'COMPLETED' || upper === 'EXECUTED' || upper === 'SELESAI' || upper === 'ACKNOWLEDGED_BY_CONTRACTOR';
+                    if (isRejected || isApproved) return false;
                 } else if (statusFilter === 'APPROVED') {
-                    if (!upper.includes('APPROVED') && !upper.includes('DISETUJUI')) return false;
+                    const isApproved = upper.includes('APPROVED') || upper.includes('DISETUJUI') || upper === 'COMPLETED' || upper === 'EXECUTED' || upper === 'SELESAI' || upper === 'ACKNOWLEDGED_BY_CONTRACTOR';
+                    if (!isApproved) return false;
                 } else if (statusFilter === 'REJECTED') {
-                    if (!upper.includes('REJECTED') && !upper.includes('TOLAK') && !upper.includes('DITOLAK')) return false;
+                    const isRejected = upper.includes('REJECTED') || upper.includes('TOLAK') || upper.includes('DITOLAK') || upper === 'CANCELLED' || upper === 'EXPIRED' || upper === 'FINAL_REJECTED';
+                    if (!isRejected) return false;
                 }
             }
             return true;
@@ -3204,6 +3210,7 @@ export default function DaftarDokumenPage() {
                                                                 ? doc.nama_toko 
                                                                 : (selectedKategori === 'SPK' ? (doc.nama_kontraktor || doc.nama_toko) : doc.nama_toko)
                                                             }
+                                                            {doc.cabang && doc.cabang !== '-' && ` • Cabang: ${doc.cabang}`}
                                                         </p>
                                                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                                                             <span className="text-xs text-slate-400 flex items-center gap-1">
