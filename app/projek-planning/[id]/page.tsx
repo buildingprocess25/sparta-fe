@@ -259,7 +259,7 @@ function FileProxyRow({
     setLoading(mode);
     try {
       const directUrl = firstFileUrl(fileUrl);
-      if (directUrl && !shouldUseDriveProxy(directUrl)) {
+      if (directUrl) {
         window.open(directUrl, "_blank", "noopener,noreferrer");
       } else {
         await proxyProjekPlanningFile(projektId, field, mode);
