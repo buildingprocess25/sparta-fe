@@ -12,7 +12,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowDown01Icon, Cancel01Icon, Tick02Icon } from "@hugeicons/core-free-icons"
+import { ArrowDown01Icon, Cancel01Icon, Tick02Icon, Search01Icon } from "@hugeicons/core-free-icons"
 
 const Combobox = ComboboxPrimitive.Root
 
@@ -63,6 +63,9 @@ function ComboboxInput({
 }) {
   return (
     <InputGroup className={cn("w-auto", className)}>
+      <InputGroupAddon align="inline-start">
+        <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-4" />
+      </InputGroupAddon>
       <ComboboxPrimitive.Input
         render={<InputGroupInput disabled={disabled} />}
         {...props}

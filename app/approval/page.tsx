@@ -592,19 +592,83 @@ const STATUS_LABEL: Record<string, string> = {
 // =============================================
 // NORMALIZE HELPERS
 // =============================================
-const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] =>
-    items.map(r => ({
-        id: r.id,
-        tipe: 'RAB' as ApprovalType,
-        nomor_ulok:    r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
-        nama_toko:     r.nama_toko  ?? r.toko?.nama_toko  ?? '-',
-        cabang:        r.cabang     ?? r.toko?.cabang     ?? '-',
-        status:        r.status,
-        total_nilai:   parseCurrency(r.grand_total_final ?? r.grand_total),
-        email_pembuat: r.email_pembuat,
-        created_at:    r.created_at,
-        _raw: r,
-    }));
+const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] => {
+    const grouped = new Map<string, RABListItem[]>();
+    items.forEach(r => {
+        const ulok = r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-';
+        if (!grouped.has(ulok)) grouped.set(ulok, []);
+        grouped.get(ulok)!.push(r);
+    });
+
+    const normalized: NormalizedListItem[] = [];
+    grouped.forEach((groupItems, ulok) => {
+        if (groupItems.length > 1) {
+            const sipil = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'SIPIL');
+            const me = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'ME');
+
+            if (sipil && me && sipil.status === me.status) {
+                const totalGabungan = (sipil.grand_total_final ?? sipil.grand_total) + (me.grand_total_final ?? me.grand_total);
+                normalized.push({
+                    id: sipil.id,
+                    tipe: 'RAB' as ApprovalType,
+                    nomor_ulok: ulok,
+                    nama_toko: (sipil.nama_toko ?? sipil.toko?.nama_toko ?? '-') + " (Sipil & ME)",
+                    cabang: sipil.cabang ?? sipil.toko?.cabang ?? '-',
+                    status: sipil.status,
+                    total_nilai: parseCurrency(totalGabungan),
+                    email_pembuat: sipil.email_pembuat,
+                    created_at: sipil.created_at,
+                    _raw: sipil,
+                });
+                groupItems.filter(i => i !== sipil && i !== me).forEach(r => {
+                    normalized.push({
+                        id: r.id,
+                        tipe: 'RAB' as ApprovalType,
+                        nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
+                        nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
+                        cabang: r.cabang ?? r.toko?.cabang ?? '-',
+                        status: r.status,
+                        total_nilai: parseCurrency(r.grand_total_final ?? r.grand_total),
+                        email_pembuat: r.email_pembuat,
+                        created_at: r.created_at,
+                        _raw: r,
+                    });
+                });
+            } else {
+                groupItems.forEach(r => {
+                    normalized.push({
+                        id: r.id,
+                        tipe: 'RAB' as ApprovalType,
+                        nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
+                        nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
+                        cabang: r.cabang ?? r.toko?.cabang ?? '-',
+                        status: r.status,
+                        total_nilai: parseCurrency(r.grand_total_final ?? r.grand_total),
+                        email_pembuat: r.email_pembuat,
+                        created_at: r.created_at,
+                        _raw: r,
+                    });
+                });
+            }
+        } else {
+            const r = groupItems[0];
+            normalized.push({
+                id: r.id,
+                tipe: 'RAB' as ApprovalType,
+                nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
+                nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
+                cabang: r.cabang ?? r.toko?.cabang ?? '-',
+                status: r.status,
+                total_nilai: parseCurrency(r.grand_total_final ?? r.grand_total),
+                email_pembuat: r.email_pembuat,
+                created_at: r.created_at,
+                _raw: r,
+            });
+        }
+    });
+
+    return normalized.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+};
 
 const normalizeSPKList = (items: SPKListItem[]): NormalizedListItem[] =>
     items.map(s => {
