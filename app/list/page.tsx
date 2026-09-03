@@ -275,6 +275,8 @@ interface NormalizedDetail {
     pp1_approval?: { pemberi: string | null; waktu: string | null };
     pp2_approval?: { pemberi: string | null; waktu: string | null };
     pp_manager_approval?: { pemberi: string | null; waktu: string | null };
+    bm2_approval?: { pemberi: string | null; waktu: string | null };
+    bm_regional_approval?: { pemberi: string | null; waktu: string | null };
     // Dokumentasi Bangunan specific
     kode_toko?: string;
     tanggal_go?: string;
@@ -2032,6 +2034,8 @@ export default function DaftarDokumenPage() {
                     pp1_approval:      { pemberi: d.pp1_approver_email, waktu: d.pp1_waktu_persetujuan },
                     pp2_approval:      { pemberi: d.pp2_approver_email, waktu: d.pp2_waktu_persetujuan },
                     pp_manager_approval: { pemberi: d.pp_manager_approver_email, waktu: d.pp_manager_waktu_persetujuan },
+                    bm2_approval: { pemberi: d.bm2_approver_email, waktu: d.bm2_waktu_persetujuan },
+                    bm_regional_approval: { pemberi: d.bm_regional_approver_email, waktu: d.bm_regional_waktu_persetujuan },
                 };
             } else if (doc.tipe === 'SURAT_PERINGATAN' && doc.rawDendaAction) {
                 const action = doc.rawDendaAction;
@@ -3839,20 +3843,33 @@ export default function DaftarDokumenPage() {
                                 )}
 
                                 {/* Approval Trail (PROJECT_PLANNING) */}
-                                {selectedDetail.tipe === 'PROJECT_PLANNING' && (
-                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                                        <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                            <div className="w-1.5 h-5 bg-cyan-500 rounded-full" />
-                                            Riwayat Persetujuan
-                                        </h4>
-                                        <div className="space-y-3">
-                                            <ApprovalRow label="B&M Manager" pemberi={selectedDetail.bm_approval_pp?.pemberi} waktu={selectedDetail.bm_approval_pp?.waktu} />
-                                            <ApprovalRow label="PP Specialist" pemberi={selectedDetail.pp1_approval?.pemberi} waktu={selectedDetail.pp1_approval?.waktu} />
-                                            <ApprovalRow label="PP Review" pemberi={selectedDetail.pp2_approval?.pemberi} waktu={selectedDetail.pp2_approval?.waktu} />
-                                            <ApprovalRow label="PP Manager" pemberi={selectedDetail.pp_manager_approval?.pemberi} waktu={selectedDetail.pp_manager_approval?.waktu} />
+                                {selectedDetail.tipe === 'PROJECT_PLANNING' && (() => {
+                                    const st = selectedDetail.status;
+                                    const isCompleted = st === 'COMPLETED';
+                                    const passedBm1 = isCompleted || ['WAITING_PP_APPROVAL_1', 'WAITING_RAB_UPLOAD', 'WAITING_BM_APPROVAL_2', 'WAITING_BM_REGIONAL_APPROVAL', 'WAITING_PP_APPROVAL_2', 'WAITING_PP_MANAGER_APPROVAL'].includes(st);
+                                    const passedPp1 = isCompleted || ['WAITING_RAB_UPLOAD', 'WAITING_BM_APPROVAL_2', 'WAITING_BM_REGIONAL_APPROVAL', 'WAITING_PP_APPROVAL_2', 'WAITING_PP_MANAGER_APPROVAL'].includes(st);
+                                    const passedBm2 = isCompleted || ['WAITING_BM_REGIONAL_APPROVAL', 'WAITING_PP_APPROVAL_2', 'WAITING_PP_MANAGER_APPROVAL'].includes(st);
+                                    const passedBmReg = isCompleted || ['WAITING_PP_APPROVAL_2', 'WAITING_PP_MANAGER_APPROVAL'].includes(st);
+                                    const passedPp2 = isCompleted || ['WAITING_PP_MANAGER_APPROVAL'].includes(st);
+                                    const passedPpMgr = isCompleted;
+
+                                    return (
+                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                                            <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                                <div className="w-1.5 h-5 bg-cyan-500 rounded-full" />
+                                                Riwayat Persetujuan
+                                            </h4>
+                                            <div className="space-y-3">
+                                                <ApprovalRow label="B&M Manager" pemberi={passedBm1 ? selectedDetail.bm_approval_pp?.pemberi : null} waktu={passedBm1 ? selectedDetail.bm_approval_pp?.waktu : null} />
+                                                <ApprovalRow label="PP Specialist" pemberi={passedPp1 ? selectedDetail.pp1_approval?.pemberi : null} waktu={passedPp1 ? selectedDetail.pp1_approval?.waktu : null} />
+                                                <ApprovalRow label="B&M Manager Tahap 2" pemberi={passedBm2 ? selectedDetail.bm2_approval?.pemberi : null} waktu={passedBm2 ? selectedDetail.bm2_approval?.waktu : null} />
+                                                <ApprovalRow label="B&M Regional" pemberi={passedBmReg ? selectedDetail.bm_regional_approval?.pemberi : null} waktu={passedBmReg ? selectedDetail.bm_regional_approval?.waktu : null} />
+                                                <ApprovalRow label="PP Review" pemberi={passedPp2 ? selectedDetail.pp2_approval?.pemberi : null} waktu={passedPp2 ? selectedDetail.pp2_approval?.waktu : null} />
+                                                <ApprovalRow label="PP Manager" pemberi={passedPpMgr ? selectedDetail.pp_manager_approval?.pemberi : null} waktu={passedPpMgr ? selectedDetail.pp_manager_approval?.waktu : null} />
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
 
                                 {/* Dokumen Lampiran (PROJECT_PLANNING) */}
                                 {selectedDetail.tipe === 'PROJECT_PLANNING' && (
