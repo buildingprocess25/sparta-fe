@@ -5632,13 +5632,15 @@ export const proxyProjekPlanningFile = async (
     id: number,
     field: string,
     mode: "view" | "download" = "view",
-    itemIndex?: number
+    itemIndex?: number,
+    newWindow?: Window | null
 ): Promise<void> => {
     let url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/proxy-file?field=${field}&mode=${mode}`;
     if (itemIndex !== undefined) url += `&item_index=${itemIndex}`;
 
     const res = await apiFetch(url);
     if (!res.ok) {
+        if (newWindow) newWindow.close();
         const text = await res.text();
         throw new Error(`Gagal mengambil file (${res.status}): ${text.substring(0, 100)}`);
     }
@@ -5653,8 +5655,13 @@ export const proxyProjekPlanningFile = async (
     const blobUrl = window.URL.createObjectURL(blob);
 
     if (mode === "view" && (contentType.startsWith("image/") || contentType === "application/pdf")) {
-        window.open(blobUrl, "_blank");
+        if (newWindow) {
+            newWindow.location.href = blobUrl;
+        } else {
+            window.open(blobUrl, "_blank");
+        }
     } else {
+        if (newWindow) newWindow.close();
         const a = document.createElement("a");
         a.style.display = "none";
         a.href = blobUrl;

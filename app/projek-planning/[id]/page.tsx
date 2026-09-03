@@ -257,12 +257,25 @@ function FileProxyRow({
 
   const handle = async (mode: "view" | "download") => {
     setLoading(mode);
+    let newWindow: Window | null = null;
+    if (mode === "view") {
+        newWindow = window.open("about:blank", "_blank");
+        if (newWindow) {
+             newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
+        }
+    }
+
     try {
       const directUrl = firstFileUrl(fileUrl);
-      if (directUrl) {
-        window.open(directUrl, "_blank", "noopener,noreferrer");
+      if (directUrl && !shouldUseDriveProxy(directUrl)) {
+        if (mode === "view" && newWindow) {
+            newWindow.location.href = directUrl;
+        } else {
+            if (newWindow) newWindow.close();
+            window.open(directUrl, "_blank", "noopener,noreferrer");
+        }
       } else {
-        await proxyProjekPlanningFile(projektId, field, mode);
+        await proxyProjekPlanningFile(projektId, field, mode, undefined, newWindow);
       }
       setViewed(true);
       onViewed(field);
@@ -270,7 +283,10 @@ function FileProxyRow({
       const storageKey = `pp_viewed_${userEmail}_${projektId}_${field}`;
       // Lihat atau unduh sama-sama dihitung sudah membuka dokumen untuk approval.
       localStorage.setItem(storageKey, JSON.stringify({ url: fileUrl || 'no-url' }));
-    } catch (e: any) { alert(`Gagal: ${e.message}`); }
+    } catch (e: any) { 
+        if (newWindow) newWindow.close();
+        alert(`Gagal: ${e.message}`); 
+    }
     setLoading(null);
   };
 
