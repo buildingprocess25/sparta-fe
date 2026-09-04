@@ -5012,6 +5012,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                                                         const renderOpnameForm = () => {
                                                             if (currentStatus !== 'Selesai' || isWorkItemBlockedByOpname(item, key)) return null;
+                                                            // Sembunyikan form opname di memo biasa jika item sudah berstatus Selesai (bukan sedang diedit)
+                                                            if (!isTargetStMemo && !memoInputs.hasOwnProperty(key)) return null;
                                                             const rItem = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                             if (!rItem) return null;
 
