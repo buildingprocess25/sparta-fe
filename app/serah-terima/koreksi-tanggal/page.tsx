@@ -105,6 +105,12 @@ export default function KoreksiTanggalSerahTerimaPage() {
   const router = useRouter();
   const { user, isLoading } = useSession();
   const { showAlert } = useGlobalAlert();
+  
+  const isStoreBranchControlling = useMemo(() => {
+    return user?.roles?.some(role => role.toUpperCase() === "STORE & BRANCH CONTROLLING SPECIALIST") ?? false;
+  }, [user]);
+  
+  const hasAccess = Boolean(user?.isSuperHuman || isStoreBranchControlling);
   const [allItems, setAllItems] = useState<BerkasSerahTerimaItem[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -165,8 +171,7 @@ export default function KoreksiTanggalSerahTerimaPage() {
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    const isStoreBranchControlling = user?.roles?.some(role => role.toUpperCase() === "STORE & BRANCH CONTROLLING SPECIALIST");
-    if (!user.isSuperHuman && !isStoreBranchControlling) {
+    if (!hasAccess) {
       showAlert({
         title: "Akses Ditolak",
         message: "Halaman ini hanya tersedia untuk Super Human dan Store & Branch Controlling Specialist.",
@@ -176,7 +181,7 @@ export default function KoreksiTanggalSerahTerimaPage() {
       return;
     }
     loadItems();
-  }, [isLoading, loadItems, router, showAlert, user]);
+  }, [isLoading, loadItems, router, showAlert, user, hasAccess]);
 
   const loadHistory = useCallback(async (group: SerahTerimaGroup | null) => {
     if (!group || group.nomorUlok === "-") {
@@ -202,9 +207,9 @@ export default function KoreksiTanggalSerahTerimaPage() {
   }, []);
 
   useEffect(() => {
-    if (!user?.isSuperHuman) return;
+    if (!hasAccess) return;
     loadHistory(selectedGroup);
-  }, [loadHistory, selectedGroup, user?.isSuperHuman]);
+  }, [loadHistory, selectedGroup, hasAccess]);
 
   const submitCorrection = async () => {
     if (!selectedGroup) return;
@@ -269,7 +274,7 @@ export default function KoreksiTanggalSerahTerimaPage() {
     });
   };
 
-  const canSubmit = Boolean(user?.isSuperHuman && selectedGroup && tanggalBaru && !submitting && !loadingData);
+  const canSubmit = Boolean(hasAccess && selectedGroup && tanggalBaru && !submitting && !loadingData);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950">
