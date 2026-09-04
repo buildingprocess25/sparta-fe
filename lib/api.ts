@@ -3063,8 +3063,14 @@ export type SPKApprovalLog = {
 };
 
 export type SPKDetailResponse = {
-    pengajuan: SPKListItem;
+    pengajuan: SPKListItem & {
+        effective_waktu_selesai?: string | null;
+        st_target_date?: string | null;
+        st_offset_days?: number;
+        st_offset_label?: string | null;
+    };
     approvalLogs: SPKApprovalLog[];
+    pertambahan_spk?: PertambahanSPKListItem[];
 };
 
 export type SPKApprovalPayload = {
