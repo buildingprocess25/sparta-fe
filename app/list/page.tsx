@@ -216,6 +216,7 @@ interface NormalizedDetail {
         alasan_penolakan: string | null;
         waktu_tindakan: string;
     }>;
+    effective_waktu_selesai?: string | null;
     pertambahan_spk?: PertambahanSPKListItem[];
     // Pertambahan SPK specific
     pertambahan_hari?: string;
@@ -1789,6 +1790,7 @@ export default function DaftarDokumenPage() {
                     durasi:            d.pengajuan.durasi,
                     waktu_mulai:       d.pengajuan.waktu_mulai,
                     waktu_selesai:     d.pengajuan.waktu_selesai,
+                    effective_waktu_selesai: d.pengajuan.effective_waktu_selesai,
                     ...stTarget,
                     terbilang:         d.pengajuan.terbilang,
                     par:               d.pengajuan.par,
@@ -3505,7 +3507,11 @@ export default function DaftarDokumenPage() {
                                                         <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Mulai" value={formatDateFull(selectedDetail.waktu_mulai)} />
                                                     )}
                                                     {selectedDetail.waktu_selesai && (
-                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Selesai" value={formatDateFull(selectedDetail.waktu_selesai)} />
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Selesai" value={
+                                                            selectedDetail.effective_waktu_selesai && selectedDetail.effective_waktu_selesai.substring(0, 10) !== selectedDetail.waktu_selesai.substring(0, 10)
+                                                                ? `${formatDateFull(selectedDetail.waktu_selesai)} (tambah spk s.d. ${formatDateFull(selectedDetail.effective_waktu_selesai)})`
+                                                                : formatDateFull(selectedDetail.waktu_selesai)
+                                                        } />
                                                     )}
                                                     {selectedDetail.st_target_date && (
                                                         <InfoRow
