@@ -2810,9 +2810,15 @@ function DashboardPageContent() {
 
     }, [filteredProjects, rabItemsMap, opnameItemsMap]);
 
-
-
-    const handleLogout = () => { sessionStorage.clear(); router.push('/'); };
+    const handleLogout = () => {
+        sessionStorage.clear();
+        const ssoUrl = process.env.NEXT_PUBLIC_SSO_URL;
+        if (ssoUrl) {
+            window.location.href = ssoUrl;
+        } else {
+            router.push('/');
+        }
+    };
 
     const canAccessPerformanceDashboard = Boolean(user?.isSuperHuman) && !isPerformanceDashboardBlockedRole(userInfo.roles);
     const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);

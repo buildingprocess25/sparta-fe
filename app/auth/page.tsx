@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,14 @@ import { storeApiAuthSession } from '@/lib/api';
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Memuat...</div>}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +69,59 @@ export default function LoginPage() {
       sessionStorage.removeItem("sessionExpiredMessage");
     }
   }, []);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const ssoPayload = searchParams.get("sso_payload");
+    const ssoError = searchParams.get("error");
+    
+    if (ssoError) {
+      setMessage({ text: "Gagal masuk via SSO. Silakan coba lagi.", type: "error" });
+    } else if (ssoPayload) {
+      handleSsoResolve(ssoPayload);
+    }
+  }, [searchParams]);
+
+  const handleSsoResolve = async (payload: string) => {
+    setIsLoading(true);
+    setMessage({ text: "Memproses SSO...", type: "info" });
+    try {
+      const cleanBaseUrl = API_URL.replace(/\/$/, "");
+      const resolveEndpoint = `${cleanBaseUrl}/api/auth/sso/resolve`;
+
+      const response = await fetch(resolveEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (result?.data?.requires_account_selection) {
+          // fallbackEmail dan fallbackCabang tidak diperlukan karena user akan memilih dari array yang dikembalikan
+          setAvailableRoles(result.data.available_roles || result.data.accounts || []);
+          setPendingLoginData({ email: "", cabang: "", is_sso: true, sso_payload: payload });
+          setIsLoading(false);
+          setRoleSelectOpen(true);
+          return;
+        }
+
+        const fallbackEmail = result?.data?.email_sat || "";
+        const fallbackCabang = result?.data?.cabang || "";
+        await processLoginSuccess(result, fallbackEmail, fallbackCabang);
+      } else {
+        setMessage({ text: result.message || "Gagal masuk via SSO", type: "error" });
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error("SSO resolve error", error);
+      setMessage({ text: "Gagal terhubung ke server", type: "error" });
+      setIsLoading(false);
+    }
+  };
+
 
   // Fungsi untuk logging ke Google Apps Script
   const logLoginAttempt = async (username: string, cabang: string, status: string) => {
@@ -114,7 +175,7 @@ export default function LoginPage() {
 
   const processLoginSuccess = async (result: any, fallbackEmail: string, fallbackCabang: string) => {
     if (result?.data?.requires_account_selection) {
-      setAvailableRoles(result.data.accounts || []);
+      setAvailableRoles(result.data.available_roles || result.data.accounts || []);
       setPendingLoginData({ email: fallbackEmail, cabang: fallbackCabang });
       setIsLoading(false);
       setRoleSelectOpen(true);
@@ -264,7 +325,10 @@ export default function LoginPage() {
   };
 
   const handleSelectAccount = async (role: any) => {
-    if (!pendingLoginData?.email || !pendingLoginData?.cabang || !role?.id) {
+    const loginEmail = pendingLoginData?.email || role?.email_sat;
+    const loginCabang = pendingLoginData?.cabang || role?.cabang;
+
+    if (!loginEmail || !loginCabang || !role?.id) {
       setMessage({ text: "Data akun tidak lengkap. Silakan login ulang.", type: "error" });
       setRoleSelectOpen(false);
       setPendingLoginData(null);
@@ -274,24 +338,27 @@ export default function LoginPage() {
     setIsLoading(true);
     setRoleSelectOpen(false);
     setMessage({ text: "Logging in...", type: "info" });
-
     try {
-      const cleanBaseUrl = API_URL.replace(/\/$/, "");
-      const loginEndpoint = `${cleanBaseUrl}/api/auth/login`;
+    const cleanBaseUrl = API_URL.replace(/\/$/, "");
+    
+    // Cek apakah dia dari SSO atau login form biasa
+    const isSso = pendingLoginData?.is_sso;
+    const endpoint = isSso 
+        ? `${cleanBaseUrl}/api/auth/sso/resolve` 
+        : `${cleanBaseUrl}/api/auth/login`;
+        
+    const bodyData = isSso 
+        ? { payload: pendingLoginData?.sso_payload, cabang: loginCabang, user_cabang_id: role.id }
+        : { email_sat: loginEmail, cabang: loginCabang, user_cabang_id: role.id };
 
-      const response = await fetch(loginEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email_sat: pendingLoginData.email,
-          cabang: pendingLoginData.cabang,
-          user_cabang_id: role.id
-        })
-      });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+    const result = await response.json();
 
-      const result = await response.json();
-
-      if (response.ok) {
+    if (response.ok) {
         setPendingLoginData(null);
 
         if (result?.data?.requires_otp) {
@@ -349,55 +416,16 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-5 mt-4">
-            {/* Input Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-600 font-medium">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="Masukkan email Anda" 
-                required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11"
-              />
-            </div>
-
-            {/* Input Password */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-600 font-medium">Password (Cabang)</Label>
-              <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="Masukkan kata sandi Anda" 
-                  required 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value.toUpperCase())}
-                  className="h-11 pr-10 tracking-widest"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Tombol Submit */}
+          <div className="space-y-5 mt-4">
             <Button 
-              type="submit" 
+              type="button" 
               disabled={isLoading}
-              className="w-full h-11 text-base font-semibold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98]"
+              onClick={() => {
+                 window.location.href = process.env.NEXT_PUBLIC_SSO_PORTAL_URL || "http://localhost:5173";
+              }}
+              className="w-full h-12 text-base font-bold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98] shadow-md"
             >
-              {isLoading ? "Memproses..." : "Login"}
+              {isLoading ? "Memproses..." : "Masuk via SPARTA SSO"}
             </Button>
 
             {/* Pesan Alert */}
@@ -410,7 +438,7 @@ export default function LoginPage() {
                 {message.text}
               </p>
             )}
-          </form>
+          </div>
         </CardContent>
       </Card>
 

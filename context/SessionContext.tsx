@@ -139,7 +139,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setIsMaintenanceBlocked(false);
     setMaintenanceStatus(null);
     setAccessSchedule(null);
-    router.push('/');
+    const ssoUrl = process.env.NEXT_PUBLIC_SSO_URL;
+    if (ssoUrl) {
+      window.location.href = ssoUrl;
+    } else {
+      router.push('/');
+    }
   }, [router]);
 
   useEffect(() => {
