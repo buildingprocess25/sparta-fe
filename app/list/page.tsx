@@ -3833,8 +3833,14 @@ export default function DaftarDokumenPage() {
                                         </h4>
                                         <div className="space-y-4">
                                             {selectedDetail.pertambahan_spk.map((tspk: any, idx: number) => (
-                                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+                                                    <div className="flex items-center gap-2 mb-3 ml-2">
+                                                        <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-blue-700 border-blue-200 uppercase tracking-wider px-2 py-0.5">
+                                                            SPK {tspk.spk?.lingkup_pekerjaan || 'TERKAIT'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-2">
                                                         <InfoRow icon={<Clock className="w-4 h-4" />} label="Pertambahan Hari" value={`+${tspk.pertambahan_hari || '-'} Hari`} />
                                                         <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir Setelah Perpanjangan" value={tspk.tanggal_spk_akhir_setelah_perpanjangan ? formatDateFull(tspk.tanggal_spk_akhir_setelah_perpanjangan) : '-'} />
                                                         <InfoRow icon={<BadgeCheck className="w-4 h-4" />} label="Status Persetujuan" value={tspk.status_persetujuan || 'Menunggu Persetujuan'} />
