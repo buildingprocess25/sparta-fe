@@ -3870,10 +3870,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     const mergedInitial = mergeMemoInitialWithDraft(initial, draft);
                     setMemoInputs(mergedInitial);
                     // Jika sudah ada data hari ini atau item Progress/Terlambat dari hari sebelumnya,
-                    // set isDirty agar form bisa disubmit setelah user mengupdate statusnya.
-                    if (Object.keys(mergedInitial).length > 0) {
-                        setIsDirty(true);
-                    }
+                    // setIsDirty is no longer forced here to allow continuing without saving when no changes were made.
                     setLatestStatusMapState(map);
                     setLatestIdMapState(idMap);
                 })
