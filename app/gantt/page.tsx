@@ -3592,6 +3592,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         onDraftChange?.(memoInputs);
     }, [hasLoadedInitial, memoInputs]);
 
+    const isTargetStMemo = useMemo(() => {
+        if (!activeHeaderClick) return false;
+        const clickedDate = parseDateAny(activeHeaderClick.dateString);
+        const fallbackStart = getEffectiveWorkStart();
+        const fallbackDate = new Date(fallbackStart.split('T')[0] + 'T00:00:00');
+        fallbackDate.setDate(fallbackDate.getDate() + (activeHeaderClick?.dayIndex || 0));
+        const dDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackDate;
+        const activePengawasanDateKey = formatDateForPengawasan(dDate);
+        return Boolean(targetStDate) && formatPengawasanDateKey(activePengawasanDateKey) === formatPengawasanDateKey(targetStDate);
+    }, [activeHeaderClick, getEffectiveWorkStart, targetStDate]);
+
     useEffect(() => {
         if (!selectedGanttId || (!spkInfo && !projectData) || !activeHeaderClick) {
             setIsLoadingHistory(false);
@@ -3608,7 +3619,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         const formattedDate = formatDateForInput(dDate);
         const activePengawasanDateKey = formatDateForPengawasan(dDate);
         const currentDateNumeric = parseInt(formattedDate.replace(/-/g, ''), 10);
-        const isTargetStMemo = Boolean(targetStDate) && formatPengawasanDateKey(activePengawasanDateKey) === formatPengawasanDateKey(targetStDate);
+
 
         const parseDateNumeric = (value: any): number | null => {
             if (!value) return null;
