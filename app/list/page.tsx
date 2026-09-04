@@ -3814,7 +3814,6 @@ export default function DaftarDokumenPage() {
                                                 <p className="text-sm text-red-600 mt-1">{selectedDetail.alasan_penolakan}</p>
                                             </div>
                                         </div>
-                                        </div>
                                     </div>
                                 )}
 
