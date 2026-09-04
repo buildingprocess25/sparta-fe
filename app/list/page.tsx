@@ -216,6 +216,7 @@ interface NormalizedDetail {
         alasan_penolakan: string | null;
         waktu_tindakan: string;
     }>;
+    pertambahan_spk?: PertambahanSPKListItem[];
     // Pertambahan SPK specific
     pertambahan_hari?: string;
     alasan_perpanjangan?: string;
