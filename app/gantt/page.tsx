@@ -5120,7 +5120,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                 <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
                                                                                 <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
                                                                             </div>
-                                                                            {!isReadOnly && !(memoInputs[key] as any)?.dokumentasiUrl && (
+                                                                            {!isReadOnly && memoInputs.hasOwnProperty(key) && !(memoInputs[key] as any)?.dokumentasiUrl && (
                                                                                 <div className="flex flex-col gap-2 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in">
                                                                                     <div className="text-xs font-bold text-red-600 flex items-center gap-1.5">
                                                                                         <AlertCircle className="w-4 h-4" />
