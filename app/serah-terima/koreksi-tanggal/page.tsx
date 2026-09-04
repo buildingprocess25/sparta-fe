@@ -85,7 +85,7 @@ const groupItems = (items: BerkasSerahTerimaItem[]): SerahTerimaGroup[] => {
     };
 
     existing.items.push(item);
-    existing.totalDenda += Number(item.nilai_denda ?? 0);
+    existing.totalDenda = Math.max(existing.totalDenda, Number(item.nilai_denda ?? 0));
     if (!existing.currentDate || new Date(item.created_at).getTime() < new Date(existing.currentDate).getTime()) {
       existing.currentDate = item.created_at;
     }
