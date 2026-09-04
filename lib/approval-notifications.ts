@@ -333,6 +333,10 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
 
     if (!statusMatchesRole) return false;
     if (canSeeAll) return true;
+    
+    // Project Planning Specialist and Manager have access across all branches
+    if (isPpSpecialist || isPpManager) return true;
+
     if (isHOUser || user.isRegionalManager) return canAccessApprovalBranch(item.cabang, user);
     return isSameBranchScope(item.cabang, user);
 };
