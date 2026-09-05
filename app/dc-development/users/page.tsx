@@ -361,7 +361,7 @@ export default function DcUserManagementPage() {
                 </select>
               </Field>
               <Field label="Email SAT *">
-                <input type="email" value={form.email_sat} onChange={(event) => setForm({ ...form, email_sat: event.target.value })} placeholder="contoh@alfamart.co.id" className="dc-input" />
+                <input type="email" value={form.email_sat} onChange={(event) => setForm({ ...form, email_sat: event.target.value })} disabled={!!form.id} placeholder="contoh@alfamart.co.id" className="dc-input disabled:opacity-60 disabled:cursor-not-allowed" />
               </Field>
               <Field label="Nama Lengkap">
                 <input value={form.nama_lengkap} onChange={(event) => setForm({ ...form, nama_lengkap: event.target.value })} placeholder="Masukkan nama lengkap" className="dc-input" />

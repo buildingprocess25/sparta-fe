@@ -420,7 +420,7 @@ export default function UsersPage() {
                                     type="email"
                                     value={formData.email_sat}
                                     onChange={e => setFormData({ ...formData, email_sat: e.target.value })}
-
+                                    disabled={!!isEditing}
                                     placeholder="contoh@alfamart.co.id"
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                 />
