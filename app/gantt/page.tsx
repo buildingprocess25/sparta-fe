@@ -93,20 +93,7 @@ const isSameWorkText = (left: any, right: any) =>
 const isCategoryLevelPengawasan = (item: any) =>
     isSameWorkText(item?.kategori_pekerjaan, item?.jenis_pekerjaan);
 
-const validateSequentialDependencies = (tasks: any[]) => {
-    const namedTasks = tasks.filter((task) => String(task.name || '').trim());
-    if (namedTasks.length <= 1) return null;
-
-    const missingTasks = namedTasks
-        .slice(0, -1)
-        .filter((task) => !task.dependencies || task.dependencies.length === 0);
-
-    if (missingTasks.length === 0) return null;
-
-    return `Keterikatan wajib diisi untuk semua tahapan kecuali tahapan terakhir. Belum terisi: ${missingTasks
-        .map((task) => task.name)
-        .join(', ')}.`;
-};
+const validateSequentialDependencies = (_tasks: any[]) => null;
 
 const mapApprovedInstruksiToTokoOptions = (items: any[] = []) => {
     const map = new Map<string, any>();
@@ -1909,14 +1896,23 @@ function GanttBoard() {
                 const savedGanttIds: number[] = [];
                 for (const scope of scopedDraftGroups) {
                     const scopedTasks = tasks.filter(t => String(t.scope || '').trim().toUpperCase() === scope);
+                    const scopedScheduledTasks = scopedTasks.filter(t =>
+                        (t.ranges || []).some((r: any) => r.start && r.end)
+                    );
+                    const dependencyError = validateSequentialDependencies(scopedScheduledTasks);
+                    if (dependencyError) {
+                        throw new Error(`[${scope}] ${dependencyError}`);
+                    }
+
                     const scopedKategori: string[] = [];
                     const scopedDayItems: any[] = [];
                     const scopedDependencies: any[] = [];
+                    const scheduledTaskIds = new Set(scopedScheduledTasks.map(t => t.id));
 
-                    scopedTasks.forEach(t => {
+                    scopedScheduledTasks.forEach(t => {
                         const kategoriName = String(t.name || '').toUpperCase().trim();
                         if (!kategoriName) return;
-                        scopedKategori.push(kategoriName);
+                        if (!scopedKategori.includes(kategoriName)) scopedKategori.push(kategoriName);
 
                         (t.ranges || []).forEach((r: any) => {
                             if (!r.start || !r.end) return;
@@ -1930,7 +1926,8 @@ function GanttBoard() {
                         });
 
                         (t.dependencies || []).forEach((childId: number) => {
-                            const child = scopedTasks.find(ct => ct.id === childId);
+                            if (!scheduledTaskIds.has(childId)) return;
+                            const child = scopedScheduledTasks.find(ct => ct.id === childId);
                             if (!child?.name) return;
                             scopedDependencies.push({
                                 kategori_pekerjaan: String(child.name).toUpperCase().trim(),
@@ -1954,7 +1951,6 @@ function GanttBoard() {
                         email_pembuat: email,
                         kategori_pekerjaan: scopedKategori,
                         day_items: scopedDayItems,
-                        pengawasan: [],
                         dependencies: scopedDependencies,
                     };
 
