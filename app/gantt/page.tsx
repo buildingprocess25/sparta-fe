@@ -617,6 +617,8 @@ function GanttBoard() {
         setTasks(cloneTasks(next));
     }, [cloneTasks, tasks]);
 
+
+
     const [rawDayGanttData, setRawDayGanttData] = useState<any[]>([]);
 
     const [spkInfo, setSpkInfo] = useState<{ startDate: string; duration: number } | null>(null);
@@ -661,6 +663,27 @@ function GanttBoard() {
     // Hanya BRANCH BUILDING SUPPORT (dan SuperHuman) yang dapat menginput pengawasan.
     // Manager dan Coordinator hanya bisa melihat, tidak bisa input.
     const isPengawasanReadOnly = !canInputPengawasan(user?.roles, user?.isSuperHuman ?? false);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (!event.ctrlKey || event.altKey || event.metaKey || isReadOnly || isProjectLocked) return;
+            const target = event.target as HTMLElement | null;
+            const tagName = target?.tagName?.toLowerCase();
+            if (target?.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return;
+
+            const key = event.key.toLowerCase();
+            if (key === 'z') {
+                event.preventDefault();
+                if (event.shiftKey) redoGanttChange();
+                else undoGanttChange();
+            } else if (key === 'y') {
+                event.preventDefault();
+                redoGanttChange();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isProjectLocked, isReadOnly, redoGanttChange, undoGanttChange]);
     const activeNotesGanttId = selectedGanttId
         ?? supervisionWorkspace?.scopes.find(scope => scope.gantt_id)?.gantt_id
         ?? null;
@@ -1673,6 +1696,7 @@ function GanttBoard() {
         }
         const finalValue = sanitizedValue === '' || isNaN(parsedVal) ? '' : parsedVal.toString();
 
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 const newRanges = [...t.ranges];
@@ -1684,6 +1708,7 @@ function GanttBoard() {
     };
 
     const handleDependencyChange = (taskId: number, parentIdStr: string) => {
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 return { ...t, dependencies: parentIdStr ? [parseInt(parentIdStr)] : [] };
@@ -1693,6 +1718,7 @@ function GanttBoard() {
     };
 
     const addRange = (taskId: number) => {
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 return { ...t, ranges: [...t.ranges, { start: '', end: '', keterlambatan: 0 }] };
@@ -1712,6 +1738,7 @@ function GanttBoard() {
             if (!isConfirmed) return;
         }
 
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(t => {
             if (t.id === taskId) {
                 const newRanges = t.ranges.filter((_: any, i: number) => i !== rangeIdx);
@@ -1754,6 +1781,7 @@ function GanttBoard() {
         const track = event.currentTarget.closest('[data-gantt-track="true"]') as HTMLElement | null;
         if (!track) return;
         activeGanttTrackRef.current = track;
+        rememberTasksSnapshot();
         const pointerDay = dayFromPointer(event.clientX, track);
         const existingRange = task.ranges?.[rangeIdx] || { start: '', end: '', keterlambatan: 0 };
         const start = parseInt(String(existingRange.start || pointerDay)) || pointerDay;
@@ -1777,7 +1805,7 @@ function GanttBoard() {
             originalStart: mode === 'create' ? pointerDay : start,
             originalEnd: mode === 'create' ? pointerDay : end,
         });
-    }, [dayFromPointer, isProjectLocked, isReadOnly]);
+    }, [dayFromPointer, isProjectLocked, isReadOnly, rememberTasksSnapshot]);
 
     useEffect(() => {
         if (!dragSchedule) return;
@@ -1839,6 +1867,7 @@ function GanttBoard() {
 
     const confirmPendingDependency = () => {
         if (!pendingDependency) return;
+        rememberTasksSnapshot();
         setTasks(prev => prev.map(task => {
             if (task.id !== pendingDependency.sourceId) return task;
             const nextDependencies = Array.from(new Set([...(task.dependencies || []), pendingDependency.targetId]));
@@ -3935,6 +3964,23 @@ function GanttBoard() {
                                                                         <span className="pointer-events-none">{dur} Hari</span>
                                                                         {!isReadOnly && !isProjectLocked && (
                                                                             <>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    aria-label="Hapus periode"
+                                                                                    title="Hapus periode"
+                                                                                    className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rounded bg-white/20 text-white hover:bg-red-600 hover:text-white flex items-center justify-center"
+                                                                                    onPointerDown={(event) => {
+                                                                                        event.preventDefault();
+                                                                                        event.stopPropagation();
+                                                                                    }}
+                                                                                    onClick={(event) => {
+                                                                                        event.preventDefault();
+                                                                                        event.stopPropagation();
+                                                                                        void removeRange(task.id, rIdx);
+                                                                                    }}
+                                                                                >
+                                                                                    <Trash2 className="h-3 w-3" />
+                                                                                </button>
                                                                                 <button
                                                                                     type="button"
                                                                                     aria-label="Resize selesai"
