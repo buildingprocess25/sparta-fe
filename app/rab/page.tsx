@@ -20,6 +20,7 @@ import {
 
 import { Plus, Trash2, Save, Loader2, Info, AlertTriangle, Bell, Upload, X, Image as ImageIcon, Download, ClipboardList, ArrowRight } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxList, ComboboxItem, ComboboxEmpty } from "@/components/ui/combobox";
 
 import { SIPIL_CATEGORIES, ME_CATEGORIES, BRANCH_GROUPS, BRANCH_TO_ULOK, canViewAllBranches, getRabPriceBranch, isViewOnlyUser, SUPPORTED_PRICE_BRANCHES, getParentBranch } from '@/lib/constants';
 import {
@@ -438,6 +439,53 @@ const getPriceDirectiveForRow = (priceData: PriceMaster, row: Partial<RabTableRo
     isUpahEditable: Boolean(row.isUpahKondisional) || isUpahCond,
   };
 };
+
+function JobSelectCombobox({ row, priceItems, selectedJobs, isReadOnly, updateRow, hasCurrentJobOption }: any) {
+  const [inputValue, setInputValue] = useState(row.jenisPekerjaan || "");
+
+  useEffect(() => {
+    if (row.jenisPekerjaan && row.jenisPekerjaan !== inputValue) {
+      setInputValue(row.jenisPekerjaan);
+    }
+  }, [row.jenisPekerjaan]);
+
+  const filteredItems = useMemo(() => {
+    return priceItems.filter((p: any) => 
+      p["Jenis Pekerjaan"].toLowerCase().includes(inputValue.toLowerCase())
+    );
+  }, [priceItems, inputValue]);
+
+  return (
+    <Combobox 
+      value={row.jenisPekerjaan} 
+      onValueChange={(val) => {
+        updateRow(row.id, 'jenisPekerjaan', val);
+      }} 
+      disabled={isReadOnly}
+      inputValue={inputValue}
+      onInputValueChange={setInputValue}
+    >
+      <ComboboxInput showTrigger={false} placeholder="Ketik jenis pekerjaan..." className="w-full text-xs h-9 bg-white border-slate-300 focus-visible:ring-blue-500 rounded-md" />
+      <ComboboxContent align="start" className="w-[350px] z-50">
+        <ComboboxList>
+          {filteredItems.length === 0 && <ComboboxEmpty>Pekerjaan tidak ditemukan.</ComboboxEmpty>}
+          {row.jenisPekerjaan && !hasCurrentJobOption && row.jenisPekerjaan.toLowerCase().includes(inputValue.toLowerCase()) && (
+            <ComboboxItem value={row.jenisPekerjaan}>{row.jenisPekerjaan}</ComboboxItem>
+          )}
+          {filteredItems.map((p: any) => {
+              const jobName = p["Jenis Pekerjaan"];
+              const isSelectedElsewhere = selectedJobs.includes(jobName) && row.jenisPekerjaan !== jobName;
+              return (
+                <ComboboxItem key={jobName} value={jobName} disabled={isSelectedElsewhere} className={`text-xs cursor-pointer ${isSelectedElsewhere ? "text-slate-300 bg-slate-50 opacity-50" : ""}`}>
+                  {jobName}
+                </ComboboxItem>
+              );
+          })}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
 
 function RABPageContent() {
   const router = useRouter();
@@ -1086,9 +1134,9 @@ function RABPageContent() {
                           category: category,
                           jenisPekerjaan: jobName,
                           satuan: details[`Satuan_Item_${i}`] || itemPriceRef?.["Satuan"],
-                          volume: parseFloat(details[`Volume_Item_${i}`]) || 0,
-                          hargaMaterial: parseFloat(details[`Harga_Material_Item_${i}`]) || 0,
-                          hargaUpah: parseFloat(details[`Harga_Upah_Item_${i}`]) || 0,
+                          volume: parseFloat(details[`Volume_Item_${i}`]) || '',
+                          hargaMaterial: parseFloat(details[`Harga_Material_Item_${i}`]) || '',
+                          hargaUpah: parseFloat(details[`Harga_Upah_Item_${i}`]) || '',
                           isKondisional: isMatCond || isUpahCond,
                           isMaterialKondisional: isMatCond,
                           isUpahKondisional: isUpahCond,
@@ -1235,7 +1283,7 @@ function RABPageContent() {
   };
 
   const addRow = (category: string) => {
-    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: 0, hargaMaterial: 0, hargaUpah: 0, isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
+    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: '', hargaMaterial: '', hargaUpah: '', isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
   };
 
   const removeRow = (id: number) => setTableRows(prev => prev.filter(row => row.id !== id));
@@ -1489,7 +1537,7 @@ function RABPageContent() {
     return { bgIcon: 'bg-blue-100 text-blue-600', btn: 'bg-blue-600 hover:bg-blue-700' };
   };
 
-  const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : formData.lingkupPekerjaan === 'GABUNGAN' ? [...SIPIL_CATEGORIES, ...ME_CATEGORIES] : [];
+  const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : formData.lingkupPekerjaan === 'GABUNGAN' ? Array.from(new Set([...SIPIL_CATEGORIES, ...ME_CATEGORIES])) : [];
 
   const isRevisionSubmitMode = currentRabId !== null;
   const isInsuranceComplete = isRevisionSubmitMode || (
@@ -1516,8 +1564,12 @@ function RABPageContent() {
     formData.luasAreaParkir !== '' &&
     hasValidWorkItem;
 
+  const hasEmptyRow = tableRows.some(row => !row.jenisPekerjaan || volumeToNumber(row.volume) === 0);
+
   const submitDisabledReason = hasUnchangedRevisionItems
     ? "Setiap item revisi wajib diubah minimal 1 field."
+    : hasEmptyRow
+      ? "Terdapat baris pekerjaan kosong/tidak lengkap. Harap isi atau hapus baris tersebut."
     : !isFormModified
       ? "Silakan buat perubahan pada form terlebih dahulu."
       : !isFormComplete
@@ -1867,103 +1919,142 @@ function RABPageContent() {
                   </CardContent>
                 </Card>
               )}
-              <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block">Detail Bill of Quantities (BoQ)</h2>
-              {activeCategories.map((category) => {
-                const itemsInCategory = tableRows.filter(r => r.category === category);
-                const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
-                const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
+              <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block mb-6">Detail Bill of Quantities (BoQ)</h2>
+              {(() => {
+                const renderCategoryCard = (category: string) => {
+                  const itemsInCategory = tableRows.filter(r => r.category === category);
+                  const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
+                  const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
+                  const priceItems = getPriceItemsForCategory(prices, category);
+                  const isAddDisabled = priceItems.length > 0 && selectedJobs.length >= priceItems.length;
+
+                  return (
+                    <Card key={category} className="overflow-hidden border-slate-200 shadow-sm transition-all hover:shadow-md mb-6 bg-white">
+                      <div className="bg-slate-100 p-4 border-b flex justify-between items-center">
+                        <h3 className="font-bold text-red-700">{category}</h3>
+                      </div>
+                      {itemsInCategory.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left border-collapse min-w-275">
+                            <thead className="bg-red-50 text-red-700 text-xs text-center border-b border-red-200">
+                              <tr>
+                                <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">No</th>
+                                <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Jenis Pekerjaan</th>
+                                <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Satuan</th>
+                                <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Volume (a)</th>
+                                <th colSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Harga Satuan (Rp)</th>
+                                <th colSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Total Harga Satuan (Rp)</th>
+                                <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Total Harga (Rp)<br/><span className="font-normal">(f=d+e)</span></th>
+                                <th rowSpan={2} className="p-2 border border-red-100 min-w-48">Catatan Tambahan<br/><span className="font-normal">(Wajib jika Kondisional)</span></th>
+                                <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Aksi</th>
+                              </tr>
+                              <tr>
+                                <th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Material (b)</th><th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Upah (c)</th>
+                                <th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Material (d=a×b)</th><th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Upah (e=a×c)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {itemsInCategory.map((row, index) => {
+                                const itemRevisionNote = row.sourceItemId ? revisionItemNotes[Number(row.sourceItemId)] : '';
+                                const priceDirective = getPriceDirectiveForRow(prices, row);
+                                const canEditMaterialPrice = priceDirective.isMaterialEditable;
+                                const canEditUpahPrice = priceDirective.isUpahEditable;
+                                const hasCurrentJobOption = priceItems.some((p: any) => p["Jenis Pekerjaan"] === row.jenisPekerjaan);
+                                
+                                return (
+                                <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
+                                  <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
+                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap">
+                                    <JobSelectCombobox
+                                      row={row}
+                                      priceItems={priceItems}
+                                      selectedJobs={selectedJobs}
+                                      isReadOnly={isReadOnly}
+                                      updateRow={updateRow}
+                                      hasCurrentJobOption={hasCurrentJobOption}
+                                    />
+                                    {itemRevisionNote && (
+                                      <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs leading-relaxed text-red-700 whitespace-normal">
+                                        <span className="font-bold">Catatan revisi item:</span> {itemRevisionNote}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
+                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={volumeToInputValue(row.volume)} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} onBlur={(e) => updateRow(row.id, 'volume', normalizeVolumeOnBlur(e.target.value))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
+                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaMaterial === 0 || row.hargaMaterial === '' ? '' : formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || '')} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} placeholder="0" /></td>
+                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah === 0 || row.hargaUpah === '' ? '' : formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || '')} readOnly={isReadOnly || !canEditUpahPrice} tabIndex={canEditUpahPrice ? 0 : -1} placeholder="0" /></td>
+                                  <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * (Number(row.hargaMaterial) || 0))}</td>
+                                  <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * (Number(row.hargaUpah) || 0))}</td>
+                                  <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * ((Number(row.hargaMaterial) || 0) + (Number(row.hargaUpah) || 0)))}</td>
+                                  <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder={row.isKondisional ? "Wajib isi detail pekerjaan..." : "Catatan..."} disabled={isReadOnly} className={`min-h-9 py-1 px-2 text-xs border-slate-300 focus-visible:ring-blue-500 resize-y ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 focus-visible:ring-red-500 placeholder:text-red-400' : 'bg-white'}`} value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
+                                  <td className="p-2 text-center whitespace-nowrap">
+                                    {!isReadOnly && (
+                                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button>
+                                    )}
+                                  </td>
+                                </tr>
+                                )})}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                               {!isReadOnly && !isAddDisabled && (
+                                 <tr>
+                                   <td colSpan={11} className="p-3 text-center bg-white border-b border-slate-200">
+                                     <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-full max-w-sm" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
+                                   </td>
+                                 </tr>
+                               )}
+                              <tr><td colSpan={8} className="p-3 text-right font-bold text-slate-600">Sub Total {category}:</td><td className="p-3 text-right font-bold text-red-700 whitespace-nowrap">{toRupiah(subTotal)}</td><td colSpan={2}></td></tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                      {itemsInCategory.length === 0 && !isReadOnly && !isAddDisabled && (
+                          <div className="p-6 text-center">
+                              <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
+                          </div>
+                      )}
+                    </Card>
+                  );
+                };
+
+                if (formData.lingkupPekerjaan === 'GABUNGAN') {
+                  const sipilCats = SIPIL_CATEGORIES.filter(c => activeCategories.includes(c));
+                  const meCats = ME_CATEGORIES.filter(c => activeCategories.includes(c));
+                  
+                  return (
+                    <div className="space-y-10 mb-8">
+                      {sipilCats.length > 0 && (
+                        <Card className="overflow-hidden border-red-200 shadow-sm bg-white">
+                          <div className="bg-red-50/50 p-5 border-b border-red-100 flex items-center gap-4 relative">
+                            <div className="h-8 w-2 rounded-full bg-gradient-to-b from-red-500 to-red-700 shadow-sm z-10"></div>
+                            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase z-10">Lingkup Sipil</h2>
+                          </div>
+                          <div className="p-6 space-y-6 bg-slate-50/30">
+                            {sipilCats.map(c => renderCategoryCard(c))}
+                          </div>
+                        </Card>
+                      )}
+                      {meCats.length > 0 && (
+                        <Card className="overflow-hidden border-blue-200 shadow-sm bg-white">
+                          <div className="bg-blue-50/50 p-5 border-b border-blue-100 flex items-center gap-4 relative">
+                            <div className="h-8 w-2 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 shadow-sm z-10"></div>
+                            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase z-10">Lingkup ME</h2>
+                          </div>
+                          <div className="p-6 space-y-6 bg-slate-50/30">
+                            {meCats.map(c => renderCategoryCard(c))}
+                          </div>
+                        </Card>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
-                  <Card key={category} className="overflow-hidden border-slate-200 shadow-sm">
-                    <div className="bg-slate-100 p-4 border-b flex justify-between items-center">
-                      <h3 className="font-bold text-red-700">{category}</h3>
-                    </div>
-                    {itemsInCategory.length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left border-collapse min-w-275">
-                          <thead className="bg-red-50 text-red-700 text-xs text-center border-b border-red-200">
-                            <tr>
-                              <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">No</th>
-                              <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Jenis Pekerjaan</th>
-                              <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Satuan</th>
-                              <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Volume (a)</th>
-                              <th colSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Harga Satuan (Rp)</th>
-                              <th colSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Total Harga Satuan (Rp)</th>
-                              <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Total Harga (Rp)<br/><span className="font-normal">(f=d+e)</span></th>
-                              <th rowSpan={2} className="p-2 border border-red-100 min-w-48">Catatan Tambahan<br/><span className="font-normal">(Wajib jika Kondisional)</span></th>
-                              <th rowSpan={2} className="p-2 border border-red-100 whitespace-nowrap">Aksi</th>
-                            </tr>
-                            <tr>
-                              <th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Material (b)</th><th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Upah (c)</th>
-                              <th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Material (d=a×b)</th><th className="p-2 border border-red-100 bg-red-50/50 whitespace-nowrap">Upah (e=a×c)</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {itemsInCategory.map((row, index) => {
-                              const itemRevisionNote = row.sourceItemId ? revisionItemNotes[Number(row.sourceItemId)] : '';
-                              const priceDirective = getPriceDirectiveForRow(prices, row);
-                              const canEditMaterialPrice = priceDirective.isMaterialEditable;
-                              const canEditUpahPrice = priceDirective.isUpahEditable;
-                              const priceItems = getPriceItemsForCategory(prices, category);
-                              const hasCurrentJobOption = priceItems.some((p) => p["Jenis Pekerjaan"] === row.jenisPekerjaan);
-                              return (
-                              <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
-                                <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
-                                <td className="p-2 border-r border-slate-100 whitespace-nowrap">
-                                  <select disabled={isReadOnly} className="w-full p-2 border border-slate-300 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs" value={row.jenisPekerjaan} onKeyDown={preventSelectArrowChange} onChange={(e) => updateRow(row.id, 'jenisPekerjaan', e.target.value)}>
-                                    <option value="">-- Pilih --</option>
-                                    {row.jenisPekerjaan && !hasCurrentJobOption && (
-                                      <option value={row.jenisPekerjaan}>{row.jenisPekerjaan}</option>
-                                    )}
-                                    {priceItems.map((p: any) => {
-                                        const jobName = p["Jenis Pekerjaan"];
-                                        const isSelectedElsewhere = selectedJobs.includes(jobName) && row.jenisPekerjaan !== jobName;
-                                        return <option key={jobName} value={jobName} title={jobName} disabled={isSelectedElsewhere} className={isSelectedElsewhere ? "text-slate-300 bg-slate-50" : ""}>{jobName}</option>;
-                                    })}
-                                  </select>
-                                  {itemRevisionNote && (
-                                    <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs leading-relaxed text-red-700 whitespace-normal">
-                                      <span className="font-bold">Catatan revisi item:</span> {itemRevisionNote}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
-                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={volumeToInputValue(row.volume)} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} onBlur={(e) => updateRow(row.id, 'volume', normalizeVolumeOnBlur(e.target.value))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
-                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} /></td>
-                                <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || 0)} readOnly={isReadOnly || !canEditUpahPrice} tabIndex={canEditUpahPrice ? 0 : -1} /></td>
-                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * row.hargaMaterial)}</td>
-                                <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * row.hargaUpah)}</td>
-                                <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah))}</td>
-                                <td className="p-2 border-r border-slate-100 min-w-48"><Textarea placeholder={row.isKondisional ? "Wajib isi detail pekerjaan..." : "Catatan..."} disabled={isReadOnly} className={`min-h-9 py-1 px-2 text-xs border-slate-300 focus-visible:ring-blue-500 resize-y ${row.isKondisional && (!row.catatan || row.catatan.trim() === '') ? 'bg-red-50 border-red-300 focus-visible:ring-red-500 placeholder:text-red-400' : 'bg-white'}`} value={row.catatan || ''} onChange={(e) => updateRow(row.id, 'catatan', e.target.value)} /></td>
-                                <td className="p-2 text-center whitespace-nowrap">
-                                  {!isReadOnly && (
-                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button>
-                                  )}
-                                </td>
-                              </tr>
-                            )})}
-                          </tbody>
-                          <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-                             {!isReadOnly && (
-                               <tr>
-                                 <td colSpan={11} className="p-3 text-center bg-white border-b border-slate-200">
-                                   <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-full max-w-sm" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
-                                 </td>
-                               </tr>
-                             )}
-                            <tr><td colSpan={8} className="p-3 text-right font-bold text-slate-600">Sub Total {category}:</td><td className="p-3 text-right font-bold text-red-700 whitespace-nowrap">{toRupiah(subTotal)}</td><td colSpan={2}></td></tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    )}
-                    {itemsInCategory.length === 0 && !isReadOnly && (
-                        <div className="p-6 text-center">
-                            <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
-                        </div>
-                    )}
-                  </Card>
-                )
-              })}
+                  <div className="space-y-6 mb-8">
+                    {activeCategories.map(category => renderCategoryCard(category))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2035,6 +2126,7 @@ function RABPageContent() {
             <div className="grid gap-3 md:grid-cols-2">
               {planningRequests.map((request) => (
                 <div
+                
                   key={`${request.projek_planning_id}-${request.lingkup_pekerjaan}`}
                   className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm"
                 >
@@ -2059,6 +2151,7 @@ function RABPageContent() {
                     className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       setPlanningRequestDialogOpen(false);
+                      setDraftDialogOpen(false);
                       router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`);
                     }}
                   >
