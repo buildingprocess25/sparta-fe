@@ -1798,6 +1798,15 @@ function GanttBoard() {
 
     const finishDependencyDrag = (targetId: number) => {
         if (!dependencySourceTaskId || dependencySourceTaskId === targetId) return;
+        const sourceTask = tasks.find(task => task.id === dependencySourceTaskId);
+        const targetTask = tasks.find(task => task.id === targetId);
+        const sourceScope = String(sourceTask?.scope || '').trim().toUpperCase();
+        const targetScope = String(targetTask?.scope || '').trim().toUpperCase();
+        if (sourceScope && targetScope && sourceScope !== targetScope) {
+            showAlert({ message: "Keterikatan SIPIL dan ME tidak bisa disambungkan silang.", type: "warning" });
+            setDependencySourceTaskId(null);
+            return;
+        }
         setPendingDependency({ sourceId: dependencySourceTaskId, targetId });
         setDependencySourceTaskId(null);
     };
@@ -1831,15 +1840,17 @@ function GanttBoard() {
             const namaKontraktor = sessionStorage.getItem('loggedInUserName') || sessionStorage.getItem('loggedInUserEmail') || "-";
 
             const scopedDraftGroups = Array.from(new Set(tasks.map(t => String(t.scope || '').trim().toUpperCase()).filter(Boolean)));
-            if (!selectedGanttId && scopedDraftGroups.length > 0) {
-                const crossScopeDependency = tasks.find(t => (t.dependencies || []).some((childId: number) => {
-                    const child = tasks.find(ct => ct.id === childId);
-                    return child && String(child.scope || '').trim().toUpperCase() !== String(t.scope || '').trim().toUpperCase();
-                }));
-                if (crossScopeDependency) {
-                    throw new Error("Keterikatan lintas lingkup belum bisa disimpan. Hubungkan tahapan Sipil ke Sipil, dan ME ke ME.");
-                }
+            const crossScopeDependency = tasks.find(t => (t.dependencies || []).some((childId: number) => {
+                const child = tasks.find(ct => ct.id === childId);
+                const parentScope = String(t.scope || '').trim().toUpperCase();
+                const childScope = String(child?.scope || '').trim().toUpperCase();
+                return child && parentScope && childScope && childScope !== parentScope;
+            }));
+            if (crossScopeDependency) {
+                throw new Error("Keterikatan SIPIL dan ME tidak bisa disambungkan silang.");
+            }
 
+            if (!selectedGanttId && scopedDraftGroups.length > 0) {
                 const savedGanttIds: number[] = [];
                 for (const scope of scopedDraftGroups) {
                     const scopedTasks = tasks.filter(t => String(t.scope || '').trim().toUpperCase() === scope);
@@ -2156,9 +2167,11 @@ function GanttBoard() {
 
                 taskCoordinates[task.id] = {
                     centerY: ((task.visualRowIndex ?? idx) * ROW_HEIGHT) + (ROW_HEIGHT / 2),
+                    centerX: ((minStart - 1) * DAY_WIDTH) + (((maxEnd - minStart + 1) * DAY_WIDTH) / 2),
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
-                    firstEndX: firstPeriodEnd * DAY_WIDTH
+                    firstEndX: firstPeriodEnd * DAY_WIDTH,
+                    scope: getTaskScope(task)
                 };
             }
         });
@@ -2169,11 +2182,12 @@ function GanttBoard() {
                 for (let cId of task.dependencies) {
                     const parentCoordinates = taskCoordinates[task.id];
                     const childCoordinates = taskCoordinates[cId];
-                    if (parentCoordinates && childCoordinates && parentCoordinates.firstEndX !== undefined && childCoordinates.startX !== undefined) {
-                        const startX = parentCoordinates.firstEndX, startY = parentCoordinates.centerY;
-                        const endX = childCoordinates.startX, endY = childCoordinates.centerY;
-                        let tension = (endX - startX) < 40 ? 60 : 40;
-                        if ((endX - startX) < 0) tension = 100;
+                    const sameScope = !parentCoordinates?.scope || !childCoordinates?.scope || parentCoordinates.scope === childCoordinates.scope;
+                    if (sameScope && parentCoordinates && childCoordinates && parentCoordinates.centerX !== undefined && childCoordinates.centerX !== undefined) {
+                        const startX = parentCoordinates.centerX, startY = parentCoordinates.centerY;
+                        const endX = childCoordinates.centerX, endY = childCoordinates.centerY;
+                        const horizontalDistance = Math.abs(endX - startX);
+                        const tension = Math.max(32, Math.min(90, horizontalDistance / 2));
                         const path = `M ${startX} ${startY} C ${startX + tension} ${startY}, ${endX - tension} ${endY}, ${endX} ${endY}`;
                         svgLines.push(
                             <g key={`${task.id}-${cId}`}>
