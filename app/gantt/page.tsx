@@ -431,6 +431,7 @@ function GanttBoard() {
     const searchParams = useSearchParams();
     const { showAlert } = useGlobalAlert();
     const searchPanelRef = useRef<HTMLDivElement | null>(null);
+    const activeGanttTrackRef = useRef<HTMLElement | null>(null);
 
     const urlUlok = searchParams.get('ulok');
     const urlIdToko = searchParams.get('id_toko');
@@ -587,6 +588,9 @@ function GanttBoard() {
 
     const [tasks, setTasks] = useState<any[]>([]);
     const [isApplying, setIsApplying] = useState(false);
+    const [dragSchedule, setDragSchedule] = useState<any>(null);
+    const [dependencySourceTaskId, setDependencySourceTaskId] = useState<number | null>(null);
+    const [pendingDependency, setPendingDependency] = useState<{ sourceId: number; targetId: number } | null>(null);
 
     const [rawDayGanttData, setRawDayGanttData] = useState<any[]>([]);
 
@@ -707,6 +711,74 @@ function GanttBoard() {
             if (firstGanttId) {
                 setSelectedGanttId(Number(firstGanttId));
                 loadGanttNotes(Number(firstGanttId));
+            } else {
+                const rabListRes = await fetchRABList({ nomor_ulok: response.data.nomor_ulok }, { suppressGlobalError: true });
+                const rabRows = (rabListRes.data || [])
+                    .filter((row: any) => formatUlokWithDash(row.nomor_ulok) === normalizedUlok)
+                    .sort((a: any, b: any) => {
+                        const sa = String((a as any).lingkup_pekerjaan || (a as any).toko?.lingkup_pekerjaan || '').toUpperCase();
+                        const sb = String((b as any).lingkup_pekerjaan || (b as any).toko?.lingkup_pekerjaan || '').toUpperCase();
+                        if (sa === 'SIPIL' && sb !== 'SIPIL') return -1;
+                        if (sb === 'SIPIL' && sa !== 'SIPIL') return 1;
+                        return sa.localeCompare(sb) || Number(a.id) - Number(b.id);
+                    });
+
+                const detailResults = await Promise.all(
+                    rabRows.map((row: any) => fetchRABDetail(Number(row.id)).catch(() => null))
+                );
+                if (workspaceLoadSeqRef.current !== requestSeq) return;
+
+                const categoryMap = new Map<string, any>();
+                const combinedRabItems: any[] = [];
+                let maxDuration = 1;
+                let primaryDetail: any = null;
+
+                detailResults.forEach((detailRes) => {
+                    const detail = detailRes?.data;
+                    if (!detail?.rab || !detail?.toko) return;
+                    if (!primaryDetail) primaryDetail = detail;
+                    const scope = String(detail.toko.lingkup_pekerjaan || (detail.rab as any).lingkup_pekerjaan || '').trim().toUpperCase() || 'SIPIL';
+                    const duration = parseInt(String(detail.rab.durasi_pekerjaan || '').replace(/\D/g, '')) || 0;
+                    if (duration > maxDuration) maxDuration = duration;
+
+                    (detail.items || []).forEach((item: any) => {
+                        if (!item.kategori_pekerjaan || Number(item.volume || 0) <= 0) return;
+                        combinedRabItems.push({ ...item, lingkup_pekerjaan: scope, scope });
+                        const categoryName = String(item.kategori_pekerjaan).trim().toUpperCase();
+                        const key = `${scope}|${categoryName}`;
+                        if (!categoryMap.has(key)) {
+                            categoryMap.set(key, {
+                                id: categoryMap.size + 1,
+                                name: categoryName,
+                                displayName: `${scope} - ${categoryName}`,
+                                scope,
+                                scopeTokoId: detail.toko.id,
+                                scopeRabId: detail.rab.id,
+                                dependencies: [],
+                                ranges: [{ start: '', end: '', keterlambatan: 0 }],
+                                keterlambatan: 0,
+                            });
+                        }
+                    });
+                });
+
+                setRabItems(combinedRabItems);
+                setTasks(Array.from(categoryMap.values()));
+                setRawDayGanttData([]);
+                setIsProjectLocked(false);
+                setProjectData((prev: any) => ({
+                    ...(prev || {}),
+                    ganttId: null,
+                    id_toko: primaryDetail?.toko?.id || response.data.scopes?.[0]?.id_toko || prev?.id_toko,
+                    ulokClean: response.data.nomor_ulok,
+                    store: response.data.nama_toko || primaryDetail?.toko?.nama_toko || prev?.store || '-',
+                    kode_toko: primaryDetail?.toko?.kode_toko || prev?.kode_toko || 'Belum diisi',
+                    work: getWorkspaceScopeLabel(response.data) || 'SIPIL + ME',
+                    cabang: response.data.cabang || primaryDetail?.toko?.cabang || prev?.cabang || '-',
+                    kontraktor: primaryDetail?.toko?.nama_kontraktor || prev?.kontraktor || '-',
+                    duration: maxDuration,
+                    startDate: new Date().toISOString().split('T')[0],
+                }));
             }
             // NOTE: spkTokoIds TIDAK dioverride di sini.
             // spkTokoIds sudah diisi dengan benar dari fetchSPKList({ status: 'SPK_APPROVED' })
@@ -1489,6 +1561,129 @@ function GanttBoard() {
         }));
     };
 
+    const clampGanttDay = useCallback((day: number) => {
+        const maxDay = Math.max(1, Number(projectData?.duration || spkInfo?.duration || 1));
+        return Math.max(1, Math.min(maxDay, day));
+    }, [projectData?.duration, spkInfo?.duration]);
+
+    const dayFromPointer = useCallback((clientX: number, element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        return clampGanttDay(Math.floor((clientX - rect.left) / DAY_WIDTH) + 1);
+    }, [clampGanttDay]);
+
+    const setTaskRangeFromDrag = useCallback((taskId: number, rangeIdx: number, start: number, end: number) => {
+        const cleanStart = clampGanttDay(Math.min(start, end));
+        const cleanEnd = clampGanttDay(Math.max(start, end));
+        setTasks(prev => prev.map(task => {
+            if (task.id !== taskId) return task;
+            const ranges = [...(task.ranges || [])];
+            ranges[rangeIdx] = {
+                ...(ranges[rangeIdx] || { keterlambatan: 0 }),
+                start: String(cleanStart),
+                end: String(cleanEnd),
+            };
+            return { ...task, ranges };
+        }));
+    }, [clampGanttDay]);
+
+    const beginScheduleDrag = useCallback((event: React.PointerEvent<HTMLElement>, task: any, rangeIdx: number, mode: 'create' | 'move' | 'resize-start' | 'resize-end') => {
+        if (isReadOnly || isProjectLocked) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const track = event.currentTarget.closest('[data-gantt-track="true"]') as HTMLElement | null;
+        if (!track) return;
+        activeGanttTrackRef.current = track;
+        const pointerDay = dayFromPointer(event.clientX, track);
+        const existingRange = task.ranges?.[rangeIdx] || { start: '', end: '', keterlambatan: 0 };
+        const start = parseInt(String(existingRange.start || pointerDay)) || pointerDay;
+        const end = parseInt(String(existingRange.end || pointerDay)) || pointerDay;
+        const nextRangeIdx = mode === 'create' && existingRange.start && existingRange.end ? (task.ranges || []).length : rangeIdx;
+
+        if (mode === 'create') {
+            setTasks(prev => prev.map(row => {
+                if (row.id !== task.id) return row;
+                const ranges = [...(row.ranges || [])];
+                ranges[nextRangeIdx] = { start: String(pointerDay), end: String(pointerDay), keterlambatan: 0 };
+                return { ...row, ranges };
+            }));
+        }
+
+        setDragSchedule({
+            taskId: task.id,
+            rangeIdx: nextRangeIdx,
+            mode,
+            originDay: pointerDay,
+            originalStart: mode === 'create' ? pointerDay : start,
+            originalEnd: mode === 'create' ? pointerDay : end,
+        });
+    }, [dayFromPointer, isProjectLocked, isReadOnly]);
+
+    useEffect(() => {
+        if (!dragSchedule) return;
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const track = activeGanttTrackRef.current;
+            if (!track) return;
+            const pointerDay = dayFromPointer(event.clientX, track);
+            const delta = pointerDay - dragSchedule.originDay;
+
+            if (dragSchedule.mode === 'move') {
+                const span = Math.max(0, dragSchedule.originalEnd - dragSchedule.originalStart);
+                const nextStart = clampGanttDay(dragSchedule.originalStart + delta);
+                setTaskRangeFromDrag(dragSchedule.taskId, dragSchedule.rangeIdx, nextStart, nextStart + span);
+                return;
+            }
+
+            if (dragSchedule.mode === 'resize-start') {
+                setTaskRangeFromDrag(dragSchedule.taskId, dragSchedule.rangeIdx, pointerDay, dragSchedule.originalEnd);
+                return;
+            }
+
+            setTaskRangeFromDrag(dragSchedule.taskId, dragSchedule.rangeIdx, dragSchedule.originalStart, pointerDay);
+        };
+
+        const handlePointerUp = () => {
+            activeGanttTrackRef.current = null;
+            setDragSchedule(null);
+        };
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp, { once: true });
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [clampGanttDay, dayFromPointer, dragSchedule, setTaskRangeFromDrag]);
+
+    const beginDependencyDrag = (event: React.PointerEvent, taskId: number) => {
+        if (isReadOnly || isProjectLocked) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setDependencySourceTaskId(taskId);
+    };
+
+    const finishDependencyDrag = (targetId: number) => {
+        if (!dependencySourceTaskId || dependencySourceTaskId === targetId) return;
+        setPendingDependency({ sourceId: dependencySourceTaskId, targetId });
+        setDependencySourceTaskId(null);
+    };
+
+    const confirmPendingDependency = () => {
+        if (!pendingDependency) return;
+        setTasks(prev => prev.map(task => {
+            if (task.id !== pendingDependency.sourceId) return task;
+            const nextDependencies = Array.from(new Set([...(task.dependencies || []), pendingDependency.targetId]));
+            return { ...task, dependencies: nextDependencies };
+        }));
+        setPendingDependency(null);
+    };
+
+    useEffect(() => {
+        if (!dependencySourceTaskId) return;
+        const clearDependencySource = () => setDependencySourceTaskId(null);
+        window.addEventListener('pointerup', clearDependencySource, { once: true });
+        return () => window.removeEventListener('pointerup', clearDependencySource);
+    }, [dependencySourceTaskId]);
+
     const handleSaveData = async (status: 'Active' | 'Terkunci') => {
         if (isReadOnly) {
             showAlert({ message: "Role ini hanya memiliki akses view.", type: "warning" });
@@ -1499,6 +1694,88 @@ function GanttBoard() {
             const email = sessionStorage.getItem('loggedInUserEmail') || "-";
             const cabang = sessionStorage.getItem('loggedInUserCabang') || "-";
             const namaKontraktor = sessionStorage.getItem('loggedInUserName') || sessionStorage.getItem('loggedInUserEmail') || "-";
+
+            const scopedDraftGroups = Array.from(new Set(tasks.map(t => String(t.scope || '').trim().toUpperCase()).filter(Boolean)));
+            if (!selectedGanttId && scopedDraftGroups.length > 0) {
+                const crossScopeDependency = tasks.find(t => (t.dependencies || []).some((childId: number) => {
+                    const child = tasks.find(ct => ct.id === childId);
+                    return child && String(child.scope || '').trim().toUpperCase() !== String(t.scope || '').trim().toUpperCase();
+                }));
+                if (crossScopeDependency) {
+                    throw new Error("Keterikatan lintas lingkup belum bisa disimpan. Hubungkan tahapan Sipil ke Sipil, dan ME ke ME.");
+                }
+
+                const savedGanttIds: number[] = [];
+                for (const scope of scopedDraftGroups) {
+                    const scopedTasks = tasks.filter(t => String(t.scope || '').trim().toUpperCase() === scope);
+                    const scopedKategori: string[] = [];
+                    const scopedDayItems: any[] = [];
+                    const scopedDependencies: any[] = [];
+
+                    scopedTasks.forEach(t => {
+                        const kategoriName = String(t.name || '').toUpperCase().trim();
+                        if (!kategoriName) return;
+                        scopedKategori.push(kategoriName);
+
+                        (t.ranges || []).forEach((r: any) => {
+                            if (!r.start || !r.end) return;
+                            scopedDayItems.push({
+                                kategori_pekerjaan: kategoriName,
+                                h_awal: String(r.start),
+                                h_akhir: String(r.end),
+                                keterlambatan: r.keterlambatan ? String(r.keterlambatan) : "",
+                                kecepatan: "",
+                            });
+                        });
+
+                        (t.dependencies || []).forEach((childId: number) => {
+                            const child = scopedTasks.find(ct => ct.id === childId);
+                            if (!child?.name) return;
+                            scopedDependencies.push({
+                                kategori_pekerjaan: String(child.name).toUpperCase().trim(),
+                                kategori_pekerjaan_terikat: kategoriName,
+                            });
+                        });
+                    });
+
+                    if (scopedDayItems.length === 0) continue;
+
+                    const isRenovasiUlok = /-R$/i.test(String(projectData.ulokClean || '').trim());
+                    const payload: any = {
+                        nomor_ulok: projectData.ulokClean,
+                        nama_toko: projectData.store,
+                        kode_toko: projectData.kode_toko,
+                        proyek: isRenovasiUlok ? "Renovasi" : "Reguler",
+                        cabang,
+                        alamat: "-",
+                        nama_kontraktor: namaKontraktor,
+                        lingkup_pekerjaan: scope,
+                        email_pembuat: email,
+                        kategori_pekerjaan: scopedKategori,
+                        day_items: scopedDayItems,
+                        pengawasan: [],
+                        dependencies: scopedDependencies,
+                    };
+
+                    const result = await submitGanttChart(payload);
+                    if (result?.data?.id) {
+                        savedGanttIds.push(Number(result.data.id));
+                        if (status === 'Terkunci') await lockGanttChart(Number(result.data.id), email);
+                    }
+                }
+
+                if (savedGanttIds.length === 0) {
+                    throw new Error("Harap drag minimal satu bar jadwal untuk Sipil atau ME sebelum menyimpan.");
+                }
+
+                showAlert({ message: status === 'Terkunci' ? "Jadwal Sipil dan ME berhasil dikunci." : "Draft Gantt Sipil dan ME berhasil disimpan.", type: "success" });
+                if (status === 'Terkunci') {
+                    router.push('/dashboard');
+                } else {
+                    await loadSupervisionWorkspace(projectData.ulokClean);
+                }
+                return;
+            }
 
             const kategori_pekerjaan: string[] = [];
             const day_items: any[] = [];
@@ -3067,7 +3344,7 @@ function GanttBoard() {
                     </section>
                 )}
 
-                {!isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
+                {false && !isLoading && selectedUlok && appMode === 'kontraktor' && !isProjectLocked && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8 overflow-hidden">
                         <div className="p-4 bg-slate-100 border-b flex justify-between items-center">
                             <div>
@@ -3392,14 +3669,20 @@ function GanttBoard() {
                                             const shift = task.computed.shift || 0;
                                             const isIlTask = String(task.name || '').startsWith('[IL]');
                                             return (
-                                                <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
+                                                <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }} onPointerUp={() => finishDependencyDrag(task.id)}>
                                                     <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
                                                         <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 truncate">
                                                             {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
-                                                            <span className="truncate" title={task.name}>{task.name}</span>
+                                                            {task.scope && <span className={`text-[9px] text-white px-1.5 py-0.5 rounded-full shrink-0 ${task.scope === 'ME' ? 'bg-blue-600' : 'bg-red-600'}`}>{task.scope}</span>}
+                                                            <span className="truncate" title={task.displayName || task.name}>{task.name}</span>
                                                         </span>
                                                     </div>
-                                                    <div className="relative" style={{ width: chartData.totalChartWidth }}>
+                                                    <div
+                                                        className="relative cursor-crosshair"
+                                                        data-gantt-track="true"
+                                                        style={{ width: chartData.totalChartWidth }}
+                                                        onPointerDown={(event) => beginScheduleDrag(event, task, 0, 'create')}
+                                                    >
                                                         {task.ranges && task.ranges.map((r: any, rIdx: number) => {
                                                             if (!r.start || !r.end) return null;
                                                             const s = parseInt(r.start) + shift;
@@ -3409,10 +3692,36 @@ function GanttBoard() {
                                                             return (
                                                                 <React.Fragment key={rIdx}>
                                                                     <div
-                                                                        className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
-                                                                        style={{ left: (s - 1) * DAY_WIDTH, width: dur * DAY_WIDTH - 1 }}
+                                                                        className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 select-none ${isReadOnly || isProjectLocked ? '' : 'cursor-grab active:cursor-grabbing'} ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
+                                                                        style={{ left: (s - 1) * DAY_WIDTH, width: Math.max(18, dur * DAY_WIDTH - 1) }}
+                                                                        onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'move')}
                                                                     >
-                                                                        {dur} Hari
+                                                                        {!isReadOnly && !isProjectLocked && (
+                                                                            <button
+                                                                                type="button"
+                                                                                aria-label="Resize mulai"
+                                                                                className="absolute left-0 top-0 h-full w-2 rounded-l bg-white/40 hover:bg-white/70 cursor-ew-resize"
+                                                                                onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-start')}
+                                                                            />
+                                                                        )}
+                                                                        <span className="pointer-events-none">{dur} Hari</span>
+                                                                        {!isReadOnly && !isProjectLocked && (
+                                                                            <>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    aria-label="Resize selesai"
+                                                                                    className="absolute right-0 top-0 h-full w-2 rounded-r bg-white/40 hover:bg-white/70 cursor-ew-resize"
+                                                                                    onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-end')}
+                                                                                />
+                                                                                <button
+                                                                                    type="button"
+                                                                                    aria-label="Drag keterikatan"
+                                                                                    title="Drag ke tahapan tujuan"
+                                                                                    className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-white bg-blue-600 shadow cursor-crosshair hover:bg-blue-700"
+                                                                                    onPointerDown={(event) => beginDependencyDrag(event, task.id)}
+                                                                                />
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                     {delay > 0 && (
                                                                         <div
@@ -3473,6 +3782,38 @@ function GanttBoard() {
             </main>
 
 
+            {pendingDependency && (() => {
+                const sourceTask = tasks.find(t => t.id === pendingDependency.sourceId);
+                const targetTask = tasks.find(t => t.id === pendingDependency.targetId);
+                return (
+                    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                        <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
+                            <div className="border-b border-slate-200 px-5 py-4">
+                                <h2 className="text-lg font-black text-slate-900">Keterikatan Tahapan</h2>
+                                <p className="mt-1 text-sm font-semibold text-slate-500">Konfirmasi relasi pekerjaan Gantt.</p>
+                            </div>
+                            <div className="space-y-3 px-5 py-5">
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <p className="text-xs font-black uppercase text-slate-500">Dari</p>
+                                    <p className="mt-1 font-bold text-slate-900">{sourceTask?.displayName || sourceTask?.name || '-'}</p>
+                                </div>
+                                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                                    <p className="text-xs font-black uppercase text-blue-600">Dilanjutkan ke</p>
+                                    <p className="mt-1 font-bold text-blue-900">{targetTask?.displayName || targetTask?.name || '-'}</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:justify-end">
+                                <Button type="button" variant="outline" className="font-semibold" onClick={() => setPendingDependency(null)}>
+                                    Batal
+                                </Button>
+                                <Button type="button" className="bg-blue-600 font-bold text-white hover:bg-blue-500" onClick={confirmPendingDependency}>
+                                    Simpan Keterikatan
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
             {showGrandOpeningModal && grandOpeningDocumentationUrl && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm">
                     <div className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl animate-in zoom-in-95">
