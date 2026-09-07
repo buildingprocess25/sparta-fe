@@ -3092,7 +3092,7 @@ function GanttBoard() {
                         )}
                     </div>
                 )}
-            </main></main>
+            </div></main>
 
 
             {showGrandOpeningModal && grandOpeningDocumentationUrl && (

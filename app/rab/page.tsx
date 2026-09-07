@@ -186,30 +186,33 @@ type PriceMasterItem = {
   "Input Upah Manual"?: boolean | string | number;
 };
 
-type PriceMaster = Record<string, PriceMasterItem[]>;
+type PriceMaster = any;
 
-const getPriceItemsForCategory = (priceData: PriceMaster, category: string): PriceMasterItem[] => {
-  if (Array.isArray(priceData?.[category])) return priceData[category];
+const getPriceItemsForCategory = (priceData: any, category: string, lingkup?: 'SIPIL' | 'ME'): PriceMasterItem[] => {
+  const targetData = lingkup ? priceData?.[lingkup] : priceData;
+  if (Array.isArray(targetData?.[category])) return targetData[category];
 
   const targetKey = normalizePriceCategoryName(category);
-  const matchedEntry = Object.entries(priceData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
+  const matchedEntry = Object.entries(targetData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
   return matchedEntry?.[1] || [];
 };
 
 const findBestMasterPriceMatch = (
-  masterPrices: PriceMaster,
+  masterPrices: any,
   category: string,
-  jenisPekerjaan: string
+  jenisPekerjaan: string,
+  lingkup?: 'SIPIL' | 'ME'
 ): { category: string; item: PriceMasterItem } | null => {
   const normalizedJob = normalizeJobName(jenisPekerjaan);
   if (!normalizedJob) return null;
 
-  const categoryItems = getPriceItemsForCategory(masterPrices, category);
+  const targetData = lingkup ? masterPrices?.[lingkup] : masterPrices;
+  const categoryItems = getPriceItemsForCategory(masterPrices, category, lingkup);
   const exactCategoryMatch = categoryItems.find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
   if (exactCategoryMatch) return { category, item: exactCategoryMatch };
 
-  const allCandidates = Object.entries(masterPrices || {})
-    .flatMap(([candidateCategory, items]) => items.map((item) => ({ category: candidateCategory, item })));
+  const allCandidates = Object.entries(targetData || {})
+    .flatMap(([candidateCategory, items]: any) => items.map((item: any) => ({ category: candidateCategory, item })));
   const exactAnyCategoryMatch = allCandidates.find(({ item }) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
   if (exactAnyCategoryMatch) return exactAnyCategoryMatch;
 
@@ -232,6 +235,7 @@ const findBestMasterPriceMatch = (
 
 type RabTableRow = {
   category: string;
+  lingkupPekerjaan?: 'SIPIL' | 'ME';
   jenisPekerjaan: string;
   satuan: string;
   volume: number | string;
@@ -420,7 +424,7 @@ const refreshRevisionRowsWithMasterPrices = <T extends RabTableRow>(rows: T[], m
   });
 };
 
-const getPriceDirectiveForRow = (priceData: PriceMaster, row: Partial<RabTableRow>) => {
+const getPriceDirectiveForRow = (priceData: any, row: Partial<RabTableRow>) => {
   if (!row.category || !row.jenisPekerjaan) {
     return {
       materialDirectiveToUpah: false,
@@ -429,8 +433,8 @@ const getPriceDirectiveForRow = (priceData: PriceMaster, row: Partial<RabTableRo
     };
   }
 
-  const itemData = getPriceItemsForCategory(priceData, String(row.category))
-    .find((item) => item["Jenis Pekerjaan"] === row.jenisPekerjaan);
+  const itemData = getPriceItemsForCategory(priceData, String(row.category), row.lingkupPekerjaan as any)
+    .find((item: any) => item["Jenis Pekerjaan"] === row.jenisPekerjaan);
 
   const { materialDirectiveToUpah, isMatCond, isUpahCond } = getManualPriceFlags(itemData);
   return {
@@ -518,8 +522,8 @@ function RABPageContent() {
   const asuransiFileRef = useRef<HTMLInputElement>(null);
 
   const [availableCabang, setAvailableCabang] = useState<string[]>([]);
-  const [prices, setPrices] = useState<any>({});
-  const [tableRows, setTableRows] = useState<any[]>([]);
+  const [prices, setPrices] = useState<any>({ SIPIL: {}, ME: {} });
+  const [tableRows, setTableRows] = useState<RabTableRow[]>([]);
   
   const [rejectedList, setRejectedList] = useState<any[]>([]);
   const [planningRequests, setPlanningRequests] = useState<RabProjectPlanningRequest[]>([]);
@@ -813,13 +817,23 @@ function RABPageContent() {
   useEffect(() => {
     if (formData.cabang && formData.lingkupPekerjaan) {
         const activeCabang = getRabPriceBranch(formData.cabang);
-        fetchPricesData(activeCabang, formData.lingkupPekerjaan)
-            .then(data => {
-                setPrices(data);
-                // Harga master hanya dipakai untuk pilihan item baru.
-                // Jangan otomatis reprice rows revisi karena bisa memindahkan kategori dan menimpa harga input user.
-            })
-            .catch(err => showAlert("Error", err.message, "error"));
+        if (formData.lingkupPekerjaan === 'GABUNGAN') {
+            Promise.all([
+                fetchPricesData(activeCabang, 'SIPIL'),
+                fetchPricesData(activeCabang, 'ME')
+            ]).then(([pSipil, pME]) => {
+                setPrices({ SIPIL: pSipil, ME: pME });
+            }).catch(err => showAlert("Error", err.message, "error"));
+        } else {
+            fetchPricesData(activeCabang, formData.lingkupPekerjaan)
+                .then(data => {
+                    setPrices({
+                        SIPIL: formData.lingkupPekerjaan === 'SIPIL' ? data : {},
+                        ME: formData.lingkupPekerjaan === 'ME' ? data : {}
+                    });
+                })
+                .catch(err => showAlert("Error", err.message, "error"));
+        }
     }
   }, [formData.cabang, formData.lingkupPekerjaan]);
 
@@ -1029,8 +1043,22 @@ function RABPageContent() {
           );
 
           // 2. Fetch harga master sesuai wilayah harga induk dan lingkup pekerjaan dokumen
-          const fetchedPrices = await fetchPricesData(getRabPriceBranch(resolvedCabang), resolvedScope);
-          setPrices(fetchedPrices);
+          let pSipil = {};
+          let pME = {};
+          if (resolvedScope?.toUpperCase() === 'GABUNGAN') {
+            const [fetchedSipil, fetchedME] = await Promise.all([
+                fetchPricesData(getRabPriceBranch(resolvedCabang), 'SIPIL'),
+                fetchPricesData(getRabPriceBranch(resolvedCabang), 'ME')
+            ]);
+            pSipil = fetchedSipil;
+            pME = fetchedME;
+          } else {
+            const fetchedPrices = await fetchPricesData(getRabPriceBranch(resolvedCabang), resolvedScope);
+            if (resolvedScope?.toUpperCase() === 'ME') pME = fetchedPrices;
+            else pSipil = fetchedPrices;
+          }
+          const finalPrices = { SIPIL: pSipil, ME: pME };
+          setPrices(finalPrices);
 
           // Normalisasi Dropdown
           let finalProyek = tokoRef.proyek || data["Proyek"] || formData.proyek;
@@ -1098,14 +1126,15 @@ function RABPageContent() {
               itemsData.forEach((item: any, i: number) => {
                   const category = item.kategori_pekerjaan;
                   const jobName = item.jenis_pekerjaan;
-                  
-                  const itemPriceRef = getPriceItemsForCategory(fetchedPrices, category).find((x: any) => x["Jenis Pekerjaan"] === jobName);
+                  const rowLingkup = (item.lingkup_pekerjaan || (resolvedScope?.toUpperCase() === 'ME' ? 'ME' : 'SIPIL')).toUpperCase() as 'SIPIL' | 'ME';
+                  const itemPriceRef = getPriceItemsForCategory(finalPrices, category, rowLingkup).find((x: any) => x["Jenis Pekerjaan"] === jobName);
                   const { isMatCond, isUpahCond } = getManualPriceFlags(itemPriceRef);
 
                   newRows.push({
                       id: Date.now() + i + Math.random(),
                       sourceItemId: item.id ? Number(item.id) : null,
                       category: category,
+                      lingkupPekerjaan: rowLingkup,
                       jenisPekerjaan: jobName,
                       satuan: item.satuan || itemPriceRef?.["Satuan"],
                       volume: parseFloat(item.volume) || 0,
@@ -1125,13 +1154,15 @@ function RABPageContent() {
                       const category = details[`Kategori_Pekerjaan_${i}`];
                       const jobName = details[`Jenis_Pekerjaan_${i}`];
                       
-                      const itemPriceRef = getPriceItemsForCategory(fetchedPrices, category).find((x: any) => x["Jenis Pekerjaan"] === jobName);
+                      const rowLingkup = (details[`Lingkup_Pekerjaan_${i}`] || (resolvedScope?.toUpperCase() === 'ME' ? 'ME' : 'SIPIL')).toUpperCase() as 'SIPIL' | 'ME';
+                      const itemPriceRef = getPriceItemsForCategory(finalPrices, category, rowLingkup).find((x: any) => x["Jenis Pekerjaan"] === jobName);
                       const { isMatCond, isUpahCond } = getManualPriceFlags(itemPriceRef);
 
                       newRows.push({
                           id: Date.now() + i + Math.random(),
                           sourceItemId: null,
                           category: category,
+                          lingkupPekerjaan: rowLingkup,
                           jenisPekerjaan: jobName,
                           satuan: details[`Satuan_Item_${i}`] || itemPriceRef?.["Satuan"],
                           volume: parseFloat(details[`Volume_Item_${i}`]) || '',
@@ -1282,8 +1313,8 @@ function RABPageContent() {
       }
   };
 
-  const addRow = (category: string) => {
-    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, jenisPekerjaan: '', satuan: '', volume: '', hargaMaterial: '', hargaUpah: '', isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
+  const addRow = (category: string, lingkup?: 'SIPIL' | 'ME') => {
+    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, lingkupPekerjaan: lingkup, jenisPekerjaan: '', satuan: '', volume: '', hargaMaterial: '', hargaUpah: '', isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
   };
 
   const removeRow = (id: number) => setTableRows(prev => prev.filter(row => row.id !== id));
@@ -1293,7 +1324,7 @@ function RABPageContent() {
       if (row.id === id) {
         let updatedRow = { ...row, [field]: value };
         if (field === 'jenisPekerjaan' && value) {
-            const itemData = getPriceItemsForCategory(prices, row.category).find((item: any) => item["Jenis Pekerjaan"] === value);
+            const itemData = getPriceItemsForCategory(prices, row.category, row.lingkupPekerjaan as any).find((item: any) => item["Jenis Pekerjaan"] === value);
             if (itemData) {
                 updatedRow.satuan = itemData["Satuan"];
                 const materialDirectiveToUpah = isTextPriceDirective(itemData["Harga Material"]);
@@ -1357,6 +1388,7 @@ function RABPageContent() {
       .filter(row => row.jenisPekerjaan && volumeToNumber(row.volume) > 0)
       .map(row => ({
         kategori_pekerjaan: row.category,
+        lingkup_pekerjaan: row.lingkupPekerjaan,
         jenis_pekerjaan: row.jenisPekerjaan,
         satuan: row.satuan,
         volume: volumeToNumber(row.volume),
@@ -1921,15 +1953,15 @@ function RABPageContent() {
               )}
               <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block mb-6">Detail Bill of Quantities (BoQ)</h2>
               {(() => {
-                const renderCategoryCard = (category: string) => {
-                  const itemsInCategory = tableRows.filter(r => r.category === category);
+                const renderCategoryCard = (category: string, lingkup: 'SIPIL' | 'ME' = formData.lingkupPekerjaan === 'ME' ? 'ME' : 'SIPIL') => {
+                  const itemsInCategory = tableRows.filter(r => r.category === category && (r.lingkupPekerjaan === lingkup || !r.lingkupPekerjaan));
                   const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
                   const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
-                  const priceItems = getPriceItemsForCategory(prices, category);
-                  const isAddDisabled = priceItems.length > 0 && selectedJobs.length >= priceItems.length;
+                  const priceItems = getPriceItemsForCategory(prices, category, lingkup);
+                  const isAddDisabled = priceItems.length > 0 && itemsInCategory.length >= priceItems.length;
 
                   return (
-                    <Card key={category} className="overflow-hidden border-slate-200 shadow-sm transition-all hover:shadow-md mb-6 bg-white">
+                    <Card key={`${lingkup}-${category}`} className="overflow-hidden border-slate-200 shadow-sm transition-all hover:shadow-md mb-6 bg-white">
                       <div className="bg-slate-100 p-4 border-b flex justify-between items-center">
                         <h3 className="font-bold text-red-700">{category}</h3>
                       </div>
@@ -1999,7 +2031,7 @@ function RABPageContent() {
                                {!isReadOnly && !isAddDisabled && (
                                  <tr>
                                    <td colSpan={11} className="p-3 text-center bg-white border-b border-slate-200">
-                                     <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-full max-w-sm" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
+                                     <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-full max-w-sm" onClick={() => addRow(category, lingkup)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
                                    </td>
                                  </tr>
                                )}
@@ -2010,7 +2042,7 @@ function RABPageContent() {
                       )}
                       {itemsInCategory.length === 0 && !isReadOnly && !isAddDisabled && (
                           <div className="p-6 text-center">
-                              <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400" onClick={() => addRow(category)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
+                              <Button type="button" size="sm" variant="outline" className="h-8 bg-white border-dashed border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400" onClick={() => addRow(category, lingkup)}><Plus className="w-4 h-4 mr-1" /> Tambah Item Pekerjaan</Button>
                           </div>
                       )}
                     </Card>
@@ -2030,7 +2062,7 @@ function RABPageContent() {
                             <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase z-10">Lingkup Sipil</h2>
                           </div>
                           <div className="p-6 space-y-6 bg-slate-50/30">
-                            {sipilCats.map(c => renderCategoryCard(c))}
+                            {sipilCats.map(c => renderCategoryCard(c, 'SIPIL'))}
                           </div>
                         </Card>
                       )}
@@ -2041,7 +2073,7 @@ function RABPageContent() {
                             <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase z-10">Lingkup ME</h2>
                           </div>
                           <div className="p-6 space-y-6 bg-slate-50/30">
-                            {meCats.map(c => renderCategoryCard(c))}
+                            {meCats.map(c => renderCategoryCard(c, 'ME'))}
                           </div>
                         </Card>
                       )}
