@@ -98,6 +98,14 @@ type RabCoordinatorInfoPayload = {
     is_fasade: boolean;
 };
 
+type RabScopeSummary = {
+    lingkup_pekerjaan: string;
+    id_rab: number;
+    id_toko?: number;
+    total_nilai?: number;
+    nama_toko?: string;
+};
+
 const toRabCoordinatorInfoState = (input?: {
     beanspot_type?: string | null;
     is_hth?: boolean | null;
@@ -136,6 +144,8 @@ interface NormalizedListItem {
     alasan_perpanjangan?: string;
     hari_denda?: number;
     nilai_denda?: string;
+    related_rab_ids?: number[];
+    scope_details?: RabScopeSummary[];
 }
 
 interface NormalizedDetail {
@@ -179,6 +189,7 @@ interface NormalizedDetail {
     // Items
     items: Array<{
         id: number;
+        lingkup_pekerjaan?: string;
         kategori: string;
         jenis_pekerjaan: string;
         satuan: string;
@@ -203,6 +214,8 @@ interface NormalizedDetail {
     nilai_denda?: string;
     tanggal_akhir_spk_denda?: string;
     tanggal_serah_terima_denda?: string;
+    related_rab_ids?: number[];
+    scope_details?: RabScopeSummary[];
     _raw?: any;
 }
 
@@ -592,6 +605,41 @@ const STATUS_LABEL: Record<string, string> = {
 // =============================================
 // NORMALIZE HELPERS
 // =============================================
+const RAB_SCOPE_ORDER = ['SIPIL', 'ME'];
+
+const normalizeRabScopeLabel = (value?: string | null) => {
+    const scope = String(value ?? '').trim().toUpperCase();
+    if (scope === 'SIPIL' || scope === 'ME') return scope;
+    if (scope.includes('SIPIL') && scope.includes('ME')) return 'SIPIL + ME';
+    return scope;
+};
+
+const getRabListScope = (rab: any) => normalizeRabScopeLabel(rab?.lingkup_pekerjaan ?? rab?.toko?.lingkup_pekerjaan);
+
+const sortRabScopeDetails = (details: RabScopeSummary[]) =>
+    [...details].sort((a, b) => {
+        const aIndex = RAB_SCOPE_ORDER.indexOf(a.lingkup_pekerjaan);
+        const bIndex = RAB_SCOPE_ORDER.indexOf(b.lingkup_pekerjaan);
+        return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+    });
+
+const buildRabScopeSummary = (rab: any): RabScopeSummary => ({
+    lingkup_pekerjaan: getRabListScope(rab),
+    id_rab: Number(rab?.id),
+    id_toko: Number(rab?.id_toko ?? rab?.toko?.id) || undefined,
+    total_nilai: parseCurrency(rab?.grand_total_final ?? rab?.grand_total),
+    nama_toko: rab?.nama_toko ?? rab?.toko?.nama_toko,
+});
+
+const getRelatedRabIds = (item: NormalizedListItem | NormalizedDetail) => {
+    const candidateIds = [
+        ...((Array.isArray((item as any).related_rab_ids) ? (item as any).related_rab_ids : []) as any[]),
+        ...((Array.isArray((item as any)._raw?.related_rab_ids) ? (item as any)._raw.related_rab_ids : []) as any[]),
+        item.id,
+    ];
+    return Array.from(new Set(candidateIds.map(Number).filter(Boolean)));
+};
+
 const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] => {
     const grouped = new Map<string, RABListItem[]>();
     items.forEach(r => {
@@ -603,11 +651,13 @@ const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] => {
     const normalized: NormalizedListItem[] = [];
     grouped.forEach((groupItems, ulok) => {
         if (groupItems.length > 1) {
-            const sipil = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'SIPIL');
-            const me = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'ME');
+            const sipil = groupItems.find(i => getRabListScope(i) === 'SIPIL');
+            const me = groupItems.find(i => getRabListScope(i) === 'ME');
 
             if (sipil && me && sipil.status === me.status) {
-                const totalGabungan = (sipil.grand_total_final ?? sipil.grand_total) + (me.grand_total_final ?? me.grand_total);
+                const scopeDetails = sortRabScopeDetails([buildRabScopeSummary(sipil), buildRabScopeSummary(me)]);
+                const relatedRabIds = scopeDetails.map(scope => scope.id_rab).filter(Boolean);
+                const totalGabungan = scopeDetails.reduce((sum, scope) => sum + Number(scope.total_nilai || 0), 0);
                 normalized.push({
                     id: sipil.id,
                     tipe: 'RAB' as ApprovalType,
@@ -615,10 +665,12 @@ const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] => {
                     nama_toko: (sipil.nama_toko ?? sipil.toko?.nama_toko ?? '-') + " (Sipil & ME)",
                     cabang: sipil.cabang ?? sipil.toko?.cabang ?? '-',
                     status: sipil.status,
-                    total_nilai: parseCurrency(totalGabungan),
+                    total_nilai: totalGabungan,
                     email_pembuat: sipil.email_pembuat,
                     created_at: sipil.created_at,
-                    _raw: sipil,
+                    related_rab_ids: relatedRabIds,
+                    scope_details: scopeDetails,
+                    _raw: { ...sipil, related_rab_ids: relatedRabIds, scope_details: scopeDetails },
                 });
                 groupItems.filter(i => i !== sipil && i !== me).forEach(r => {
                     normalized.push({
@@ -1386,36 +1438,67 @@ function ApprovalPageContent() {
                     _raw: { ...r, logs: res.data.logs },
                 };
             } else if (item.tipe === 'RAB') {
-                const res = await fetchRABDetail(item.id);
-                const d = res.data;
+                const rabIds = getRelatedRabIds(item);
+                const detailResponses = await Promise.all(rabIds.map((rabId) => fetchRABDetail(rabId)));
+                const rabDetails = detailResponses
+                    .map((response: any) => response?.data)
+                    .filter(Boolean)
+                    .sort((a: any, b: any) => {
+                        const aIndex = RAB_SCOPE_ORDER.indexOf(normalizeRabScopeLabel(a?.toko?.lingkup_pekerjaan));
+                        const bIndex = RAB_SCOPE_ORDER.indexOf(normalizeRabScopeLabel(b?.toko?.lingkup_pekerjaan));
+                        return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+                    });
+
+                if (rabDetails.length === 0) throw new Error('Detail RAB tidak ditemukan.');
+
+                const base = rabDetails[0];
+                const baseRab = base.rab || {};
+                const baseToko = base.toko || {};
+                const scopeDetails = sortRabScopeDetails(rabDetails.map((scopeDetail: any) => {
+                    const rab = scopeDetail.rab || {};
+                    const toko = scopeDetail.toko || {};
+                    return {
+                        lingkup_pekerjaan: normalizeRabScopeLabel(toko.lingkup_pekerjaan),
+                        id_rab: Number(rab.id),
+                        id_toko: Number(toko.id) || undefined,
+                        total_nilai: parseCurrency(rab.grand_total_final ?? rab.grand_total),
+                        nama_toko: toko.nama_toko,
+                    };
+                }));
+                const scopeLabels = scopeDetails.map(scope => scope.lingkup_pekerjaan).filter(Boolean);
+                const relatedRabIds = scopeDetails.map(scope => scope.id_rab).filter(Boolean);
+
                 detail = {
-                    id: d.rab.id,
+                    id: baseRab.id,
                     tipe: 'RAB',
-                    nomor_ulok:        d.toko.nomor_ulok,
-                    id_toko:           d.toko.id,
-                    nama_toko:         d.toko.nama_toko,
-                    alamat:            d.toko.alamat,
-                    cabang:            d.toko.cabang,
-                    lingkup_pekerjaan: d.toko.lingkup_pekerjaan,
-                    nama_kontraktor:   d.toko.nama_kontraktor,
-                    status:            d.rab.status,
-                    total_nilai:       parseCurrency(d.rab.grand_total_final ?? d.rab.grand_total),
-                    email_pembuat:     d.rab.email_pembuat,
-                    created_at:        d.rab.created_at,
-                    alasan_penolakan:  d.rab.alasan_penolakan,
-                    link_pdf_gabungan: d.rab.link_pdf_gabungan,
-                    approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator, catatan: d.rab.catatan_persetujuan_koordinator },
-                    approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager, catatan: d.rab.catatan_persetujuan_manager },
-                    approval_direktur:    { pemberi: d.rab.pemberi_persetujuan_direktur,    waktu: d.rab.waktu_persetujuan_direktur, catatan: d.rab.catatan_persetujuan_direktur },
+                    nomor_ulok:        baseToko.nomor_ulok,
+                    id_toko:           baseToko.id,
+                    nama_toko:         baseToko.nama_toko,
+                    alamat:            baseToko.alamat,
+                    cabang:            baseToko.cabang,
+                    lingkup_pekerjaan: scopeLabels.length > 1 ? scopeLabels.join(' + ') : baseToko.lingkup_pekerjaan,
+                    nama_kontraktor:   baseToko.nama_kontraktor,
+                    status:            baseRab.status,
+                    total_nilai:       rabDetails.reduce((sum: number, scopeDetail: any) => sum + parseCurrency(scopeDetail.rab?.grand_total_final ?? scopeDetail.rab?.grand_total), 0),
+                    email_pembuat:     baseRab.email_pembuat,
+                    created_at:        baseRab.created_at,
+                    alasan_penolakan:  baseRab.alasan_penolakan,
+                    link_pdf_gabungan: baseRab.link_pdf_gabungan,
+                    approval_koordinator: { pemberi: baseRab.pemberi_persetujuan_koordinator, waktu: baseRab.waktu_persetujuan_koordinator, catatan: baseRab.catatan_persetujuan_koordinator },
+                    approval_manager:     { pemberi: baseRab.pemberi_persetujuan_manager,     waktu: baseRab.waktu_persetujuan_manager, catatan: baseRab.catatan_persetujuan_manager },
+                    approval_direktur:    { pemberi: baseRab.pemberi_persetujuan_direktur,    waktu: baseRab.waktu_persetujuan_direktur, catatan: baseRab.catatan_persetujuan_direktur },
                     // Coordinator info (beanspot, HTH, fasade) - hanya untuk manager
-                    beanspot_type: d.rab.beanspot_type,
-                    is_hth: d.rab.is_hth,
-                    hth_meter: d.rab.hth_meter,
-                    is_fasade: d.rab.is_fasade,
-                    items: (d.items ?? []).map((it: RABDetailItem) => {
-                        console.log("RAB ITEM:", it);
-                        return {
+                    beanspot_type: baseRab.beanspot_type,
+                    is_hth: baseRab.is_hth,
+                    hth_meter: baseRab.hth_meter,
+                    is_fasade: baseRab.is_fasade,
+                    related_rab_ids: relatedRabIds,
+                    scope_details: scopeDetails,
+                    items: rabDetails.flatMap((scopeDetail: any) => {
+                        const scope = normalizeRabScopeLabel(scopeDetail.toko?.lingkup_pekerjaan);
+                        return (scopeDetail.items ?? []).map((it: RABDetailItem) => ({
                             id: it.id,
+                            lingkup_pekerjaan: scope,
                             kategori:        it.kategori_pekerjaan,
                             jenis_pekerjaan: it.jenis_pekerjaan,
                             satuan:          it.satuan,
@@ -1424,7 +1507,7 @@ function ApprovalPageContent() {
                             harga_upah:      it.harga_upah,
                             total:           it.total_harga,
                             catatan:         it.catatan,
-                        };
+                        }));
                     }),
                 };
 
@@ -3128,19 +3211,33 @@ function ApprovalPageContent() {
                                 )}
 
                                 {/* Visualisasi Gantt Chart - untuk RAB & SPK */}
-                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && selectedDetail.id_toko && (
-                                    <div className="mb-6">
-                                        <GanttViewer
-                                            nomorUlok={selectedDetail.nomor_ulok}
-                                            idToko={selectedDetail.id_toko}
-                                            title={selectedDetail.tipe === 'RAB' ? 'Visualisasi Gantt RAB' : 'Visualisasi Gantt SPK'}
-                                            isBelumSpk={selectedDetail.tipe === 'RAB'}
-                                            spkStartDate={selectedDetail.tipe === 'SPK' ? selectedDetail.waktu_mulai : undefined}
-                                            spkDuration={selectedDetail.tipe === 'SPK' ? selectedDetail.durasi : undefined}
-                                            hideLegend={true}
-                                        />
-                                    </div>
-                                )}
+                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && (() => {
+                                    const ganttScopes = selectedDetail.tipe === 'RAB' && selectedDetail.scope_details?.length
+                                        ? selectedDetail.scope_details.filter(scope => scope.id_toko)
+                                        : selectedDetail.id_toko
+                                            ? [{ lingkup_pekerjaan: selectedDetail.lingkup_pekerjaan || '', id_toko: selectedDetail.id_toko }]
+                                            : [];
+                                    if (ganttScopes.length === 0) return null;
+
+                                    return (
+                                        <div className="mb-6 space-y-4">
+                                            {ganttScopes.map(scope => (
+                                                <GanttViewer
+                                                    key={`${selectedDetail.tipe}-${scope.id_toko}`}
+                                                    nomorUlok={selectedDetail.nomor_ulok}
+                                                    idToko={scope.id_toko}
+                                                    title={selectedDetail.tipe === 'RAB'
+                                                        ? `Visualisasi Gantt RAB${ganttScopes.length > 1 ? ` - ${scope.lingkup_pekerjaan}` : ''}`
+                                                        : 'Visualisasi Gantt SPK'}
+                                                    isBelumSpk={selectedDetail.tipe === 'RAB'}
+                                                    spkStartDate={selectedDetail.tipe === 'SPK' ? selectedDetail.waktu_mulai : undefined}
+                                                    spkDuration={selectedDetail.tipe === 'SPK' ? selectedDetail.durasi : undefined}
+                                                    hideLegend={true}
+                                                />
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Pertambahan SPK Detail Card */}
                                 {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && (
@@ -3318,7 +3415,14 @@ function ApprovalPageContent() {
                                                 <tbody className="divide-y divide-slate-100">
                                                     {selectedDetail.items.map(row => (
                                                         <tr key={row.id} className="hover:bg-slate-50">
-                                                            <td className="p-3 font-semibold text-slate-600 border-r text-xs whitespace-nowrap">{row.kategori}</td>
+                                                            <td className="p-3 font-semibold text-slate-600 border-r text-xs whitespace-nowrap">
+                                                                {selectedDetail.tipe === 'RAB' && row.lingkup_pekerjaan && (
+                                                                    <span className={`mr-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ${row.lingkup_pekerjaan === 'ME' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                        {row.lingkup_pekerjaan}
+                                                                    </span>
+                                                                )}
+                                                                {row.kategori}
+                                                            </td>
                                                             <td className="p-3 text-slate-700 border-r whitespace-normal min-w-62.5">{row.jenis_pekerjaan}</td>
                                                             {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && selectedDetail.tipe !== 'RAB' && (
                                                                 <td className="p-3 text-center border-r">
@@ -3472,3 +3576,4 @@ export default function ApprovalPage() {
         </React.Suspense>
     );
 }
+

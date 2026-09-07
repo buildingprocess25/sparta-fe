@@ -243,16 +243,19 @@ const findBestMasterPriceMatch = (
 };
 
 type RabTableRow = {
+  id: number;
+  sourceItemId?: number | null;
   category: string;
   lingkupPekerjaan?: 'SIPIL' | 'ME';
   jenisPekerjaan: string;
   satuan: string;
   volume: number | string;
-  hargaMaterial: number;
-  hargaUpah: number;
+  hargaMaterial: number | string;
+  hargaUpah: number | string;
   isKondisional: boolean;
   isMaterialKondisional?: boolean;
   isUpahKondisional?: boolean;
+  catatan?: string;
   [key: string]: unknown;
 };
 
@@ -384,7 +387,8 @@ const getManualPriceFlags = (itemData?: PriceMasterItem) => {
 const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: PriceMaster): T[] => {
   const lookup = new Map<string, PriceMasterItem & { category: string }>();
   Object.entries(masterPrices || {}).forEach(([category, items]) => {
-    items.forEach((item) => {
+    if (!Array.isArray(items)) return;
+    (items as PriceMasterItem[]).forEach((item) => {
       const key = normalizeJobName(item?.["Jenis Pekerjaan"]);
       if (key && !lookup.has(key)) lookup.set(key, { ...item, category });
     });
@@ -400,8 +404,8 @@ const repriceRowsWithMaster = <T extends RabTableRow>(rows: T[], masterPrices: P
       ...row,
       category: itemData.category || row.category,
       satuan: itemData["Satuan"] || row.satuan,
-      hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial),
-      hargaUpah: isUpahCond ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], row.hargaUpah),
+      hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], Number(row.hargaMaterial) || 0),
+      hargaUpah: isUpahCond ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], Number(row.hargaUpah) || 0),
       isKondisional: isMatCond || isUpahCond,
       isMaterialKondisional: isMatCond,
       isUpahKondisional: isUpahCond,
@@ -414,7 +418,7 @@ const refreshRevisionRowsWithMasterPrices = <T extends RabTableRow>(rows: T[], m
   return rows.map((row) => {
     if (!row.category || !row.jenisPekerjaan) return row;
 
-    const match = findBestMasterPriceMatch(masterPrices, row.category, row.jenisPekerjaan);
+    const match = findBestMasterPriceMatch(masterPrices, row.category, row.jenisPekerjaan, row.lingkupPekerjaan);
     if (!match) return row;
 
     const itemData = match.item;
@@ -424,8 +428,8 @@ const refreshRevisionRowsWithMasterPrices = <T extends RabTableRow>(rows: T[], m
       category: match.category || row.category,
       jenisPekerjaan: itemData["Jenis Pekerjaan"] || row.jenisPekerjaan,
       satuan: itemData["Satuan"] || row.satuan,
-      hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial),
-      hargaUpah: isUpahCond ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], row.hargaUpah),
+      hargaMaterial: materialDirectiveToUpah ? 0 : isMatCond ? row.hargaMaterial : priceValueToNumber(itemData["Harga Material"], Number(row.hargaMaterial) || 0),
+      hargaUpah: isUpahCond ? row.hargaUpah : priceValueToNumber(itemData["Harga Upah"], Number(row.hargaUpah) || 0),
       isKondisional: isMatCond || isUpahCond,
       isMaterialKondisional: isMatCond,
       isUpahKondisional: isUpahCond,
@@ -1187,7 +1191,7 @@ function RABPageContent() {
           }
           const revisionOriginalRows = newRows;
           const rowsToDisplay = usesRabParentPrice(resolvedCabang)
-              ? refreshRevisionRowsWithMasterPrices(newRows, fetchedPrices)
+              ? refreshRevisionRowsWithMasterPrices(newRows, finalPrices)
               : newRows;
 
           setTableRows(rowsToDisplay);
@@ -1275,7 +1279,7 @@ function RABPageContent() {
   }, [formData.luasBangunan, formData.luasAreaTerbuka]);
 
   const totalEstimasi = useMemo(() => {
-    return tableRows.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
+    return tableRows.reduce((acc, row) => acc + (volumeToNumber(row.volume) * ((Number(row.hargaMaterial) || 0) + (Number(row.hargaUpah) || 0))), 0);
   }, [tableRows]);
   
   const pembulatan = Math.floor(totalEstimasi / 10000) * 10000;
@@ -1323,7 +1327,7 @@ function RABPageContent() {
   };
 
   const addRow = (category: string, lingkup?: 'SIPIL' | 'ME') => {
-    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, lingkupPekerjaan: lingkup, jenisPekerjaan: '', satuan: '', volume: '', hargaMaterial: '', hargaUpah: '', isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
+    setTableRows(prev => [...prev, { id: Date.now() + Math.random(), category, lingkupPekerjaan: lingkup, jenisPekerjaan: '', satuan: '', volume: '', hargaMaterial: 0, hargaUpah: 0, isKondisional: false, isMaterialKondisional: false, isUpahKondisional: false, catatan: '' }]);
   };
 
   const removeRow = (id: number) => setTableRows(prev => prev.filter(row => row.id !== id));
@@ -1335,7 +1339,7 @@ function RABPageContent() {
         if (field === 'jenisPekerjaan' && value) {
             const itemData = getPriceItemsForCategory(prices, row.category, row.lingkupPekerjaan as any).find((item: any) => item["Jenis Pekerjaan"] === value);
             if (itemData) {
-                updatedRow.satuan = itemData["Satuan"];
+                updatedRow.satuan = itemData["Satuan"] || row.satuan || '';
                 const materialDirectiveToUpah = isTextPriceDirective(itemData["Harga Material"]);
                 const isMatCond = !materialDirectiveToUpah && (
                   isManualInputFlag(itemData["Input Material Manual"]) ||
@@ -1349,8 +1353,8 @@ function RABPageContent() {
                 updatedRow.isKondisional = isMatCond || isUpahCond;
                 updatedRow.isMaterialKondisional = isMatCond;
                 updatedRow.isUpahKondisional = isUpahCond;
-                updatedRow.hargaMaterial = materialDirectiveToUpah ? 0 : isMatCond ? 0 : priceValueToNumber(itemData["Harga Material"], row.hargaMaterial);
-                updatedRow.hargaUpah = isUpahCond ? 0 : priceValueToNumber(itemData["Harga Upah"], row.hargaUpah);
+                updatedRow.hargaMaterial = materialDirectiveToUpah ? 0 : isMatCond ? 0 : priceValueToNumber(itemData["Harga Material"], Number(row.hargaMaterial) || 0);
+                updatedRow.hargaUpah = isUpahCond ? 0 : priceValueToNumber(itemData["Harga Upah"], Number(row.hargaUpah) || 0);
                 if (updatedRow.satuan === 'Ls') updatedRow.volume = 1;
             }
         }
@@ -1969,7 +1973,7 @@ function RABPageContent() {
                     if (formData.lingkupPekerjaan === 'GABUNGAN') return rowScope === lingkup;
                     return rowScope === lingkup || !rowScope;
                   });
-                  const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
+                  const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * ((Number(row.hargaMaterial) || 0) + (Number(row.hargaUpah) || 0))), 0);
                   const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
                   const priceItems = getPriceItemsForCategory(prices, category, lingkup);
                   const isAddDisabled = priceItems.length > 0 && itemsInCategory.length >= priceItems.length;
@@ -2027,8 +2031,8 @@ function RABPageContent() {
                                   </td>
                                   <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
                                   <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={volumeToInputValue(row.volume)} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} onBlur={(e) => updateRow(row.id, 'volume', normalizeVolumeOnBlur(e.target.value))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
-                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaMaterial === 0 || row.hargaMaterial === '' ? '' : formatAngka(row.hargaMaterial)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || '')} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} placeholder="0" /></td>
-                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah === 0 || row.hargaUpah === '' ? '' : formatAngka(row.hargaUpah)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || '')} readOnly={isReadOnly || !canEditUpahPrice} tabIndex={canEditUpahPrice ? 0 : -1} placeholder="0" /></td>
+                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditMaterialPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaMaterial === 0 || row.hargaMaterial === '' ? '' : formatAngka(Number(row.hargaMaterial) || 0)} onChange={(e) => updateRow(row.id, 'hargaMaterial', parseFloat(e.target.value.replace(/\./g, '')) || '')} readOnly={isReadOnly || !canEditMaterialPrice} tabIndex={canEditMaterialPrice ? 0 : -1} placeholder="0" /></td>
+                                  <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" className={`h-9 px-2 text-right transition-colors text-xs w-28 ${isReadOnly || !canEditUpahPrice ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-yellow-50 border-yellow-300 focus-visible:ring-yellow-500 text-yellow-900 font-bold'}`} value={row.hargaUpah === 0 || row.hargaUpah === '' ? '' : formatAngka(Number(row.hargaUpah) || 0)} onChange={(e) => updateRow(row.id, 'hargaUpah', parseFloat(e.target.value.replace(/\./g, '')) || '')} readOnly={isReadOnly || !canEditUpahPrice} tabIndex={canEditUpahPrice ? 0 : -1} placeholder="0" /></td>
                                   <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * (Number(row.hargaMaterial) || 0))}</td>
                                   <td className="p-2 border-r border-slate-100 bg-slate-50 text-right text-slate-600 font-medium text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * (Number(row.hargaUpah) || 0))}</td>
                                   <td className="p-2 border-r border-slate-100 text-right font-bold text-slate-800 bg-slate-100 text-xs whitespace-nowrap">{toRupiah(volumeToNumber(row.volume) * ((Number(row.hargaMaterial) || 0) + (Number(row.hargaUpah) || 0)))}</td>
@@ -2326,3 +2330,4 @@ export default function RABPage() {
     </Suspense>
   );
 }
+

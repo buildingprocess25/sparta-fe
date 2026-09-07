@@ -2105,12 +2105,12 @@ export default function DaftarDokumenPage() {
                     luas_area_terbangun_pp:  d.luas_area_terbangun,
                     klasifikasi_bangunan:    getBuildingClassification(d.is_ruko),
                     luas_area_terbangun:     d.luas_area_terbangun,
-                    bm_approval_pp:    { pemberi: d.bm_approver_email, waktu: d.bm_waktu_persetujuan },
-                    pp1_approval:      { pemberi: d.pp1_approver_email, waktu: d.pp1_waktu_persetujuan },
-                    pp2_approval:      { pemberi: d.pp2_approver_email, waktu: d.pp2_waktu_persetujuan },
-                    pp_manager_approval: { pemberi: d.pp_manager_approver_email, waktu: d.pp_manager_waktu_persetujuan },
-                    bm2_approval: { pemberi: d.bm2_approver_email, waktu: d.bm2_waktu_persetujuan },
-                    bm_regional_approval: { pemberi: d.bm_regional_approver_email, waktu: d.bm_regional_waktu_persetujuan },
+                    bm_approval_pp:    { pemberi: d.bm_approver_email ?? null, waktu: d.bm_waktu_persetujuan ?? null },
+                    pp1_approval:      { pemberi: d.pp1_approver_email ?? null, waktu: d.pp1_waktu_persetujuan ?? null },
+                    pp2_approval:      { pemberi: d.pp2_approver_email ?? null, waktu: d.pp2_waktu_persetujuan ?? null },
+                    pp_manager_approval: { pemberi: d.pp_manager_approver_email ?? null, waktu: d.pp_manager_waktu_persetujuan ?? null },
+                    bm2_approval: { pemberi: d.bm2_approver_email ?? null, waktu: d.bm2_waktu_persetujuan ?? null },
+                    bm_regional_approval: { pemberi: d.bm_regional_approver_email ?? null, waktu: d.bm_regional_waktu_persetujuan ?? null },
                 };
             } else if (doc.tipe === 'SURAT_PERINGATAN' && doc.rawDendaAction) {
                 const action = doc.rawDendaAction;
@@ -4513,3 +4513,4 @@ function ApprovalRow({ label, pemberi, waktu, catatan }: { label: string; pember
         </div>
     );
 }
+

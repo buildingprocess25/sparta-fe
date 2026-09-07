@@ -111,9 +111,26 @@ function mapIlCategories(items: any[] | undefined): Array<{ kategori_pekerjaan: 
         .map((kategori_pekerjaan) => ({ kategori_pekerjaan }));
 }
 
-export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false, hideLegend = false }: {
+type GanttViewerScope = {
+    id_toko?: number;
+    lingkup_pekerjaan?: string;
+};
+
+const normalizeScopeLabel = (value?: string | null) => {
+    const scope = String(value ?? '').trim().toUpperCase();
+    if (scope === 'SIPIL' || scope === 'ME') return scope;
+    if (scope.includes('SIPIL')) return 'SIPIL';
+    if (scope.includes('ME')) return 'ME';
+    return scope || '-';
+};
+
+const encodeScopedCategory = (scope: string, category: string) => `[${normalizeScopeLabel(scope)}] ${String(category || '').trim()}`;
+const stripScopedCategory = (category: string) => String(category || '').replace(/^\[(SIPIL|ME)\]\s*/i, '');
+
+export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, title, checkpoints = [], onCheckpointClick, hideChartTitle = false, hideDateHeader = false, timelineStartDate, timelineDuration, syncScrollGroup, isBelumSpk = false, hideLegend = false }: {
     nomorUlok: string;
     idToko?: number;
+    scopeTokoIds?: GanttViewerScope[];
     spkStartDate?: string;          // ISO date string e.g. "2026-04-01T00:00:00" or "2026-04-01"
     spkDuration?: number;           // SPK duration in days (effective, used as main duration)
     spkEffectiveDuration?: number;  // Effective duration including approved extensions
@@ -133,7 +150,8 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
     const [errorMsg, setErrorMsg] = useState('');
     const [projectData, setProjectData] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
-    const viewerId = useMemo(() => `gantt-viewer-${idToko || nomorUlok}`.replace(/[^a-zA-Z0-9_-]/g, '-'), [idToko, nomorUlok]);
+    const scopeViewerKey = scopeTokoIds?.map(scope => scope.id_toko).filter(Boolean).join('-');
+    const viewerId = useMemo(() => `gantt-viewer-${idToko || scopeViewerKey || nomorUlok}`.replace(/[^a-zA-Z0-9_-]/g, '-'), [idToko, nomorUlok, scopeViewerKey]);
     const checkpointByDate = useMemo(
         () => new Map(checkpoints.map((checkpoint) => [checkpoint.tanggal_pengawasan, checkpoint])),
         [checkpoints]
@@ -145,30 +163,89 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
         setIsLoading(true);
         setErrorMsg('');
         
-        const fetchPromise = idToko 
-            ? fetchGanttDetailByToko(idToko).then((res: any) => {
-                if (!res || !res.gantt_data) throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
+        const validScopeTokoIds = (scopeTokoIds || []).filter(scope => scope.id_toko);
+        const fetchPromise = validScopeTokoIds.length > 1
+            ? Promise.all(validScopeTokoIds.map(scope =>
+                fetchGanttDetailByToko(Number(scope.id_toko)).then((res: any) => {
+                    if (!res || !res.gantt_data) throw new Error(`Gantt Chart belum dibuat untuk lingkup ${normalizeScopeLabel(scope.lingkup_pekerjaan)}.`);
+                    return { ...res, scopeLabel: normalizeScopeLabel(scope.lingkup_pekerjaan || res.toko?.lingkup_pekerjaan) };
+                })
+            )).then((responses: any[]) => {
+                const combinedCategories: any[] = [];
+                const combinedDayItems: any[] = [];
+                const combinedDependencies: any[] = [];
+                const combinedPengawasan: any[] = [];
+                const combinedIlItems: any[] = [];
+
+                responses.forEach((res) => {
+                    const scope = normalizeScopeLabel(res.scopeLabel || res.toko?.lingkup_pekerjaan);
+                    combinedCategories.push({ kategori_pekerjaan: scope, is_scope_header: true, scope });
+                    (res.kategori_pekerjaan || []).forEach((category: any) => {
+                        combinedCategories.push({
+                            ...category,
+                            kategori_pekerjaan: encodeScopedCategory(scope, category.kategori_pekerjaan),
+                            display_name: category.kategori_pekerjaan,
+                            scope,
+                        });
+                    });
+                    (res.day_gantt_data || []).forEach((entry: any) => {
+                        combinedDayItems.push({
+                            ...entry,
+                            kategori_pekerjaan: encodeScopedCategory(scope, entry.kategori_pekerjaan),
+                            scope,
+                        });
+                    });
+                    (res.dependency_data || []).forEach((dep: any) => {
+                        combinedDependencies.push({
+                            ...dep,
+                            kategori_pekerjaan: encodeScopedCategory(scope, dep.kategori_pekerjaan),
+                            kategori_pekerjaan_terikat: encodeScopedCategory(scope, dep.kategori_pekerjaan_terikat),
+                            scope,
+                        });
+                    });
+                    combinedPengawasan.push(...(res.pengawasan_data || []));
+                    (res.instruksi_lapangan_items || []).forEach((item: any) => {
+                        combinedIlItems.push({ ...item, kategori_pekerjaan: encodeScopedCategory(scope, `[IL] ${item.kategori_pekerjaan}`), scope });
+                    });
+                });
+
+                const first = responses[0];
                 return {
                     data: {
-                        gantt: res.gantt_data,
-                        toko: res.toko,
-                        kategori_pekerjaan: res.kategori_pekerjaan,
-                        day_items: res.day_gantt_data,
-                        dependencies: res.dependency_data || [],
-                        pengawasan: res.pengawasan_data || [],
-                        instruksi_lapangan_items: res.instruksi_lapangan_items || []
+                        gantt: first.gantt_data,
+                        toko: first.toko,
+                        kategori_pekerjaan: combinedCategories,
+                        day_items: combinedDayItems,
+                        dependencies: combinedDependencies,
+                        pengawasan: combinedPengawasan,
+                        instruksi_lapangan_items: combinedIlItems,
                     }
                 };
             })
-            : fetchGanttList({ nomor_ulok: nomorUlok })
-                .then(res => {
-                    const list = res.data || [];
-                    if (list.length === 0) {
-                        throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
-                    }
-                    const ganttId = list[0].id;
-                    return fetchGanttDetail(ganttId);
-                });
+            : idToko
+                ? fetchGanttDetailByToko(idToko).then((res: any) => {
+                    if (!res || !res.gantt_data) throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
+                    return {
+                        data: {
+                            gantt: res.gantt_data,
+                            toko: res.toko,
+                            kategori_pekerjaan: res.kategori_pekerjaan,
+                            day_items: res.day_gantt_data,
+                            dependencies: res.dependency_data || [],
+                            pengawasan: res.pengawasan_data || [],
+                            instruksi_lapangan_items: res.instruksi_lapangan_items || []
+                        }
+                    };
+                })
+                : fetchGanttList({ nomor_ulok: nomorUlok })
+                    .then(res => {
+                        const list = res.data || [];
+                        if (list.length === 0) {
+                            throw new Error("Gantt Chart belum dibuat untuk proyek ini.");
+                        }
+                        const ganttId = list[0].id;
+                        return fetchGanttDetail(ganttId);
+                    });
 
         fetchPromise
             .then(detailRes => {
@@ -866,3 +943,5 @@ export default function GanttViewer({ nomorUlok, idToko, spkStartDate, spkDurati
         </div>
     );
 }
+
+
