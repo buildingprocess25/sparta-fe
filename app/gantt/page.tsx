@@ -707,8 +707,143 @@ function GanttBoard() {
                 pic_bersama: (prev?.pic_bersama && prev.pic_bersama !== "Belum ditentukan") ? prev.pic_bersama : (response.data.pic_bersama || "Belum ditentukan"),
                 work: getWorkspaceScopeLabel(response.data) || prev?.work || "-",
             }));
-            const firstGanttId = response.data?.scopes?.find((scope: SupervisionScope) => scope.gantt_id)?.gantt_id;
+            const scopesWithGantt = (response.data?.scopes || []).filter((scope: SupervisionScope) => scope.gantt_id);
+            const firstGanttId = scopesWithGantt[0]?.gantt_id;
             if (firstGanttId) {
+                if (scopesWithGantt.length > 1) {
+                    const detailResults = await Promise.all(
+                        scopesWithGantt.map((scope: SupervisionScope) =>
+                            fetchGanttDetail(Number(scope.gantt_id))
+                                .then((detail) => ({ scope, detail }))
+                                .catch(() => null)
+                        )
+                    );
+                    if (workspaceLoadSeqRef.current !== requestSeq) return;
+
+                    const validDetails = detailResults.filter(Boolean) as Array<{ scope: SupervisionScope; detail: GanttDetailResponse }>;
+                    const parsedStarts = validDetails
+                        .map(({ detail }) => parseCalendarDate(detail.data.gantt?.timestamp?.split('T')?.[0]))
+                        .filter(Boolean) as Date[];
+                    const projectStart = parsedStarts.length > 0
+                        ? new Date(Math.min(...parsedStarts.map((date) => date.getTime())))
+                        : new Date();
+                    const msPerDay = 1000 * 60 * 60 * 24;
+                    const toDayNumber = (value: any): number => {
+                        if (!value) return NaN;
+                        const cleanValue = String(value).trim();
+                        if (cleanValue.includes('/')) {
+                            const parsed = parseDateDDMMYYYY(cleanValue);
+                            if (!parsed) return NaN;
+                            return Math.round((parsed.getTime() - projectStart.getTime()) / msPerDay) + 1;
+                        }
+                        const dateValue = parseDateAny(cleanValue);
+                        if (dateValue && !Number.isNaN(dateValue.getTime()) && /[-T]/.test(cleanValue)) {
+                            return Math.round((dateValue.getTime() - projectStart.getTime()) / msPerDay) + 1;
+                        }
+                        return parseInt(cleanValue);
+                    };
+
+                    let taskId = 1;
+                    let maxDuration = 1;
+                    const combinedTasks: any[] = [];
+                    const combinedRawDayItems: any[] = [];
+                    const combinedPengawasan: any[] = [];
+                    const combinedDates: string[] = [];
+                    validDetails.forEach(({ scope, detail }) => {
+                        const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan } = detail.data;
+                        const scopeName = String(scope.lingkup_pekerjaan || toko?.lingkup_pekerjaan || '').trim().toUpperCase() || 'SIPIL';
+                        const savedCategories = (kategori_pekerjaan || []).map((k: any) => String(k.kategori_pekerjaan || '').toUpperCase()).filter(Boolean);
+                        const categories = savedCategories.length > 0 ? savedCategories : ['PERSIAPAN'];
+                        const idByCategory = new Map<string, number>();
+
+                        const rangesByCategory: Record<string, any[]> = {};
+                        (day_items || []).forEach((entry: any) => {
+                            const categoryName = String(entry.kategori_pekerjaan || '').trim().toUpperCase();
+                            if (!categoryName) return;
+                            const startDay = toDayNumber(entry.h_awal);
+                            const endDay = toDayNumber(entry.h_akhir);
+                            if (Number.isNaN(startDay) || Number.isNaN(endDay)) return;
+                            if (!rangesByCategory[categoryName]) rangesByCategory[categoryName] = [];
+                            rangesByCategory[categoryName].push({
+                                start: startDay,
+                                end: endDay,
+                                duration: endDay - startDay + 1,
+                                keterlambatan: parseInt(String(entry.keterlambatan || 0)),
+                            });
+                            maxDuration = Math.max(maxDuration, endDay + (parseInt(String(entry.keterlambatan || 0)) || 0));
+                            combinedRawDayItems.push({
+                                Kategori: categoryName,
+                                h_awal: entry.h_awal,
+                                h_akhir: entry.h_akhir,
+                                keterlambatan: entry.keterlambatan ?? 0,
+                                kecepatan: entry.kecepatan ?? '',
+                                _id: entry.id,
+                                _id_gantt: entry.id_gantt,
+                                scope: scopeName,
+                            });
+                        });
+
+                        const scopeTasks: any[] = categories.map((categoryName: string) => {
+                            const id = taskId++;
+                            idByCategory.set(categoryName.toLowerCase().trim(), id);
+                            return {
+                                id,
+                                name: categoryName,
+                                displayName: `${scopeName} - ${categoryName}`,
+                                scope: scopeName,
+                                scopeTokoId: toko?.id || scope.id_toko,
+                                scopeGanttId: gantt?.id || scope.gantt_id,
+                                dependencies: [],
+                                ranges: rangesByCategory[categoryName] || [{ start: '', end: '', keterlambatan: 0 }],
+                                keterlambatan: 0,
+                            };
+                        });
+
+                        const depMap: Record<string, string[]> = {};
+                        (dependencies || []).forEach((dep: any) => {
+                            const child = String(dep.kategori_pekerjaan || '').toLowerCase().trim();
+                            const parent = String(dep.kategori_pekerjaan_terikat || '').toLowerCase().trim();
+                            if (!child || !parent) return;
+                            if (!depMap[child]) depMap[child] = [];
+                            depMap[child].push(parent);
+                        });
+                        scopeTasks.forEach((task) => {
+                            const key = String(task.name || '').toLowerCase().trim();
+                            task.dependencies = (depMap[key] || [])
+                                .map((parentName) => idByCategory.get(parentName))
+                                .filter(Boolean);
+                        });
+
+                        combinedTasks.push(...scopeTasks);
+                        combinedPengawasan.push(...(pengawasan || []));
+                        (pengawasan || []).forEach((item: any) => {
+                            if (item.tanggal_pengawasan) combinedDates.push(item.tanggal_pengawasan);
+                        });
+                    });
+
+                    setSelectedGanttId(Number(firstGanttId));
+                    loadGanttNotes(Number(firstGanttId));
+                    setRawDayGanttData(combinedRawDayItems);
+                    setPengawasanDates(Array.from(new Set(combinedDates)));
+                    setPengawasanHistory(combinedPengawasan);
+                    setTasks(combinedTasks);
+                    setIsProjectLocked(validDetails.every(({ detail }) => ['terkunci', 'locked', 'published'].includes(String(detail.data.gantt?.status || '').toLowerCase())));
+                    setProjectData((prev: any) => ({
+                        ...(prev || {}),
+                        ganttId: Number(firstGanttId),
+                        id_toko: validDetails[0]?.detail.data.toko?.id || response.data.scopes?.[0]?.id_toko || prev?.id_toko,
+                        ulokClean: response.data.nomor_ulok,
+                        store: response.data.nama_toko || validDetails[0]?.detail.data.toko?.nama_toko || prev?.store || '-',
+                        kode_toko: validDetails[0]?.detail.data.toko?.kode_toko || prev?.kode_toko || 'Belum diisi',
+                        work: getWorkspaceScopeLabel(response.data) || 'SIPIL + ME',
+                        cabang: response.data.cabang || validDetails[0]?.detail.data.toko?.cabang || prev?.cabang || '-',
+                        kontraktor: validDetails[0]?.detail.data.toko?.nama_kontraktor || prev?.kontraktor || '-',
+                        duration: maxDuration,
+                        startDate: projectStart.toISOString().split('T')[0],
+                    }));
+                    return response.data;
+                }
+
                 setSelectedGanttId(Number(firstGanttId));
                 loadGanttNotes(Number(firstGanttId));
             } else {
@@ -1918,7 +2053,30 @@ function GanttBoard() {
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
 
+        const getTaskScope = (task: any) => String(task.scope || '').trim().toUpperCase();
         let processedTasks = tasks.map(t => ({ ...t }));
+        if (processedTasks.some(getTaskScope)) {
+            processedTasks = processedTasks.sort((a, b) => {
+                const scopeA = getTaskScope(a);
+                const scopeB = getTaskScope(b);
+                const orderA = scopeA === 'SIPIL' ? 0 : scopeA === 'ME' ? 1 : 2;
+                const orderB = scopeB === 'SIPIL' ? 0 : scopeB === 'ME' ? 1 : 2;
+                return orderA - orderB || Number(a.id) - Number(b.id);
+            });
+        }
+        let visualRowIndex = 0;
+        let lastVisualScope = '';
+        processedTasks = processedTasks.map(task => {
+            const scope = getTaskScope(task);
+            if (scope && scope !== lastVisualScope) {
+                visualRowIndex += 1;
+                lastVisualScope = scope;
+            }
+            const mapped = { ...task, visualRowIndex };
+            visualRowIndex += 1;
+            return mapped;
+        });
+        const totalVisualRows = Math.max(visualRowIndex, processedTasks.length);
         let maxTaskEndDay = 0;
         let effectiveEndDates: Record<number, number> = {};
 
@@ -1976,7 +2134,7 @@ function GanttBoard() {
         if (totalDaysToRender > 2000) totalDaysToRender = 2000; // SAFETY CAP to prevent browser crash
         if (totalDaysToRender < 0) totalDaysToRender = 0;
         const totalChartWidth = totalDaysToRender * DAY_WIDTH;
-        const svgHeight = processedTasks.length * ROW_HEIGHT;
+        const svgHeight = totalVisualRows * ROW_HEIGHT;
 
         let taskCoordinates: Record<number, any> = {};
         processedTasks.forEach((task, idx) => {
@@ -1997,7 +2155,7 @@ function GanttBoard() {
                 });
 
                 taskCoordinates[task.id] = {
-                    centerY: (idx * ROW_HEIGHT) + (ROW_HEIGHT / 2),
+                    centerY: ((task.visualRowIndex ?? idx) * ROW_HEIGHT) + (ROW_HEIGHT / 2),
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
                     firstEndX: firstPeriodEnd * DAY_WIDTH
@@ -3668,15 +3826,33 @@ function GanttBoard() {
                                         {chartData.processedTasks.map((task: any, idx: number) => {
                                             const shift = task.computed.shift || 0;
                                             const isIlTask = String(task.name || '').startsWith('[IL]');
+                                            const scope = String(task.scope || '').trim().toUpperCase();
+                                            const previousScope = idx > 0 ? String(chartData.processedTasks[idx - 1]?.scope || '').trim().toUpperCase() : '';
+                                            const showScopeHeader = Boolean(scope && scope !== previousScope);
+                                            const scopedIndex = scope
+                                                ? chartData.processedTasks.slice(0, idx + 1).filter((row: any) => String(row.scope || '').trim().toUpperCase() === scope).length
+                                                : idx + 1;
                                             return (
-                                                <div key={task.id} className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }} onPointerUp={() => finishDependencyDrag(task.id)}>
-                                                    <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex flex-col justify-center shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
-                                                        <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 truncate">
-                                                            {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
-                                                            {task.scope && <span className={`text-[9px] text-white px-1.5 py-0.5 rounded-full shrink-0 ${task.scope === 'ME' ? 'bg-blue-600' : 'bg-red-600'}`}>{task.scope}</span>}
-                                                            <span className="truncate" title={task.displayName || task.name}>{task.name}</span>
-                                                        </span>
-                                                    </div>
+                                                <React.Fragment key={task.id}>
+                                                    {showScopeHeader && (
+                                                        <div className="flex bg-slate-100 text-slate-900" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }}>
+                                                            <div className="shrink-0 px-3 py-2 border-r-[3px] sticky left-0 z-30 flex items-center gap-2 bg-slate-100 border-slate-400 shadow-[2px_0_10px_rgba(0,0,0,0.1)]" style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
+                                                                <span className={`h-4 w-4 rounded-sm border ${scope === 'ME' ? 'border-blue-600 text-blue-600' : 'border-red-600 text-red-600'} flex items-center justify-center text-[10px] font-black`}>#</span>
+                                                                <span className={`text-sm font-black ${scope === 'ME' ? 'text-blue-700' : 'text-red-700'}`}>{scope}</span>
+                                                            </div>
+                                                            <div className={`flex items-center px-3 text-xs font-bold ${scope === 'ME' ? 'text-blue-300' : 'text-red-300'}`} style={{ width: chartData.totalChartWidth }}>
+                                                                {scope}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex hover:bg-slate-50/50" style={{ height: ROW_HEIGHT, borderBottom: '1px solid #cbd5e1', width: labelColWidth + chartData.totalChartWidth }} onPointerUp={() => finishDependencyDrag(task.id)}>
+                                                        <div className={`shrink-0 px-2.5 py-1 border-r-[3px] sticky left-0 z-30 flex items-center gap-2 shadow-[2px_0_10px_rgba(0,0,0,0.1)] ${isIlTask ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-400'}`} style={{ width: labelColWidth, minWidth: labelColWidth, maxWidth: labelColWidth }}>
+                                                            <span className="w-6 shrink-0 text-center text-xs font-bold text-slate-500">{scopedIndex}</span>
+                                                            <span className="text-[13px] font-semibold text-slate-800 leading-tight flex items-center gap-1.5 min-w-0">
+                                                                {isIlTask && <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full shrink-0">IL</span>}
+                                                                <span className="truncate" title={task.displayName || task.name}>{task.name}</span>
+                                                            </span>
+                                                        </div>
                                                     <div
                                                         className="relative cursor-crosshair"
                                                         data-gantt-track="true"
@@ -3737,6 +3913,7 @@ function GanttBoard() {
                                                         })}
                                                     </div>
                                                 </div>
+                                            </React.Fragment>
                                             )
                                         })}
 
@@ -4863,11 +5040,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 rawRangeMatch = task.ranges[0];
             }
 
-            const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase());
+            const taskScope = String(task.scope || '').trim().toUpperCase();
+            const getItemScope = (item: any) => String(item.scope || item.lingkup_pekerjaan || item.lingkup_pekerjaan_item || item.lingkup_asal || '').trim().toUpperCase();
+            const matchesTaskScope = (item: any) => {
+                const itemScope = getItemScope(item);
+                return !taskScope || !itemScope || itemScope === taskScope;
+            };
+            const catItems = rabItems.filter((item: any) => item.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && matchesTaskScope(item));
 
             // Juga ambil item dari liveHistory yang kategorinya cocok (untuk proyek migrasi)
             const historyItemsForCat = [...liveHistory, ...validForcedStBlockerItems]
-                .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase())
+                .filter((lh: any) => lh.kategori_pekerjaan?.toUpperCase() === task.name.toUpperCase() && matchesTaskScope(lh))
                 .filter((lh: any) => !catItems.some((ci: any) => ci.jenis_pekerjaan?.toUpperCase() === lh.jenis_pekerjaan?.toUpperCase()));
 
             // Bangun list akhir: gabungkan catItems + item baru dari history
