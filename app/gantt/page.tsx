@@ -2165,8 +2165,11 @@ function GanttBoard() {
                     }
                 });
 
+                const rowTop = (task.visualRowIndex ?? idx) * ROW_HEIGHT;
                 taskCoordinates[task.id] = {
-                    centerY: ((task.visualRowIndex ?? idx) * ROW_HEIGHT) + (ROW_HEIGHT / 2),
+                    centerY: rowTop + (ROW_HEIGHT / 2),
+                    topY: rowTop + 13,
+                    bottomY: rowTop + 37,
                     centerX: ((minStart - 1) * DAY_WIDTH) + (((maxEnd - minStart + 1) * DAY_WIDTH) / 2),
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
@@ -2184,11 +2187,15 @@ function GanttBoard() {
                     const childCoordinates = taskCoordinates[cId];
                     const sameScope = !parentCoordinates?.scope || !childCoordinates?.scope || parentCoordinates.scope === childCoordinates.scope;
                     if (sameScope && parentCoordinates && childCoordinates && parentCoordinates.centerX !== undefined && childCoordinates.centerX !== undefined) {
-                        const startX = parentCoordinates.centerX, startY = parentCoordinates.centerY;
-                        const endX = childCoordinates.centerX, endY = childCoordinates.centerY;
-                        const horizontalDistance = Math.abs(endX - startX);
-                        const tension = Math.max(32, Math.min(90, horizontalDistance / 2));
-                        const path = `M ${startX} ${startY} C ${startX + tension} ${startY}, ${endX - tension} ${endY}, ${endX} ${endY}`;
+                        const targetIsBelow = childCoordinates.centerY >= parentCoordinates.centerY;
+                        const startX = parentCoordinates.centerX;
+                        const startY = targetIsBelow ? parentCoordinates.bottomY : parentCoordinates.topY;
+                        const endX = childCoordinates.centerX;
+                        const endY = targetIsBelow ? childCoordinates.topY : childCoordinates.bottomY;
+                        const direction = targetIsBelow ? 1 : -1;
+                        const verticalDistance = Math.abs(endY - startY);
+                        const tension = Math.max(18, Math.min(70, verticalDistance / 2));
+                        const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
                         svgLines.push(
                             <g key={`${task.id}-${cId}`}>
                                 <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
@@ -3907,7 +3914,7 @@ function GanttBoard() {
                                                                                     type="button"
                                                                                     aria-label="Drag keterikatan"
                                                                                     title="Drag ke tahapan tujuan"
-                                                                                    className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-white bg-blue-600 shadow cursor-crosshair hover:bg-blue-700"
+                                                                                    className="absolute left-1/2 -bottom-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-blue-600 shadow cursor-crosshair hover:bg-blue-700"
                                                                                     onPointerDown={(event) => beginDependencyDrag(event, task.id)}
                                                                                 />
                                                                             </>
