@@ -188,13 +188,21 @@ type PriceMasterItem = {
 
 type PriceMaster = any;
 
-const getPriceItemsForCategory = (priceData: any, category: string, lingkup?: 'SIPIL' | 'ME'): PriceMasterItem[] => {
-  const targetData = lingkup ? priceData?.[lingkup] : priceData;
+const normalizeRabScopeKey = (value?: string | null): 'SIPIL' | 'ME' | undefined => {
+  const upper = String(value ?? '').trim().toUpperCase();
+  if (upper.includes('SIPIL')) return 'SIPIL';
+  if (upper === 'ME' || upper.includes('MEKANIKAL') || upper.includes('ELEKTRIKAL')) return 'ME';
+  return undefined;
+};
+
+const getPriceItemsForCategory = (priceData: any, category: string, lingkup?: string | null): PriceMasterItem[] => {
+  const scopeKey = normalizeRabScopeKey(lingkup);
+  const targetData = scopeKey ? (priceData?.[scopeKey] || priceData) : priceData;
   if (Array.isArray(targetData?.[category])) return targetData[category];
 
   const targetKey = normalizePriceCategoryName(category);
-  const matchedEntry = Object.entries(targetData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey);
-  return matchedEntry?.[1] || [];
+  const matchedEntry = Object.entries(targetData || {}).find(([key]) => normalizePriceCategoryName(key) === targetKey) as [string, PriceMasterItem[]] | undefined;
+  return Array.isArray(matchedEntry?.[1]) ? matchedEntry[1] : [];
 };
 
 const findBestMasterPriceMatch = (
@@ -206,7 +214,8 @@ const findBestMasterPriceMatch = (
   const normalizedJob = normalizeJobName(jenisPekerjaan);
   if (!normalizedJob) return null;
 
-  const targetData = lingkup ? masterPrices?.[lingkup] : masterPrices;
+  const scopeKey = normalizeRabScopeKey(lingkup);
+  const targetData = scopeKey ? (masterPrices?.[scopeKey] || masterPrices) : masterPrices;
   const categoryItems = getPriceItemsForCategory(masterPrices, category, lingkup);
   const exactCategoryMatch = categoryItems.find((item) => normalizeJobName(item["Jenis Pekerjaan"]) === normalizedJob);
   if (exactCategoryMatch) return { category, item: exactCategoryMatch };
@@ -281,7 +290,7 @@ const isRevisionRowChanged = (current: Partial<RabTableRow>, initial?: RevisionC
 
 const normalizeRabScope = (value?: string | null) => {
   const upper = String(value ?? '').trim().toUpperCase();
-  if (upper === 'SIPIL') return 'Sipil';
+  if (upper === 'SIPIL') return 'SIPIL';
   if (upper === 'ME') return 'ME';
   if (upper === 'GABUNGAN' || upper.includes('GABUNGAN') || upper === 'SIPIL + ME') return 'GABUNGAN';
   return upper;
@@ -293,7 +302,7 @@ const extractRabListUlok = (rab: any) =>
 const extractRabListScope = (rab: any) =>
   normalizeRabScope(rab?.lingkup_pekerjaan || rab?.toko?.lingkup_pekerjaan || rab?.['Lingkup Pekerjaan'] || rab?.['Lingkup_Pekerjaan']);
 
-const getOppositeRabScope = (scope: string) => scope === 'Sipil' ? 'ME' : scope === 'ME' ? 'Sipil' : '';
+const getOppositeRabScope = (scope: string) => scope === 'SIPIL' ? 'ME' : scope === 'ME' ? 'SIPIL' : '';
 
 const resolveProjectFromSource = (project?: string | null, nomorUlok?: string | null) => {
   const rawProject = String(project || '').trim();
@@ -888,7 +897,7 @@ function RABPageContent() {
         const existingScopes = Array.from(new Set(exactMatches.map(extractRabListScope).filter(Boolean)));
         
         // Cek jika proyek ini adalah proyek dengan legacy single scope (baru 1 lingkup yang ada)
-        if (existingScopes.length === 1 && (existingScopes[0] === 'Sipil' || existingScopes[0] === 'ME')) {
+        if (existingScopes.length === 1 && (existingScopes[0] === 'SIPIL' || existingScopes[0] === 'ME')) {
             const sourceScope = existingScopes[0] as string;
             const targetScope = getOppositeRabScope(sourceScope);
             const source: any = exactMatches.find((r: any) => extractRabListScope(r) === sourceScope);
@@ -1035,7 +1044,7 @@ function RABPageContent() {
 
           // Lingkup pekerjaan asli akan didapatkan dari detail toko
           let resolvedScope = tokoRef.lingkup_pekerjaan || scope;
-          if (resolvedScope?.toUpperCase() === 'SIPIL') resolvedScope = 'Sipil';
+          if (resolvedScope?.toUpperCase() === 'SIPIL') resolvedScope = 'SIPIL';
           else if (resolvedScope?.toUpperCase() === 'ME') resolvedScope = 'ME';
 
           const resolvedCabang = normalizeBranchName(
@@ -1388,7 +1397,7 @@ function RABPageContent() {
       .filter(row => row.jenisPekerjaan && volumeToNumber(row.volume) > 0)
       .map(row => ({
         kategori_pekerjaan: row.category,
-        lingkup_pekerjaan: row.lingkupPekerjaan,
+        lingkup_pekerjaan: row.lingkupPekerjaan || (formData.lingkupPekerjaan === 'ME' ? 'ME' : 'SIPIL'),
         jenis_pekerjaan: row.jenisPekerjaan,
         satuan: row.satuan,
         volume: volumeToNumber(row.volume),
@@ -1513,13 +1522,13 @@ function RABPageContent() {
           }
         }
 
-        // Tangkap id_toko dari data response API
-        const idToko = submitRes.data?.id_toko;
+        const submittedRab = submitRes.data?.sipil || submitRes.data;
+        const idToko = submittedRab?.id_toko;
 
         // Tambahkan id_toko dan id (rab) ke dalam parameter URL!
         const params = new URLSearchParams();
         if (idToko) params.append('id_toko', String(idToko));
-        if (submitRes.data?.id) params.append('id_rab', String(submitRes.data.id));
+        if (submittedRab?.id) params.append('id_rab', String(submittedRab.id));
         params.append('locked', currentRabId !== null ? 'false' : 'true');
         
         showAlert("Berhasil", "RAB berhasil disimpan. Lanjut buat Gantt Chart agar RAB masuk proses approval.", "success");
@@ -1569,7 +1578,7 @@ function RABPageContent() {
     return { bgIcon: 'bg-blue-100 text-blue-600', btn: 'bg-blue-600 hover:bg-blue-700' };
   };
 
-  const activeCategories = formData.lingkupPekerjaan === 'Sipil' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : formData.lingkupPekerjaan === 'GABUNGAN' ? Array.from(new Set([...SIPIL_CATEGORIES, ...ME_CATEGORIES])) : [];
+  const activeCategories = formData.lingkupPekerjaan === 'SIPIL' ? SIPIL_CATEGORIES : formData.lingkupPekerjaan === 'ME' ? ME_CATEGORIES : formData.lingkupPekerjaan === 'GABUNGAN' ? Array.from(new Set([...SIPIL_CATEGORIES, ...ME_CATEGORIES])) : [];
 
   const isRevisionSubmitMode = currentRabId !== null;
   const isInsuranceComplete = isRevisionSubmitMode || (
@@ -1834,7 +1843,7 @@ function RABPageContent() {
                   <div className="space-y-2">
                     <Label>Lingkup Pekerjaan <span className="text-red-500">*</span></Label>
                     <Input 
-                      value={formData.lingkupPekerjaan === 'GABUNGAN' ? 'Sipil + ME' : formData.lingkupPekerjaan} 
+                      value={formData.lingkupPekerjaan === 'GABUNGAN' ? 'Sipil + ME' : formData.lingkupPekerjaan === 'SIPIL' ? 'Sipil' : formData.lingkupPekerjaan} 
                       readOnly 
                       className="bg-slate-100 text-slate-600 font-semibold cursor-not-allowed border-slate-200" 
                       tabIndex={-1} 
@@ -1954,7 +1963,12 @@ function RABPageContent() {
               <h2 className="text-xl font-bold text-slate-800 border-b-2 border-red-500 pb-2 inline-block mb-6">Detail Bill of Quantities (BoQ)</h2>
               {(() => {
                 const renderCategoryCard = (category: string, lingkup: 'SIPIL' | 'ME' = formData.lingkupPekerjaan === 'ME' ? 'ME' : 'SIPIL') => {
-                  const itemsInCategory = tableRows.filter(r => r.category === category && (r.lingkupPekerjaan === lingkup || !r.lingkupPekerjaan));
+                  const itemsInCategory = tableRows.filter(r => {
+                    if (r.category !== category) return false;
+                    const rowScope = normalizeRabScopeKey(r.lingkupPekerjaan);
+                    if (formData.lingkupPekerjaan === 'GABUNGAN') return rowScope === lingkup;
+                    return rowScope === lingkup || !rowScope;
+                  });
                   const subTotal = itemsInCategory.reduce((acc, row) => acc + (volumeToNumber(row.volume) * (row.hargaMaterial + row.hargaUpah)), 0);
                   const selectedJobs = itemsInCategory.map(r => r.jenisPekerjaan).filter(Boolean);
                   const priceItems = getPriceItemsForCategory(prices, category, lingkup);
