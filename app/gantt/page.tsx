@@ -591,6 +591,31 @@ function GanttBoard() {
     const [dragSchedule, setDragSchedule] = useState<any>(null);
     const [dependencySourceTaskId, setDependencySourceTaskId] = useState<number | null>(null);
     const [pendingDependency, setPendingDependency] = useState<{ sourceId: number; targetId: number } | null>(null);
+    const undoStackRef = useRef<any[][]>([]);
+    const redoStackRef = useRef<any[][]>([]);
+
+    const cloneTasks = useCallback((value: any[]) => JSON.parse(JSON.stringify(value || [])), []);
+    const clearTaskHistory = useCallback(() => {
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+    }, []);
+    const rememberTasksSnapshot = useCallback(() => {
+        undoStackRef.current.push(cloneTasks(tasks));
+        if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+        redoStackRef.current = [];
+    }, [cloneTasks, tasks]);
+    const undoGanttChange = useCallback(() => {
+        const previous = undoStackRef.current.pop();
+        if (!previous) return;
+        redoStackRef.current.push(cloneTasks(tasks));
+        setTasks(cloneTasks(previous));
+    }, [cloneTasks, tasks]);
+    const redoGanttChange = useCallback(() => {
+        const next = redoStackRef.current.pop();
+        if (!next) return;
+        undoStackRef.current.push(cloneTasks(tasks));
+        setTasks(cloneTasks(next));
+    }, [cloneTasks, tasks]);
 
     const [rawDayGanttData, setRawDayGanttData] = useState<any[]>([]);
 
@@ -686,6 +711,7 @@ function GanttBoard() {
         setProjectData(null);
         setTasks([]);
         setRawDayGanttData([]);
+        clearTaskHistory();
         setRabItems([]);
         setPengawasanDates([]);
         setPengawasanHistory([]);
@@ -930,7 +956,7 @@ function GanttBoard() {
                 setIsWorkspaceLoading(false);
             }
         }
-    }, [showAlert]);
+    }, [clearTaskHistory, showAlert]);
 
     const openScopeCheckpoint = useCallback(async (
         scope: SupervisionScope,
@@ -958,7 +984,7 @@ function GanttBoard() {
         }
 
         setShowMemoModal(true);
-    }, [showAlert]);
+    }, [clearTaskHistory, showAlert]);
 
     const openUnifiedCheckpoint = useCallback(async (
         checkpoint: SupervisionCheckpoint,
@@ -2152,33 +2178,37 @@ function GanttBoard() {
             const shift = task.computed.shift || 0;
             const ranges = task.ranges || [];
             if (ranges.length > 0 && ranges[0].start) {
-                const maxEnd = Math.max(...ranges.map((r: any) => parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0)));
-                const minStart = Math.min(...ranges.map((r: any) => parseInt(r.start || 0) + shift));
+                const validRanges = ranges
+                    .map((r: any) => {
+                        const start = parseInt(r.start || 0) + shift;
+                        const end = parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0);
+                        return { start, end };
+                    })
+                    .filter((r: any) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.start > 0 && r.end > 0)
+                    .sort((a: any, b: any) => a.start - b.start || a.end - b.end);
+                if (validRanges.length === 0) return;
 
-                let firstPeriodEnd = maxEnd;
-                let lowestStart = Infinity;
-                ranges.forEach((r: any) => {
-                    const s = parseInt(r.start || 0) + shift;
-                    if (s < lowestStart) {
-                        lowestStart = s;
-                        firstPeriodEnd = parseInt(r.end || 0) + shift + (parseInt(r.keterlambatan) || 0);
-                    }
-                });
+                const firstRange = validRanges[0];
+                const lastRange = validRanges[validRanges.length - 1];
+                const maxEnd = Math.max(...validRanges.map((r: any) => r.end));
+                const minStart = Math.min(...validRanges.map((r: any) => r.start));
+                const rangeCenterX = (range: any) => ((range.start - 1) * DAY_WIDTH) + (((range.end - range.start + 1) * DAY_WIDTH) / 2);
 
                 const rowTop = (task.visualRowIndex ?? idx) * ROW_HEIGHT;
                 taskCoordinates[task.id] = {
                     centerY: rowTop + (ROW_HEIGHT / 2),
                     topY: rowTop + 13,
                     bottomY: rowTop + 37,
-                    centerX: ((minStart - 1) * DAY_WIDTH) + (((maxEnd - minStart + 1) * DAY_WIDTH) / 2),
+                    centerX: rangeCenterX(firstRange),
+                    sourceAnchors: validRanges.map((range: any) => rangeCenterX(range)),
+                    targetX: rangeCenterX(firstRange),
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
-                    firstEndX: firstPeriodEnd * DAY_WIDTH,
                     scope: getTaskScope(task)
                 };
             }
         });
-        let svgLines = [];
+        let svgLines: React.ReactNode[] = [];
         for (let i = 0; i < processedTasks.length; i++) {
             const task = processedTasks[i];
             if (task.dependencies && task.dependencies.length > 0) {
@@ -2186,23 +2216,24 @@ function GanttBoard() {
                     const parentCoordinates = taskCoordinates[task.id];
                     const childCoordinates = taskCoordinates[cId];
                     const sameScope = !parentCoordinates?.scope || !childCoordinates?.scope || parentCoordinates.scope === childCoordinates.scope;
-                    if (sameScope && parentCoordinates && childCoordinates && parentCoordinates.centerX !== undefined && childCoordinates.centerX !== undefined) {
+                    if (sameScope && parentCoordinates && childCoordinates && Array.isArray(parentCoordinates.sourceAnchors) && childCoordinates.targetX !== undefined) {
                         const targetIsBelow = childCoordinates.centerY >= parentCoordinates.centerY;
-                        const startX = parentCoordinates.centerX;
                         const startY = targetIsBelow ? parentCoordinates.bottomY : parentCoordinates.topY;
-                        const endX = childCoordinates.centerX;
+                        const endX = childCoordinates.targetX;
                         const endY = targetIsBelow ? childCoordinates.topY : childCoordinates.bottomY;
                         const direction = targetIsBelow ? 1 : -1;
                         const verticalDistance = Math.abs(endY - startY);
                         const tension = Math.max(18, Math.min(70, verticalDistance / 2));
-                        const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
-                        svgLines.push(
-                            <g key={`${task.id}-${cId}`}>
-                                <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
-                                <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                                <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                            </g>
-                        );
+                        parentCoordinates.sourceAnchors.forEach((startX: number, anchorIdx: number) => {
+                            const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
+                            svgLines.push(
+                                <g key={`${task.id}-${cId}-${anchorIdx}`}>
+                                    <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
+                                    <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                    <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                </g>
+                            );
+                        });
                     }
                 }
             }
