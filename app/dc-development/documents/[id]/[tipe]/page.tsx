@@ -212,17 +212,26 @@ export default function DcDocumentDetailPage() {
           }
         }
         
-        const localNote = draftNotes[jenis.key];
-        if (localNote !== undefined) {
-           await uploadDcDocuments({
-               actor_email: actor.actor_email,
-               actor_role: actor.actor_role,
-               project_id: archive.project_id,
-               entity_type: "DC_ARCHIVE_PROJECT",
-               document_type: `ITEM_NOTE_${jenis.key}`,
-               stage: tipe,
-               notes: localNote
-           }, []);
+        const localNoteRaw = draftNotes[jenis.key];
+        if (localNoteRaw !== undefined) {
+           const localNote = localNoteRaw.trim();
+           const serverNoteDoc = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`);
+           
+           if (localNote === "") {
+               if (serverNoteDoc) {
+                   await deleteDcDocument(serverNoteDoc.id, actor);
+               }
+           } else {
+               await uploadDcDocuments({
+                   actor_email: actor.actor_email,
+                   actor_role: actor.actor_role,
+                   project_id: archive.project_id,
+                   entity_type: "DC_ARCHIVE_PROJECT",
+                   document_type: `ITEM_NOTE_${jenis.key}`,
+                   stage: tipe,
+                   notes: localNote
+               }, []);
+           }
         }
       }
       
