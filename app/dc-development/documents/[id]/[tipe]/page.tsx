@@ -182,9 +182,12 @@ export default function DcDocumentDetailPage() {
        }
        
        if (!hasDoc) {
-         const localNote = draftNotes[jenis.key]?.trim();
+         const localNoteRaw = draftNotes[jenis.key];
+         const localNote = localNoteRaw !== undefined ? localNoteRaw.trim() : undefined;
          const serverNote = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes?.trim();
-         if (!localNote && !serverNote) {
+         
+         const effectiveNote = localNote !== undefined ? localNote : serverNote;
+         if (!effectiveNote) {
             alert(`Item "${jenis.title}" belum memiliki dokumen. Anda WAJIB mengisi catatan!`);
             return;
          }
