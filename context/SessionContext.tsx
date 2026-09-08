@@ -139,12 +139,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setIsMaintenanceBlocked(false);
     setMaintenanceStatus(null);
     setAccessSchedule(null);
-    const ssoUrl = process.env.NEXT_PUBLIC_SSO_URL;
-    if (ssoUrl) {
-      window.location.href = ssoUrl;
-    } else {
-      router.push('/');
-    }
+    const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+    const ssoUrl = isLocal ? (process.env.NEXT_PUBLIC_SSO_URL || 'http://localhost:5173') : 'https://sparta-alfamart.web.id';
+    window.location.href = ssoUrl;
   }, [router]);
 
   useEffect(() => {
