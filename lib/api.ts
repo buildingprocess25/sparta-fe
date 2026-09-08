@@ -5648,6 +5648,19 @@ export const proxyProjekPlanningFile = async (
     if (!res.ok) {
         if (newWindow) newWindow.close();
         const text = await res.text();
+        try {
+            const json = JSON.parse(text);
+            if (json.status === "redirect" && json.url) {
+                if (mode === "view" && newWindow) {
+                    newWindow.location.href = json.url;
+                } else {
+                    window.open(json.url, "_blank", "noopener,noreferrer");
+                }
+                return;
+            }
+        } catch (e) {
+            // Abaikan jika bukan JSON
+        }
         throw new Error(`Gagal mengambil file (${res.status}): ${text.substring(0, 100)}`);
     }
 
