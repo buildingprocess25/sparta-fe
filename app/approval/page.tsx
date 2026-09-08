@@ -3220,21 +3220,17 @@ function ApprovalPageContent() {
                                     if (ganttScopes.length === 0) return null;
 
                                     return (
-                                        <div className="mb-6 space-y-4">
-                                            {ganttScopes.map(scope => (
-                                                <GanttViewer
-                                                    key={`${selectedDetail.tipe}-${scope.id_toko}`}
-                                                    nomorUlok={selectedDetail.nomor_ulok}
-                                                    idToko={scope.id_toko}
-                                                    title={selectedDetail.tipe === 'RAB'
-                                                        ? `Visualisasi Gantt RAB${ganttScopes.length > 1 ? ` - ${scope.lingkup_pekerjaan}` : ''}`
-                                                        : 'Visualisasi Gantt SPK'}
-                                                    isBelumSpk={selectedDetail.tipe === 'RAB'}
-                                                    spkStartDate={selectedDetail.tipe === 'SPK' ? selectedDetail.waktu_mulai : undefined}
-                                                    spkDuration={selectedDetail.tipe === 'SPK' ? selectedDetail.durasi : undefined}
-                                                    hideLegend={true}
-                                                />
-                                            ))}
+                                        <div className="mb-6">
+                                            <GanttViewer
+                                                nomorUlok={selectedDetail.nomor_ulok}
+                                                idToko={ganttScopes.length > 1 ? undefined : ganttScopes[0].id_toko}
+                                                scopeTokoIds={ganttScopes.length > 1 ? ganttScopes : undefined}
+                                                title={selectedDetail.tipe === 'RAB' ? 'Visualisasi Gantt RAB' : 'Visualisasi Gantt SPK'}
+                                                isBelumSpk={selectedDetail.tipe === 'RAB'}
+                                                spkStartDate={selectedDetail.tipe === 'SPK' ? selectedDetail.waktu_mulai : undefined}
+                                                spkDuration={selectedDetail.tipe === 'SPK' ? selectedDetail.durasi : undefined}
+                                                hideLegend={true}
+                                            />
                                         </div>
                                     );
                                 })()}
@@ -3413,43 +3409,56 @@ function ApprovalPageContent() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
-                                                    {selectedDetail.items.map(row => (
-                                                        <tr key={row.id} className="hover:bg-slate-50">
-                                                            <td className="p-3 font-semibold text-slate-600 border-r text-xs whitespace-nowrap">
-                                                                {selectedDetail.tipe === 'RAB' && row.lingkup_pekerjaan && (
-                                                                    <span className={`mr-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold ${row.lingkup_pekerjaan === 'ME' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                                                                        {row.lingkup_pekerjaan}
-                                                                    </span>
-                                                                )}
-                                                                {row.kategori}
-                                                            </td>
-                                                            <td className="p-3 text-slate-700 border-r whitespace-normal min-w-62.5">{row.jenis_pekerjaan}</td>
-                                                            {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && selectedDetail.tipe !== 'RAB' && (
-                                                                <td className="p-3 text-center border-r">
-                                                                    {row.foto ? (
-                                                                        <a href={row.foto} target="_blank" rel="noopener noreferrer">
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="outline"
-                                                                                className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                                                            >
-                                                                                <Eye className="w-3.5 h-3.5 mr-1" />
-                                                                                Lihat Foto
-                                                                            </Button>
-                                                                        </a>
-                                                                    ) : (
-                                                                        <span className="text-xs text-slate-400">Tidak ada foto</span>
+                                                    {(() => {
+                                                        const showScopeSections = selectedDetail.tipe === 'RAB' && selectedDetail.items.some(row => row.lingkup_pekerjaan);
+                                                        let lastScope = '';
+
+                                                        return selectedDetail.items.map(row => {
+                                                            const rowScope = String(row.lingkup_pekerjaan || '').toUpperCase();
+                                                            const shouldShowScopeHeader = showScopeSections && rowScope && rowScope !== lastScope;
+                                                            if (shouldShowScopeHeader) lastScope = rowScope;
+
+                                                            return (
+                                                                <React.Fragment key={`${rowScope || 'item'}-${row.id}`}>
+                                                                    {shouldShowScopeHeader && (
+                                                                        <tr className={rowScope === 'ME' ? 'bg-blue-50/80' : 'bg-red-50/80'}>
+                                                                            <td colSpan={8} className={`px-4 py-2 text-xs font-extrabold ${rowScope === 'ME' ? 'text-blue-700' : 'text-red-700'}`}>
+                                                                                {rowScope}
+                                                                            </td>
+                                                                        </tr>
                                                                     )}
-                                                                </td>
-                                                            )}
-                                                            <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
-                                                            <td className="p-3 text-center font-bold border-r whitespace-nowrap">{row.volume}</td>
-                                                            <td className="p-3 text-center text-slate-500 border-r whitespace-nowrap">{row.satuan}</td>
-                                                            <td className="p-3 text-right font-medium text-slate-700 border-r whitespace-nowrap">{formatRupiah(row.harga_material || 0)}</td>
-                                                            <td className="p-3 text-right font-medium text-slate-700 border-r whitespace-nowrap">{formatRupiah(row.harga_upah || 0)}</td>
-                                                            <td className="p-3 text-right font-bold text-slate-800 whitespace-nowrap">{formatRupiah(row.total || 0)}</td>
-                                                        </tr>
-                                                    ))}
+                                                                    <tr className="hover:bg-slate-50">
+                                                                        <td className="p-3 font-semibold text-slate-600 border-r text-xs whitespace-nowrap">{row.kategori}</td>
+                                                                        <td className="p-3 text-slate-700 border-r whitespace-normal min-w-62.5">{row.jenis_pekerjaan}</td>
+                                                                        {selectedDetail.tipe !== 'INSTRUKSI_LAPANGAN' && selectedDetail.tipe !== 'RAB' && (
+                                                                            <td className="p-3 text-center border-r">
+                                                                                {row.foto ? (
+                                                                                    <a href={row.foto} target="_blank" rel="noopener noreferrer">
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="outline"
+                                                                                            className="h-8 text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                                                                        >
+                                                                                            <Eye className="w-3.5 h-3.5 mr-1" />
+                                                                                            Lihat Foto
+                                                                                        </Button>
+                                                                                    </a>
+                                                                                ) : (
+                                                                                    <span className="text-xs text-slate-400">Tidak ada foto</span>
+                                                                                )}
+                                                                            </td>
+                                                                        )}
+                                                                        <td className="p-3 text-slate-500 italic text-xs border-r">{row.catatan || '-'}</td>
+                                                                        <td className="p-3 text-center font-bold border-r whitespace-nowrap">{row.volume}</td>
+                                                                        <td className="p-3 text-center text-slate-500 border-r whitespace-nowrap">{row.satuan}</td>
+                                                                        <td className="p-3 text-right font-medium text-slate-700 border-r whitespace-nowrap">{formatRupiah(row.harga_material || 0)}</td>
+                                                                        <td className="p-3 text-right font-medium text-slate-700 border-r whitespace-nowrap">{formatRupiah(row.harga_upah || 0)}</td>
+                                                                        <td className="p-3 text-right font-bold text-slate-800 whitespace-nowrap">{formatRupiah(row.total || 0)}</td>
+                                                                    </tr>
+                                                                </React.Fragment>
+                                                            );
+                                                        });
+                                                    })()}
                                                 </tbody>
                                                 <tfoot className="border-t border-slate-300">
                                                     {/* Baris GRAND TOTAL item mentah */}

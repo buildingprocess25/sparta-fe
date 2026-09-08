@@ -158,7 +158,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
     );
 
     useEffect(() => {
-        if (!nomorUlok && !idToko) return;
+        if (!nomorUlok && !idToko && !(scopeTokoIds || []).some(scope => scope.id_toko)) return;
         
         setIsLoading(true);
         setErrorMsg('');
@@ -376,9 +376,23 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                     if (!exists) mergedCategories.push(category);
                 });
 
-                let generatedTasks: any[] = mergedCategories.map((k: any, idx: number) => ({
-                    id: idx + 1, name: k.kategori_pekerjaan, dependencies: [], ranges: [], keterlambatan: 0
-                }));
+                const scopeCounters: Record<string, number> = {};
+                let generatedTasks: any[] = mergedCategories.map((k: any, idx: number) => {
+                    const scope = normalizeScopeLabel(k.scope || k.kategori_pekerjaan);
+                    const isScopeHeader = Boolean(k.is_scope_header);
+                    if (!isScopeHeader) scopeCounters[scope] = (scopeCounters[scope] || 0) + 1;
+                    return {
+                        id: idx + 1,
+                        name: k.kategori_pekerjaan,
+                        displayName: k.display_name || stripScopedCategory(k.kategori_pekerjaan),
+                        displayIndex: isScopeHeader ? null : scopeCounters[scope],
+                        scope,
+                        isScopeHeader,
+                        dependencies: [],
+                        ranges: [],
+                        keterlambatan: 0,
+                    };
+                });
 
                 const categoryRangesMap: Record<string, any[]> = {};
                 day_items.forEach((entry: any) => {
@@ -432,7 +446,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                 setErrorMsg(err?.message || "Gagal memuat detail Gantt Chart.");
                 setIsLoading(false);
             });
-    }, [nomorUlok, idToko, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, timelineStartDate, timelineDuration]);
+    }, [nomorUlok, idToko, scopeViewerKey, spkStartDate, spkDuration, spkEffectiveDuration, spkOriginalDuration, timelineStartDate, timelineDuration]);
 
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
@@ -590,17 +604,32 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                         const rightPane = document.getElementById(`${viewerId}-right`);
                         if (rightPane) rightPane.scrollTop = e.currentTarget.scrollTop;
                     }}>
-                        {processedTasks.map((task) => (
-                            <div key={task.id} className="border-b border-slate-100 flex flex-col justify-center px-4" style={{ height: ROW_HEIGHT }}>
-                                <div className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800" title={task.name}>
-                                    <span className="shrink-0">{task.id}.</span>
-                                    {String(task.name || '').startsWith('[IL]') && (
-                                        <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
-                                    )}
-                                    <span className="truncate">{String(task.name || '').replace(/^\[IL\]\s*/i, '')}</span>
+                        {processedTasks.map((task) => {
+                            if (task.isScopeHeader) {
+                                const isMe = task.scope === 'ME';
+                                return (
+                                    <div key={task.id} className="border-b border-slate-200 bg-slate-50 flex items-center px-4" style={{ height: ROW_HEIGHT }}>
+                                        <div className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-black ${isMe ? 'text-blue-700' : 'text-red-700'}`}>
+                                            <span className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] ${isMe ? 'border-blue-500 text-blue-600' : 'border-red-500 text-red-600'}`}>#</span>
+                                            {task.scope}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            const displayName = String(task.displayName || stripScopedCategory(task.name || '')).replace(/^\[IL\]\s*/i, '');
+                            return (
+                                <div key={task.id} className="border-b border-slate-100 flex flex-col justify-center px-4" style={{ height: ROW_HEIGHT }}>
+                                    <div className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800" title={displayName}>
+                                        <span className="shrink-0">{task.displayIndex ?? task.id}.</span>
+                                        {String(task.name || '').includes('[IL]') && (
+                                            <span className="shrink-0 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-black text-white">IL</span>
+                                        )}
+                                        <span className="truncate">{displayName}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -943,5 +972,4 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
         </div>
     );
 }
-
 
