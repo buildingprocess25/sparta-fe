@@ -2378,11 +2378,18 @@ export const manageGanttPengawasan = async (
 /** Submit Bulk Pengawasan (Items Pekerjaan dari Memo) */
 export const submitPengawasanBulk = async (payload: FormData | { items: any[] }) => {
     const isFormData = payload instanceof FormData;
-    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
-        method: "POST",
-        headers: isFormData ? undefined : { "Content-Type": "application/json" },
-        body: isFormData ? payload : JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 300000); // 5 menit timeout
+    try {
+        return await safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+            method: "POST",
+            headers: isFormData ? undefined : { "Content-Type": "application/json" },
+            body: isFormData ? payload : JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
 };
 
 /** Update Bulk Pengawasan (Items Pekerjaan dari Memo) */

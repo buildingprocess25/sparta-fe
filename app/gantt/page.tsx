@@ -225,6 +225,13 @@ const parseDecimalInput = (value: unknown): number => {
 };
 
 const normalizeVolumeInput = (value: string) => value.replace(/[^\d,.]/g, "");
+const isPengawasanNetworkError = (error: unknown): boolean => {
+    const message = error instanceof Error ? error.message : String(error || "");
+    return /failed to fetch|networkerror|load failed|fetch/i.test(message);
+};
+
+const normalizePengawasanCompareText = (value: unknown): string =>
+    String(value ?? "").trim().toUpperCase();
 const blockedIncrementKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
 const normalizeIntegerInput = (value: string) => value.replace(/[^\d]/g, '');
 
@@ -4587,6 +4594,34 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             fallbackSubmitDate.setDate(fallbackSubmitDate.getDate() + (activeHeaderClick?.dayIndex || 0));
             const submitDate = clickedDate && !Number.isNaN(clickedDate.getTime()) ? clickedDate : fallbackSubmitDate;
             const formattedDate = formatDateForPengawasan(submitDate);
+            const checkRecoveredPengawasanBatch = async (
+                mode: "insert" | "update",
+                batchItems: any[]
+            ): Promise<boolean> => {
+                try {
+                    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+                    const { fetchPengawasanList } = await import('@/lib/api');
+                    const res = await fetchPengawasanList({
+                        id_gantt: Number(selectedGanttId),
+                        tanggal: formattedDate
+                    });
+                    const savedRows = Array.isArray(res?.data) ? res.data : [];
+
+                    if (mode === "update") {
+                        const savedIds = new Set(savedRows.map((row: any) => Number(row?.id)));
+                        return batchItems.every((item) => savedIds.has(Number(item.id)));
+                    }
+
+                    return batchItems.every((item) => savedRows.some((row: any) =>
+                        normalizePengawasanCompareText(row?.kategori_pekerjaan) === normalizePengawasanCompareText(item.kategori_pekerjaan) &&
+                        normalizePengawasanCompareText(row?.jenis_pekerjaan) === normalizePengawasanCompareText(item.jenis_pekerjaan) &&
+                        (!item.status || normalizePengawasanCompareText(row?.status) === normalizePengawasanCompareText(item.status))
+                    ));
+                } catch (recoveryError) {
+                    console.warn("[pengawasan] Recovery check gagal", recoveryError);
+                    return false;
+                }
+            };
 
             entriesToSubmit.forEach(([key, val]) => {
                 const pipeIdx = key.indexOf('|');
@@ -4761,8 +4796,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             insertResult = await submitPengawasanBulk({ items: batch.items });
                         }
                     } catch (error: any) {
+                        if (isPengawasanNetworkError(error) && await checkRecoveredPengawasanBatch("insert", batch.items)) {
+                            insertedCount += batch.items.length;
+                            continue;
+                        }
+
                         throw new Error(
-                            `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal setelah ${insertedCount} item tersimpan: ${error?.message || 'Upload gagal'}`
+                            `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${error?.message || 'Upload gagal'}`
                         );
                     }
 
@@ -4814,8 +4854,13 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             updateResult = await updatePengawasanBulk({ items: batch.items });
                         }
                     } catch (error: any) {
+                        if (isPengawasanNetworkError(error) && await checkRecoveredPengawasanBatch("update", batch.items)) {
+                            updatedCount += batch.items.length;
+                            continue;
+                        }
+
                         throw new Error(
-                            `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal setelah ${updatedCount} item diperbarui: ${error?.message || 'Upload gagal'}`
+                            `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${error?.message || 'Upload gagal'}`
                         );
                     }
 
