@@ -108,6 +108,17 @@ function FormProjekPlanningInner() {
   const [manualAlamat, setManualAlamat] = useState("");
   const [manualKodeToko, setManualKodeToko] = useState("");
 
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [selectedCabang, setSelectedCabang] = useState("");
+
+  const handleCabangChange = (val: string) => {
+    setSelectedCabang(val);
+    const resolvedBranchName = getParentBranch(val);
+    const ulokCode = BRANCH_TO_ULOK[resolvedBranchName] || resolvedBranchName;
+    setManualCabang(ulokCode);
+    setManualCabangNama(val);
+  };
+
   // Form state
   const [ketentuan, setKetentuan] = useState<string[]>([""]);
   const [catatanDesign, setCatatanDesign] = useState<string[]>([""]);
@@ -392,11 +403,20 @@ function FormProjekPlanningInner() {
       if (!resubmitId) {
         // Tentukan default cabang untuk ULOK Manual
         let primaryBranch = "HEAD OFFICE";
+        let accessibleBranches: string[] = [];
         
         if (!isPP && !isPPMgr && cabang && cabang.toUpperCase() !== "HEAD OFFICE") {
           const branchCoverage = getSessionBranchCoverage();
-          const accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
+          accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
           primaryBranch = accessibleBranches[0] || cabang.toUpperCase();
+        }
+
+        if (accessibleBranches.length > 1) {
+          setAvailableBranches(accessibleBranches);
+          setSelectedCabang(primaryBranch);
+        } else {
+          setAvailableBranches([]);
+          setSelectedCabang(primaryBranch);
         }
 
         // Resolusi cabang anak ke induknya untuk kode ULOK
@@ -404,7 +424,7 @@ function FormProjekPlanningInner() {
         const ulokCode = BRANCH_TO_ULOK[resolvedBranchName] || resolvedBranchName;
 
         setManualCabang(ulokCode);
-        setManualCabangNama(resolvedBranchName);
+        setManualCabangNama(primaryBranch);
       }
 
       setTokoList(data);
@@ -722,6 +742,17 @@ function FormProjekPlanningInner() {
                         </select>
                       </div>
                     </div>
+                    {availableBranches.length > 1 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold text-slate-700">Pilih Wilayah (Cabang) *</Label>
+                        <select 
+                          value={selectedCabang} 
+                          onChange={e => handleCabangChange(e.target.value)} 
+                          className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400">
+                          {availableBranches.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                         <MapPin className="w-4 h-4 text-red-500" /> Nomor ULOK (Format Renovasi) *
@@ -802,6 +833,17 @@ function FormProjekPlanningInner() {
                         <Label className="text-sm font-bold text-slate-700">Kode Toko (Opsional)</Label>
                         <Input value={manualKodeToko} onChange={e => setManualKodeToko(e.target.value)} placeholder="Misal: A123" className="h-11 bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                       </div>
+                      {availableBranches.length > 1 && (
+                        <div className="space-y-2 md:col-span-2">
+                          <Label className="text-sm font-bold text-slate-700">Pilih Wilayah (Cabang) *</Label>
+                          <select 
+                            value={selectedCabang} 
+                            onChange={e => handleCabangChange(e.target.value)} 
+                            className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400">
+                            {availableBranches.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div className="space-y-2 md:col-span-2">
                         <Label className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                           <MapPin className="w-4 h-4 text-blue-500" /> Nomor ULOK Baru *

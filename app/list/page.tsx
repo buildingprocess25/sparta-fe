@@ -12,7 +12,7 @@ import {
     Eye, FileDown, Building2, CalendarDays, User, XCircle,
     CheckCircle, Hash, Clock, ChevronRight, Filter,
     RefreshCw, AlertTriangle, Download, FilePlus, CheckSquare,
-    ClipboardList, ExternalLink, MapPin,
+    ClipboardList, ExternalLink, MapPin, BadgeCheck
 } from 'lucide-react';
 
 import {
@@ -216,6 +216,8 @@ interface NormalizedDetail {
         alasan_penolakan: string | null;
         waktu_tindakan: string;
     }>;
+    effective_waktu_selesai?: string | null;
+    pertambahan_spk?: PertambahanSPKListItem[];
     // Pertambahan SPK specific
     pertambahan_hari?: string;
     alasan_perpanjangan?: string;
@@ -1788,6 +1790,7 @@ export default function DaftarDokumenPage() {
                     durasi:            d.pengajuan.durasi,
                     waktu_mulai:       d.pengajuan.waktu_mulai,
                     waktu_selesai:     d.pengajuan.waktu_selesai,
+                    effective_waktu_selesai: d.pengajuan.effective_waktu_selesai,
                     ...stTarget,
                     terbilang:         d.pengajuan.terbilang,
                     par:               d.pengajuan.par,
@@ -1801,6 +1804,7 @@ export default function DaftarDokumenPage() {
                         alasan_penolakan: log.alasan_penolakan,
                         waktu_tindakan: log.waktu_tindakan,
                     })),
+                    pertambahan_spk: d.pertambahan_spk,
                 };
             } else if (doc.tipe === 'PERTAMBAHAN_SPK') {
                 const res = await fetchPertambahanSPKDetail(doc.id);
@@ -3503,7 +3507,11 @@ export default function DaftarDokumenPage() {
                                                         <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Mulai" value={formatDateFull(selectedDetail.waktu_mulai)} />
                                                     )}
                                                     {selectedDetail.waktu_selesai && (
-                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Selesai" value={formatDateFull(selectedDetail.waktu_selesai)} />
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Waktu Selesai" value={
+                                                            selectedDetail.effective_waktu_selesai && selectedDetail.effective_waktu_selesai.substring(0, 10) !== selectedDetail.waktu_selesai.substring(0, 10)
+                                                                ? `${formatDateFull(selectedDetail.waktu_selesai)} (tambah spk s.d. ${formatDateFull(selectedDetail.effective_waktu_selesai)})`
+                                                                : formatDateFull(selectedDetail.waktu_selesai)
+                                                        } />
                                                     )}
                                                     {selectedDetail.st_target_date && (
                                                         <InfoRow
@@ -3812,6 +3820,41 @@ export default function DaftarDokumenPage() {
                                                 <p className="text-sm font-bold text-red-700">Alasan Penolakan</p>
                                                 <p className="text-sm text-red-600 mt-1">{selectedDetail.alasan_penolakan}</p>
                                             </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Riwayat Tambah SPK */}
+                                {selectedDetail.tipe === 'SPK' && selectedDetail.pertambahan_spk && selectedDetail.pertambahan_spk.length > 0 && (
+                                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mt-6">
+                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                                            <div className="w-1.5 h-5 bg-blue-500 rounded-full" />
+                                            Riwayat Tambah SPK
+                                        </h4>
+                                        <div className="space-y-4">
+                                            {selectedDetail.pertambahan_spk.map((tspk: any, idx: number) => (
+                                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                                                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+                                                    <div className="flex items-center gap-2 mb-3 ml-2">
+                                                        <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-blue-700 border-blue-200 uppercase tracking-wider px-2 py-0.5">
+                                                            SPK {tspk.spk?.lingkup_pekerjaan || 'TERKAIT'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-2">
+                                                        <InfoRow icon={<Clock className="w-4 h-4" />} label="Pertambahan Hari" value={`+${tspk.pertambahan_hari || '-'} Hari`} />
+                                                        <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir Setelah Perpanjangan" value={tspk.tanggal_spk_akhir_setelah_perpanjangan ? formatDateFull(tspk.tanggal_spk_akhir_setelah_perpanjangan) : '-'} />
+                                                        <InfoRow icon={<BadgeCheck className="w-4 h-4" />} label="Status Persetujuan" value={tspk.status_persetujuan || 'Menunggu Persetujuan'} />
+                                                        {tspk.disetujui_oleh && (
+                                                            <InfoRow icon={<User className="w-4 h-4" />} label="Disetujui Oleh" value={tspk.disetujui_oleh} />
+                                                        )}
+                                                        {tspk.alasan_perpanjangan && (
+                                                            <div className="col-span-1 md:col-span-2">
+                                                                <InfoRow icon={<FileText className="w-4 h-4" />} label="Alasan Perpanjangan" value={tspk.alasan_perpanjangan} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}

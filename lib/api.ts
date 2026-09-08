@@ -2378,11 +2378,18 @@ export const manageGanttPengawasan = async (
 /** Submit Bulk Pengawasan (Items Pekerjaan dari Memo) */
 export const submitPengawasanBulk = async (payload: FormData | { items: any[] }) => {
     const isFormData = payload instanceof FormData;
-    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
-        method: "POST",
-        headers: isFormData ? undefined : { "Content-Type": "application/json" },
-        body: isFormData ? payload : JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 300000); // 5 menit timeout
+    try {
+        return await safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/pengawasan/bulk`, {
+            method: "POST",
+            headers: isFormData ? undefined : { "Content-Type": "application/json" },
+            body: isFormData ? payload : JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
 };
 
 /** Update Bulk Pengawasan (Items Pekerjaan dari Memo) */
@@ -3063,8 +3070,14 @@ export type SPKApprovalLog = {
 };
 
 export type SPKDetailResponse = {
-    pengajuan: SPKListItem;
+    pengajuan: SPKListItem & {
+        effective_waktu_selesai?: string | null;
+        st_target_date?: string | null;
+        st_offset_days?: number;
+        st_offset_label?: string | null;
+    };
     approvalLogs: SPKApprovalLog[];
+    pertambahan_spk?: PertambahanSPKListItem[];
 };
 
 export type SPKApprovalPayload = {
@@ -5642,6 +5655,19 @@ export const proxyProjekPlanningFile = async (
     if (!res.ok) {
         if (newWindow) newWindow.close();
         const text = await res.text();
+        try {
+            const json = JSON.parse(text);
+            if (json.status === "redirect" && json.url) {
+                if (mode === "view" && newWindow) {
+                    newWindow.location.href = json.url;
+                } else {
+                    window.open(json.url, "_blank", "noopener,noreferrer");
+                }
+                return;
+            }
+        } catch (e) {
+            // Abaikan jika bukan JSON
+        }
         throw new Error(`Gagal mengambil file (${res.status}): ${text.substring(0, 100)}`);
     }
 

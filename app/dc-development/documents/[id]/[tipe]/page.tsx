@@ -182,9 +182,17 @@ export default function DcDocumentDetailPage() {
        }
        
        if (!hasDoc) {
-         const localNote = draftNotes[jenis.key]?.trim();
-         const serverNote = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes?.trim();
-         if (!localNote && !serverNote) {
+         const localNoteRaw = draftNotes[jenis.key];
+         const localNote = localNoteRaw !== undefined ? localNoteRaw.trim() : undefined;
+         let serverNote = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes?.trim();
+         
+         if (!serverNote) {
+           const oldDocWithNote = documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes?.trim());
+           if (oldDocWithNote) serverNote = oldDocWithNote.notes?.trim();
+         }
+         
+         const effectiveNote = localNote !== undefined ? localNote : serverNote;
+         if (!effectiveNote) {
             alert(`Item "${jenis.title}" belum memiliki dokumen. Anda WAJIB mengisi catatan!`);
             return;
          }
@@ -209,17 +217,40 @@ export default function DcDocumentDetailPage() {
           }
         }
         
-        const localNote = draftNotes[jenis.key];
-        if (localNote !== undefined) {
-           await uploadDcDocuments({
-               actor_email: actor.actor_email,
-               actor_role: actor.actor_role,
-               project_id: archive.project_id,
-               entity_type: "DC_ARCHIVE_PROJECT",
-               document_type: `ITEM_NOTE_${jenis.key}`,
-               stage: tipe,
-               notes: localNote
-           }, []);
+        const localNoteRaw = draftNotes[jenis.key];
+        if (localNoteRaw !== undefined) {
+           const localNote = localNoteRaw.trim();
+           const serverNoteDoc = documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`);
+           const oldDocsWithNote = documents.filter(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes);
+           
+           if (localNote === "") {
+               if (serverNoteDoc) {
+                   await deleteDcDocument(serverNoteDoc.id, actor);
+               }
+               for (const oldDoc of oldDocsWithNote) {
+                   await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
+               }
+           } else {
+               for (const oldDoc of oldDocsWithNote) {
+                   await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
+               }
+               
+               if (serverNoteDoc) {
+                   if (serverNoteDoc.notes?.trim() !== localNote) {
+                       await updateDcDocument(serverNoteDoc.id, { ...actor, notes: localNote });
+                   }
+               } else {
+                   await uploadDcDocuments({
+                       actor_email: actor.actor_email,
+                       actor_role: actor.actor_role,
+                       project_id: archive.project_id,
+                       entity_type: "DC_ARCHIVE_PROJECT",
+                       document_type: `ITEM_NOTE_${jenis.key}`,
+                       stage: tipe,
+                       notes: localNote
+                   }, []);
+               }
+           }
         }
       }
       
@@ -288,7 +319,7 @@ export default function DcDocumentDetailPage() {
 
   const renderDocumentSlot = (jenisKey: string, type: string, isEditMode: boolean) => {
     const compKey = formatKey(jenisKey, type);
-    const slotDocuments = documents.filter(d => d.document_type === compKey);
+    const slotDocuments = documents.filter(d => d.document_type === compKey && d.drive_file_id);
     const localFiles = draftFiles[compKey] || [];
     const isUploading = uploadingKey === compKey;
 
@@ -642,14 +673,14 @@ export default function DcDocumentDetailPage() {
                                     <Textarea
                                       placeholder="Catatan item (wajib jika tanpa dokumen)..."
                                       className="min-h-[80px] text-xs resize-none"
-                                      value={draftNotes[jenis.key] !== undefined ? draftNotes[jenis.key] : (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || "")}
+                                      value={draftNotes[jenis.key] !== undefined ? draftNotes[jenis.key] : (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes)?.notes || "")}
                                       onChange={(e) => setDraftNotes(prev => ({...prev, [jenis.key]: e.target.value}))}
                                     />
                                   </div>
                                 )}
-                                {!editModeCategories.has(utama.id) && documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes && (
+                                {!editModeCategories.has(utama.id) && (documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes)?.notes) && (
                                   <div className="w-full sm:w-[260px] mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
-                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes}
+                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${jenis.key}`)?.notes || documents.find(d => d.document_type.startsWith(`${jenis.key}__`) && d.notes)?.notes}
                                   </div>
                                 )}
                               </div>
@@ -672,14 +703,14 @@ export default function DcDocumentDetailPage() {
                                     <Textarea
                                       placeholder="Catatan item..."
                                       className="min-h-[80px] text-xs resize-none"
-                                      value={draftNotes[getCustomItemKey(customItem)] !== undefined ? draftNotes[getCustomItemKey(customItem)] : (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || "")}
+                                      value={draftNotes[getCustomItemKey(customItem)] !== undefined ? draftNotes[getCustomItemKey(customItem)] : (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || documents.find(d => d.document_type.startsWith(`${getCustomItemKey(customItem)}__`) && d.notes)?.notes || "")}
                                       onChange={(e) => setDraftNotes(prev => ({...prev, [getCustomItemKey(customItem)]: e.target.value}))}
                                     />
                                   </div>
                                 )}
-                                {!editModeCategories.has(utama.id) && documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes && (
+                                {!editModeCategories.has(utama.id) && (documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || documents.find(d => d.document_type.startsWith(`${getCustomItemKey(customItem)}__`) && d.notes)?.notes) && (
                                   <div className="w-full sm:w-[260px] mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
-                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes}
+                                    <span className="font-semibold">Catatan:</span> {documents.find(d => d.document_type === `ITEM_NOTE_${getCustomItemKey(customItem)}`)?.notes || documents.find(d => d.document_type.startsWith(`${getCustomItemKey(customItem)}__`) && d.notes)?.notes}
                                   </div>
                                 )}
                                 {editModeCategories.has(utama.id) && (

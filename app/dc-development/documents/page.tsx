@@ -205,8 +205,18 @@ export default function DcDocumentsPage() {
     customItemsForNotes.forEach(item => customItemMap.set(`CUSTOM_K_${item.id}`, item));
 
     const resolveNote = (note: DcDocument): NoteDisplay => {
-      const [jenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
+      const [rawJenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
       const stageKey = normalizeNoteStage(note.stage);
+
+      let jenisKey = rawJenisKey;
+      let displayFormat = formatDocumentSlotLabel(rawFormat);
+
+      if (rawJenisKey.startsWith("ITEM_NOTE_")) {
+        jenisKey = rawJenisKey.replace("ITEM_NOTE_", "");
+        if (!rawFormat) {
+          displayFormat = "CATATAN ITEM";
+        }
+      }
 
       if (jenisKey.startsWith("CAT_NOTE_")) {
         const utamaId = jenisKey.replace("CAT_NOTE_", "");
@@ -218,7 +228,7 @@ export default function DcDocumentsPage() {
               stageLabel: NOTE_STAGE_LABELS[stageKey],
               category: utama.title,
               itemTitle: "Catatan Kategori (Umum)",
-              format: "Kategori Utama",
+              format: displayFormat || "Kategori Utama",
               isCategoryNote: true
             };
           }
@@ -233,7 +243,7 @@ export default function DcDocumentsPage() {
           stageLabel: NOTE_STAGE_LABELS[stageKey],
           category: "DATA PENTING LAINNYA",
           itemTitle: customItem.title,
-          format: formatDocumentSlotLabel(rawFormat),
+          format: displayFormat,
         };
       }
 
@@ -247,7 +257,7 @@ export default function DcDocumentsPage() {
               stageLabel: NOTE_STAGE_LABELS[stageKey],
               category: utama.title,
               itemTitle: jenis.title,
-              format: formatDocumentSlotLabel(rawFormat),
+              format: displayFormat,
             };
           }
         }
@@ -259,7 +269,7 @@ export default function DcDocumentsPage() {
         stageLabel: NOTE_STAGE_LABELS[stageKey],
         category: "Kategori tidak diketahui",
         itemTitle: jenisKey || "Item tidak diketahui",
-        format: formatDocumentSlotLabel(rawFormat),
+        format: displayFormat,
       };
     };
 
@@ -350,7 +360,7 @@ export default function DcDocumentsPage() {
   }, [archives]);
 
   const filteredArchives = useMemo(() => {
-    return archives.filter((item) => {
+    const filtered = archives.filter((item) => {
       const matchesTipe = tipeDcFilter === "all"
         ? true
         : (item.archive_type || item.project_type) === tipeDcFilter;
@@ -362,6 +372,29 @@ export default function DcDocumentsPage() {
         : getArchiveParentBranch(item) === branchFilter;
 
       return matchesTipe && matchesStatus && matchesBranch;
+    });
+
+    const typeOrder = ["DC", "WAREHOUSE", "DEPO", "BULKY", "STORE_HUB", "GUDANG_ANAK"];
+
+    return filtered.sort((a, b) => {
+      if (tipeDcFilter === "all") {
+        const typeA = (a.archive_type || a.project_type || "").toUpperCase();
+        const typeB = (b.archive_type || b.project_type || "").toUpperCase();
+        const indexA = typeOrder.indexOf(typeA);
+        const indexB = typeOrder.indexOf(typeB);
+
+        if (indexA !== -1 && indexB !== -1) {
+          if (indexA !== indexB) return indexA - indexB;
+        } else if (indexA !== -1) {
+          return -1;
+        } else if (indexB !== -1) {
+          return 1;
+        }
+      }
+
+      const nameA = (a.archive_name || a.archive_code || "").toUpperCase();
+      const nameB = (b.archive_name || b.archive_code || "").toUpperCase();
+      return nameA.localeCompare(nameB);
     });
   }, [archives, tipeDcFilter, statusFilter, branchFilter]);
 
