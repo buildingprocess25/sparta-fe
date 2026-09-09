@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, ChevronLeft, Info } from 'lucide-react';
+import { Eye, EyeOff, ChevronLeft, Info, Briefcase, MapPin, Building2, User } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -508,46 +508,85 @@ function LoginPageContent() {
 
       {/* MODAL PILIH ROLE JIKA EMAIL SAMA */}
       <AlertDialog open={roleSelectOpen} onOpenChange={setRoleSelectOpen}>
-        <AlertDialogContent className="rounded-2xl max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-slate-800">Pilih Akun Pengguna</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-slate-600">
-              Ditemukan beberapa akun dengan email ini. Silakan pilih Anda ingin login sebagai siapa:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-3 mt-4">
-            {availableRoles.map((role, idx) => (
-              <Button 
-                key={role.id ?? `${role.email_sat}-${role.cabang}-${idx}`}
-                variant="outline"
-                className="w-full justify-start h-auto py-3 px-4 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
-                onClick={() => handleSelectAccount(role)}
-              >
-                <div className="text-left flex-col items-start gap-1">
-                  <div className="font-bold text-slate-800">{role.nama_lengkap}</div>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                      {role.cabang || "Cabang belum terisi"}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">
-                      {role.jabatan}
-                    </span>
-                  </div>
-                  {role.nama_pt && (
-                    <div className="mt-1 text-xs font-medium text-slate-500">{role.nama_pt}</div>
-                  )}
+        <AlertDialogContent className="rounded-2xl max-w-lg md:max-w-xl p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="bg-gradient-to-br from-blue-50/50 to-slate-50 p-6 md:p-8">
+            <AlertDialogHeader className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-blue-100 text-[#005a9e] w-10 h-10 flex items-center justify-center rounded-full shadow-sm">
+                  <User className="w-5 h-5" />
                 </div>
+                <AlertDialogTitle className="text-xl md:text-2xl font-bold text-slate-800 text-left">Pilih Akses Anda</AlertDialogTitle>
+              </div>
+              <AlertDialogDescription className="text-sm md:text-base text-slate-600 text-left">
+                Kami menemukan beberapa hak akses yang terkait dengan email ini. Silakan pilih role untuk melanjutkan:
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="space-y-4 mt-4 max-h-[50vh] overflow-y-auto pr-2 pb-2 custom-scrollbar">
+              <style dangerouslySetInnerHTML={{__html: `
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+              `}} />
+              
+              {availableRoles.map((role, idx) => (
+                <div 
+                  key={role.id ?? `${role.email_sat}-${role.cabang}-${idx}`}
+                  onClick={() => handleSelectAccount(role)}
+                  className="group relative w-full flex flex-col justify-start h-auto p-4 md:p-5 bg-white border border-slate-200 rounded-xl cursor-pointer transition-all duration-300 hover:border-blue-300 hover:shadow-lg hover:-translate-y-1 overflow-hidden"
+                >
+                  {/* Subtle hover gradient background */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 to-blue-50/0 group-hover:from-blue-50/50 group-hover:to-transparent transition-colors duration-300 pointer-events-none" />
+                  
+                  <div className="relative z-10 w-full text-left flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="font-bold text-slate-800 text-lg group-hover:text-[#005a9e] transition-colors">{role.nama_lengkap}</div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#005a9e]">
+                        <ChevronLeft className="w-5 h-5 rotate-180" />
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2.5 mt-1">
+                      {role.jabatan && (
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <Briefcase className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+                          <span className="font-medium leading-tight">{role.jabatan}</span>
+                        </div>
+                      )}
+                      
+                      {role.nama_pt && (
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <Building2 className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />
+                          <span className="leading-tight">{role.nama_pt}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-start gap-2 text-sm text-slate-600 mt-1">
+                        <MapPin className="w-4 h-4 mt-0.5 text-blue-500 shrink-0" />
+                        <span className="text-blue-700 font-semibold bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100 inline-block leading-tight shadow-sm">
+                          {role.cabang || "Cabang belum terisi"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-8 flex justify-end">
+              <Button 
+                variant="outline" 
+                className="px-6 rounded-lg font-semibold hover:bg-slate-100"
+                onClick={() => {
+                  setRoleSelectOpen(false);
+                  setPendingLoginData(null);
+                }}
+              >
+                Batal
               </Button>
-            ))}
+            </div>
           </div>
-          <AlertDialogFooter className="mt-6">
-            <Button variant="ghost" onClick={() => {
-              setRoleSelectOpen(false);
-              setPendingLoginData(null);
-            }}>
-              Batal
-            </Button>
-          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
