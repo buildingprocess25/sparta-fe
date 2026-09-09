@@ -204,7 +204,7 @@ export default function DcDocumentsPage() {
     const customItemMap = new Map<string, DcDocumentCustomItem>();
     customItemsForNotes.forEach(item => customItemMap.set(`CUSTOM_K_${item.id}`, item));
 
-    const resolveNote = (note: DcDocument): NoteDisplay => {
+    const resolveNote = (note: DcDocument): NoteDisplay | null => {
       const [rawJenisKey = "", rawFormat = ""] = (note.document_type || "").split("__");
       const stageKey = normalizeNoteStage(note.stage);
 
@@ -219,20 +219,7 @@ export default function DcDocumentsPage() {
       }
 
       if (jenisKey.startsWith("CAT_NOTE_")) {
-        const utamaId = jenisKey.replace("CAT_NOTE_", "");
-        for (const utama of getDcDocumentConfigForStage(stageKey)) {
-          if (utama.id === utamaId) {
-            return {
-              note,
-              stageKey,
-              stageLabel: NOTE_STAGE_LABELS[stageKey],
-              category: utama.title,
-              itemTitle: "Catatan Kategori (Umum)",
-              format: displayFormat || "Kategori Utama",
-              isCategoryNote: true
-            };
-          }
-        }
+        return null;
       }
 
       const customItem = customItemMap.get(jenisKey);
@@ -275,6 +262,7 @@ export default function DcDocumentsPage() {
 
     const stageMap = new Map<string, Map<string, NoteDisplay[]>>();
     projectNotes.map(resolveNote).forEach(item => {
+      if (!item) return;
       if (!stageMap.has(item.stageKey)) stageMap.set(item.stageKey, new Map());
       const categoryMap = stageMap.get(item.stageKey)!;
       if (!categoryMap.has(item.category)) categoryMap.set(item.category, []);
