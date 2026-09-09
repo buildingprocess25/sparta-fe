@@ -499,11 +499,22 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                     }
                 });
 
+                const rowTop = idx * ROW_HEIGHT;
+                const rangeCenterX = (range: any) => {
+                    const start = parseInt(range.start || 0) + shift;
+                    const end = parseInt(range.end || 0) + shift + (parseInt(range.keterlambatan) || 0);
+                    return ((start - 1) * DAY_WIDTH) + ((end - start + 1) * DAY_WIDTH / 2);
+                };
+
                 taskCoordinates[task.id] = {
-                    centerY: (idx * ROW_HEIGHT) + (ROW_HEIGHT / 2),
+                    centerY: rowTop + (ROW_HEIGHT / 2),
+                    topY: rowTop + 13,
+                    bottomY: rowTop + 37,
                     endX: maxEnd * DAY_WIDTH,
                     startX: (minStart - 1) * DAY_WIDTH,
-                    firstEndX: firstPeriodEnd * DAY_WIDTH
+                    firstEndX: firstPeriodEnd * DAY_WIDTH,
+                    sourceAnchors: ranges.map((range: any) => rangeCenterX(range)),
+                    targetX: rangeCenterX(ranges[0]),
                 };
             }
         });
@@ -515,19 +526,24 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                 for (let cId of task.dependencies) {
                     const parentCoordinates = taskCoordinates[task.id];
                     const childCoordinates = taskCoordinates[cId];
-                    if(parentCoordinates && childCoordinates && parentCoordinates.firstEndX !== undefined && childCoordinates.startX !== undefined) {
-                        const startX = parentCoordinates.firstEndX, startY = parentCoordinates.centerY;
-                        const endX = childCoordinates.startX, endY = childCoordinates.centerY;
-                        let tension = (endX - startX) < 40 ? 60 : 40;
-                        if ((endX - startX) < 0) tension = 100;
-                        const path = `M ${startX} ${startY} C ${startX + tension} ${startY}, ${endX - tension} ${endY}, ${endX} ${endY}`;
-                        svgLines.push(
-                            <g key={`${task.id}-${cId}`}>
-                                <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
-                                <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                                <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
-                            </g>
-                        );
+                    if(parentCoordinates && childCoordinates && Array.isArray(parentCoordinates.sourceAnchors) && childCoordinates.targetX !== undefined) {
+                        const targetIsBelow = childCoordinates.centerY >= parentCoordinates.centerY;
+                        const startY = targetIsBelow ? parentCoordinates.bottomY : parentCoordinates.topY;
+                        const endX = childCoordinates.targetX;
+                        const endY = targetIsBelow ? childCoordinates.topY : childCoordinates.bottomY;
+                        const direction = targetIsBelow ? 1 : -1;
+                        const tension = Math.max(28, Math.min(70, Math.abs(endY - startY) / 2));
+
+                        parentCoordinates.sourceAnchors.forEach((startX: number, anchorIdx: number) => {
+                            const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
+                            svgLines.push(
+                                <g key={`${task.id}-${cId}-${anchorIdx}`}>
+                                    <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
+                                    <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                    <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
+                                </g>
+                            );
+                        });
                     }
                 }
             }
