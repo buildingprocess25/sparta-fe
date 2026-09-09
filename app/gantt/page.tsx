@@ -4796,13 +4796,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             insertResult = await submitPengawasanBulk({ items: batch.items });
                         }
                     } catch (error: any) {
-                        if (isPengawasanNetworkError(error) && await checkRecoveredPengawasanBatch("insert", batch.items)) {
+                        const isNetworkError = isPengawasanNetworkError(error);
+                        if (isNetworkError && await checkRecoveredPengawasanBatch("insert", batch.items)) {
                             insertedCount += batch.items.length;
                             continue;
                         }
 
+                        const detail = error?.message || 'Upload gagal';
                         throw new Error(
-                            `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${error?.message || 'Upload gagal'}`
+                            isNetworkError
+                                ? `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${detail}`
+                                : `Batch data baru ${batchIndex + 1}/${insertBatches.length} gagal: ${detail}`
                         );
                     }
 
@@ -4854,13 +4858,17 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                             updateResult = await updatePengawasanBulk({ items: batch.items });
                         }
                     } catch (error: any) {
-                        if (isPengawasanNetworkError(error) && await checkRecoveredPengawasanBatch("update", batch.items)) {
+                        const isNetworkError = isPengawasanNetworkError(error);
+                        if (isNetworkError && await checkRecoveredPengawasanBatch("update", batch.items)) {
                             updatedCount += batch.items.length;
                             continue;
                         }
 
+                        const detail = error?.message || 'Upload gagal';
                         throw new Error(
-                            `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${error?.message || 'Upload gagal'}`
+                            isNetworkError
+                                ? `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal. Koneksi ke server terputus dan data belum terkonfirmasi tersimpan. Cek ulang data sebelum submit lagi. Detail: ${detail}`
+                                : `Batch revisi ${batchIndex + 1}/${updateBatches.length} gagal: ${detail}`
                         );
                     }
 
