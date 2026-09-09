@@ -591,16 +591,16 @@ export default function DcDocumentsPage() {
                         <td className="px-6 py-5 text-slate-500">{index + 1}</td>
                         <td className="px-6 py-5 font-bold text-slate-700">{archive.archive_code}</td>
                         <td className="px-6 py-5">
-                          <span className="font-semibold text-slate-900">{archive.archive_name}</span>
-                          {archive.location_name && <div className="mt-0.5 text-xs text-slate-500">{archive.location_name}</div>}
+                          <span className="font-semibold text-slate-900 uppercase">{archive.archive_name}</span>
+                          {archive.location_name && <div className="mt-0.5 text-xs text-slate-500 uppercase">{archive.location_name}</div>}
                         </td>
                         {/* <td className="px-6 py-5 font-medium text-slate-700">{archive.branch_name}</td> */}
                         {/* <td className="px-6 py-5 font-medium text-slate-700">{getArchiveParentBranch(archive)}</td> */}
                         <td className="px-6 py-5 text-slate-600">
                           {archive.parent_dc_code ? (
                             <div className="font-medium">
-                              <span className="font-bold text-slate-800">{archive.parent_dc_code}</span>
-                              <div className="mt-0.5 text-xs text-slate-500">{archive.parent_dc_name}</div>
+                              <span className="font-bold text-slate-800 uppercase">{archive.parent_dc_code}</span>
+                              <div className="mt-0.5 text-xs text-slate-500 uppercase">{archive.parent_dc_name}</div>
                             </div>
                           ) : <span className="text-slate-400">-</span>}
                         </td>
