@@ -1268,14 +1268,37 @@ export const checkRevisionStatus = async (email: string, _cabang: string) => {
 
         if (rejected.length === 0) return { rejected_submissions: [] };
 
-        const formatted = rejected.map(r => ({
-            id: r.id,
-            "Nomor Ulok": r.nomor_ulok,
-            "lingkup_pekerjaan": (r as any).lingkup_pekerjaan || (r.toko as any)?.lingkup_pekerjaan,
-            "nama_toko": r.nama_toko || r.toko?.nama_toko,
-            "Proyek": r.proyek || r.toko?.proyek,
-            "alasan_penolakan": r.alasan_penolakan,
-            // Sisa field detail akan diambil saat tombol 'Revisi Sekarang' diklik
+        const grouped = rejected.reduce((acc: any, r: any) => {
+            const ulok = r.nomor_ulok;
+            const scope = r.lingkup_pekerjaan || r.toko?.lingkup_pekerjaan;
+            
+            if (!acc[ulok]) {
+                acc[ulok] = {
+                    id: r.id,
+                    ids: [r.id],
+                    "Nomor Ulok": ulok,
+                    "lingkup_pekerjaan_list": scope ? [scope] : [],
+                    "nama_toko": r.nama_toko || r.toko?.nama_toko,
+                    "Proyek": r.proyek || r.toko?.proyek,
+                    "alasan_penolakan": r.alasan_penolakan,
+                };
+            } else {
+                acc[ulok].ids.push(r.id);
+                if (scope && !acc[ulok].lingkup_pekerjaan_list.includes(scope)) {
+                    acc[ulok].lingkup_pekerjaan_list.push(scope);
+                }
+            }
+            return acc;
+        }, {});
+
+        const formatted = Object.values(grouped).map((g: any) => ({
+            id: g.id,
+            ids: g.ids,
+            "Nomor Ulok": g["Nomor Ulok"],
+            "lingkup_pekerjaan": g.lingkup_pekerjaan_list.length > 1 ? "SIPIL + ME" : (g.lingkup_pekerjaan_list[0] || ""),
+            "nama_toko": g.nama_toko,
+            "Proyek": g.Proyek,
+            "alasan_penolakan": g.alasan_penolakan,
         }));
 
         return { rejected_submissions: formatted };

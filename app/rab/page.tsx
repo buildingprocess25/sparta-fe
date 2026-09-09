@@ -985,7 +985,8 @@ function RABPageContent() {
       const data = directItem;
       if (!data) return;
       
-      const scope = data.lingkup_pekerjaan || data['Lingkup_Pekerjaan'] || data['Lingkup Pekerjaan'] || formData.lingkupPekerjaan;
+      const scopeRaw = data.lingkup_pekerjaan || data['Lingkup_Pekerjaan'] || data['Lingkup Pekerjaan'] || formData.lingkupPekerjaan;
+      const scope = scopeRaw === "SIPIL + ME" ? "GABUNGAN" : scopeRaw;
       
       setIsRevisionLoading(true);
 
@@ -1002,7 +1003,16 @@ function RABPageContent() {
           let fetchedDetailData: any = {};
           let itemsData = typeof data["Item_Details_JSON"] === 'string' ? JSON.parse(data["Item_Details_JSON"]) : (data["Item_Details_JSON"] || []);
           
-          if (data.id && (!itemsData || itemsData.length === 0)) {
+          if (data.ids && data.ids.length > 0) {
+              try {
+                  const detailResponses = await Promise.all(data.ids.map((id: number) => fetchRABDetail(id)));
+                  fetchedDetailData = detailResponses[0].data;
+                  itemsData = detailResponses.flatMap(res => res.data.items || []);
+                  fetchedDetailData.revisi_items = detailResponses.flatMap(res => res.data.revisi_items || []);
+              } catch (err) {
+                  console.error("Gagal mengambil detail RAB Gabungan:", err);
+              }
+          } else if (data.id && (!itemsData || itemsData.length === 0)) {
               try {
                   const detailRes = await fetchRABDetail(data.id);
                   fetchedDetailData = detailRes.data;
