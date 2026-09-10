@@ -1007,7 +1007,13 @@ function RABPageContent() {
               try {
                   const detailResponses = await Promise.all(data.ids.map((id: number) => fetchRABDetail(id)));
                   fetchedDetailData = detailResponses[0].data;
-                  itemsData = detailResponses.flatMap(res => res.data.items || []);
+                  itemsData = detailResponses.flatMap(res => {
+                      const scope = res.data.toko?.lingkup_pekerjaan || res.data.rab?.lingkup_pekerjaan;
+                      return (res.data.items || []).map((item: any) => ({
+                          ...item,
+                          lingkup_pekerjaan: scope
+                      }));
+                  });
                   fetchedDetailData.revisi_items = detailResponses.flatMap(res => res.data.revisi_items || []);
               } catch (err) {
                   console.error("Gagal mengambil detail RAB Gabungan:", err);
@@ -1016,7 +1022,10 @@ function RABPageContent() {
               try {
                   const detailRes = await fetchRABDetail(data.id);
                   fetchedDetailData = detailRes.data;
-                  itemsData = fetchedDetailData.items || [];
+                  itemsData = (fetchedDetailData.items || []).map((item: any) => ({
+                      ...item,
+                      lingkup_pekerjaan: fetchedDetailData.toko?.lingkup_pekerjaan || fetchedDetailData.rab?.lingkup_pekerjaan
+                  }));
               } catch (err) {
                   console.error("Gagal mengambil detail RAB:", err);
               }
@@ -1058,8 +1067,13 @@ function RABPageContent() {
 
           // Lingkup pekerjaan asli akan didapatkan dari detail toko
           let resolvedScope = tokoRef.lingkup_pekerjaan || scope;
-          if (resolvedScope?.toUpperCase() === 'SIPIL') resolvedScope = 'SIPIL';
-          else if (resolvedScope?.toUpperCase() === 'ME') resolvedScope = 'ME';
+          if (data.ids && data.ids.length > 1) {
+              resolvedScope = 'GABUNGAN';
+          } else if (resolvedScope?.toUpperCase() === 'SIPIL') {
+              resolvedScope = 'SIPIL';
+          } else if (resolvedScope?.toUpperCase() === 'ME') {
+              resolvedScope = 'ME';
+          }
 
           const resolvedCabang = normalizeBranchName(
               fetchedTokoDetail?.cabang || tokoRef.cabang || data.cabang || data["Cabang"] || formData.cabang
