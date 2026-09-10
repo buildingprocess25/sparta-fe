@@ -1018,7 +1018,7 @@ function RABPageContent() {
               } catch (err) {
                   console.error("Gagal mengambil detail RAB Gabungan:", err);
               }
-          } else if (data.id && (!itemsData || itemsData.length === 0)) {
+          } else if (data.id) {
               try {
                   const detailRes = await fetchRABDetail(data.id);
                   fetchedDetailData = detailRes.data;
@@ -2039,19 +2039,33 @@ function RABPageContent() {
                                 <tr key={row.id} className={`hover:bg-slate-50 transition-colors border-b border-slate-100 ${itemRevisionNote ? 'bg-red-50/30' : ''}`}>
                                   <td className="p-2 border-r border-slate-100 text-center font-medium text-slate-500 whitespace-nowrap">{index + 1}</td>
                                   <td className="p-2 border-r border-slate-100 whitespace-nowrap">
-                                    <JobSelectCombobox
-                                      row={row}
-                                      priceItems={priceItems}
-                                      selectedJobs={selectedJobs}
-                                      isReadOnly={isReadOnly}
-                                      updateRow={updateRow}
-                                      hasCurrentJobOption={hasCurrentJobOption}
-                                    />
-                                    {itemRevisionNote && (
-                                      <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs leading-relaxed text-red-700 whitespace-normal">
-                                        <span className="font-bold">Catatan revisi item:</span> {itemRevisionNote}
+                                    <div className="flex items-center gap-2 relative">
+                                      <div className="flex-1">
+                                        <JobSelectCombobox
+                                          row={row}
+                                          priceItems={priceItems}
+                                          selectedJobs={selectedJobs}
+                                          isReadOnly={isReadOnly}
+                                          updateRow={updateRow}
+                                          hasCurrentJobOption={hasCurrentJobOption}
+                                        />
                                       </div>
-                                    )}
+                                      {itemRevisionNote && (
+                                        <div className="group relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full bg-red-50 cursor-help hover:bg-red-100 transition-colors border border-red-200">
+                                          <AlertTriangle className="w-4 h-4 text-red-600" />
+                                          
+                                          {/* Tooltip Content */}
+                                          <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100 shadow-lg">
+                                            <div className="rounded-md bg-white border border-red-200 p-2 text-xs leading-relaxed text-slate-700 whitespace-normal text-left shadow-sm">
+                                              <span className="block font-bold text-red-600 mb-1 border-b border-red-100 pb-1">Catatan Revisi:</span>
+                                              {itemRevisionNote}
+                                            </div>
+                                            {/* Arrow */}
+                                            <div className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-red-200 bg-white"></div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="p-2 border-r border-slate-100 text-center text-slate-600 font-medium whitespace-nowrap">{row.satuan}</td>
                                   <td className="p-2 border-r border-slate-100 whitespace-nowrap"><Input type="text" inputMode="decimal" className={`h-9 px-2 text-center transition-colors text-xs w-24 ${isReadOnly || row.satuan === 'Ls' ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300 focus-visible:ring-blue-500 font-medium text-slate-800'}`} value={volumeToInputValue(row.volume)} onChange={(e) => updateRow(row.id, 'volume', normalizeVolumeInput(e.target.value))} onBlur={(e) => updateRow(row.id, 'volume', normalizeVolumeOnBlur(e.target.value))} onKeyDown={preventNativeNumberStep} onWheel={preventWheelNumberChange} placeholder="0" readOnly={isReadOnly || row.satuan === 'Ls'} /></td>
