@@ -3142,6 +3142,8 @@ export const fetchTaskNotifications = async (
 // --- Types ---
 
 export type SPKSubmitPayload = {
+    member_toko_ids?: number[];
+    spk_group_id?: string | null;
     id_toko: number;
     nomor_ulok: string;
     email_pembuat: string;
@@ -3158,6 +3160,9 @@ export type SPKSubmitPayload = {
 };
 
 export type SPKListItem = {
+    spk_group_id?: string | null;
+    group_members?: SPKListItem[];
+    group_grand_total?: number;
     id: number;
     id_toko: number;
     nomor_ulok: string;
@@ -3205,6 +3210,24 @@ export type SPKApprovalLog = {
 export type SPKDetailResponse = {
     pengajuan: SPKListItem;
     approvalLogs: SPKApprovalLog[];
+};
+
+export type SPKCandidate = {
+    id_toko: number;
+    nomor_ulok: string;
+    lingkup_pekerjaan: string;
+    member_toko_ids: number[];
+    spk_group_id: string | null;
+    group_members?: Array<{ id_toko: number; lingkup_pekerjaan: string; grand_total: number | string }>;
+    blocked_reason?: string | null;
+    [key: string]: any;
+};
+
+export const fetchSPKCandidates = async (): Promise<{ status: string; data: SPKCandidate[] }> => {
+    const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/spk/candidates`);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || "Gagal memuat kandidat SPK.");
+    return result;
 };
 
 export type SPKApprovalPayload = {

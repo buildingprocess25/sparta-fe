@@ -1,5 +1,6 @@
 "use client"
 
+import { groupSPKForPresentation, presentSPK } from '@/lib/spk-groups';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
@@ -149,6 +150,7 @@ interface NormalizedListItem {
 }
 
 interface NormalizedDetail {
+    spk_group_members?: SPKListItem[];
     id: number;
     tipe: ApprovalType;
     nomor_ulok: string;
@@ -723,7 +725,7 @@ const normalizeRABList = (items: RABListItem[]): NormalizedListItem[] => {
 };
 
 const normalizeSPKList = (items: SPKListItem[]): NormalizedListItem[] =>
-    items.map(s => {
+    groupSPKForPresentation(items).map(s => {
         const raw = s as any; // Bypass TS strict jika tipe di api.ts belum diperbarui
         return {
             id: raw.id,
@@ -887,6 +889,7 @@ function ApprovalPageContent() {
     const [processingId, setProcessingId]     = useState<number | string | null>(null);
     const [rejectModal, setRejectModal]       = useState<NormalizedListItem | NormalizedDetail | null>(null);
     const [rejectNote, setRejectNote]         = useState('');
+    const [rejectModalError, setRejectModalError] = useState('');
     const [rejectDisposition, setRejectDisposition] = useState<'REVISION' | 'FINAL'>('REVISION');
     const [rejectRabRevisionItems, setRejectRabRevisionItems] = useState<Array<{ id: number | null; note: string }>>([]);
     const [approveModal, setApproveModal]     = useState<NormalizedListItem | NormalizedDetail | null>(null);
@@ -1513,11 +1516,12 @@ function ApprovalPageContent() {
 
             } else if (item.tipe === 'SPK') {
             const res = await fetchSPKDetail(item.id);
-            const d = res.data;
+            const d = { ...res.data, pengajuan: presentSPK(res.data.pengajuan) };
             const stTarget = buildStTargetDisplay((d.pengajuan as any).effective_waktu_selesai || (d.pengajuan as any).waktu_selesai);
             detail = {
                 id: d.pengajuan.id,
                 tipe: 'SPK',
+                spk_group_members: d.pengajuan.spk_group_id ? d.pengajuan.group_members : undefined,
                 nomor_ulok:        d.pengajuan.nomor_ulok,
                 id_toko:           (d.pengajuan as any).toko?.id ?? (d.pengajuan as any).id_toko,
                 nama_toko:         item.nama_toko,
@@ -1809,7 +1813,7 @@ function ApprovalPageContent() {
     };
 
     const handleConfirmApprove = async () => {
-        if (!approveModal) return;
+        if (!approveModal || processingId !== null) return;
         const item = approveModal;
         const note = approveNote;
         const requiresRabCoordinatorInfo = item.tipe === 'RAB' && jabatan === 'KOORDINATOR';
@@ -1845,11 +1849,12 @@ function ApprovalPageContent() {
             };
         }
 
-        setApproveModal(null);
-        setApproveNote('');
-        setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
-        setApproveModalError('');
-        await handleApprove(item, note, coordinatorInfoPayload);
+        if (await handleApprove(item, note, coordinatorInfoPayload)) {
+            setApproveModal(null);
+            setApproveNote('');
+            setRabCoordinatorInfo(EMPTY_RAB_COORDINATOR_INFO);
+            setApproveModalError('');
+        }
     };
 
     const handleApprove = async (
@@ -1938,8 +1943,11 @@ function ApprovalPageContent() {
                 });
             }
             showToast(`${APPROVAL_CONFIG[item.tipe].label} berhasil di-approve!`, 'success');
+            return true;
         } catch (err: any) {
+            setApproveModalError(err.message || 'Gagal melakukan approval.');
             showToast(err.message || 'Gagal melakukan approval.', 'error');
+            return false;
         } finally {
             setProcessingId(null);
         }
@@ -1950,13 +1958,15 @@ function ApprovalPageContent() {
     // ==========================================
     const openRejectModal = (item: NormalizedListItem | NormalizedDetail) => {
         setRejectNote('');
+        setRejectModalError('');
         setRejectDisposition('REVISION');
         setRejectRabRevisionItems([]);
         setRejectModal(item);
     };
 
     const handleReject = async () => {
-        if (!rejectModal) return;
+        if (!rejectModal || processingId !== null) return;
+        setRejectModalError('');
         if (!rejectNote.trim()) { showToast('Harap isi alasan penolakan.', 'error'); return; }
         const selectedRevisionItemIds = rejectRabRevisionItems
             .map(item => item.id)
@@ -2062,6 +2072,7 @@ function ApprovalPageContent() {
             showToast('Pengajuan berhasil ditolak.', 'success');
         } catch (err: any) {
             // Modal stays open so user can see error and retry without losing their input
+            setRejectModalError(err.message || 'Gagal menolak pengajuan. Silakan coba lagi.');
             showToast(err.message || 'Gagal menolak pengajuan. Silakan coba lagi.', 'error');
         } finally {
             setProcessingId(null);
@@ -2169,7 +2180,7 @@ function ApprovalPageContent() {
         if (!autoOpenDetailId || activeView !== 'list' || listData.length === 0 || !selectedType) return;
         const key = `${selectedType}:${autoOpenDetailId}`;
         if (autoOpenedDetailKey === key) return;
-        const target = listData.find(item => String(item.id) === String(autoOpenDetailId));
+        const target = listData.find(item => String(item.id) === String(autoOpenDetailId) || (item.tipe === "SPK" && item._raw?.spk_group_id && item._raw?.group_members?.some((member: SPKListItem) => String(member.id) === String(autoOpenDetailId))));
         if (!target) return;
 
         setAutoOpenedDetailKey(key);
@@ -2344,7 +2355,7 @@ function ApprovalPageContent() {
 
             {/* TOAST */}
             {toast && (
-                <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-white text-sm font-semibold animate-in slide-in-from-top-2 duration-300 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+                <div className={`fixed top-24 right-5 z-[1200] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-white text-sm font-semibold animate-in slide-in-from-top-2 duration-300 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
                     {toast.type === 'success' ? <CheckCircle className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
                     {toast.msg}
                 </div>
@@ -2571,10 +2582,12 @@ function ApprovalPageContent() {
                                 className="w-full border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
                                 rows={4}
                                 placeholder="Tulis alasan penolakan..."
+                                aria-describedby={rejectModalError ? "reject-spk-error" : undefined}
                                 value={rejectNote}
                                 onChange={e => setRejectNote(e.target.value)}
                                 autoFocus
                             />
+                            {rejectModalError && <p id="reject-spk-error" role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{rejectModalError}</p>}
                             {rejectModal.tipe === 'RAB' && Array.isArray((rejectModal as NormalizedDetail).items) && (rejectModal as NormalizedDetail).items.length > 0 && (
                                 <div className="rounded-xl border border-red-100 bg-red-50/40 p-3 space-y-3">
                                     <div>
@@ -3211,9 +3224,22 @@ function ApprovalPageContent() {
                                 )}
 
                                 {/* Visualisasi Gantt Chart - untuk RAB & SPK */}
+                                {selectedDetail.tipe === 'SPK' && selectedDetail.spk_group_members && (
+                                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+                                        <p className="font-semibold mb-3">Approval ini berlaku untuk SIPIL dan ME.</p>
+                                        {selectedDetail.spk_group_members.map(member => (
+                                            <div key={member.id} className="flex justify-between gap-4 py-1">
+                                                <span>Pekerjaan {member.lingkup_pekerjaan}</span>
+                                                <span className="font-semibold">{formatRupiah(parseCurrency(member.grand_total))}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'SPK') && (() => {
                                     const ganttScopes = selectedDetail.tipe === 'RAB' && selectedDetail.scope_details?.length
                                         ? selectedDetail.scope_details.filter(scope => scope.id_toko)
+                                        : selectedDetail.tipe === 'SPK' && selectedDetail.spk_group_members?.length
+                                            ? selectedDetail.spk_group_members.map(scope => ({ id_toko: scope.id_toko, lingkup_pekerjaan: scope.lingkup_pekerjaan }))
                                         : selectedDetail.id_toko
                                             ? [{ lingkup_pekerjaan: selectedDetail.lingkup_pekerjaan || '', id_toko: selectedDetail.id_toko }]
                                             : [];

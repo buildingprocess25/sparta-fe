@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Save, Loader2, Search, FileText, AlertCircle, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import AppNavbar from '@/components/AppNavbar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
-import { fetchKontraktorList, fetchSPKList, submitSPK, fetchRABList, sendEmailNotification, fetchSpkBackdatePolicy } from '@/lib/api';
+import { fetchKontraktorList, fetchSPKList, submitSPK, fetchSPKCandidates, sendEmailNotification, fetchSpkBackdatePolicy } from '@/lib/api';
 import { BRANCH_GROUPS, canViewAllBranches, isViewOnlyUser, getParentBranch } from '@/lib/constants';
 import { parseCurrency } from '@/lib/utils';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -69,6 +69,8 @@ export default function SPKPage() {
     const [userInfo, setUserInfo] = useState({ name: '', role: '', cabang: '', email: '' });
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const submittingRef = useRef(false);
+    const selectionRequestRef = useRef(0);
     
     // Modal Sukses
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -175,7 +177,7 @@ export default function SPKPage() {
     const loadApprovedRabs = async (cabang: string, canSeeAllBranches = false) => {
         setIsLoading(true);
         try {
-            const res = await fetchRABList({ status: "Disetujui" });
+            const res = await fetchSPKCandidates();
             const listRab = res.data || [];
             
             const upperCabang = cabang.toUpperCase();
@@ -195,7 +197,12 @@ export default function SPKPage() {
             });
             
             const mappedData = filteredRabs.map((r: any) => ({
-                "id_toko": r.id_toko || r.toko?.id,
+                "id_toko": r.id_toko ?? r.toko?.id,
+                candidate_key: r.spk_group_id ? `group:${r.spk_group_id}` : `toko:${(r.member_toko_ids ?? [r.id_toko]).join(",")}`,
+                member_toko_ids: r.member_toko_ids ?? [r.id_toko],
+                spk_group_id: r.spk_group_id,
+                group_members: r.group_members ?? [],
+                blocked_reason: r.blocked_reason,
                 "Nomor Ulok": r.nomor_ulok,
                 "Lingkup_Pekerjaan": r.lingkup_pekerjaan || "-",
                 "Cabang": r.cabang,
@@ -206,7 +213,7 @@ export default function SPKPage() {
                 "Alamat": r.toko?.alamat || "-",
                 "Grand Total": r.grand_total || 0,
                 "Grand Total Non PPN": r.grand_total_non_sbo || r.grand_total || 0,
-                "Grand Total Final": r.grand_total_final || r.grand_total || 0,
+                "Grand Total Final": r.grand_total_final ?? r.grand_total ?? 0,
                 "Durasi_Pekerjaan": r.durasi_pekerjaan || "",
             }));
             
@@ -232,8 +239,8 @@ export default function SPKPage() {
 
         const target = approvedRabs.find(r => {
             const sameUlok = nomorUlok ? r["Nomor Ulok"] === nomorUlok : true;
-            const sameLingkup = lingkup ? r["Lingkup_Pekerjaan"] === lingkup : true;
-            const sameToko = idToko ? String(r.id_toko) === idToko : true;
+            const sameLingkup = lingkup ? r["Lingkup_Pekerjaan"] === lingkup || r.group_members.some((member: any) => normalizeText(member.lingkup_pekerjaan) === normalizeText(lingkup)) : true;
+            const sameToko = idToko ? r.member_toko_ids.some((id: number) => String(id) === idToko) : true;
             return sameUlok && sameLingkup && sameToko;
         });
 
@@ -242,13 +249,14 @@ export default function SPKPage() {
         setAutoSelectedTargetKey(targetKey);
         setSearchUlok(target["Nama_Toko"] || target["Nomor Ulok"] || '');
         setCabangFilter(target.Cabang || '');
-        handleUlokSelect(`${target["Nomor Ulok"]} (${target["Lingkup_Pekerjaan"]})`);
+        handleUlokSelect(target.candidate_key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [approvedRabs, autoSelectedTargetKey]);
 
     const handleUlokSelect = async (ulokStr: string) => {
+        const requestId = ++selectionRequestRef.current;
         setSpkMsg({ text: '', type: '' });
-        setIsLocked(false);
+        setIsLocked(Boolean(ulokStr));
         setRevisiData({ isRevisi: false, sequence: '', rowIndex: null });
 
         if (!ulokStr) {
@@ -260,16 +268,16 @@ export default function SPKPage() {
             return;
         }
 
-        const selectedUlok = ulokStr.split(" (")[0];
-        const selectedLingkup = ulokStr.includes("(") ? ulokStr.split("(")[1].replace(")", "") : null;
-        
-        const selected = approvedRabs.find(r => r["Nomor Ulok"] === selectedUlok && r["Lingkup_Pekerjaan"] === selectedLingkup);
+        const selected = approvedRabs.find(r => r.candidate_key === ulokStr);
+        const selectedUlok = selected?.["Nomor Ulok"];
+        const selectedLingkup = selected?.["Lingkup_Pekerjaan"];
         
         if (selected) {
             setSelectedRabObj(selected);
             setRevisiMinStartDate('');
             setRevisiData({ isRevisi: false, sequence: '', rowIndex: null });
-            let initialKodeToko = selected["Kode_Toko"] || selected["kode_toko"] || '';
+            const validKodeToko = (value: unknown) => /^[A-Z0-9]{4}$/i.test(String(value ?? "").trim()) ? String(value).trim().toUpperCase() : "";
+            let initialKodeToko = validKodeToko(selected["Kode_Toko"] || selected["kode_toko"]);
             let initialNamaKontraktor = selected["nama_pt"] || '';
 
             setForm(prev => ({ 
@@ -284,14 +292,22 @@ export default function SPKPage() {
             
             setSpkMsg({ text: "Memuat Kontraktor dan Status SPK...", type: "info" });
             
+            if (selected.blocked_reason) {
+                setSpkMsg({ text: selected.blocked_reason, type: "error" });
+                setIsLocked(true);
+                return;
+            }
+
             // Fetch Kontraktor
             try {
                 const names = await fetchKontraktorList(selected.Cabang);
+                if (requestId !== selectionRequestRef.current) return;
                 setKontraktorList(names || []);
                 if (!names?.length) {
                     setSpkMsg({ text: `Tidak ada kontraktor aktif untuk cabang ${selected.Cabang}.`, type: "warning" });
                 }
             } catch (error: any) {
+                if (requestId !== selectionRequestRef.current) return;
                 setKontraktorList([]); 
                 setSpkMsg({ text: `Gagal memuat kontraktor: ${error?.message || "Terjadi kesalahan."}`, type: "warning" });
             }
@@ -300,21 +316,25 @@ export default function SPKPage() {
             if (selectedUlok && selectedLingkup) {
                 try {
                     const spkRes = await fetchSPKList({ nomor_ulok: selectedUlok });
+                    if (requestId !== selectionRequestRef.current) return;
                     
                     if (!initialKodeToko && spkRes.data && spkRes.data.length > 0) {
                         const spkWithKodeToko = spkRes.data.find((s: any) => s.toko?.kode_toko);
                         if (spkWithKodeToko && spkWithKodeToko.toko?.kode_toko) {
-                            setForm(prev => ({ ...prev, kode_toko: spkWithKodeToko.toko?.kode_toko || '' }));
+                            setForm(prev => ({ ...prev, kode_toko: validKodeToko(spkWithKodeToko.toko?.kode_toko) }));
                         }
                     }
 
-                    const existingSpks = spkRes.data.filter((s: any) => s.lingkup_pekerjaan === selectedLingkup);
+                    const existingSpks = spkRes.data.filter((s: any) => selected.spk_group_id
+                        ? s.spk_group_id === selected.spk_group_id
+                        : selected.member_toko_ids.includes(s.id_toko));
                     
                     if (existingSpks.length > 0) {
                         const latestSpk = existingSpks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
                         const status = latestSpk.status;
                         
                         if (status === "SPK_REJECTED") {
+                            setIsLocked(false);
                             // Parse nomor PAR lama
                             let pNo = '', pB = '', pT = '';
                             if (latestSpk.par) {
@@ -331,10 +351,10 @@ export default function SPKPage() {
 
                             const rejectedStartDate = latestSpk.waktu_mulai ? latestSpk.waktu_mulai.split("T")[0] : '';
                             const autofilledForm: RevisiFormSnapshot = {
-                                kode_toko: latestSpk.toko?.kode_toko || selected["Kode_Toko"] || selected["kode_toko"] || '',
+                                kode_toko: validKodeToko(latestSpk.toko?.kode_toko) || initialKodeToko,
                                 nama_kontraktor: latestSpk.nama_kontraktor || '',
                                 waktu_mulai: rejectedStartDate,
-                                durasi: selected["Durasi_Pekerjaan"]?.toString() || latestSpk.durasi?.toString() || '',
+                                durasi: selected["Durasi_Pekerjaan"]?.toString() || '',
                                 spk_bulan: latestSpk.spk_manual_1 || '',
                                 spk_tahun: latestSpk.spk_manual_2 || new Date().getFullYear().toString().slice(-2),
                                 par_no: pNo,
@@ -365,9 +385,12 @@ export default function SPKPage() {
                             setIsLocked(true);
                         }
                     } else {
+                        setIsLocked(false);
                         setSpkMsg({ text: "Silakan lengkapi form untuk pengajuan SPK baru.", type: "info" });
                     }
                 } catch {
+                    if (requestId !== selectionRequestRef.current) return;
+                    setIsLocked(true);
                     setSpkMsg({ text: "Gagal mengecek status SPK.", type: "error" });
                 }
             }
@@ -380,7 +403,7 @@ export default function SPKPage() {
             showAlert({ message: "Role ini hanya memiliki akses view.", type: "warning" });
             return;
         }
-        if (!selectedRabObj) return;
+        if (!selectedRabObj || isLocked || selectedRabObj.blocked_reason || submittingRef.current) return;
 
         // Validasi kode toko sebelum submit
         if (!form.kode_toko || form.kode_toko.trim().length !== 4) {
@@ -396,6 +419,8 @@ export default function SPKPage() {
 
         const payload = {
             id_toko: parseInt(selectedRabObj["id_toko"], 10),
+            member_toko_ids: selectedRabObj.member_toko_ids.length > 1 ? selectedRabObj.member_toko_ids : undefined,
+            spk_group_id: selectedRabObj.spk_group_id ?? undefined,
             nomor_ulok: selectedRabObj["Nomor Ulok"],
             email_pembuat: userInfo.email,
             lingkup_pekerjaan: selectedRabObj["Lingkup_Pekerjaan"],
@@ -410,6 +435,7 @@ export default function SPKPage() {
             spk_manual_2: form.spk_tahun
         };
 
+        submittingRef.current = true;
         setIsSubmitting(true);
         try {
             await submitSPK(payload);
@@ -425,10 +451,13 @@ export default function SPKPage() {
                 console.error("Gagal mengirim email notifikasi:", emailErr);
             }
 
+            setIsLocked(true);
             setShowSuccessModal(true);
+            await loadApprovedRabs(userInfo.cabang, canViewAllBranches(user?.roles, isSuperHuman));
         } catch (err: any) {
             showAlert({ message: err.message || "Gagal menyimpan SPK.", type: "error" });
         } finally {
+            submittingRef.current = false;
             setIsSubmitting(false);
         }
     };
@@ -505,6 +534,7 @@ export default function SPKPage() {
                                                     className="w-full md:w-1/3 p-3 border rounded-lg bg-white outline-none text-sm text-slate-700 focus:ring-2 focus:ring-blue-500"
                                                     value={cabangFilter}
                                                     onChange={(e) => {
+                                                        selectionRequestRef.current++;
                                                         setCabangFilter(e.target.value);
                                                         setForm(prev => ({ ...prev, nomor_ulok: '' })); // reset pilihan ulok jika cabang berubah
                                                         setSelectedRabObj(null);
@@ -514,9 +544,9 @@ export default function SPKPage() {
                                                     {cabangOptions.map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
                                             )}
-                                            <select required className="w-full flex-1 p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-red-500" value={form.nomor_ulok} onChange={(e) => handleUlokSelect(e.target.value)}>
+                                            <select required className="w-full flex-1 p-3 border rounded-lg bg-slate-50 outline-none font-semibold text-slate-700 cursor-pointer focus:bg-white focus:ring-2 focus:ring-red-500" disabled={isSubmitting} value={form.nomor_ulok} onChange={(e) => handleUlokSelect(e.target.value)}>
                                                 <option value="">-- Klik untuk Pilih Ulok --</option>
-                                                {filteredRabs.map((r, i) => <option key={i} value={`${r["Nomor Ulok"]} (${r["Lingkup_Pekerjaan"]})`}>{r["Nomor Ulok"]} ({r["Lingkup_Pekerjaan"]}) - {r["Proyek"]} - {r["Nama_Toko"]}</option>)}
+                                                {filteredRabs.map(r => <option key={r.candidate_key} value={r.candidate_key}>{r["Nomor Ulok"]} ({r["Lingkup_Pekerjaan"]}) - {r["Proyek"]} - {r["Nama_Toko"]}</option>)}
                                             </select>
                                         </div>
                                     )}
@@ -581,6 +611,17 @@ export default function SPKPage() {
                                             </div>
                                         </div>
                                         
+                                        {selectedRabObj.member_toko_ids.length > 1 && (
+                                            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                                                <p className="font-semibold mb-2">Satu pengajuan, dokumen, dan approval untuk SIPIL + ME.</p>
+                                                {selectedRabObj.group_members.map((member: any) => (
+                                                    <div key={member.id_toko} className="flex justify-between gap-4">
+                                                        <span>Pekerjaan {member.lingkup_pekerjaan}</span>
+                                                        <span className="font-semibold">{formatRupiah(parseCurrency(member.grand_total))}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg">
                                             <div><p className="text-xs font-medium text-slate-500 uppercase">Nama Toko</p><p className="font-semibold text-slate-800">{form.nama_toko || '-'}</p></div>
                                             <div><p className="text-xs font-medium text-slate-500 uppercase">Proyek</p><p className="font-semibold text-slate-800">{selectedRabObj.Proyek}</p></div>
@@ -678,11 +719,13 @@ export default function SPKPage() {
                                             type="text"
                                             required
                                             readOnly
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 font-bold outline-none cursor-not-allowed"
+                                            inputMode="numeric"
+                                            pattern="[1-9][0-9]*"
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg bg-white read-only:bg-slate-100 text-slate-600 font-bold outline-none"
                                             value={form.durasi}
                                             placeholder="Otomatis dari RAB"
                                         />
-                                        <p className="text-xs text-slate-500 mt-1">Otomatis diambil dari data RAB yang dipilih.</p>
+                                        <p className="text-xs text-slate-500 mt-1">{selectedRabObj?.member_toko_ids.length > 1 ? 'Durasi mengikuti RAB terlama dan berlaku untuk SIPIL dan ME.' : 'Otomatis diambil dari data RAB yang dipilih.'}</p>
                                     </div>
                                 </div>
                             </div>

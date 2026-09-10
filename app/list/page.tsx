@@ -1,5 +1,6 @@
 "use client"
 
+import { groupSPKForPresentation, presentSPK } from '@/lib/spk-groups';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +68,7 @@ type DokumenKategori = 'RAB' | 'SPK' | 'PERTAMBAHAN_SPK' | 'OPNAME' | 'OPNAME_FI
 type ActiveView = 'menu' | 'list' | 'detail';
 
 interface NormalizedDoc {
+    spk_group_members?: SPKListItem[];
     id: number;
     tipe: DokumenKategori;
     nomor_ulok: string;
@@ -146,6 +148,7 @@ interface DocumentContextGroup {
 }
 
 interface NormalizedDetail {
+    spk_group_members?: SPKListItem[];
     id: number;
     tipe: DokumenKategori;
     nomor_ulok: string;
@@ -1039,7 +1042,7 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] => {
 };
 
 const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
-    items.map(s => {
+    groupSPKForPresentation(items).map(s => {
         const raw = s as any;
         return {
             id: s.id,
@@ -1838,11 +1841,12 @@ export default function DaftarDokumenPage() {
                 };
             } else if (doc.tipe === 'SPK') {
                 const res = await fetchSPKDetail(doc.id);
-                const d = res.data;
+                const d = { ...res.data, pengajuan: presentSPK(res.data.pengajuan) };
                 const stTarget = buildStTargetDisplay((d.pengajuan as any).effective_waktu_selesai || d.pengajuan.waktu_selesai);
                 detail = {
                     id: d.pengajuan.id,
                     tipe: 'SPK',
+                    spk_group_members: d.pengajuan.spk_group_id ? d.pengajuan.group_members : undefined,
                     nomor_ulok:        d.pengajuan.nomor_ulok,
                     nama_toko:         doc.nama_toko,
                     cabang:            doc.cabang,
@@ -3770,6 +3774,12 @@ export default function DaftarDokumenPage() {
                                         <p className="text-2xl font-extrabold text-slate-800">
                                             {formatRupiah(selectedDetail.total_nilai)}
                                         </p>
+                                        {selectedDetail.tipe === 'SPK' && selectedDetail.spk_group_members?.map(member => (
+                                            <div key={member.id} className="flex justify-between gap-4 mt-2 text-sm text-slate-700">
+                                                <span>Pekerjaan {member.lingkup_pekerjaan}</span>
+                                                <span className="font-semibold">{formatRupiah(parseCurrency(member.grand_total))}</span>
+                                            </div>
+                                        ))}
                                         {selectedDetail.tipe === 'SPK' && selectedDetail.terbilang && (
                                             <p className="text-sm text-slate-500 mt-1 italic">"{selectedDetail.terbilang}"</p>
                                         )}

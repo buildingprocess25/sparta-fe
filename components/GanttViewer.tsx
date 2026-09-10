@@ -163,7 +163,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
         setIsLoading(true);
         setErrorMsg('');
         
-        const validScopeTokoIds = (scopeTokoIds || []).filter(scope => scope.id_toko);
+        const validScopeTokoIds = (scopeTokoIds || []).filter(scope => scope.id_toko).sort((a, b) => (normalizeScopeLabel(a.lingkup_pekerjaan) === "SIPIL" ? 0 : 1) - (normalizeScopeLabel(b.lingkup_pekerjaan) === "SIPIL" ? 0 : 1));
         const fetchPromise = validScopeTokoIds.length > 1
             ? Promise.all(validScopeTokoIds.map(scope =>
                 fetchGanttDetailByToko(Number(scope.id_toko)).then((res: any) => {
@@ -612,7 +612,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
             <div className="flex border-b overflow-hidden relative" style={{ maxHeight: "400px" }}>
                 <div className="w-1/3 min-w-50 border-r-[3px] border-slate-400 bg-white z-40 sticky left-0 shadow-[4px_0_15px_-3px_rgba(0,0,0,0.1)] flex flex-col">
                     {!hideDateHeader && (
-                        <div className="h-10 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
+                        <div className="h-16 bg-slate-50 border-b-2 border-slate-300 flex items-center px-4 font-bold text-slate-600">
                             Tahapan Pekerjaan
                         </div>
                     )}
@@ -666,7 +666,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                     }}
                 >
                     {!hideDateHeader && (
-                        <div className="h-10 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
+                        <div className="h-16 border-b-2 border-slate-300 flex sticky top-0 bg-white z-30" style={{ minWidth: totalChartWidth }}>
                             {Array.from({ length: totalDaysToRender }).map((_, i) => {
                             let label: string = String(i + 1);
                             let isPengawasan = false;
@@ -726,10 +726,10 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                             } else if (isStBufferDay) {
                                 const isStTargetDay = (i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1;
                                 colClass = isStTargetDay
-                                    ? `relative bg-teal-700 text-white border-teal-800 shadow-[inset_0_3px_0_#134e4a] ${isClickable ? 'cursor-pointer hover:bg-teal-600' : ''}`
+                                    ? `relative bg-teal-50 text-teal-900 border-teal-200 shadow-[inset_0_3px_0_#134e4a] ${isClickable ? 'cursor-pointer hover:bg-teal-100' : ''}`
                                     : `relative bg-teal-50 text-teal-900 border-teal-100 shadow-[inset_0_3px_0_#99f6e4] ${isClickable ? 'cursor-pointer hover:bg-teal-100' : ''}`;
                             } else if (isSpkEndDay) {
-                                colClass = `relative bg-slate-800 text-white border-slate-700 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-slate-700' : ''}`;
+                                colClass = `relative bg-amber-50 text-slate-900 border-amber-200 shadow-[inset_0_3px_0_#f59e0b] ${isClickable ? 'cursor-pointer hover:bg-amber-100' : ''}`;
                             } else if (isAlreadyOpname) {
                                 colClass = 'bg-emerald-50 text-emerald-700 cursor-pointer';
                             } else if (isLiveDay) {
@@ -746,7 +746,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                                     key={i}
                                     disabled={!isClickable}
                                     onClick={() => checkpoint && onCheckpointClick?.(checkpoint, i)}
-                                    className={`shrink-0 flex flex-col items-center justify-center border-r-2 border-slate-300 font-bold py-0.75 ${colClass}`}
+                                    className={`relative shrink-0 flex h-16 flex-col items-center justify-end border-r-2 border-slate-300 font-bold pb-1 ${colClass}`}
                                     style={{ width: DAY_WIDTH, fontSize: projectData?.spkStartDateObj ? '9px' : undefined }}
                                     title={isReadyOpname
                                         ? `${readyCount} pekerjaan siap Opname`
@@ -763,21 +763,11 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
                                                         : undefined}
                                 >
                                     <span className={isExtensionDay || isStBufferDay || isSpkEndDay ? 'leading-3' : undefined}>{label}</span>
-                                    {isExtensionDay && (
-                                        <span className="mt-0.5 rounded-sm bg-amber-200 px-1 text-[8px] font-extrabold leading-3 text-amber-950">
-                                            {isSpkEndDay ? 'Akhir' : 'SPK+'}
-                                        </span>
-                                    )}
-                                    {isStBufferDay && (
-                                        <span className={`mt-0.5 whitespace-nowrap rounded-sm px-1 text-[8px] font-extrabold leading-3 ${(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1 ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'}`}>
-                                            {(i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1
-                                                ? (Number(projectData.stBufferOffsetDays || 0) > 1 ? String(projectData.stBufferLabel || '').replace(' hari', '') : 'ST')
-                                                : `SPK +${(i + 1) - projectData.stBufferStartDay + 1}`}
-                                        </span>
-                                    )}
-                                    {isSpkEndDay && !isExtensionDay && (
-                                        <span className="mt-0.5 rounded-sm bg-amber-300 px-1 text-[8px] font-extrabold leading-3 text-slate-950">
-                                            Akhir
+                                    {(isSpkEndDay || isStBufferDay || isExtensionDay) && (
+                                        <span className={`absolute top-1 left-1/2 -translate-x-1/2 w-10 rounded px-1 py-0.5 text-[8px] leading-[9px] text-white ${isStBufferDay ? 'bg-teal-700' : 'bg-amber-700'}`}>
+                                            {isSpkEndDay ? 'Akhir SPK' : isStBufferDay
+                                                ? ((i + 1) === projectData.stBufferStartDay + projectData.stBufferDays - 1 ? 'Target ST' : `SPK +${(i + 1) - projectData.stBufferStartDay + 1}`)
+                                                : 'SPK +'}
                                         </span>
                                     )}
                                     {isReadyOpname ? (
