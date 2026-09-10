@@ -653,7 +653,7 @@ function GanttBoard() {
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (!event.ctrlKey || event.altKey || event.metaKey || isReadOnly || isProjectLocked) return;
+            if (!event.ctrlKey || event.altKey || event.metaKey || isReadOnly || isProjectLocked || isApplying) return;
             const target = event.target as HTMLElement | null;
             const tagName = target?.tagName?.toLowerCase();
             if (target?.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select') return;
@@ -670,7 +670,7 @@ function GanttBoard() {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isProjectLocked, isReadOnly, redoGanttChange, undoGanttChange]);
+    }, [isApplying, isProjectLocked, isReadOnly, redoGanttChange, undoGanttChange]);
     const activeNotesGanttId = selectedGanttId
         ?? supervisionWorkspace?.scopes.find(scope => scope.gantt_id)?.gantt_id
         ?? null;
@@ -745,18 +745,22 @@ function GanttBoard() {
             }));
             const scopesWithGantt = (response.data?.scopes || []).filter((scope: SupervisionScope) => scope.gantt_id);
             const firstGanttId = scopesWithGantt[0]?.gantt_id;
+            const isContractorDraft = (sessionStorage.getItem('userRole') || '').split(',').some(role => role.trim().toUpperCase() === 'KONTRAKTOR')
+                && scopesWithGantt.some(scope => !['terkunci', 'locked', 'published'].includes(String(scope.gantt_status || '').toLowerCase()));
             if (firstGanttId) {
-                if (scopesWithGantt.length > 1) {
+                if (scopesWithGantt.length > 1 || isContractorDraft) {
                     const detailResults = await Promise.all(
                         scopesWithGantt.map((scope: SupervisionScope) =>
                             fetchGanttDetail(Number(scope.gantt_id))
-                                .then((detail) => ({ scope, detail }))
-                                .catch(() => null)
+                                .then(async (detail) => ({ scope, detail,
+                                    draftCategories: isContractorDraft ? (await fetchGanttDetailByToko(scope.id_toko)).filtered_categories : [],
+                                }))
+                                .catch((error) => { if (isContractorDraft) throw error; return null; })
                         )
                     );
                     if (workspaceLoadSeqRef.current !== requestSeq) return;
 
-                    const validDetails = detailResults.filter(Boolean) as Array<{ scope: SupervisionScope; detail: GanttDetailResponse }>;
+                    const validDetails = detailResults.filter(Boolean) as Array<{ scope: SupervisionScope; detail: GanttDetailResponse; draftCategories: string[] }>;
                     const parsedStarts = validDetails
                         .map(({ detail }) => parseCalendarDate(detail.data.gantt?.timestamp?.split('T')?.[0]))
                         .filter(Boolean) as Date[];
@@ -785,11 +789,13 @@ function GanttBoard() {
                     const combinedRawDayItems: any[] = [];
                     const combinedPengawasan: any[] = [];
                     const combinedDates: string[] = [];
-                    validDetails.forEach(({ scope, detail }) => {
+                    validDetails.forEach(({ scope, detail, draftCategories }) => {
                         const { gantt, toko, kategori_pekerjaan, day_items, dependencies, pengawasan } = detail.data;
+                        if (isContractorDraft) maxDuration = Math.max(maxDuration, Number(scope.spk_effective_duration || scope.spk_duration || 0));
                         const scopeName = String(scope.lingkup_pekerjaan || toko?.lingkup_pekerjaan || '').trim().toUpperCase() || 'SIPIL';
                         const savedCategories = (kategori_pekerjaan || []).map((k: any) => String(k.kategori_pekerjaan || '').toUpperCase()).filter(Boolean);
-                        const categories = savedCategories.length > 0 ? savedCategories : ['PERSIAPAN'];
+                        const allCategories = Array.from(new Set([...savedCategories, ...(draftCategories || []).map(name => name.trim().toUpperCase())]));
+                        const categories = allCategories.length > 0 ? allCategories : ['PERSIAPAN'];
                         const idByCategory = new Map<string, number>();
 
                         const rangesByCategory: Record<string, any[]> = {};
@@ -805,6 +811,9 @@ function GanttBoard() {
                                 end: endDay,
                                 duration: endDay - startDay + 1,
                                 keterlambatan: parseInt(String(entry.keterlambatan || 0)),
+                                kecepatan: entry.kecepatan ?? '',
+                                savedStart: startDay, savedEnd: endDay,
+                                savedHAwal: entry.h_awal, savedHAkhir: entry.h_akhir,
                             });
                             maxDuration = Math.max(maxDuration, endDay + (parseInt(String(entry.keterlambatan || 0)) || 0));
                             combinedRawDayItems.push({
@@ -829,6 +838,7 @@ function GanttBoard() {
                                 scope: scopeName,
                                 scopeTokoId: toko?.id || scope.id_toko,
                                 scopeGanttId: gantt?.id || scope.gantt_id,
+                                scopeLocked: ['terkunci', 'locked', 'published'].includes(String(gantt?.status || '').toLowerCase()),
                                 dependencies: [],
                                 ranges: rangesByCategory[categoryName] || [{ start: '', end: '', keterlambatan: 0 }],
                                 keterlambatan: 0,
@@ -850,6 +860,16 @@ function GanttBoard() {
                                 .filter(Boolean);
                         });
 
+                        if (isContractorDraft) {
+                            // The editor stores outgoing links; API rows name child then parent.
+                            scopeTasks.forEach(task => { task.dependencies = []; });
+                            (dependencies || []).forEach(dep => {
+                                const parentId = idByCategory.get(String(dep.kategori_pekerjaan_terikat || '').toLowerCase().trim());
+                                const childId = idByCategory.get(String(dep.kategori_pekerjaan || '').toLowerCase().trim());
+                                const parent = scopeTasks.find(task => task.id === parentId);
+                                if (parent && childId && !parent.dependencies.includes(childId)) parent.dependencies.push(childId);
+                            });
+                        }
                         combinedTasks.push(...scopeTasks);
                         combinedPengawasan.push(...(pengawasan || []));
                         (pengawasan || []).forEach((item: any) => {
@@ -1147,7 +1167,7 @@ function GanttBoard() {
         if (urlUlok) {
             void (async () => {
                 const workspace = await loadSupervisionWorkspace(urlUlok);
-                if (currentAppMode === 'kontraktor') {
+                if (currentAppMode === 'kontraktor' && !workspace?.scopes?.some(scope => !['terkunci', 'locked', 'published'].includes(String(scope.gantt_status || '').toLowerCase()))) {
                     const firstScope = workspace?.scopes?.find((scope: SupervisionScope) => scope.gantt_id);
                     if (firstScope) await loadDataByToko(firstScope.id_toko);
                 }
@@ -1319,8 +1339,9 @@ function GanttBoard() {
             const res = await fetchGanttDetailByToko(idToko);
             const { rab, filtered_categories, gantt_data, toko, instruksi_lapangan_items } = res;
 
-            if (appMode === 'kontraktor' && toko?.nomor_ulok) {
-                void loadSupervisionWorkspace(toko.nomor_ulok);
+            if ((sessionStorage.getItem('userRole') || '').split(',').some(role => role.trim().toUpperCase() === 'KONTRAKTOR') && toko?.nomor_ulok) {
+                const workspace = await loadSupervisionWorkspace(toko.nomor_ulok);
+                if (!workspace || workspace.scopes.some(scope => !['terkunci', 'locked', 'published'].includes(String(scope.gantt_status || '').toLowerCase()))) return;
             }
 
             const validRabId = rab?.id || fallbackIdRab;
@@ -1716,7 +1737,7 @@ function GanttBoard() {
 
     const removeRange = async (taskId: number, rangeIdx: number) => {
         const taskObj = tasks.find(t => t.id === taskId);
-        if (!taskObj) return;
+        if (!taskObj || taskObj.scopeLocked || isApplying) return;
 
         const rangeToRemove = taskObj.ranges[rangeIdx];
 
@@ -1750,7 +1771,7 @@ function GanttBoard() {
         const cleanStart = clampGanttDay(Math.min(start, end));
         const cleanEnd = clampGanttDay(Math.max(start, end));
         setTasks(prev => prev.map(task => {
-            if (task.id !== taskId) return task;
+            if (task.id !== taskId || task.scopeLocked) return task;
             const ranges = [...(task.ranges || [])];
             ranges[rangeIdx] = {
                 ...(ranges[rangeIdx] || { keterlambatan: 0 }),
@@ -1762,7 +1783,7 @@ function GanttBoard() {
     }, [clampGanttDay]);
 
     const beginScheduleDrag = useCallback((event: React.PointerEvent<HTMLElement>, task: any, rangeIdx: number, mode: 'create' | 'move' | 'resize-start' | 'resize-end') => {
-        if (isReadOnly || isProjectLocked) return;
+        if (isReadOnly || isProjectLocked || isApplying || task.scopeLocked) return;
         event.preventDefault();
         event.stopPropagation();
         const track = event.currentTarget.closest('[data-gantt-track="true"]') as HTMLElement | null;
@@ -1792,7 +1813,7 @@ function GanttBoard() {
             originalStart: mode === 'create' ? pointerDay : start,
             originalEnd: mode === 'create' ? pointerDay : end,
         });
-    }, [dayFromPointer, isProjectLocked, isReadOnly, rememberTasksSnapshot]);
+    }, [dayFromPointer, isApplying, isProjectLocked, isReadOnly, rememberTasksSnapshot]);
 
     useEffect(() => {
         if (!dragSchedule) return;
@@ -1831,7 +1852,7 @@ function GanttBoard() {
     }, [clampGanttDay, dayFromPointer, dragSchedule, setTaskRangeFromDrag]);
 
     const beginDependencyDrag = (event: React.PointerEvent, taskId: number) => {
-        if (isReadOnly || isProjectLocked) return;
+        if (isReadOnly || isProjectLocked || isApplying || tasks.find(task => task.id === taskId)?.scopeLocked) return;
         event.preventDefault();
         event.stopPropagation();
         setDependencySourceTaskId(taskId);
@@ -1841,6 +1862,7 @@ function GanttBoard() {
         if (!dependencySourceTaskId || dependencySourceTaskId === targetId) return;
         const sourceTask = tasks.find(task => task.id === dependencySourceTaskId);
         const targetTask = tasks.find(task => task.id === targetId);
+        if (sourceTask?.scopeLocked || targetTask?.scopeLocked || isApplying) return;
         const sourceScope = String(sourceTask?.scope || '').trim().toUpperCase();
         const targetScope = String(targetTask?.scope || '').trim().toUpperCase();
         if (sourceScope && targetScope && sourceScope !== targetScope) {
@@ -1853,7 +1875,7 @@ function GanttBoard() {
     };
 
     const confirmPendingDependency = () => {
-        if (!pendingDependency) return;
+        if (!pendingDependency || isApplying) return;
         rememberTasksSnapshot();
         setTasks(prev => prev.map(task => {
             if (task.id !== pendingDependency.sourceId) return task;
@@ -1892,10 +1914,20 @@ function GanttBoard() {
                 throw new Error("Keterikatan SIPIL dan ME tidak bisa disambungkan silang.");
             }
 
-            if (!selectedGanttId && scopedDraftGroups.length > 0) {
+            const serializeDraftDay = (day: any, savedDay: any, savedValue: any) => {
+                if (Number(day) === savedDay && savedValue != null) return String(savedValue);
+                if (savedValue && /[\/-]/.test(String(savedValue))) {
+                    const date = parseCalendarDate(projectData.startDate);
+                    if (date) { date.setDate(date.getDate() + Number(day) - 1); return formatDateForPengawasan(date); }
+                }
+                return String(day);
+            };
+            if (scopedDraftGroups.length > 0) {
                 const savedGanttIds: number[] = [];
                 for (const scope of scopedDraftGroups) {
                     const scopedTasks = tasks.filter(t => String(t.scope || '').trim().toUpperCase() === scope);
+                    if (scopedTasks.every(task => task.scopeLocked)) continue;
+                    const existingScopeId = scopedTasks[0]?.scopeGanttId;
                     const scopedScheduledTasks = scopedTasks.filter(t =>
                         (t.ranges || []).some((r: any) => r.start && r.end)
                     );
@@ -1904,12 +1936,12 @@ function GanttBoard() {
                         throw new Error(`[${scope}] ${dependencyError}`);
                     }
 
-                    const scopedKategori: string[] = [];
+                    const scopedKategori: string[] = scopedTasks.map(task => String(task.name || "").toUpperCase().trim()).filter(Boolean);
                     const scopedDayItems: any[] = [];
                     const scopedDependencies: any[] = [];
-                    const scheduledTaskIds = new Set(scopedScheduledTasks.map(t => t.id));
+                    const scheduledTaskIds = new Set(scopedTasks.map(t => t.id));
 
-                    scopedScheduledTasks.forEach(t => {
+                    scopedTasks.forEach(t => {
                         const kategoriName = String(t.name || '').toUpperCase().trim();
                         if (!kategoriName) return;
                         if (!scopedKategori.includes(kategoriName)) scopedKategori.push(kategoriName);
@@ -1918,16 +1950,16 @@ function GanttBoard() {
                             if (!r.start || !r.end) return;
                             scopedDayItems.push({
                                 kategori_pekerjaan: kategoriName,
-                                h_awal: String(r.start),
-                                h_akhir: String(r.end),
+                                h_awal: serializeDraftDay(r.start, r.savedStart, r.savedHAwal),
+                                h_akhir: serializeDraftDay(r.end, r.savedEnd, r.savedHAkhir),
                                 keterlambatan: r.keterlambatan ? String(r.keterlambatan) : "",
-                                kecepatan: "",
+                                kecepatan: String(r.kecepatan ?? ""),
                             });
                         });
 
                         (t.dependencies || []).forEach((childId: number) => {
                             if (!scheduledTaskIds.has(childId)) return;
-                            const child = scopedScheduledTasks.find(ct => ct.id === childId);
+                            const child = scopedTasks.find(ct => ct.id === childId);
                             if (!child?.name) return;
                             scopedDependencies.push({
                                 kategori_pekerjaan: String(child.name).toUpperCase().trim(),
@@ -1936,7 +1968,10 @@ function GanttBoard() {
                         });
                     });
 
-                    if (scopedDayItems.length === 0) continue;
+                    if (scopedDayItems.length === 0) {
+                        if (existingScopeId) throw new Error(`[${scope}] Isi minimal satu periode sebelum menyimpan draft.`);
+                        continue;
+                    }
 
                     const isRenovasiUlok = /-R$/i.test(String(projectData.ulokClean || '').trim());
                     const payload: any = {
@@ -1954,10 +1989,17 @@ function GanttBoard() {
                         dependencies: scopedDependencies,
                     };
 
-                    const result = await submitGanttChart(payload);
+                    const result = existingScopeId
+                        ? (await updateGanttChart(existingScopeId, { kategori_pekerjaan: scopedKategori, day_items: scopedDayItems, dependencies: scopedDependencies }), { data: { id: existingScopeId } })
+                        : await submitGanttChart(payload);
                     if (result?.data?.id) {
                         savedGanttIds.push(Number(result.data.id));
-                        if (status === 'Terkunci') await lockGanttChart(Number(result.data.id), email);
+                        setTasks(prev => prev.map(task => task.scope === scope ? { ...task, scopeGanttId: Number(result.data.id) } : task));
+                        clearTaskHistory();
+                        if (status === 'Terkunci') {
+                            await lockGanttChart(Number(result.data.id), email);
+                            setTasks(prev => prev.map(task => task.scope === scope ? { ...task, scopeLocked: true } : task));
+                        }
                     }
                 }
 
@@ -2253,7 +2295,13 @@ function GanttBoard() {
                             const path = `M ${startX} ${startY} C ${startX} ${startY + (direction * tension)}, ${endX} ${endY - (direction * tension)}, ${endX} ${endY}`;
                             svgLines.push(
                                 <g key={`${task.id}-${cId}-${anchorIdx}`}>
-                                    <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95" />
+                                    <path d={path} className="dependency-line stroke-blue-500 fill-transparent stroke-2" markerEnd="url(#depArrow)" opacity="0.95"
+                                        style={{ pointerEvents: appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && !task.scopeLocked && !isApplying ? 'stroke' : 'none', cursor: 'pointer' }}
+                                        onClick={() => {
+                                            if (appMode !== 'kontraktor' || isProjectLocked || isReadOnly || task.scopeLocked || isApplying) return;
+                                            rememberTasksSnapshot();
+                                            setTasks(prev => prev.map(row => row.id === task.id ? { ...row, dependencies: row.dependencies.filter((id: number) => id !== cId) } : row));
+                                        }} />
                                     <circle cx={startX} cy={startY} r="4" className="fill-white stroke-blue-500 stroke-2" />
                                     <circle cx={endX} cy={endY} r="4" className="fill-white stroke-blue-500 stroke-2" />
                                 </g>
@@ -2284,7 +2332,7 @@ function GanttBoard() {
         }
 
         return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex };
-    }, [tasks, projectData, spkInfo, pengawasanDates]);
+    }, [tasks, projectData, spkInfo, pengawasanDates, appMode, isProjectLocked, isReadOnly, isApplying, rememberTasksSnapshot]);
 
     // Map dari tanggal pengawasan (DD/MM/YYYY) → data checkpoint agregat dari semua scopes
     // Digunakan untuk pewarnaan header kolom: hijau/merah/biru (Poin 7, 8, 9)
@@ -2768,7 +2816,8 @@ function GanttBoard() {
     };
 
     const isCreatingGantt = appMode === 'kontraktor' && projectData?.ganttId === null;
-    const shouldRenderUnifiedWorkspace = (appMode === 'pic' || appMode === 'kontraktor') && !isCreatingGantt && (isWorkspaceLoading || supervisionWorkspace);
+    const isDraftEditor = appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && !isWorkspaceLoading;
+    const shouldRenderUnifiedWorkspace = (appMode === 'pic' || appMode === 'kontraktor') && !isCreatingGantt && (isWorkspaceLoading || (!isDraftEditor && supervisionWorkspace));
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
@@ -3689,6 +3738,9 @@ function GanttBoard() {
                         )}
                     </div>
                 )}
+                {isDraftEditor && projectData && tasks.length > 0 && (
+                    <p className="mb-3 text-sm text-slate-600">Drag pada baris kosong untuk mengisi jadwal. Geser bar atau tarik ujungnya untuk mengedit. Tarik titik konektor ke pekerjaan lain untuk membuat keterikatan; klik garis keterikatan untuk menghapusnya.</p>
+                )}
                 {!shouldRenderUnifiedWorkspace && (
                     <Card className="overflow-hidden shadow-md mb-8 border-slate-200">
                         <div className="p-4 bg-slate-100 border-b flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-medium">
@@ -3949,7 +4001,7 @@ function GanttBoard() {
                                                                         style={{ left: (s - 1) * DAY_WIDTH, width: Math.max(18, dur * DAY_WIDTH - 1) }}
                                                                         onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'move')}
                                                                     >
-                                                                        {!isReadOnly && !isProjectLocked && (
+                                                                        {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
                                                                             <button
                                                                                 type="button"
                                                                                 aria-label="Resize mulai"
@@ -3958,7 +4010,7 @@ function GanttBoard() {
                                                                             />
                                                                         )}
                                                                         <span className="pointer-events-none">{dur} Hari</span>
-                                                                        {!isReadOnly && !isProjectLocked && (
+                                                                        {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
                                                                             <>
                                                                                 <button
                                                                                     type="button"
@@ -4030,7 +4082,7 @@ function GanttBoard() {
                     </Card>
                 )}
 
-                {projectData && !isLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
+                {projectData && !isLoading && !isWorkspaceLoading && tasks.length > 0 && appMode === 'kontraktor' && !isProjectLocked && !isReadOnly && (
                     <div className="sticky bottom-4 z-50 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] flex flex-col md:flex-row gap-4 justify-end">
                         <>
                             {/* Tombol Hapus Draft */}
