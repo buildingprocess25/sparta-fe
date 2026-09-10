@@ -332,15 +332,15 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 
     "PROJECT PLANNING & DEVELOPMENT SPECIALIST": [
-        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data", "menu-projek-planning",
     ],
 
     "PROJECT PLANNING & DEVELOPMENT MANAGER": [
-        "menu-approval", "menu-daftardokumen", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-tarikan-data", "menu-projek-planning",
     ],
 
     "BUILDING & MAINTENANCE REGIONAL MANAGER": [
-        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data",
+        "menu-approval", "menu-daftardokumen", "menu-gantt", "menu-users", "menu-tarikan-data", "menu-projek-planning",
     ],
 
     "BUILDING MAINTENANCE & ENERGY SYSTEM MANAGER": [
@@ -368,7 +368,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 };
 export const canOpenProjectPlanningMenu = (role?: string | string[] | null): boolean =>
-    normalizeRoles(role).some((item) => item.includes("BRANCH BUILDING COORDINATOR") || item.includes("KOORDINATOR"));
+    normalizeRoles(role).some((item) => item.includes("BRANCH BUILDING COORDINATOR") || item.includes("KOORDINATOR") || item.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") || item.includes("REGIONAL MANAGER") || item.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || item.includes("PP SPECIALIST") || item.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || item.includes("PP MANAGER") || item.includes("SUPER HUMAN"));
 export const canAccessProjectPlanningByCabang = (
     cabang?: string | null,
     role?: string | string[] | null

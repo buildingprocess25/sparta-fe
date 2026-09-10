@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -80,17 +80,24 @@ export default function ProjekPlanningPage() {
 
       let data = res.data || [];
       
+      const BM_REGIONAL_VISIBLE_STATUSES = [
+        "WAITING_BM_REGIONAL_APPROVAL",
+        "WAITING_PP_APPROVAL_2",
+        "WAITING_PP_MANAGER_APPROVAL",
+        "COMPLETED",
+        "REJECTED",
+      ];
+
       data = data.filter((d: any) => {
-        if (isBMRegional && !isSuperHuman) return d.status === "WAITING_BM_REGIONAL_APPROVAL";
         if (isSuperHuman) return true;
-        if (!isCoor && d.status !== "COMPLETED") return false;
-        if (isHO && !isCoor && !isBM && !isBMRegional && !isPP && !isPPMgr) return true; // Admin/Direktur
+        if (isBMRegional) return BM_REGIONAL_VISIBLE_STATUSES.includes(d.status);
+        if (isPP || isPPMgr) return true;
+        if (isHO && !isCoor && !isBM) return true; // Admin/Direktur
         
         let visible = false;
         if (isCoor && d.email_pembuat === userEmail) visible = true;
         if (isBM && (d.status !== "DRAFT" || d.bm_alasan_penolakan)) visible = true;
-        if (isPP && (!["DRAFT", "WAITING_BM_APPROVAL"].includes(d.status) || d.pp1_alasan_penolakan || d.pp2_alasan_penolakan)) visible = true;
-        if (isPPMgr && (["WAITING_PP_MANAGER_APPROVAL", "COMPLETED"].includes(d.status) || d.pp_manager_alasan_penolakan)) visible = true;
+        if (d.status === "COMPLETED") visible = true;
         
         return visible;
       });
