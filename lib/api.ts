@@ -352,6 +352,9 @@ export type DcArchiveProject = {
     docs_pembangunan: number;
     docs_renovasi: number;
     docs_perluasan: number;
+    custom_items_pembangunan?: number;
+    custom_items_renovasi?: number;
+    custom_items_perluasan?: number;
     total_notes?: number;
     kategori_counts?: Record<string, number>;
 };

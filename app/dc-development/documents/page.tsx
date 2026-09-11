@@ -602,17 +602,17 @@ export default function DcDocumentsPage() {
                             <MiniProgress
                               label="Pembangunan"
                               current={archive.docs_pembangunan || 0}
-                              total={getTotalRequiredDcDocumentSlots('Pembangunan')}
+                              total={getTotalRequiredDcDocumentSlots('Pembangunan') + (archive.custom_items_pembangunan || 0)}
                             />
                             <MiniProgress
                               label="Renovasi"
                               current={archive.docs_renovasi || 0}
-                              total={getTotalRequiredDcDocumentSlots('Renovasi')}
+                              total={getTotalRequiredDcDocumentSlots('Renovasi') + (archive.custom_items_renovasi || 0)}
                             />
                             <MiniProgress
                               label="Perluasan"
                               current={archive.docs_perluasan || 0}
-                              total={getTotalRequiredDcDocumentSlots('Perluasan')}
+                              total={getTotalRequiredDcDocumentSlots('Perluasan') + (archive.custom_items_perluasan || 0)}
                             />
                           </div>
                         </td>
