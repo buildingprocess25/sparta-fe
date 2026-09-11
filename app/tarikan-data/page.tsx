@@ -264,6 +264,8 @@ export default function TarikanDataPage() {
 
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
+    const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+    const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
     const selectedProjects = useMemo(() => projects.filter((project) => selectedIds.has(projectId(project))), [projects, selectedIds]);
     const hasOtherDataSelected = selectedDataTypes.size > 0 || selectedJobTypes.size > 0;
     const isUserOnlyExport = downloadUser && !hasOtherDataSelected;
@@ -283,7 +285,18 @@ export default function TarikanDataPage() {
         });
     };
 
-    const selectVisible = () => setSelectedIds(new Set(visibleIds));
+    // UNION: tambah visible IDs ke selectedIds yang sudah ada, bukan replace
+    const selectVisible = () => setSelectedIds((current) => {
+        const next = new Set(current);
+        visibleIds.forEach((id) => next.add(id));
+        return next;
+    });
+    // Hanya hapus visible IDs dari selectedIds, bukan clear semua
+    const deselectVisible = () => setSelectedIds((current) => {
+        const next = new Set(current);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+    });
     const clearSelection = () => setSelectedIds(new Set());
 
     const handleExport = useCallback(async (format: DashboardExportFormat) => {
@@ -611,13 +624,14 @@ export default function TarikanDataPage() {
                                         <label className="flex cursor-pointer items-center gap-2 text-xs font-medium uppercase text-slate-600 hover:text-slate-900">
                                             <Checkbox 
                                                 disabled={isUserOnlyExport}
-                                                checked={selectedVisibleCount === filteredProjects.length && filteredProjects.length > 0} 
+                                                checked={allVisibleSelected}
+                                                data-indeterminate={someVisibleSelected}
                                                 onCheckedChange={(checked) => {
                                                     if (checked) selectVisible();
-                                                    else clearSelection();
+                                                    else deselectVisible();
                                                 }}
                                             />
-                                            <span>Pilih Semua ({selectedVisibleCount}/{filteredProjects.length})</span>
+                                            <span>Pilih Semua ({selectedVisibleCount}/{filteredProjects.length}){selectedIds.size > visibleIds.length ? <span className="ml-1 text-red-600 font-bold">+{selectedIds.size - selectedVisibleCount} tersembunyi</span> : null}</span>
                                         </label>
                                         <span className="text-xs text-slate-500">{periodMode === "ytd" ? "YTD" : periodMode === "all" ? "Semua Periode" : monthLabel}</span>
                                     </div>
