@@ -909,6 +909,7 @@ export default function DcDocumentDetailPage() {
             </Button>
           </DialogFooter>
         </DialogContent>
+      </Dialog>
       {/* DIALOG RIWAYAT EDIT */}
       <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
         <DialogContent className="sm:max-w-[500px] bg-white/90 backdrop-blur-xl border border-white/20 shadow-2xl p-0 overflow-hidden">
