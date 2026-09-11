@@ -16,7 +16,9 @@ import {
   FileText,
   FileSpreadsheet,
   File,
-  Plus
+  Plus,
+  History,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -26,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/context/SessionContext";
-import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType } from "@/lib/api";
+import { fetchDcArchiveProjects, fetchDcDocuments, uploadDcDocuments, deleteDcDocument, buildDcDocumentViewUrl, updateDcDocument, exportDcData, fetchDcDocumentCustomItems, createDcDocumentCustomItem, deleteDcDocumentCustomItem, logDcCategoryEdit, getDcCategoryEditLogs, type DcArchiveProject, type DcDocument, type DcDocumentCustomItem, type DcDocumentUploadSlotType, type DcCategoryActivityLog } from "@/lib/api";
 import { DC_DOCUMENT_LEGENDS, getDcDocumentConfigForStage, getTotalRequiredDcDocumentSlots } from "@/lib/dc-document.config";
 
 const CUSTOM_SLOT_OPTIONS: DcDocumentUploadSlotType[] = ["PDF/JPEG", "AUTOCAD", "WORD", "EXCEL", "PPT"];
@@ -60,6 +62,11 @@ export default function DcDocumentDetailPage() {
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [savingCategory, setSavingCategory] = useState<string | null>(null);
   
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedCategoryForHistory, setSelectedCategoryForHistory] = useState<{ id: string; name: string } | null>(null);
+  const [categoryHistoryLogs, setCategoryHistoryLogs] = useState<DcCategoryActivityLog[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const actor = useMemo(() => ({
     actor_email: user?.email || "",
     actor_role: user?.role || "",
@@ -265,6 +272,17 @@ export default function DcDocumentDetailPage() {
         return next;
       });
       
+      try {
+        await logDcCategoryEdit(archive.id, {
+            category_id: utamaId,
+            category_name: utama.title,
+            actor_email: actor.actor_email,
+            actor_role: actor.actor_role
+        });
+      } catch (logErr) {
+        console.error("Failed to log category edit:", logErr);
+      }
+      
       toggleEditMode(utamaId);
       await loadData();
     } catch (err) {
@@ -275,12 +293,39 @@ export default function DcDocumentDetailPage() {
     }
   };
 
+  const handleOpenHistory = async (categoryId: string, categoryName: string) => {
+    if (!archive) return;
+    setSelectedCategoryForHistory({ id: categoryId, name: categoryName });
+    setHistoryModalOpen(true);
+    setLoadingHistory(true);
+    try {
+      const res = await getDcCategoryEditLogs(archive.id, categoryId);
+      setCategoryHistoryLogs(res.data || []);
+    } catch (err) {
+      console.error(err);
+      alert(getErrorMessage(err, "Gagal mengambil riwayat edit kategori."));
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeUploadContext, setActiveUploadContext] = useState<{key: string, type: string} | null>(null);
+
+  const getAcceptString = (type: string) => {
+    const t = type.toUpperCase();
+    if (t.includes('PDF/JPEG')) return 'application/pdf,image/jpeg,image/png,image/jpg';
+    if (t.includes('AUTOCAD')) return '.dwg,.dxf';
+    if (t.includes('WORD')) return '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (t.includes('EXCEL')) return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (t.includes('PPT')) return '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    return '*/*';
+  };
 
   const triggerUpload = (jenisKey: string, type: string) => {
     setActiveUploadContext({ key: jenisKey, type });
     if (fileInputRef.current) {
+      fileInputRef.current.accept = getAcceptString(type);
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
@@ -289,11 +334,31 @@ export default function DcDocumentDetailPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files ?? []);
     if (selectedFiles.length === 0 || !activeUploadContext) return;
-    const compKey = formatKey(activeUploadContext.key, activeUploadContext.type);
-    setDraftFiles(prev => ({
-      ...prev,
-      [compKey]: [...(prev[compKey] || []), ...selectedFiles]
-    }));
+    
+    const acceptStr = getAcceptString(activeUploadContext.type);
+    let validFiles = selectedFiles;
+    
+    if (acceptStr !== '*/*') {
+        const acceptList = acceptStr.split(',').map(s => s.trim().toLowerCase());
+        const invalidFiles = selectedFiles.filter(f => {
+            const ext = "." + (f.name.split('.').pop()?.toLowerCase() || "");
+            return !acceptList.includes(f.type.toLowerCase()) && !acceptList.includes(ext);
+        });
+
+        if (invalidFiles.length > 0) {
+            alert(`Beberapa file memiliki format yang tidak didukung untuk tipe ${activeUploadContext.type}.\nFile yang diabaikan: ${invalidFiles.map(f => f.name).join(', ')}`);
+            validFiles = selectedFiles.filter(f => !invalidFiles.includes(f));
+        }
+    }
+
+    if (validFiles.length > 0) {
+        const compKey = formatKey(activeUploadContext.key, activeUploadContext.type);
+        setDraftFiles(prev => ({
+          ...prev,
+          [compKey]: [...(prev[compKey] || []), ...validFiles]
+        }));
+    }
+    
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -594,12 +659,25 @@ export default function DcDocumentDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 mr-4 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2 mr-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200" onClick={(e) => e.stopPropagation()}>
                         <Switch checked={editModeCategories.has(utama.id)} onCheckedChange={() => toggleEditMode(utama.id)} id={`switch-${utama.id}`} />
                         <label htmlFor={`switch-${utama.id}`} className="text-xs font-semibold text-slate-700 cursor-pointer">
                           Edit Mode
                         </label>
                       </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mr-4 rounded-full h-8 px-3 border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-colors bg-white/50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenHistory(utama.id, utama.title);
+                        }}
+                      >
+                        <History className="h-4 w-4 mr-1.5" />
+                        <span className="text-xs font-semibold">Riwayat Edit</span>
+                      </Button>
                       {/* 
                       (() => {
                         const catNoteKey = `CAT_NOTE_${utama.id}`;
@@ -631,7 +709,7 @@ export default function DcDocumentDetailPage() {
                         );
                       })()
                       */}
-                      {utama.title === "DATA PENTING LAINNYA" && (
+                      {utama.title === "DATA PENTING LAINNYA" && !actor.actor_role.toUpperCase().includes("DC DOCUMENT ADMIN") && (
                         <Button
                           type="button"
                           size="sm"
@@ -828,6 +906,58 @@ export default function DcDocumentDetailPage() {
             <Button onClick={handleSaveNote} disabled={savingNote} className="bg-red-600 hover:bg-red-700 text-white">
               {savingNote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      {/* DIALOG RIWAYAT EDIT */}
+      <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-white/90 backdrop-blur-xl border border-white/20 shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-800">
+              <History className="h-5 w-5 text-red-600" />
+              Riwayat Edit Kategori
+            </DialogTitle>
+            <p className="text-sm font-medium text-slate-500 mt-1">
+              Kategori: <span className="font-semibold text-slate-700">{selectedCategoryForHistory?.name}</span>
+            </p>
+          </DialogHeader>
+          <div className="p-6 bg-slate-50/50 max-h-[60vh] overflow-y-auto">
+            {loadingHistory ? (
+              <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                <Loader2 className="h-8 w-8 animate-spin text-red-500 mb-4" />
+                <p className="text-sm font-medium">Memuat riwayat...</p>
+              </div>
+            ) : categoryHistoryLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                  <Clock className="h-8 w-8 text-slate-300" />
+                </div>
+                <p className="text-slate-500 font-medium">Belum ada riwayat edit untuk kategori ini.</p>
+              </div>
+            ) : (
+              <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                {categoryHistoryLogs.map((log) => (
+                  <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-slate-100 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 transition-transform hover:scale-110">
+                      <Clock className="h-4 w-4" />
+                    </div>
+                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-100 bg-white shadow-sm transition-all hover:shadow-md">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-red-600">
+                          {new Date(log.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                        </span>
+                        <span className="text-sm font-bold text-slate-800">{log.actor_email}</span>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{log.actor_role}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-4 border-t border-slate-100 bg-white">
+            <Button variant="outline" className="w-full sm:w-auto hover:bg-slate-50" onClick={() => setHistoryModalOpen(false)}>
+              Tutup
             </Button>
           </DialogFooter>
         </DialogContent>

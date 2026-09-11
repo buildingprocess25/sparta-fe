@@ -359,6 +359,19 @@ export type DcArchiveProject = {
     kategori_counts?: Record<string, number>;
 };
 
+export type DcCategoryActivityLog = {
+    id: number;
+    project_id: number;
+    actor_email: string;
+    actor_role: string;
+    created_at: string;
+    metadata: {
+        category_id: string;
+        category_name: string;
+        [key: string]: any;
+    };
+};
+
 export type CreateDcArchiveProjectPayload = {
     archive_code: string;
     archive_name: string;
@@ -463,6 +476,32 @@ export const createDcArchiveProject = async (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
+};
+
+export const logDcCategoryEdit = async (
+    archiveId: number,
+    payload: { category_id: string; category_name: string; actor_email: string; actor_role: string },
+    options?: ApiRequestOptions
+): Promise<{ status: string; message: string }> => {
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/archive-projects/${archiveId}/category-log`, {
+        ...options,
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...options?.headers,
+        },
+        body: JSON.stringify(payload),
+    });
+};
+
+export const getDcCategoryEditLogs = async (
+    archiveId: number,
+    categoryId: string,
+    options?: ApiRequestOptions
+): Promise<{ status: string; data: DcCategoryActivityLog[] }> => {
+    const params = new URLSearchParams();
+    params.append("category_id", categoryId);
+    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/archive-projects/${archiveId}/category-logs?${params}`, options);
 };
 
 export const fetchDcVendors = async (
