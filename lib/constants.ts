@@ -368,7 +368,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
     ],
 };
 export const canOpenProjectPlanningMenu = (role?: string | string[] | null): boolean =>
-    normalizeRoles(role).some((item) => item.includes("BRANCH BUILDING COORDINATOR") || item.includes("KOORDINATOR") || item.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") || item.includes("REGIONAL MANAGER") || item.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || item.includes("PP SPECIALIST") || item.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || item.includes("PP MANAGER") || item.includes("SUPER HUMAN"));
+    normalizeRoles(role).some((item) => item.includes("BRANCH BUILDING COORDINATOR") || item.includes("KOORDINATOR") || item.includes("BRANCH BUILDING & MAINTENANCE MANAGER") || item.includes("MAINTENANCE MANAGER") || item.includes("BBMM") || item.includes("BUILDING & MAINTENANCE REGIONAL MANAGER") || item.includes("REGIONAL MANAGER") || item.includes("PROJECT PLANNING & DEVELOPMENT SPECIALIST") || item.includes("PP SPECIALIST") || item.includes("PROJECT PLANNING & DEVELOPMENT MANAGER") || item.includes("PP MANAGER") || item.includes("SUPER HUMAN"));
 export const canAccessProjectPlanningByCabang = (
     cabang?: string | null,
     role?: string | string[] | null
