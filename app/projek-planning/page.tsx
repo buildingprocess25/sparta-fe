@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { fetchProjekPlanningList, type ProjekPlanningItem } from "@/lib/api";
-import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole, canOpenProjectPlanningMenu } from "@/lib/constants";
+import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, hasSuperHumanRole, canOpenProjectPlanningMenu, getSessionBranchCoverage, getParentBranch } from "@/lib/constants";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700 border-slate-300", icon: <FileText className="w-3 h-3" /> },
@@ -71,9 +71,16 @@ export default function ProjekPlanningPage() {
       } else if (search.trim()) {
         // Manual search override
         filters.cabang = search.trim();
-      } else if (!isHO && !canSeeAllBranches && !isCoor && userCabang) {
-        // BM, PP, Manager: filter by their own cabang
-        filters.cabang = userCabang;
+      } else if (!isHO && (!canSeeAllBranches || isBMRegional) && !isCoor && userCabang) {
+        // BM, PP, Manager, Regional Manager
+        const coverage = getSessionBranchCoverage();
+        const parentBranch = getParentBranch(userCabang);
+        
+        // Opsi A: Jika user berasal dari CIKOKOL/CILEUNGSI atau Regional Manager dan memiliki coverage pembagian wilayah,
+        // kita paksa filter ke cabang pertama dalam coverage mereka.
+        if ((parentBranch === "CIKOKOL" || parentBranch === "CILEUNGSI" || isBMRegional) && coverage.length > 0) {
+          filters.cabang = coverage[0];
+        }
       }
 
       const res = await fetchProjekPlanningList(filters);
