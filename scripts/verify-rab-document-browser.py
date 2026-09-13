@@ -1,4 +1,6 @@
 import json
+import sys
+planning_denied = "--planning-denied" in sys.argv
 from pathlib import Path
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, expect
@@ -19,6 +21,8 @@ def route(r):
     if '/api/' in u.path:
         requests.append(u.path)
         data=[]
+        if u.path.endswith('/projek-planning') and planning_denied:
+            r.fulfill(status=403,json={'status':'error','message':'Anda tidak memiliki akses ke Project Planning.'});return
         if u.path.endswith('/rab/1'): data=detail
         elif u.path.endswith('/rab'): data=listed
         elif 'system-maintenance' in u.path:data={'is_active':False}
@@ -34,6 +38,7 @@ with sync_playwright() as pw:
     page=context.new_page()
     page.goto('http://localhost:3000/list?kategori=RAB',wait_until='domcontentloaded',timeout=90000)
     expect(page.get_by_text('Reguler',exact=True).first).to_be_visible(timeout=90000)
+    expect(page.get_by_text('Anda tidak memiliki akses ke Project Planning.',exact=True)).not_to_be_visible()
     page.get_by_text('Reguler',exact=True).first.click()
     expect(page.get_by_text('Lainnya',exact=True).first).to_be_visible()
     page.get_by_text('Lainnya',exact=True).first.click()
@@ -48,5 +53,7 @@ with sync_playwright() as pw:
     assert text.index('A. Pekerjaan SIPIL')<text.index('Item SIPIL')<text.index('B. Pekerjaan ME')<text.index('Item ME')
     page.screenshot(path=str(out/'detail.png'),full_page=True)
     (out/'requests.json').write_text(json.dumps(requests),encoding='utf8')
+    if planning_denied: assert '/api/projek-planning' in requests
+    expect(page.get_by_text('Anda tidak memiliki akses ke Project Planning.',exact=True)).not_to_be_visible()
     browser.close()
 print('PASS: grouped RAB detail contains ordered scopes and their items; all APIs mocked')

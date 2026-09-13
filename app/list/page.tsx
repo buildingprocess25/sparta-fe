@@ -1707,7 +1707,7 @@ export default function DaftarDokumenPage() {
 
             if (docs.length > 0 && kategori !== 'PROJECT_PLANNING' && kategori !== 'PENGAWASAN' && kategori !== 'INTERVENSI') {
                 try {
-                    const projekContext = await fetchProjekPlanningList();
+                    const projekContext = await fetchProjekPlanningList(undefined, { suppressGlobalError: true });
                     docs = applyProjectPlanningContext(docs, projekContext.data ?? []);
                 } catch {
                     // Context badges are best-effort; document list should still load.
