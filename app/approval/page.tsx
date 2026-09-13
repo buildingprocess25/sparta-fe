@@ -1,6 +1,7 @@
 "use client"
 
 import { groupSPKForPresentation, presentSPK } from '@/lib/spk-groups';
+import { matchesApprovalTarget } from '@/lib/approval-target';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
@@ -1444,8 +1445,9 @@ function ApprovalPageContent() {
                 const rabIds = getRelatedRabIds(item);
                 const detailResponses = await Promise.all(rabIds.map((rabId) => fetchRABDetail(rabId)));
                 const rabDetails = detailResponses
-                    .map((response: any) => response?.data)
+                    .flatMap((response: any) => response?.data?.document_scopes?.length ? response.data.document_scopes : [response?.data])
                     .filter(Boolean)
+                    .filter((detail: any, index: number, all: any[]) => all.findIndex(candidate => Number(candidate.rab?.id) === Number(detail.rab?.id)) === index)
                     .sort((a: any, b: any) => {
                         const aIndex = RAB_SCOPE_ORDER.indexOf(normalizeRabScopeLabel(a?.toko?.lingkup_pekerjaan));
                         const bIndex = RAB_SCOPE_ORDER.indexOf(normalizeRabScopeLabel(b?.toko?.lingkup_pekerjaan));
@@ -2137,7 +2139,7 @@ function ApprovalPageContent() {
         setActiveView('list');
         const loadedItems = await loadList(type);
         if (detailId) {
-            const target = loadedItems.find(item => String(item.id) === String(detailId));
+            const target = loadedItems.find(item => matchesApprovalTarget(item, detailId));
             if (target) {
                 await loadDetail(target);
                 return;
@@ -2180,7 +2182,7 @@ function ApprovalPageContent() {
         if (!autoOpenDetailId || activeView !== 'list' || listData.length === 0 || !selectedType) return;
         const key = `${selectedType}:${autoOpenDetailId}`;
         if (autoOpenedDetailKey === key) return;
-        const target = listData.find(item => String(item.id) === String(autoOpenDetailId) || (item.tipe === "SPK" && item._raw?.spk_group_id && item._raw?.group_members?.some((member: SPKListItem) => String(member.id) === String(autoOpenDetailId))));
+        const target = listData.find(item => matchesApprovalTarget(item, autoOpenDetailId));
         if (!target) return;
 
         setAutoOpenedDetailKey(key);
