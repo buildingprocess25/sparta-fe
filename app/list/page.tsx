@@ -1628,7 +1628,7 @@ export default function DaftarDokumenPage() {
                 docs = normalizeIntervensiDocs(res.data ?? []);
             }
 
-            if (docs.length > 0 && kategori !== 'PROJECT_PLANNING' && kategori !== 'PENGAWASAN' && kategori !== 'INTERVENSI') {
+            if (docs.length > 0 && !isContractor && kategori !== 'PROJECT_PLANNING' && kategori !== 'PENGAWASAN' && kategori !== 'INTERVENSI') {
                 try {
                     const projekContext = await fetchProjekPlanningList(undefined, { suppressGlobalError: true });
                     docs = applyProjectPlanningContext(docs, projekContext.data ?? []);
