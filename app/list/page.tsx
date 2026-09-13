@@ -1,6 +1,7 @@
 "use client"
 
 import { groupSPKForPresentation, presentSPK } from '@/lib/spk-groups';
+import RabDocumentItems from '@/components/RabDocumentItems';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -148,6 +149,7 @@ interface DocumentContextGroup {
 }
 
 interface NormalizedDetail {
+    rab_document_scopes?: Omit<RABDetailResponse, "document_scopes">[];
     spk_group_members?: SPKListItem[];
     id: number;
     tipe: DokumenKategori;
@@ -961,8 +963,9 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] => {
             const sipil = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'SIPIL');
             const me = groupItems.find(i => ((i as any).lingkup_pekerjaan || '').toUpperCase() === 'ME');
 
-            if (sipil && me && sipil.status === me.status) {
-                const totalGabungan = (sipil.grand_total_final ?? sipil.grand_total) + (me.grand_total_final ?? me.grand_total);
+            if (sipil && me && sipil.status === me.status && ['cabang','proyek','nama_pt'].every(key =>
+                String((sipil as any)[key] ?? (sipil.toko as any)?.[key] ?? '').trim().toUpperCase() === String((me as any)[key] ?? (me.toko as any)?.[key] ?? '').trim().toUpperCase())) {
+                const totalGabungan = parseCurrency(sipil.grand_total_final ?? sipil.grand_total) + parseCurrency(me.grand_total_final ?? me.grand_total);
                 normalized.push({
                     id: sipil.id,
                     tipe: 'RAB' as DokumenKategori,
@@ -975,7 +978,7 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] => {
                     total_nilai: parseCurrency(totalGabungan),
                     created_at: sipil.created_at,
                     link_pdf: sipil.link_pdf_gabungan ?? null,
-                    lingkup_pekerjaan: 'Sipil & ME',
+                    lingkup_pekerjaan: 'SIPIL + ME',
                     kategori_lokasi: (sipil as any).kategori_lokasi,
                     klasifikasi_bangunan: getBuildingClassification(undefined, (sipil as any).kategori_lokasi),
                 });
@@ -1789,30 +1792,27 @@ export default function DaftarDokumenPage() {
             } else if (doc.tipe === 'RAB') {
                 const res = await fetchRABDetail(doc.id);
                 const d = res.data;
+                const scopes = d.document_scopes?.length ? d.document_scopes : [d];
                 detail = {
                     id: d.rab.id,
                     tipe: 'RAB',
+                    rab_document_scopes: scopes,
                     id_toko:             d.toko.id,
                     nomor_ulok:          d.toko.nomor_ulok,
                     nama_toko:           d.toko.nama_toko,
                     cabang:              d.toko.cabang,
                     proyek:              d.toko.proyek,
                     alamat:              d.toko.alamat,
-                    lingkup_pekerjaan:   d.toko.lingkup_pekerjaan,
+                    lingkup_pekerjaan:   scopes.map(scope => scope.toko.lingkup_pekerjaan).join(" + "),
                     status:              d.rab.status,
                     email_pembuat:       d.rab.email_pembuat,
                     nama_pt:             d.rab.nama_pt,
                     durasi_pekerjaan:    d.rab.durasi_pekerjaan,
                     kategori_lokasi:     d.rab.kategori_lokasi,
-                    total_nilai:         getRabDisplayTotal({
-                        ...d.rab,
-                        cabang: d.toko.cabang,
-                        nama_toko: d.toko.nama_toko,
-                        alamat: d.toko.alamat,
-                    }),
-                    grand_total:         d.rab.grand_total,
-                    grand_total_non_sbo: d.rab.grand_total_non_sbo,
-                    grand_total_final:   d.rab.grand_total_final,
+                    total_nilai: scopes.reduce((sum,scope) => sum + getRabDisplayTotal({...scope.rab,cabang:scope.toko.cabang,nama_toko:scope.toko.nama_toko,alamat:scope.toko.alamat}),0),
+                    grand_total:         String(scopes.reduce((sum,scope) => sum + parseCurrency(scope.rab.grand_total),0)),
+                    grand_total_non_sbo: String(scopes.reduce((sum,scope) => sum + parseCurrency(scope.rab.grand_total_non_sbo),0)),
+                    grand_total_final:   String(scopes.reduce((sum,scope) => sum + parseCurrency(scope.rab.grand_total_final ?? scope.rab.grand_total),0)),
                     beanspot_type:       d.rab.beanspot_type,
                     is_hth:              d.rab.is_hth,
                     hth_meter:           d.rab.hth_meter,
@@ -4029,8 +4029,9 @@ export default function DaftarDokumenPage() {
                                     </div>
                                 )}
 
+                                {selectedDetail.tipe === 'RAB' && selectedDetail.rab_document_scopes && <RabDocumentItems scopes={selectedDetail.rab_document_scopes} />}
                                 {/* Items Table (RAB, OPNAME, OPNAME_FINAL & INSTRUKSI_LAPANGAN) */}
-                                {(selectedDetail.tipe === 'RAB' || selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
+                                {(selectedDetail.tipe === 'OPNAME' || selectedDetail.tipe === 'OPNAME_FINAL' || selectedDetail.tipe === 'INSTRUKSI_LAPANGAN') && selectedDetail.items && selectedDetail.items.length > 0 && (
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                         <div className="px-6 py-4 border-b border-slate-100">
                                             <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">

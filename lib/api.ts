@@ -1214,6 +1214,7 @@ export type RABRevisionItem = {
 };
 
 export type RABDetailResponse = {
+    document_scopes?: Omit<RABDetailResponse, "document_scopes">[];
     rab:          RABDetailData;
     toko:         RABDetailToko;
     items:        RABDetailItem[];
