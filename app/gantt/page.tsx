@@ -4579,7 +4579,7 @@ function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onRevi
     const totalRab = Number(sourceItem.total_harga ?? Math.round(volumeRab * hargaSatuan));
     const totalOpname = Number(opname.total_harga_opname ?? Math.round(Number(opname.volume_akhir || 0) * hargaSatuan));
     const selisih = Number(opname.total_selisih ?? (totalOpname - totalRab));
-    const fotoHref = buildDriveProxyHref(opname.foto);
+    const fotoHref = opname.foto || '';
     const formatMoney = (value: number) => `Rp ${Math.round(value || 0).toLocaleString('id-ID')}`;
 
     return (
