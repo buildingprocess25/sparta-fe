@@ -5623,7 +5623,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 if (existingOp && existingOp.status !== 'ditolak') continue;
 
                 const input = memoInputs[key] || ({} as any);
-                const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : 0;
+                const baseVolFallback = rItemForExisting ? Number(rItemForExisting.volume || 0) : 0;
+                const volA = input.volume_akhir !== undefined && input.volume_akhir !== '' ? input.volume_akhir : baseVolFallback;
                 if (volA === null || String(volA) === '') validationErrors.push(`Volume akhir opname untuk "${item.jenis_pekerjaan}" belum diisi.`);
                 if (!input.desain || input.desain === '') validationErrors.push(`Kesesuaian desain (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
                 if (!input.kualitas || input.kualitas === '') validationErrors.push(`Kualitas hasil (Opname) untuk "${item.jenis_pekerjaan}" wajib dipilih.`);
