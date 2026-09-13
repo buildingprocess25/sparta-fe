@@ -1,3 +1,4 @@
+import { groupRabRevisions } from './rab-revisions';
 // =============================================================================
 // lib/api.ts
 // Seluruh fungsi komunikasi ke backend API.
@@ -1258,51 +1259,8 @@ export const checkRevisionStatus = async (email: string, _cabang: string) => {
             email_pembuat: email,
         }, { suppressGlobalError: true });
 
-        // Filter RAB yang ditolak/dikembalikan, dan pastikan cabang cocok (double-check client-side)
-        const rejected = res.data.filter(rab => {
-            if (!rab.status) return false;
-            const s = rab.status.toUpperCase();
-            const isRejected = s.includes('TOLAK') || s === 'REJECTED';
-            const isMine = (rab.email_pembuat || '').toLowerCase() === (email || '').toLowerCase();
-            return isMine && isRejected;
-        });
-
-        if (rejected.length === 0) return { rejected_submissions: [] };
-
-        const grouped = rejected.reduce((acc: any, r: any) => {
-            const ulok = r.nomor_ulok;
-            const scope = r.lingkup_pekerjaan || r.toko?.lingkup_pekerjaan;
-            
-            if (!acc[ulok]) {
-                acc[ulok] = {
-                    id: r.id,
-                    ids: [r.id],
-                    "Nomor Ulok": ulok,
-                    "lingkup_pekerjaan_list": scope ? [scope] : [],
-                    "nama_toko": r.nama_toko || r.toko?.nama_toko,
-                    "Proyek": r.proyek || r.toko?.proyek,
-                    "alasan_penolakan": r.alasan_penolakan,
-                };
-            } else {
-                acc[ulok].ids.push(r.id);
-                if (scope && !acc[ulok].lingkup_pekerjaan_list.includes(scope)) {
-                    acc[ulok].lingkup_pekerjaan_list.push(scope);
-                }
-            }
-            return acc;
-        }, {});
-
-        const formatted = Object.values(grouped).map((g: any) => ({
-            id: g.id,
-            ids: g.ids,
-            "Nomor Ulok": g["Nomor Ulok"],
-            "lingkup_pekerjaan": g.lingkup_pekerjaan_list.length > 1 ? "SIPIL + ME" : (g.lingkup_pekerjaan_list[0] || ""),
-            "nama_toko": g.nama_toko,
-            "Proyek": g.Proyek,
-            "alasan_penolakan": g.alasan_penolakan,
-        }));
-
-        return { rejected_submissions: formatted };
+        const mine = res.data.filter(rab => (rab.email_pembuat || '').toLowerCase() === email.toLowerCase());
+        return { rejected_submissions: groupRabRevisions(mine) };
     } catch (err) {
         console.error("Error checkRevisionStatus:", err);
         return { rejected_submissions: [] };

@@ -1017,6 +1017,7 @@ function RABPageContent() {
                   fetchedDetailData.revisi_items = detailResponses.flatMap(res => res.data.revisi_items || []);
               } catch (err) {
                   console.error("Gagal mengambil detail RAB Gabungan:", err);
+                  throw err;
               }
           } else if (data.id) {
               try {
@@ -1238,14 +1239,15 @@ function RABPageContent() {
   };
 
   useEffect(() => {
-    if (!requestedRevisionId || autoLoadedRevisionId === requestedRevisionId) return;
+    if (!revisionCheckDone || !user?.email || !requestedRevisionId || autoLoadedRevisionId === requestedRevisionId) return;
     setAutoLoadedRevisionId(requestedRevisionId);
     setRevisionListDialogOpen(false);
-    handleLoadRevision({ id: requestedRevisionId });
+    const target = rejectedList.find((item: any) => Number(item.id) === requestedRevisionId || item.ids?.some((id: number) => Number(id) === requestedRevisionId));
+    handleLoadRevision(target || { id: requestedRevisionId });
     // handleLoadRevision intentionally stays outside deps because it reads the latest form state
     // and is only triggered once per URL revision id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedRevisionId, autoLoadedRevisionId]);
+  }, [requestedRevisionId, autoLoadedRevisionId, revisionCheckDone, rejectedList, user?.email]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
