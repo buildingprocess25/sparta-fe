@@ -3308,6 +3308,38 @@ function GanttBoard() {
                             )}
 
                             {(() => {
+                                if (handoverReadiness.readyOpnameItems > 0 || handoverReadiness.pendingOpnameDates.length > 0) {
+                                    return (
+                                        <Button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowTargetStModal(null);
+                                                const pendingScopes: any[] = [];
+                                                supervisionWorkspace?.unified_checkpoints?.forEach((ucp: any) => {
+                                                    ucp.scopes.forEach((entry: any) => {
+                                                        if (entry.gantt_id && entry.checkpoint && Number(entry.checkpoint.ready_opname_items || 0) > 0) {
+                                                            pendingScopes.push(entry);
+                                                        }
+                                                    });
+                                                });
+                                                if (pendingScopes.length > 0) {
+                                                    setUnifiedOpnameFlow({
+                                                        scopes: pendingScopes,
+                                                        index: 0,
+                                                        dayIndex: showTargetStModal.dayIndex,
+                                                        dateString: showTargetStModal.dateString,
+                                                    });
+                                                    setShowOpnameModal(true);
+                                                }
+                                            }}
+                                            className="flex h-11 w-full items-center justify-center rounded-md bg-amber-600 px-4 font-bold text-white transition hover:bg-amber-500 shadow-sm"
+                                        >
+                                            <ClipboardCheck className="mr-2 h-4 w-4" />
+                                            Lanjut ke Form Opname
+                                        </Button>
+                                    );
+                                }
+
                                 const stCheckpoint = supervisionWorkspace?.unified_checkpoints?.find((c: any) => c.tanggal_pengawasan === showTargetStModal.dateString);
                                 if (!stCheckpoint) return null;
                                 return (
@@ -3320,7 +3352,7 @@ function GanttBoard() {
                                         className="flex h-11 w-full items-center justify-center rounded-md bg-blue-600 px-4 font-bold text-white transition hover:bg-blue-500 shadow-sm"
                                     >
                                         <ClipboardCheck className="mr-2 h-4 w-4" />
-                                        Buka Form Pengawasan / Opname
+                                        Buka Form Pengawasan
                                     </Button>
                                 );
                             })()}
