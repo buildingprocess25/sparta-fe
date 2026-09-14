@@ -1030,8 +1030,8 @@ export default function DetailProjekPlanning() {
     data.link_fpd_approved ? "fpd_approved" : null,
   ].filter(Boolean) as string[];
   const rabFinalFields = [
-    data.link_rab_sipil ? "rab_sipil_final" : null,
-    data.link_rab_me ? "rab_me_final" : null,
+    (!isBMRegional && data.link_rab_sipil) ? "rab_sipil_final" : null,
+    (!isBMRegional && data.link_rab_me) ? "rab_me_final" : null,
     data.link_gambar_kerja_final_sipil ? "gambar_kerja_final_sipil" : null,
     data.link_gambar_kerja_final_me ? "gambar_kerja_final_me" : null,
   ].filter(Boolean) as string[];
@@ -1265,8 +1265,8 @@ export default function DetailProjekPlanning() {
                   <span className="text-xs font-semibold text-red-700 bg-white px-2 py-0.5 rounded-md shadow-sm">{rabFinalFields.length} file</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/30">
-                  <FileProxyRow label="RAB Sipil Final" hasFile={!!data.link_rab_sipil} projektId={id} field="rab_sipil_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_sipil} />
-                  <FileProxyRow label="RAB ME Final" hasFile={!!data.link_rab_me} projektId={id} field="rab_me_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_me} />
+                  {!isBMRegional && <FileProxyRow label="RAB Sipil Final" hasFile={!!data.link_rab_sipil} projektId={id} field="rab_sipil_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_sipil} />}
+                  {!isBMRegional && <FileProxyRow label="RAB ME Final" hasFile={!!data.link_rab_me} projektId={id} field="rab_me_final" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_rab_me} />}
                   <FileProxyRow label="Gambar Kerja Final Sipil" hasFile={!!data.link_gambar_kerja_final_sipil} projektId={id} field="gambar_kerja_final_sipil" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_sipil} />
                   <FileProxyRow label="Gambar Kerja Final ME" hasFile={!!data.link_gambar_kerja_final_me} projektId={id} field="gambar_kerja_final_me" onViewed={markFieldViewed} onUnviewed={markFieldUnviewed} fileUrl={data.link_gambar_kerja_final_me} />
                 </div>
