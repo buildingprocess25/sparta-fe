@@ -42,9 +42,12 @@ export const DashboardSPCard: React.FC<DashboardSPCardProps> = ({ selectedBranch
             return false;
         }
 
-        // Hide Z001 unless Super Human
-        if (sp.cabang?.toUpperCase() === 'Z001' && !isSuperHuman) {
-            return false;
+        // Hide Z001 and HEAD OFFICE unless Super Human
+        if (!isSuperHuman) {
+            const cab = sp.cabang?.toUpperCase();
+            if (cab === 'Z001' || cab === 'HEAD OFFICE') {
+                return false;
+            }
         }
 
         // Branch filtering
