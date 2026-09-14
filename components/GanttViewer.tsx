@@ -450,7 +450,7 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
 
     const chartData = useMemo(() => {
         if (!projectData || tasks.length === 0) return null;
-        let processedTasks = [...tasks];
+        let processedTasks = tasks.map(task => ({ ...task }));
         let maxTaskEndDay = 0;
 
         processedTasks.forEach(task => {
@@ -458,10 +458,10 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
             const myParents = processedTasks.filter(pt => pt.dependencies && pt.dependencies.includes(task.id));
             if (myParents.length > 0) {
                 myParents.forEach(parentTask => {
-                    const parentShift = parentTask.computed?.shift || 0;
+                    // Only the recorded delay of the direct dependency affects this row.
                     const pRanges = parentTask.ranges || [];
-                    const parentDelay = pRanges.length > 0 ? (parseInt(pRanges[pRanges.length-1].keterlambatan) || 0) : 0;
-                    const potentialShift = parentShift + parentDelay;
+                    const parentDelay = Math.max(0, ...pRanges.map((range: any) => parseInt(range.keterlambatan) || 0));
+                    const potentialShift = parentDelay;
                     if (potentialShift > maxShift) maxShift = potentialShift;
                 });
             }
@@ -901,6 +901,13 @@ export default function GanttViewer({ nomorUlok, idToko, scopeTokoIds, spkStartD
 
                                         return (
                                             <React.Fragment key={`block-${task.id}-${rIdx}`}>
+                                                {shift > 0 && (
+                                                    <div className="absolute border border-amber-500 rounded-md bg-amber-100 flex items-center justify-center overflow-hidden text-[10px] font-bold text-amber-900"
+                                                        style={{ left: (rStart - 1) * DAY_WIDTH, width: shift * DAY_WIDTH, top: 8, height: ROW_HEIGHT - 16 }}
+                                                        title={`Menunggu kategori terikat ${shift} hari`}>
+                                                        Menunggu {shift} hari
+                                                    </div>
+                                                )}
                                                 <div
                                                     className="absolute border border-blue-500 rounded-md shadow-sm transition-all group overflow-hidden bg-blue-100 flex items-center justify-center cursor-default"
                                                     style={{ left: leftPos, width: blockWidth, top: 8, height: ROW_HEIGHT - 16 }}
