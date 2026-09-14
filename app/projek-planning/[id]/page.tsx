@@ -19,7 +19,7 @@ import {
 import {
   fetchProjekPlanningDetail, processBmApproval, processBmRegionalApproval, processPpApproval1,
   uploadDesain3d, uploadRabGambarKerja, processPpManagerApproval, processPpApproval2,
-  downloadProjekPlanningPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
+  downloadProjekPlanningPdf, downloadProjekPlanningPhotosPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
 import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch } from "@/lib/constants";
@@ -333,6 +333,70 @@ function FileProxyRow({
   );
 }
 
+function PhotosPdfRow({
+  label, hasFile, projektId
+}: {
+  label: string; hasFile: boolean; projektId: number;
+}) {
+  const [loading, setLoading] = React.useState<"view" | "download" | null>(null);
+
+  if (!hasFile) return null;
+
+  const handle = async (mode: "view" | "download") => {
+    setLoading(mode);
+    let newWindow: Window | null = null;
+    if (mode === "view") {
+        newWindow = window.open("about:blank", "_blank");
+        if (newWindow) {
+             newWindow.document.write("<html><body style='font-family:sans-serif;padding:20px;text-align:center;'><h3 style='color:#666'>Memuat dokumen, harap tunggu...</h3></body></html>");
+        }
+    }
+    try {
+        await downloadProjekPlanningPhotosPdf(projektId, mode, newWindow);
+    } catch (e: any) {
+        if (newWindow) newWindow.close();
+        alert(`Gagal: ${e.message}`);
+    }
+    setLoading(null);
+  };
+
+  return (
+    <div className={`flex flex-col rounded-xl border bg-white shadow-sm transition-colors overflow-hidden border-slate-200`}>
+      <div className="flex justify-between items-start gap-2 bg-red-50 px-3 py-2 border-b border-red-100">
+        <span className="text-sm font-bold text-slate-800 leading-tight">
+          {label}
+        </span>
+        <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-white text-slate-500 border-slate-200">
+          Info
+        </span>
+      </div>
+      <div className="flex flex-col gap-3 p-3 h-full justify-end">
+        <span className={`text-xs font-semibold text-slate-500`}>
+          Khusus View & Download
+        </span>
+        <div className="flex gap-2 mt-auto">
+          <button
+            onClick={() => handle("view")}
+            disabled={!!loading}
+            className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 flex-1 bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
+          >
+            {loading === "view" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+            Lihat
+          </button>
+          <button
+            onClick={() => handle("download")}
+            disabled={!!loading}
+            className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 transition-colors disabled:opacity-50 flex-1"
+          >
+            {loading === "download" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            Unduh
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReviewSelect({
   label, value, onChange,
 }: {
@@ -341,21 +405,33 @@ function ReviewSelect({
   onChange: (value: "APPROVE" | "REJECT") => void;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1">
       <Label className="text-xs font-semibold text-slate-600">{label}</Label>
       <div className="flex gap-2 shrink-0">
         <button
           type="button"
           onClick={() => onChange("APPROVE")}
-          className={`h-9 px-6 rounded-md border text-sm font-semibold ${value === "APPROVE" ? "bg-green-600 text-white border-green-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+          className={`
+            relative flex items-center justify-center gap-2 h-10 px-5 rounded-lg border text-sm font-bold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500
+            ${value === "APPROVE" 
+              ? "bg-green-600 text-white border-green-600 shadow-md shadow-green-600/20 scale-[1.02]" 
+              : "bg-white text-slate-600 border-slate-200 hover:bg-green-50 hover:border-green-200 hover:text-green-700"}
+          `}
         >
+          <CheckCircle2 className={`w-4 h-4 transition-colors ${value === "APPROVE" ? "text-white" : "text-green-600 opacity-70"}`} />
           Approve
         </button>
         <button
           type="button"
           onClick={() => onChange("REJECT")}
-          className={`h-9 px-6 rounded-md border text-sm font-semibold ${value === "REJECT" ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+          className={`
+            relative flex items-center justify-center gap-2 h-10 px-5 rounded-lg border text-sm font-bold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500
+            ${value === "REJECT" 
+              ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20 scale-[1.02]" 
+              : "bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-700"}
+          `}
         >
+          <XCircle className={`w-4 h-4 transition-colors ${value === "REJECT" ? "text-white" : "text-red-600 opacity-70"}`} />
           Reject
         </button>
       </div>
@@ -732,7 +808,8 @@ export default function DetailProjekPlanning() {
   };
 
   const handleFinalReview = async (type: "bm_regional" | "pp2" | "pp_mgr") => {
-    if (!rabReviewAction || !gambarReviewAction) {
+    const effectiveRabAction = type === "bm_regional" ? "APPROVE" : rabReviewAction;
+    if (!effectiveRabAction || !gambarReviewAction) {
       showAlert("Peringatan", "Pilih keputusan Review RAB dan Review Gambar Final terlebih dahulu.");
       return;
     }
@@ -751,7 +828,7 @@ export default function DetailProjekPlanning() {
       ...rejectedItemNotes,
     ].filter(Boolean).join("\n");
 
-    if (rabReviewAction === "REJECT" && !combinedRabNotes && rejectedIds.length === 0) {
+    if (effectiveRabAction === "REJECT" && !combinedRabNotes && rejectedIds.length === 0) {
       showAlert("Peringatan", "Isi revisi general RAB atau tambahkan minimal satu item RAB yang perlu direvisi.");
       return;
     }
@@ -759,14 +836,14 @@ export default function DetailProjekPlanning() {
       showAlert("Peringatan", "Isi alasan penolakan gambar final.");
       return;
     }
-    const isFullApprove = rabReviewAction === "APPROVE" && gambarReviewAction === "APPROVE";
+    const isFullApprove = effectiveRabAction === "APPROVE" && gambarReviewAction === "APPROVE";
     const combinedApprovalNotes = [
-      rabReviewAction === "APPROVE" && rabApprovalNote.trim() ? `Catatan approval RAB: ${rabApprovalNote.trim()}` : "",
+      effectiveRabAction === "APPROVE" && rabApprovalNote.trim() ? `Catatan approval RAB: ${rabApprovalNote.trim()}` : "",
       gambarReviewAction === "APPROVE" && gambarApprovalNote.trim() ? `Catatan approval gambar final: ${gambarApprovalNote.trim()}` : "",
     ].filter(Boolean).join("\n");
     const payload = {
       approver_email: userEmail,
-      rab_tindakan: rabReviewAction,
+      rab_tindakan: effectiveRabAction as "APPROVE" | "REJECT",
       gambar_tindakan: gambarReviewAction,
       catatan: isFullApprove ? combinedApprovalNotes : undefined,
       alasan_penolakan: gambarReviewAction === "REJECT" ? gambarRejectReason : undefined,
@@ -1153,6 +1230,19 @@ export default function DetailProjekPlanning() {
               </div>
             </div>
 
+            {/* Kategori Tambahan: Lampiran Foto Dokumentasi */}
+            {data.foto_items && data.foto_items.length > 0 && (
+              <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
+                <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Lampiran Dokumentasi (PDF)</h3>
+                  <span className="text-xs font-semibold text-red-700 bg-white px-2 py-0.5 rounded-md shadow-sm">1 file</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/30">
+                  <PhotosPdfRow label="Lampiran Foto Dokumentasi" hasFile={true} projektId={id} />
+                </div>
+              </div>
+            )}
+
             {/* Kategori 2: Dokumen PP Specialist */}
             {(data.link_desain_3d || data.link_fpd_approved) && (
               <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
@@ -1265,44 +1355,8 @@ export default function DetailProjekPlanning() {
             <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-sky-800">Approval B&M Regional Manager</CardTitle></CardHeader>
             <CardContent className="p-4 space-y-3">
               <p className="text-sm text-sky-800 bg-white/70 p-3 rounded-lg border border-sky-100">
-                Review RAB dan gambar final tahap 2 sebelum diteruskan ke PP Specialist.
+                Review gambar final tahap 2 sebelum diteruskan ke PP Specialist.
               </p>
-
-              <div className="rounded-lg border border-sky-100 bg-white p-3 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-bold text-sky-900">Review RAB</p>
-                    <p className="text-xs text-slate-500">Jika RAB ditolak, kontraktor akan mendapat revisi RAB.</p>
-                  </div>
-                  {!rabReviewAction && <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Belum dipilih</span>}
-                </div>
-                <ReviewSelect label="Keputusan RAB" value={rabReviewAction} onChange={(value) => {
-                  setRabReviewAction(value);
-                  if (value === "REJECT") {
-                    setRabApprovalNote("");
-                    if (rabRejectedRows.length === 0) setRabRejectedRows([{ itemId: "", note: "" }]);
-                  }
-                  if (value === "APPROVE") {
-                    setRabRejectedRows([]);
-                    setRabRejectedItemNotes("");
-                  }
-                }} />
-                {rabReviewAction === "REJECT" && (
-                  <RabRejectEditor
-                    rabItems={rabReviewItems}
-                    rows={rabRejectedRows}
-                    onRowsChange={setRabRejectedRows}
-                    generalNote={rabRejectedItemNotes}
-                    onGeneralNoteChange={setRabRejectedItemNotes}
-                  />
-                )}
-                {rabReviewAction === "APPROVE" && (
-                  <div className="rounded-lg border border-green-100 bg-green-50/40 p-3 space-y-1.5">
-                    <Label className="text-xs font-semibold text-green-700">Catatan Approval RAB</Label>
-                    <Textarea value={rabApprovalNote} onChange={e => setRabApprovalNote(e.target.value)} placeholder="Opsional, catatan khusus approval RAB..." rows={2} className="bg-white" />
-                  </div>
-                )}
-              </div>
 
               <div className="rounded-lg border border-sky-100 bg-white p-3 space-y-3">
                 <div className="flex items-center justify-between gap-2">
@@ -1330,7 +1384,7 @@ export default function DetailProjekPlanning() {
                   </div>
                 )}
               </div>
-              <Button onClick={() => handleApprove("bm_regional")} className="w-full bg-sky-600 hover:bg-sky-700 text-white shadow-sm" disabled={actionLoading || !allLinksOpened || !rabReviewAction || !gambarReviewAction}>
+              <Button onClick={() => handleApprove("bm_regional")} className="w-full bg-sky-600 hover:bg-sky-700 text-white shadow-sm" disabled={actionLoading || !allLinksOpened || !gambarReviewAction}>
                 <CheckCircle2 className="w-4 h-4 mr-1.5" /> Simpan Review B&M Regional
               </Button>
             </CardContent>
@@ -1853,7 +1907,12 @@ export default function DetailProjekPlanning() {
                   <div key={log.id} className="flex gap-3 text-xs border-b border-slate-50 pb-2 last:border-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 shrink-0" />
                     <div>
-                      <p className="font-semibold text-slate-700">{log.aksi} oleh {log.actor_email} <span className="text-slate-400">({log.role})</span></p>
+                      <p className="font-semibold text-slate-700">
+                        {log.aksi} oleh {log.actor_email}{" "}
+                        <span className="text-slate-400">
+                          ({log.role === "BM" ? "B&M" : log.role === "PP_SPECIALIST" ? "PP Specialist" : log.role === "PP_MANAGER" ? "PP Manager" : log.role === "BM_REGIONAL" ? "B&M Regional" : log.role === "SUPER_HUMAN" ? "Super Human" : log.role === "COORDINATOR" ? "Coordinator" : log.role})
+                        </span>
+                      </p>
                       {log.keterangan && <p className="text-slate-500 mt-0.5">{log.keterangan}</p>}
                       <p className="text-slate-400 mt-0.5">{fmt(log.created_at)}</p>
                     </div>
