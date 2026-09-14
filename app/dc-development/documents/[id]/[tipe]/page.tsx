@@ -209,6 +209,9 @@ export default function DcDocumentDetailPage() {
     setSavingCategory(utamaId);
     let uploadedDocsCount = 0;
     let updatedNotesCount = 0;
+    const uploadedDocNames: string[] = [];
+    const updatedNoteNames: string[] = [];
+    const deletedNoteNames: string[] = [];
 
     try {
       for (const jenis of allJenis) {
@@ -225,6 +228,7 @@ export default function DcDocumentDetailPage() {
                stage: tipe
              }, files);
              uploadedDocsCount += files.length;
+             uploadedDocNames.push(jenis.title);
           }
         }
         
@@ -238,10 +242,14 @@ export default function DcDocumentDetailPage() {
                if (serverNoteDoc) {
                    await deleteDcDocument(serverNoteDoc.id, actor);
                    updatedNotesCount++;
+                   deletedNoteNames.push(jenis.title);
                }
                for (const oldDoc of oldDocsWithNote) {
                    await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
-                   if (!serverNoteDoc) updatedNotesCount++; // Count if we didn't already count serverNoteDoc
+                   if (!serverNoteDoc) {
+                       updatedNotesCount++; // Count if we didn't already count serverNoteDoc
+                       deletedNoteNames.push(jenis.title);
+                   }
                }
            } else {
                let noteUpdated = false;
@@ -267,7 +275,10 @@ export default function DcDocumentDetailPage() {
                    }, []);
                    noteUpdated = true;
                }
-               if (noteUpdated) updatedNotesCount++;
+               if (noteUpdated) {
+                   updatedNotesCount++;
+                   updatedNoteNames.push(jenis.title);
+               }
            }
         }
       }
@@ -287,13 +298,19 @@ export default function DcDocumentDetailPage() {
       if (uploadedDocsCount > 0) action_details.push(`${uploadedDocsCount} Dokumen Diunggah`);
       if (updatedNotesCount > 0) action_details.push(`${updatedNotesCount} Catatan Diubah`);
 
+      const itemized_details: Record<string, string[]> = {};
+      if (uploadedDocNames.length > 0) itemized_details.uploaded_docs = Array.from(new Set(uploadedDocNames));
+      if (updatedNoteNames.length > 0) itemized_details.updated_notes = Array.from(new Set(updatedNoteNames));
+      if (deletedNoteNames.length > 0) itemized_details.deleted_notes = Array.from(new Set(deletedNoteNames));
+
       try {
         await logDcCategoryEdit(archive.id, {
             category_id: utamaId,
             category_name: utama.title,
             actor_email: actor.actor_email,
             actor_role: actor.actor_role,
-            action_details: action_details.length > 0 ? action_details : undefined
+            action_details: action_details.length > 0 ? action_details : undefined,
+            itemized_details: Object.keys(itemized_details).length > 0 ? itemized_details : undefined
         });
       } catch (logErr) {
         console.error("Failed to log category edit:", logErr);
@@ -966,12 +983,46 @@ export default function DcDocumentDetailPage() {
                         <span className="text-sm font-bold text-slate-800">{log.actor_email}</span>
                         <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{log.actor_role}</span>
                         {log.metadata?.action_details && log.metadata.action_details.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
+                          <div className="mt-2 flex flex-wrap gap-1.5 items-center">
                             {log.metadata.action_details.map((detail: string, idx: number) => (
                               <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-semibold bg-red-50 text-red-600 border border-red-100">
                                 {detail}
                               </span>
                             ))}
+                            {log.metadata.itemized_details && Object.keys(log.metadata.itemized_details).length > 0 && (
+                              <div className="relative group cursor-pointer ml-1">
+                                <Info className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors" />
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-max max-w-[250px] p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 border border-slate-700 backdrop-blur-md bg-opacity-95">
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-slate-800/95"></div>
+                                  <div className="flex flex-col gap-2">
+                                    {log.metadata.itemized_details.uploaded_docs && (
+                                      <div>
+                                        <span className="font-semibold text-emerald-400">Tambah Dokumen:</span>
+                                        <ul className="list-disc list-inside mt-0.5 text-slate-300 leading-tight">
+                                          {log.metadata.itemized_details.uploaded_docs.map((doc: string, i: number) => <li key={i}>{doc}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {log.metadata.itemized_details.updated_notes && (
+                                      <div>
+                                        <span className="font-semibold text-blue-400">Edit Catatan:</span>
+                                        <ul className="list-disc list-inside mt-0.5 text-slate-300 leading-tight">
+                                          {log.metadata.itemized_details.updated_notes.map((note: string, i: number) => <li key={i}>{note}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                    {log.metadata.itemized_details.deleted_notes && (
+                                      <div>
+                                        <span className="font-semibold text-rose-400">Hapus Dokumen/Catatan:</span>
+                                        <ul className="list-disc list-inside mt-0.5 text-slate-300 leading-tight">
+                                          {log.metadata.itemized_details.deleted_notes.map((del: string, i: number) => <li key={i}>{del}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
