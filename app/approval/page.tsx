@@ -350,9 +350,15 @@ const isContractorDirectorApprovalStatus = (status?: string | null) => {
 const isDirectorJabatan = (value?: ApprovalJabatan | null) =>
     value === 'DIREKTUR' || value === 'DIREKTUR_KONTRAKTOR';
 
-const matchesApprovalStage = (jabatan: ApprovalJabatan | null, status?: string | null) => {
+const matchesApprovalStage = (jabatan: ApprovalJabatan | null, status?: string | null, tipe?: string | null, cabang?: string | null) => {
     if (!isPendingApprovalStatus(status)) return false;
-    if (jabatan === 'KOORDINATOR') return isCoordinatorApprovalStatus(status);
+    if (jabatan === 'KOORDINATOR') {
+        const upperCabang = String(cabang ?? '').trim().toUpperCase();
+        if (upperCabang === 'BATAM' && tipe === 'INSTRUKSI_LAPANGAN' && isManagerApprovalStatus(status)) {
+            return true;
+        }
+        return isCoordinatorApprovalStatus(status);
+    }
     if (jabatan === 'MANAGER') return isManagerApprovalStatus(status);
     if (jabatan === 'DIREKTUR_KONTRAKTOR') return isContractorDirectorApprovalStatus(status);
     if (jabatan === 'DIREKTUR') return isDirectorApprovalStatus(status);
@@ -1232,7 +1238,7 @@ function ApprovalPageContent() {
                 // OPNAME: Stage check first, then company scope untuk role kontraktor
                 if (type === 'OPNAME') {
                     // Stage check dulu
-                    const stageMatches = matchesApprovalStage(jabatan, upper);
+                    const stageMatches = matchesApprovalStage(jabatan, upper, type, upperUserCabang);
                     console.log('[OPNAME Filter] Item:', {
                         id: item.id,
                         status: item.status,
@@ -1270,7 +1276,7 @@ function ApprovalPageContent() {
                 }
 
                 // Untuk IL dan tipe lainnya (Multi-level)
-                return matchesApprovalStage(jabatan, upper);
+                return matchesApprovalStage(jabatan, upper, type, upperUserCabang);
             });
 
             setListData(normalized);
@@ -2107,11 +2113,11 @@ function ApprovalPageContent() {
 
         if (tipe === 'OPNAME') {
             if (!isPendingApprovalStatus(upper) && !upper.includes('MENUNGGU')) return false;
-            return matchesApprovalStage(jabatan, upper);
+            return matchesApprovalStage(jabatan, upper, tipe, userInfo.cabang);
         }
 
         // RAB & IL — multi-level
-        return matchesApprovalStage(jabatan, upper);
+        return matchesApprovalStage(jabatan, upper, tipe, userInfo.cabang);
     };
 
     const isApproved = (status: string) => {
