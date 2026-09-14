@@ -1261,7 +1261,7 @@ export default function DetailProjekPlanning() {
             {(data.link_rab_sipil || data.link_rab_me || data.link_gambar_kerja_final_sipil || data.link_gambar_kerja_final_me) && (
               <div className="rounded-xl border border-red-100 bg-white overflow-hidden shadow-sm mb-4">
                 <div className="flex justify-between items-center bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-4 py-3">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Dokumen RAB & Final (Koordinator)</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">{isBMRegional ? "Dokumen Final (Koordinator)" : "Dokumen RAB & Final (Koordinator)"}</h3>
                   <span className="text-xs font-semibold text-red-700 bg-white px-2 py-0.5 rounded-md shadow-sm">{rabFinalFields.length} file</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/30">
