@@ -32,12 +32,18 @@ export const DashboardSPCard: React.FC<DashboardSPCardProps> = ({ selectedBranch
     }, []);
 
     const isContractor = user?.roles?.some(r => r.includes('KONTRAKTOR') || r.includes('DIREKTUR'));
+    const isSuperHuman = user?.roles?.some(r => r.toUpperCase().includes('BUILDING & MAINTENANCE SUPER HUMAN'));
 
     // Filter SPs based on selected branch and active status
     const filteredSp = spList.filter(sp => {
         // Must be active and in a relevant state
         if (!sp.is_active) return false;
         if (!['WAITING_MANAGER', 'APPROVED', 'SENT_TO_CONTRACTOR', 'VIEWED_BY_CONTRACTOR', 'ACKNOWLEDGED_BY_CONTRACTOR'].includes(sp.status)) {
+            return false;
+        }
+
+        // Hide Z001 unless Super Human
+        if (sp.cabang?.toUpperCase() === 'Z001' && !isSuperHuman) {
             return false;
         }
 
