@@ -207,6 +207,9 @@ export default function DcDocumentDetailPage() {
     }
     
     setSavingCategory(utamaId);
+    let uploadedDocsCount = 0;
+    let updatedNotesCount = 0;
+
     try {
       for (const jenis of allJenis) {
         for (const slot of jenis.slots) {
@@ -221,6 +224,7 @@ export default function DcDocumentDetailPage() {
                document_type: compKey,
                stage: tipe
              }, files);
+             uploadedDocsCount += files.length;
           }
         }
         
@@ -233,18 +237,23 @@ export default function DcDocumentDetailPage() {
            if (localNote === "") {
                if (serverNoteDoc) {
                    await deleteDcDocument(serverNoteDoc.id, actor);
+                   updatedNotesCount++;
                }
                for (const oldDoc of oldDocsWithNote) {
                    await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
+                   if (!serverNoteDoc) updatedNotesCount++; // Count if we didn't already count serverNoteDoc
                }
            } else {
+               let noteUpdated = false;
                for (const oldDoc of oldDocsWithNote) {
                    await updateDcDocument(oldDoc.id, { ...actor, notes: "" });
+                   noteUpdated = true;
                }
                
                if (serverNoteDoc) {
                    if (serverNoteDoc.notes?.trim() !== localNote) {
                        await updateDcDocument(serverNoteDoc.id, { ...actor, notes: localNote });
+                       noteUpdated = true;
                    }
                } else {
                    await uploadDcDocuments({
@@ -256,7 +265,9 @@ export default function DcDocumentDetailPage() {
                        stage: tipe,
                        notes: localNote
                    }, []);
+                   noteUpdated = true;
                }
+               if (noteUpdated) updatedNotesCount++;
            }
         }
       }
@@ -272,12 +283,17 @@ export default function DcDocumentDetailPage() {
         return next;
       });
       
+      const action_details: string[] = [];
+      if (uploadedDocsCount > 0) action_details.push(`${uploadedDocsCount} Dokumen Diunggah`);
+      if (updatedNotesCount > 0) action_details.push(`${updatedNotesCount} Catatan Diubah`);
+
       try {
         await logDcCategoryEdit(archive.id, {
             category_id: utamaId,
             category_name: utama.title,
             actor_email: actor.actor_email,
-            actor_role: actor.actor_role
+            actor_role: actor.actor_role,
+            action_details: action_details.length > 0 ? action_details : undefined
         });
       } catch (logErr) {
         console.error("Failed to log category edit:", logErr);
@@ -949,6 +965,15 @@ export default function DcDocumentDetailPage() {
                         </span>
                         <span className="text-sm font-bold text-slate-800">{log.actor_email}</span>
                         <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{log.actor_role}</span>
+                        {log.metadata?.action_details && log.metadata.action_details.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {log.metadata.action_details.map((detail: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-semibold bg-red-50 text-red-600 border border-red-100">
+                                {detail}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

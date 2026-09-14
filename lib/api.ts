@@ -368,6 +368,7 @@ export type DcCategoryActivityLog = {
     metadata: {
         category_id: string;
         category_name: string;
+        action_details?: string[];
         [key: string]: any;
     };
 };
@@ -480,7 +481,7 @@ export const createDcArchiveProject = async (
 
 export const logDcCategoryEdit = async (
     archiveId: number,
-    payload: { category_id: string; category_name: string; actor_email: string; actor_role: string },
+    payload: { category_id: string; category_name: string; actor_email: string; actor_role: string; action_details?: string[] },
     options?: ApiRequestOptions
 ): Promise<{ status: string; message: string }> => {
     return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/dc-development/archive-projects/${archiveId}/category-log`, {
