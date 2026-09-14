@@ -3318,16 +3318,21 @@ function GanttBoard() {
                                                 supervisionWorkspace?.unified_checkpoints?.forEach((ucp: any) => {
                                                     ucp.scopes.forEach((entry: any) => {
                                                         if (entry.gantt_id && entry.checkpoint && Number(entry.checkpoint.ready_opname_items || 0) > 0) {
-                                                            pendingScopes.push(entry);
+                                                            const fullScope = supervisionWorkspace.scopes?.find((s: any) => s.id_toko === entry.id_toko) || entry;
+                                                            pendingScopes.push({ scope: fullScope, checkpoint: entry.checkpoint });
                                                         }
                                                     });
                                                 });
-                                                if (pendingScopes.length > 0) {
+                                                
+                                                // Deduplicate scopes based on id_toko because multiple dates might have pending opnames for the same scope
+                                                const uniquePendingScopes = Array.from(new Map(pendingScopes.map(s => [s.scope.id_toko, s])).values());
+                                                
+                                                if (uniquePendingScopes.length > 0) {
                                                     setUnifiedOpnameFlow({
-                                                        scopes: pendingScopes,
+                                                        scopes: uniquePendingScopes,
                                                         index: 0,
                                                         dayIndex: showTargetStModal.dayIndex,
-                                                        dateString: showTargetStModal.dateString,
+                                                        dateString: "", // empty so it doesn't filter by a specific date
                                                     });
                                                     setShowOpnameModal(true);
                                                 }
