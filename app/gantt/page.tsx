@@ -6301,11 +6301,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         const opnameForStatus = opnameKeyForStatus ? contractorOpnames.get(opnameKeyForStatus) : null;
                                                         if (activeCheckpointData?.workflow_version === 'contractor_first') {
                                                             const opnameStatus = String(opnameForStatus?.status || '').trim().toLowerCase();
-                                                            if (!opnameForStatus || opnameStatus === 'ditolak') {
+                                                            if (!opnameForStatus) {
                                                                 if (d.category.hideOnTerlambat) allowedStatuses.add('Progress');
                                                                 else allowedStatuses.add('Terlambat');
-                                                            } else if (opnameStatus === 'disetujui') {
+                                                                if (!d.category.hideOnProgress) allowedStatuses.add('Progress');
+                                                            } else {
                                                                 allowedStatuses.add('Selesai');
+                                                                if (!d.category.hideOnTerlambat) allowedStatuses.add('Terlambat');
+                                                                if (!d.category.hideOnProgress) allowedStatuses.add('Progress');
                                                             }
                                                         } else {
                                                             allowedStatuses.add('Selesai');
@@ -6320,7 +6323,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         const renderOpnameForm = () => {
                                                             if (isContractorFirstCheckpoint && !isContractorSubmit) return null;
                                                             const isRejectedContractorRevision = isContractorSubmit && opnameForStatus?.workflow_version === 'contractor_first' && String(opnameForStatus?.status || '').toLowerCase() === 'ditolak';
-                                                            if ((!isContractorSubmit && currentStatus !== 'Selesai') || (!isRejectedContractorRevision && isWorkItemBlockedByOpname(item, key))) return null;
+                                                            
+                                                            if (isRejectedContractorRevision) return null;
+
+                                                            if ((!isContractorSubmit && currentStatus !== 'Selesai') || isWorkItemBlockedByOpname(item, key)) return null;
                                                             const rItem = findWorkItemForMemo(d.category.name, item.jenis_pekerjaan, item);
                                                             if (!rItem) return null;
 
