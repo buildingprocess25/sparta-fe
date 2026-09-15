@@ -660,6 +660,15 @@ function GanttBoard() {
     const canWriteGanttCommunication = !!activeNotesGanttId && !!user;
 
     const loadSupervisionWorkspace = useCallback(async (nomorUlok: string) => {
+        let actualUlok = nomorUlok;
+        let takeoverSequence: number | undefined;
+
+        if (nomorUlok.includes('___ts___')) {
+            const parts = nomorUlok.split('___ts___');
+            actualUlok = parts[0];
+            takeoverSequence = Number(parts[1]);
+        }
+
         if (!nomorUlok) return;
         const requestSeq = workspaceLoadSeqRef.current + 1;
         workspaceLoadSeqRef.current = requestSeq;
@@ -677,7 +686,7 @@ function GanttBoard() {
         setSpkInfo(null);
         setSelectedUlok(normalizedUlok);
         try {
-            const response = await fetchSupervisionWorkspace(nomorUlok);
+            const response = await fetchSupervisionWorkspace(actualUlok, takeoverSequence);
             if (workspaceLoadSeqRef.current !== requestSeq) return;
             setSupervisionWorkspace(response.data);
             setSelectedUlok(normalizedUlok);
@@ -1945,7 +1954,12 @@ function GanttBoard() {
         const selectedUlokValue = supervisionWorkspace?.nomor_ulok || projectData?.ulokClean || selectedUlok;
         if (!selectedUlokValue) return null;
 
-        const normalizedUlok = formatUlokWithDash(selectedUlokValue);
+        let actualUlok = selectedUlokValue;
+        if (actualUlok.includes('___ts___')) {
+            actualUlok = actualUlok.split('___ts___')[0];
+        }
+
+        const normalizedUlok = formatUlokWithDash(actualUlok);
         const workspaceScopes = (supervisionWorkspace?.scopes || []).map(scope => ({
             id: Number(scope.id_toko),
             scopeName: String(scope.lingkup_pekerjaan || "").trim().toUpperCase(),
@@ -1996,8 +2010,9 @@ function GanttBoard() {
         const uniqueMap = new Map<string, any>();
         filteredTokoList.forEach((toko) => {
             const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
+            const ts = toko.takeover_sequence || 0;
             const val = appMode === 'pic'
-                ? `ulok-${encodeURIComponent(toko.nomor_ulok)}`
+                ? `ulok-${encodeURIComponent(toko.nomor_ulok)}___ts___${ts}`
                 : (() => {
                     const tID = toko.id_toko || toko.id;
                     const ganttMatch = availableProjects.find((project: any) => {
@@ -2021,14 +2036,16 @@ function GanttBoard() {
 
         return Array.from(uniqueMap.values()).map(({ toko, val, scopes }) => {
             const nomorUlok = formatUlokWithDash(toko.nomor_ulok);
-            const ulokScopes = allTokoList.filter(t => formatUlokWithDash(t.nomor_ulok) === nomorUlok);
+            const ts = toko.takeover_sequence || 0;
+            const ulokScopes = allTokoList.filter(t => formatUlokWithDash(t.nomor_ulok) === nomorUlok && (t.takeover_sequence || 0) === ts);
             const spkScopes = ulokScopes.filter(t => spkTokoIds.has(Number(t.id_toko || t.id)));
             const spkCount = spkScopes.length;
             const totalScopes = Math.max(ulokScopes.length, 1);
             const scopeLabel = (scopes || [])
                 .sort((a: string, b: string) => a === 'SIPIL' ? -1 : b === 'SIPIL' ? 1 : a.localeCompare(b))
                 .join(' + ') || toko.lingkup_pekerjaan;
-            const identity = [nomorUlok, toko.nama_toko, toko.cabang, scopeLabel].filter(Boolean).join(' - ');
+            const takeoverLabel = ts > 0 ? ` (Takeover)` : '';
+            const identity = [nomorUlok, toko.nama_toko, toko.cabang, scopeLabel + takeoverLabel].filter(Boolean).join(' - ');
 
             if (spkCount > 0 && spkCount === totalScopes) {
                 return {

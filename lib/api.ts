@@ -2106,12 +2106,19 @@ export type SupervisionWorkspace = {
 
 export const fetchSupervisionWorkspace = async (
     nomorUlok: string,
-    options?: ApiRequestOptions
-): Promise<{ status: string; data: SupervisionWorkspace }> =>
-    safeFetchJSON(
-        `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`,
-        options
-    );
+    ts?: number
+): Promise<{ status: string; data: SupervisionWorkspace }> => {
+    let url = `${API_URL.replace(/\/$/, "")}/api/gantt/supervision-workspace/${encodeURIComponent(nomorUlok)}`;
+    if (ts !== undefined) {
+        url += `?ts=${ts}`;
+    }
+    const res = await apiFetch(url);
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Gagal (${res.status}): ${err}`);
+    }
+    return res.json();
+};
 
 export type GanttNoteItem = {
     id:           number;

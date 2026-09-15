@@ -1787,7 +1787,7 @@ function RABPageContent() {
                         <SelectContent>
                           {tokoListOptions.map((toko, i) => (
                             <SelectItem key={i} value={toko.nomor_ulok}>
-                              {toko.nomor_ulok} - {toko.nama_toko} ({toko.lingkup_pekerjaan})
+                              {toko.nomor_ulok} - {toko.nama_toko}
                             </SelectItem>
                           ))}
                         </SelectContent>
