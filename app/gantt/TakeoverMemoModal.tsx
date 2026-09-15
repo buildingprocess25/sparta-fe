@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Calendar } from 'lucide-react';
+import { apiFetch, fetchPengawasanList, API_URL } from '@/lib/api';
 
 export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
     const [tanggalTakeover, setTanggalTakeover] = useState('');
@@ -23,13 +24,13 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                 if (!scope.gantt_id) continue;
                 
                 try {
-                    const res = await fetch(`/api/pengawasan?id_gantt=${scope.gantt_id}`);
-                    const data = await res.json();
-                    if (data.status === 'success' && data.data) {
-                        data.data.forEach((item: any) => {
+                    const res = await fetchPengawasanList({ id_gantt: scope.gantt_id });
+                    if (res.status === 'success' && res.data) {
+                        res.data.forEach((item: any) => {
                             allItems.push({
                                 id_pengawasan: item.id,
                                 kategori: item.kategori_pekerjaan,
+                                jenis: item.jenis_pekerjaan,
                                 lingkup: scope.lingkup_pekerjaan,
                                 oldStatus: item.status,
                                 status: item.status === 'Selesai' ? 'Selesai' : ''
@@ -76,7 +77,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                 }))
             };
 
-            const res = await fetch('/api/gantt/takeover-inspection', {
+            const res = await apiFetch(`${API_URL.replace(/\/$/, '')}/api/gantt/takeover-inspection`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -127,7 +128,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                 {items.map((item, idx) => (
                                     <div key={idx} className="p-3 border rounded-lg bg-slate-50/50 shadow-sm flex flex-col gap-2">
                                         <div className="flex justify-between items-start">
-                                            <span className="font-semibold text-sm leading-tight text-slate-800">{item.kategori}</span>
+                                            <span className="font-semibold text-sm leading-tight text-slate-800">{item.jenis || item.kategori}</span>
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${String(item.lingkup).toUpperCase() === 'SIPIL' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                                                 {String(item.lingkup).toUpperCase()}
                                             </span>
