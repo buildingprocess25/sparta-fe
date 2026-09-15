@@ -1675,8 +1675,19 @@ export const fetchTokoDetail = async (id: number) => {
 };
 
 /** Ambil daftar seluruh Toko. */
-export const fetchTokoList = async (): Promise<{ status: string; data: RABDetailToko[] }> => {
-    return safeFetchJSON(`${API_URL.replace(/\/$/, "")}/api/toko`);
+export const fetchTokoList = async (params?: any): Promise<{ status: string; data: RABDetailToko[] }> => {
+    let url = `${API_URL.replace(/\/$/, "")}/api/toko`;
+    if (params) {
+        const queryParams = new URLSearchParams();
+        Object.keys(params).forEach(key => {
+            if (params[key] !== undefined && params[key] !== null) {
+                queryParams.append(key, String(params[key]));
+            }
+        });
+        const qString = queryParams.toString();
+        if (qString) url += `?${qString}`;
+    }
+    return safeFetchJSON(url);
 };
 
 /** URL endpoint untuk download logo RAB. */
@@ -1949,6 +1960,7 @@ export type GanttDetailToko = {
     cabang:           string;
     alamat:           string;
     nama_kontraktor:  string;
+    takeover_sequence: number;
     pic_proyek?:      string | null;
     pic_bersama?:     string | null;
 };

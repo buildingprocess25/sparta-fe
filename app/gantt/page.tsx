@@ -5293,13 +5293,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             Selesai
                                                                                         </button>
 
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Tidak Dikerjakan')}
-                                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Tidak Dikerjakan' ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                        >
-                                                                                            Tidak Dikerjakan
-                                                                                        </button>
+                                                                                        {(ganttData?.toko?.takeover_sequence ?? 0) > 0 && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Tidak Dikerjakan')}
+                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Tidak Dikerjakan' ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                            >
+                                                                                                Tidak Dikerjakan
+                                                                                            </button>
+                                                                                        )}
 
                                                                                         {!d.category.hideOnTerlambat && (
                                                                                             <button
