@@ -23,23 +23,17 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                 if (!scope.gantt_id) continue;
                 
                 try {
-                    const res = await fetch(`/api/gantt/${scope.gantt_id}`);
+                    const res = await fetch(`/api/pengawasan?id_gantt=${scope.gantt_id}`);
                     const data = await res.json();
-                    if (data.status === 'success' && data.data?.pengawasan_history) {
-                        data.data.pengawasan_history.forEach((hist: any) => {
-                            if (hist.pengawasan) {
-                                hist.pengawasan.forEach((item: any) => {
-                                    // Only include items that are not 'Selesai' (maybe they were already Selesai, but we want to confirm them?)
-                                    // Actually, it's safer to include ALL items so the user can see everything and decide Selesai or Tidak Dikerjakan.
-                                    allItems.push({
-                                        id_pengawasan: item.id,
-                                        kategori: item.kategori_pekerjaan,
-                                        lingkup: scope.lingkup_pekerjaan,
-                                        oldStatus: item.status,
-                                        status: item.status === 'Selesai' ? 'Selesai' : ''
-                                    });
-                                });
-                            }
+                    if (data.status === 'success' && data.data) {
+                        data.data.forEach((item: any) => {
+                            allItems.push({
+                                id_pengawasan: item.id,
+                                kategori: item.kategori_pekerjaan,
+                                lingkup: scope.lingkup_pekerjaan,
+                                oldStatus: item.status,
+                                status: item.status === 'Selesai' ? 'Selesai' : ''
+                            });
                         });
                     }
                 } catch (e) {
