@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, MinusCircle } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, ClipboardList, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, MinusCircle, ArrowRight, CornerDownRight, CornerRightDown } from 'lucide-react';
+import { TakeoverMemoModal } from './TakeoverMemoModal';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -588,10 +589,12 @@ function GanttBoard() {
 
     const [rabItems, setRabItems] = useState<any[]>([]);
     const [showMemoModal, setShowMemoModal] = useState(false);
+    const [showTakeoverMemoModal, setShowTakeoverMemoModal] = useState(false);
     const [showOpnameModal, setShowOpnameModal] = useState(false);
     const [showTargetStModal, setShowTargetStModal] = useState<{ dateString: string; dayIndex: number } | null>(null);
     const [activeHeaderClick, setActiveHeaderClick] = useState<{ dayIndex: number, dateString: string, label: string } | null>(null);
     const [supervisionWorkspace, setSupervisionWorkspace] = useState<SupervisionWorkspace | null>(null);
+    const currentTs = supervisionWorkspace?.scopes?.[0]?.takeover_sequence || projectData?.takeover_sequence || projectData?.takeoverSequence || 0;
     const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
     const [isGeneratingHandover, setIsGeneratingHandover] = useState(false);
     const [generatingScopes, setGeneratingScopes] = useState<Record<number, boolean>>({});
@@ -1968,8 +1971,6 @@ function GanttBoard() {
             hasSpk: Boolean(scope.gantt_id),
         }));
         
-        const currentTs = supervisionWorkspace?.scopes?.[0]?.takeover_sequence || projectData?.takeover_sequence || 0;
-
         const listScopes = allTokoList
             .filter(toko => formatUlokWithDash(toko.nomor_ulok) === normalizedUlok && (toko.takeover_sequence || 0) === currentTs)
             .map(toko => ({
@@ -2670,6 +2671,16 @@ function GanttBoard() {
                                             <Button type="button" variant="outline" onClick={() => setShowHandoverPanel(value => !value)} className="h-8 gap-1.5 rounded border-slate-300 bg-white px-3 text-xs font-bold">
                                                 {showHandoverPanel ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
                                                 {showHandoverPanel ? 'Sembunyikan Panel' : 'Tampilkan Panel'}
+                                            </Button>
+                                        )}
+                                        {!isPengawasanReadOnly && currentTs === 0 && (
+                                            <Button
+                                                type="button"
+                                                onClick={() => setShowTakeoverMemoModal(true)}
+                                                className="h-8 gap-1.5 rounded border border-blue-700 bg-blue-600 hover:bg-blue-700 px-3 text-xs font-bold text-white shadow-sm transition-all hover:scale-105"
+                                            >
+                                                <ClipboardList className="h-3.5 w-3.5" />
+                                                Pre-inspeksi Takeover
                                             </Button>
                                         )}
                                     </div>
@@ -3429,6 +3440,17 @@ function GanttBoard() {
                 </div>
             )}
 
+            {showTakeoverMemoModal && (
+                <TakeoverMemoModal
+                    workspace={supervisionWorkspace}
+                    onClose={() => setShowTakeoverMemoModal(false)}
+                    onSuccess={() => {
+                        setShowTakeoverMemoModal(false);
+                        window.location.reload();
+                    }}
+                />
+            )}
+
             {/* MODAL 2: Memo Pengawasan Detail */}
             {showMemoModal && (
                 <MemoPengawasanModal
@@ -3450,6 +3472,7 @@ function GanttBoard() {
                     draft={activeMemoGanttId && activeHeaderClick ? unifiedMemoDrafts[`${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`] : undefined}
                     missingInOtherScopes={missingInOtherScopes}
                     targetStDate={targetStInfo?.date ? formatDateForPengawasan(targetStInfo.date) : null}
+                    takeoverSequence={currentTs}
                     onDraftChange={(draft: any) => {
                         if (!activeMemoGanttId || !activeHeaderClick) return;
                         const key = `${activeMemoGanttId}|${formatPengawasanDateKey(activeHeaderClick.dateString)}`;
@@ -3624,7 +3647,7 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 }
 
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
-function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate }: any) {
+function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, takeoverSequence }: any) {
     const { showAlert } = useGlobalAlert();
     const router = useRouter();
     const { user } = useSession();
@@ -5325,15 +5348,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             Selesai
                                                                                         </button>
 
-                                                                                        {(projectData?.takeoverSequence ?? 0) > 0 && (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Tidak Dikerjakan')}
-                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Tidak Dikerjakan' ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                            >
-                                                                                                Tidak Dikerjakan
-                                                                                            </button>
-                                                                                        )}
+                                                                                        
 
                                                                                         {!d.category.hideOnTerlambat && (
                                                                                             <button

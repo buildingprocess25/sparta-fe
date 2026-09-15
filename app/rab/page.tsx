@@ -1789,7 +1789,7 @@ function RABPageContent() {
                           <SelectValue placeholder={isLoadingToko ? "Memuat data ulok..." : "Pilih Ulok dari daftar"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {tokoListOptions.map((toko, i) => (
+                          {tokoListOptions.filter(t => t.has_takeover_inspection).map((toko, i) => (
                             <SelectItem key={i} value={toko.nomor_ulok}>
                               {toko.nomor_ulok} - {toko.nama_toko}
                             </SelectItem>
