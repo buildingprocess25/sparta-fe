@@ -5768,12 +5768,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         const opname = opnameItemKey ? contractorOpnames.get(opnameItemKey) : null;
                         if (activeCheckpointData?.workflow_version === 'contractor_first') {
                             const opnameStatus = String(opname?.status || '').toLowerCase();
+                            const revisionNo = Number(opname?.revision_no || 1);
+                            
+                            // Hanya blokir jika ini adalah pengajuan pertama (belum ada opname sama sekali atau masih pending revisi 1)
                             if (!opname && input.status === 'Selesai') {
-                                validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum diisi kontraktor.`);
+                                validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum diisi kontraktor. (Wajib pada pengajuan pertama)`);
                                 continue;
                             }
-                            if (opnameStatus === 'pending') {
-                                validationErrors.push(`Opname untuk "${item.jenis_pekerjaan}" belum di-review (Setuju/Tolak).`);
+                            if (opnameStatus === 'pending' && revisionNo === 1) {
+                                validationErrors.push(`Opname pengajuan pertama untuk "${item.jenis_pekerjaan}" belum di-review (Setuju/Tolak).`);
                                 continue;
                             }
                         }
