@@ -70,6 +70,7 @@ interface NormalizedDoc {
     id: number;
     tipe: DokumenKategori;
     nomor_ulok: string;
+    takeover_sequence?: number;
     nama_toko: string;
     cabang: string;
     proyek: string;
@@ -953,6 +954,7 @@ const normalizeRABDocs = (items: RABListItem[]): NormalizedDoc[] => {
         id: r.id,
         tipe: 'RAB' as DokumenKategori,
         nomor_ulok: r.nomor_ulok ?? r.toko?.nomor_ulok ?? '-',
+        takeover_sequence: Number((r as any).takeover_sequence || (r as any).toko?.takeover_sequence || (r as any).toko_takeover_sequence || 0),
         nama_toko: r.nama_toko ?? r.toko?.nama_toko ?? '-',
         cabang: r.cabang ?? r.toko?.cabang ?? '-',
         proyek: r.proyek ?? r.toko?.proyek ?? '-',
@@ -974,6 +976,7 @@ const normalizeSPKDocs = (items: SPKListItem[]): NormalizedDoc[] =>
             id: s.id,
             tipe: 'SPK' as DokumenKategori,
             nomor_ulok: s.nomor_ulok,
+            takeover_sequence: Number((s as any).takeover_sequence || raw.toko?.takeover_sequence || raw.toko_takeover_sequence || 0),
             nama_toko: raw.toko?.nama_toko ?? raw.nama_toko ?? '-',
             cabang: raw.toko?.cabang ?? raw.cabang ?? '-',
             proyek: s.proyek ?? '-',
@@ -1025,6 +1028,7 @@ const normalizeOpnameDocs = (items: any[], tipe: 'OPNAME' | 'OPNAME_FINAL'): Nor
         id: o.id,
         tipe: tipe as DokumenKategori,
         nomor_ulok: o.nomor_ulok ?? o.toko?.nomor_ulok ?? '-',
+        takeover_sequence: Number((o as any).takeover_sequence || (o as any).toko?.takeover_sequence || (o as any).toko_takeover_sequence || 0),
         nama_toko: o.nama_toko ?? o.toko?.nama_toko ?? '-',
         cabang: o.cabang ?? o.toko?.cabang ?? '-',
         proyek: o.proyek ?? o.toko?.proyek ?? '-',
@@ -1082,6 +1086,7 @@ const normalizePengawasanDocs = (items: any[], ganttMap?: Map<number, any>): Nor
             id: id_pengawasan_gantt,
             tipe: 'PENGAWASAN' as DokumenKategori,
             nomor_ulok: g?.nomor_ulok ?? first.nomor_ulok ?? toko.nomor_ulok ?? '-',
+            takeover_sequence: Number(g?.takeover_sequence || first.takeover_sequence || toko?.takeover_sequence || 0),
             nama_toko: g?.nama_toko ?? first.nama_toko ?? toko.nama_toko ?? '-',
             cabang: g?.cabang ?? first.cabang ?? toko.cabang ?? '-',
             proyek: g?.proyek ?? first.proyek ?? toko.proyek ?? '-',
@@ -3202,7 +3207,12 @@ export default function DaftarDokumenPage() {
                                                             </div>
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span className="font-bold text-slate-800 text-sm">{doc.nomor_ulok}</span>
+                                                                    <span className="font-bold text-slate-800 text-sm">
+                          {doc.nomor_ulok}
+                          {!!doc.takeover_sequence && doc.takeover_sequence > 0 && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-orange-100 text-orange-700 uppercase tracking-wider">Takeover</span>
+                          )}
+                        </span>
                                                                     {selectedKategori !== 'DOKUMENTASI_BANGUNAN' && (
                                                                         <Badge className={`${getStatusBadgeClass(doc.status)} text-xs font-medium border px-2 py-0`}>
                                                                             {getStatusLabel(doc.status)}

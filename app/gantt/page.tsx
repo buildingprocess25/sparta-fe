@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, MinusCircle } from 'lucide-react';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -4443,6 +4443,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             for (const item of cat.items) {
                 const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
+        const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
                 const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
                 
                 if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
@@ -4525,14 +4526,15 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     for (const item of cat.items) {
                         const key = `${cat.category.name.toUpperCase()}|${item.jenis_pekerjaan.toUpperCase()}`;
                         const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
+                const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
                         const needsOpnameFill = isAlreadySelesai && !isWorkItemBlockedByOpname(item, key);
                         
                         if (needsOpnameFill && !isOpnameTouched(memoInputs[key])) continue;
                         
                         
                         
-                        // Jika sudah selesai dan BUKAN butuh opname, lewati (tidak bisa diedit)
-                        if (isAlreadySelesai && !needsOpnameFill) continue;
+                        // Jika sudah selesai/tidak dikerjakan dan BUKAN butuh opname, lewati (tidak bisa diedit)
+                        if (isAlreadyTerminal && !needsOpnameFill) continue;
 
                         // Jika sudah disimpan hari ini dan BUKAN butuh opname, lewati (tidak bisa diedit lagi hari ini)
                         const isSavedOnCurrentDate = !!(memoInputs[key] as any)?.isSaved && latestIdMapState.has(key);
@@ -4615,6 +4617,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const effectiveStatus = val.status || existingStatus;
                 if (!effectiveStatus) return false;
                 const isAlreadySelesai = latestStatusMapState.get(key) === 'Selesai';
+            const isAlreadyTerminal = ['Selesai', 'Tidak Dikerjakan'].includes(latestStatusMapState.get(key) as string);
                 const pipeIdx = key.indexOf('|');
                 const itemForKey = pipeIdx === -1 ? null : findMemoItemForSubmit(key.substring(0, pipeIdx), key.substring(pipeIdx + 1));
                 const needsOpnameFill = isAlreadySelesai && (itemForKey ? !isWorkItemBlockedByOpname(itemForKey, key) : !blockedOpnameItemKeys.has(key));
@@ -4672,8 +4675,8 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const effectiveStatus = val.status || existingStatus;
 
                 // [PERBAIKAN 1]: Mengubah status menjadi lowercase utuh agar lolos validasi strict enum backend
-                const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase() : '';
-                const validStatuses = ['progress', 'selesai', 'terlambat'];
+                const statusLower = typeof effectiveStatus === 'string' ? effectiveStatus.toLowerCase().replace(/\s+/g, '_') : '';
+                const validStatuses = ['progress', 'selesai', 'terlambat', 'tidak_dikerjakan'];
                 if (!validStatuses.includes(statusLower)) return; // skip jika status tidak valid
                 const statusSafe = statusLower;
                 const lateDaysSafe = Number(val.lateDays) || 0;
@@ -5214,11 +5217,11 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                     )}
                                                                 </td>
                                                                 <td className="p-4 align-middle w-2/3">
-                                                                    {latestStatusKey === 'Selesai' ? (
+                                                                    {['Selesai', 'Tidak Dikerjakan'].includes(latestStatusKey as string) ? (
                                                                         <div className="flex flex-col gap-2">
-                                                                            <div className="flex items-center justify-center p-2.5 rounded-lg bg-green-50 border border-green-200/60 shadow-sm w-full">
-                                                                                <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                                                                                <span className="font-bold text-green-700 text-sm">Telah Selesai</span>
+                                                                            <div className={`flex items-center justify-center p-2.5 rounded-lg border shadow-sm w-full ${latestStatusKey === 'Selesai' ? 'bg-green-50 border-green-200/60' : 'bg-slate-50 border-slate-200/60'}`}>
+                                                                                {latestStatusKey === 'Selesai' ? <CheckCircle className="w-5 h-5 text-green-500 mr-2" /> : <MinusCircle className="w-5 h-5 text-slate-500 mr-2" />}
+                                                                                <span className={`font-bold text-sm ${latestStatusKey === 'Selesai' ? 'text-green-700' : 'text-slate-700'}`}>{latestStatusKey === 'Selesai' ? 'Telah Selesai' : 'Tidak Dikerjakan'}</span>
                                                                             </div>
                                                                             {!isReadOnly && memoInputs.hasOwnProperty(key) && !(memoInputs[key] as any)?.dokumentasiUrl && (
                                                                                 <div className="flex flex-col gap-2 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in">
@@ -5288,6 +5291,14 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Selesai' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                                                                                         >
                                                                                             Selesai
+                                                                                        </button>
+
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Tidak Dikerjakan')}
+                                                                                            className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Tidak Dikerjakan' ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                        >
+                                                                                            Tidak Dikerjakan
                                                                                         </button>
 
                                                                                         {!d.category.hideOnTerlambat && (

@@ -454,7 +454,7 @@ function RABPageContent() {
 
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
-    namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false,
+    namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: false, isTakeover: false,
     proyek: 'Reguler', alamat: '', cabang: '', lingkupPekerjaan: '', kategoriLokasi: '', durasiPekerjaan: '',
     luasAreaParkir: '', luasAreaSales: '', luasGudang: '', luasBangunan: '', luasAreaTerbuka: '',
     logo: '', // Base64 logo string
@@ -1392,6 +1392,7 @@ function RABPageContent() {
       no_polis: formData.noPolis,
       berlaku_polis: formData.berlakuPolis,
       is_revisi: String(isRevisionSubmit),
+      is_takeover: String(formData.isTakeover),
     };
 
     if (hasProjectPlanningRequest) {
@@ -1675,7 +1676,10 @@ function RABPageContent() {
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2 mb-2">
                     <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
-                    <Label htmlFor="isRenovasi" className="font-normal cursor-pointer">Proyek Renovasi (Format Baru)</Label>
+                    <Label htmlFor="isRenovasi" className="font-normal cursor-pointer mr-4">Proyek Renovasi (Format Baru)</Label>
+                    
+                    <Checkbox id="isTakeover" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isTakeover} onCheckedChange={(c) => setFormData(prev => ({...prev, isTakeover: !!c}))}/>
+                    <Label htmlFor="isTakeover" className="font-normal cursor-pointer font-medium text-orange-600">Takeover (Pergantian Kontraktor)</Label>
                   </div>
                   <div className="flex gap-2 items-center">
                     <Input name="lokasiCabang" placeholder="Kode" className="w-[30%] bg-slate-100 text-slate-500 font-bold cursor-not-allowed border-slate-200" value={formData.lokasiCabang} readOnly tabIndex={-1} />
