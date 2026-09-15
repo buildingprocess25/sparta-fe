@@ -1178,6 +1178,7 @@ export type RABDetailToko = {
     cabang:           string;
     alamat:           string;
     nama_kontraktor:  string;
+    takeover_sequence?: number;
 };
 
 export type RABDetailData = {
