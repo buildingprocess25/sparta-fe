@@ -1015,6 +1015,7 @@ function GanttBoard() {
                 kontraktor: toko.nama_kontraktor || "-",
                 duration: rDuration,
                 startDate: new Date().toISOString().split('T')[0],
+                takeoverSequence: toko.takeover_sequence || 0,
             });
 
             const uniqueCats = new Set<string>();
@@ -1127,6 +1128,7 @@ function GanttBoard() {
                     // Pertahankan pic dari data toko, jangan hapus jika sudah ada dari scope lain
                     pic: toko.pic_proyek || toko.pic_bersama || prev?.pic || "Belum ditentukan",
                     pic_bersama: toko.pic_bersama || toko.pic_proyek || prev?.pic_bersama || "Belum ditentukan",
+                    takeoverSequence: toko.takeover_sequence || 0,
                 }));
 
                 if (!validRabId) {
@@ -1259,6 +1261,7 @@ function GanttBoard() {
                 // Preserve pic dari workspace/scope sebelumnya jika toko ini tidak punya pic_proyek sendiri
                 pic: toko.pic_proyek || toko.pic_bersama || prev?.pic || "Belum ditentukan",
                 pic_bersama: toko.pic_bersama || toko.pic_proyek || prev?.pic_bersama || "Belum ditentukan",
+                takeoverSequence: toko.takeover_sequence || 0,
             }));
 
             const pDates = (pengawasan || [])
@@ -5293,7 +5296,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             Selesai
                                                                                         </button>
 
-                                                                                        {(ganttData?.toko?.takeover_sequence ?? 0) > 0 && (
+                                                                                        {(projectData?.takeoverSequence ?? 0) > 0 && (
                                                                                             <button
                                                                                                 type="button"
                                                                                                 onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Tidak Dikerjakan')}
