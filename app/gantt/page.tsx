@@ -6611,7 +6611,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                     ) : null}
                                                                                 </>
                                                                             ) : isContractorSubmit ? (
-                                                                                opnameForStatus && opnameForStatus.status !== 'ditolak' ? (
+                                                                                opnameForStatus && opnameForStatus.status === 'ditolak' && opnameForStatus.workflow_version === 'contractor_first' ? (
+                                                                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center gap-2 text-center">
+                                                                                        <AlertCircle className="w-4 h-4 text-red-600" />
+                                                                                        <span className="text-xs font-semibold text-red-600">Ditolak oleh Support. Silakan ajukan ulang pada menu Opname.</span>
+                                                                                    </div>
+                                                                                ) : opnameForStatus && opnameForStatus.status !== 'ditolak' ? (
                                                                                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
                                                                                         <span className="text-xs font-semibold text-slate-600">Opname sudah diajukan</span>
                                                                                     </div>
