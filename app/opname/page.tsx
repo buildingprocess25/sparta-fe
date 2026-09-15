@@ -693,7 +693,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         const approved = latestItems.filter((item) => isApprovedOpnameStatus(item.status)).length;
         const pending = latestItems.filter((item) => isPendingOpnameStatus(item.status)).length;
         const rejected = latestItems.filter((item) => isRejectedOpnameStatus(item.status)).length;
-        return { total: rabItems.length, approved, pending, rejected };
+        const not_submitted = rabItems.length - (approved + pending + rejected);
+        return { total: rabItems.length, not_submitted, approved, pending, rejected };
     }, [latestContractorFirstOpnameByItemKey, rabItems.length]);
 
     const contractorFirstAllApproved = useMemo(() => {
@@ -1299,10 +1300,14 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                 )}
 
                                 {supportFlowView === 'contractor_first' && (
-                                    <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+                                    <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
                                         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                                             <p className="text-[11px] font-black uppercase text-slate-400">Total Item</p>
                                             <p className="mt-1 text-2xl font-black text-slate-800">{contractorFirstReviewStats.total}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+                                            <p className="text-[11px] font-black uppercase text-blue-600">Belum Diajukan</p>
+                                            <p className="mt-1 text-2xl font-black text-blue-700">{contractorFirstReviewStats.not_submitted}</p>
                                         </div>
                                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
                                             <p className="text-[11px] font-black uppercase text-amber-600">Belum Review</p>
