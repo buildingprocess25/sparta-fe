@@ -860,24 +860,59 @@ function RABPageContent() {
           return;
         }
 
-        const candidates = exactMatches.filter((rab: any) => extractRabListScope(rab) === getOppositeRabScope(currentScope));
-        const source: any = candidates[0];
-        if (!source?.id) return;
+        let sourceIdToUse: number | null = null;
+        let detailData: any = null;
+        let isTakeoverSecondScope = false;
 
-        const detailResult = await fetchRABDetail(Number(source.id));
-        if (cancelled) return;
+        if (formData.isTakeover) {
+          const oppositeRabs = exactMatches.filter((rab: any) => extractRabListScope(rab) === getOppositeRabScope(currentScope));
+          const sameRabs = exactMatches.filter((rab: any) => extractRabListScope(rab) === currentScope);
 
-        const detail = detailResult.data;
-        const tokoRef = detail.toko || {};
-        const rabRef = detail.rab || {};
-        const sourceUlok = tokoRef.nomor_ulok || source.nomor_ulok || candidateUloks[0];
+          if (oppositeRabs.length > 0) {
+            const oppDetail = await fetchRABDetail(Number(oppositeRabs[0].id));
+            if ((oppDetail.data?.toko?.takeover_sequence || 0) > 0) {
+              // Teman lintas lingkup dari takeover yang sama sudah ada!
+              sourceIdToUse = Number(oppositeRabs[0].id);
+              detailData = oppDetail.data;
+              isTakeoverSecondScope = true;
+            }
+          }
+
+          if (!sourceIdToUse) {
+            // Jatuh kembali ke RAB lama (prioritaskan lingkup yang sama)
+            if (sameRabs.length > 0) {
+              sourceIdToUse = Number(sameRabs[0].id);
+            } else if (oppositeRabs.length > 0) {
+              sourceIdToUse = Number(oppositeRabs[0].id);
+            } else if (exactMatches.length > 0) {
+              sourceIdToUse = Number(exactMatches[0].id);
+            }
+          }
+        } else {
+          const oppositeRabs = exactMatches.filter((rab: any) => extractRabListScope(rab) === getOppositeRabScope(currentScope));
+          if (oppositeRabs.length > 0) sourceIdToUse = Number(oppositeRabs[0].id);
+        }
+
+        if (!sourceIdToUse) return;
+
+        if (!detailData) {
+          const detailResult = await fetchRABDetail(sourceIdToUse);
+          if (cancelled) return;
+          detailData = detailResult.data;
+        }
+
+        const tokoRef = detailData.toko || {};
+        const rabRef = detailData.rab || {};
+        const sourceUlok = tokoRef.nomor_ulok || candidateUloks[0];
         const sourceParts = String(sourceUlok).split('-');
-        const sourceProject = resolveProjectFromSource(tokoRef.proyek || source.proyek || source['Proyek'], sourceUlok);
-        const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan || source.lingkup_pekerjaan);
-        const targetScope = getOppositeRabScope(sourceScope) || currentScope;
-        const sourceCabang = normalizeBranchName(tokoRef.cabang || source.cabang || formData.cabang);
+        const sourceProject = resolveProjectFromSource(tokoRef.proyek, sourceUlok);
+        const sourceScope = normalizeRabScope(tokoRef.lingkup_pekerjaan);
+        const targetScope = (formData.isTakeover && !isTakeoverSecondScope) ? currentScope : (getOppositeRabScope(sourceScope) || currentScope);
+        const sourceCabang = normalizeBranchName(tokoRef.cabang || formData.cabang);
         const sourceAsuransi = rabRef.file_asuransi || '';
         const sourceLogo = rabRef.logo || '';
+
+        const shouldPrefillAll = !formData.isTakeover || isTakeoverSecondScope;
 
         setFormData(prev => ({
           ...prev,
@@ -888,30 +923,40 @@ function RABPageContent() {
           proyek: sourceProject.proyek,
           cabang: sourceCabang || prev.cabang,
           lingkupPekerjaan: targetScope,
-          namaToko: tokoRef.nama_toko || source.nama_toko || prev.namaToko,
+          namaToko: tokoRef.nama_toko || prev.namaToko,
           alamat: tokoRef.alamat || prev.alamat,
           kategoriLokasi: normalizeKategoriLokasi(rabRef.kategori_lokasi) || prev.kategoriLokasi,
-          durasiPekerjaan: String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, '') || prev.durasiPekerjaan,
-          luasAreaParkir: String(rabRef.luas_area_parkir || '') || prev.luasAreaParkir,
-          luasAreaSales: String(rabRef.luas_area_sales || '') || prev.luasAreaSales,
-          luasGudang: String(rabRef.luas_gudang || '') || prev.luasGudang,
-          luasBangunan: String(rabRef.luas_bangunan || '') || prev.luasBangunan,
-          luasAreaTerbuka: String(rabRef.luas_area_terbuka || '') || prev.luasAreaTerbuka,
-          noPolis: String(rabRef.no_polis || '') || prev.noPolis,
-          berlakuPolis: String(rabRef.berlaku_polis || '') || prev.berlakuPolis,
-          fileAsuransi: sourceAsuransi || prev.fileAsuransi,
-          logo: sourceLogo || prev.logo,
+          durasiPekerjaan: shouldPrefillAll ? (String(rabRef.durasi_pekerjaan || '').replace(/[^0-9]/g, '') || prev.durasiPekerjaan) : prev.durasiPekerjaan,
+          luasAreaParkir: shouldPrefillAll ? (String(rabRef.luas_area_parkir || '') || prev.luasAreaParkir) : prev.luasAreaParkir,
+          luasAreaSales: shouldPrefillAll ? (String(rabRef.luas_area_sales || '') || prev.luasAreaSales) : prev.luasAreaSales,
+          luasGudang: shouldPrefillAll ? (String(rabRef.luas_gudang || '') || prev.luasGudang) : prev.luasGudang,
+          luasBangunan: shouldPrefillAll ? (String(rabRef.luas_bangunan || '') || prev.luasBangunan) : prev.luasBangunan,
+          luasAreaTerbuka: shouldPrefillAll ? (String(rabRef.luas_area_terbuka || '') || prev.luasAreaTerbuka) : prev.luasAreaTerbuka,
+          noPolis: shouldPrefillAll ? (String(rabRef.no_polis || '') || prev.noPolis) : prev.noPolis,
+          berlakuPolis: shouldPrefillAll ? (String(rabRef.berlaku_polis || '') || prev.berlakuPolis) : prev.berlakuPolis,
+          fileAsuransi: shouldPrefillAll ? (sourceAsuransi || prev.fileAsuransi) : prev.fileAsuransi,
+          logo: shouldPrefillAll ? (sourceLogo || prev.logo) : prev.logo,
         }));
-        setCrossScopeProjectLocked(true);
+        
+        if (shouldPrefillAll) {
+          setCrossScopeProjectLocked(true);
+          if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
+          if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
+        }
 
-        if (sourceLogo && !logoPreview) setLogoPreview(sourceLogo);
-        if (sourceAsuransi && !asuransiFileName && !asuransiFile) setAsuransiFileName(`File Asuransi (prefill ${sourceScope})`);
-
-        showAlert(
-          "Data proyek otomatis terisi",
-          `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup otomatis diset ke ${targetScope} dan data proyek dikunci.`,
-          "info"
-        );
+        if (shouldPrefillAll) {
+          showAlert(
+            "Data proyek otomatis terisi",
+            `Header proyek diambil dari RAB ${sourceScope} untuk ULOK ${sourceUlok}. Lingkup otomatis diset ke ${targetScope} dan data proyek dikunci.`,
+            "info"
+          );
+        } else {
+          showAlert(
+            "Data Takeover otomatis terisi",
+            `Header proyek diambil dari RAB Takeover (${sourceScope}) untuk ULOK ${sourceUlok} sebelumnya. Data RAB telah diisi otomatis.`,
+            "info"
+          );
+        }
       } catch (err) {
         console.log("Prefill RAB lintas lingkup dilewati:", err);
       }
