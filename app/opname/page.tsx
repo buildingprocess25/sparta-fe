@@ -327,7 +327,19 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     const [isWorkflowIndexLoading, setIsWorkflowIndexLoading] = useState(false);
     const [autoSelectedTokoId, setAutoSelectedTokoId] = useState<string | null>(null);
     const [notificationTarget, setNotificationTarget] = useState<OpnameNotificationTarget | null>(null);
+    const [downloadingFotoId, setDownloadingFotoId] = useState<number | null>(null);
 
+    const handleDownloadFoto = async (opnameItemId: number) => {
+        setDownloadingFotoId(opnameItemId);
+        try {
+            await downloadOpnameFoto(opnameItemId);
+            showAlert({ message: 'Foto opname berhasil diunduh.', type: 'success' });
+        } catch (err: any) {
+            showAlert({ message: `Gagal mengunduh foto: ${err.message || 'Terjadi kesalahan.'}`, type: 'error' });
+        } finally {
+            setDownloadingFotoId(null);
+        }
+    };
     // Opname inputs: keyed by rab_item id
     const [opnameInputs, setOpnameInputs] = useState<Record<number, {
         volume_akhir: string;
@@ -1416,20 +1428,92 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                                 <div className="space-y-3">
                                                     {pendingRevisions.map(item => {
                                                         const sourceRef = item.rab_item || item.instruksi_lapangan_item;
+                                                        const satuan = sourceRef?.satuan || '-';
+                                                        const hargaMaterial = Number(sourceRef?.harga_material || 0);
+                                                        const hargaUpah = Number(sourceRef?.harga_upah || 0);
+                                                        const volRab = Number(sourceRef?.volume || 0);
                                                         return (
-                                                            <div key={item.id} className="p-4 bg-white border border-blue-100 rounded-lg shadow-sm flex flex-col md:flex-row gap-4 justify-between items-start">
-                                                                <div>
-                                                                    <div className="flex items-center gap-2 mb-1">
-                                                                        <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
-                                                                        <Badge className="bg-amber-100 text-amber-800 border-none">{Number(item.revision_no || 1) > 1 ? `Revisi ke-${item.revision_no}` : 'Pengajuan ulang'}</Badge>
+                                                            <div key={item.id} className="p-4 bg-white border border-blue-100 rounded-lg shadow-sm hover:bg-slate-50/50 transition-colors">
+                                                                <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
+                                                                    {/* Left: Info */}
+                                                                    <div className="flex-1 min-w-0 w-full">
+                                                                        <div className="flex flex-col gap-1 mb-2">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="font-bold text-slate-800 text-sm">{sourceRef?.jenis_pekerjaan || '-'}</span>
+                                                                                <Badge className="bg-amber-100 text-amber-800 border-none whitespace-nowrap">{Number(item.revision_no || 1) > 1 ? `Revisi ke-${item.revision_no}` : 'Pengajuan ulang'}</Badge>
+                                                                            </div>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 font-medium">Satuan : {satuan}</span>
+                                                                                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 font-medium">Material : {formatRp(hargaMaterial)}</span>
+                                                                                <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 font-medium">Upah : {formatRp(hargaUpah)}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-slate-200 text-xs rounded-lg border border-slate-200 overflow-hidden mt-3">
+                                                                            <div className="p-2.5 bg-white">
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol RAB</div>
+                                                                                <div className="font-semibold text-slate-700">{volRab} <span className="text-xs font-normal text-slate-400">{satuan}</span></div>
+                                                                            </div>
+                                                                            <div className="p-2.5 bg-white">
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Vol Akhir</div>
+                                                                                <div className="font-bold text-slate-800">{item.volume_akhir} <span className="text-xs font-normal text-slate-400">{satuan}</span></div>
+                                                                            </div>
+                                                                            <div className="p-2.5 bg-slate-50">
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Vol</div>
+                                                                                <div className={`font-bold ${item.selisih_volume > 0 ? 'text-blue-600' : (item.selisih_volume < 0 ? 'text-red-600' : 'text-slate-600')}`}>
+                                                                                    {item.selisih_volume > 0 ? '+' : ''}{item.selisih_volume}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="p-2.5 bg-white">
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total RAB</div>
+                                                                                <div className="font-semibold text-slate-700">{formatRp(Number(sourceRef?.total_harga) || (volRab * (hargaMaterial + hargaUpah)))}</div>
+                                                                            </div>
+                                                                            <div className="p-2.5 bg-white">
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Total Opname</div>
+                                                                                <div className="font-bold text-slate-800">
+                                                                                    {formatRp(Number(item.total_harga_opname) || (Number(item.volume_akhir) * (hargaMaterial + hargaUpah)))}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="p-2.5 bg-slate-50">
+                                                                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Selisih Biaya</div>
+                                                                                <div className={`font-bold ${item.total_selisih > 0 ? 'text-blue-600' : (item.total_selisih < 0 ? 'text-red-600' : 'text-slate-600')}`}>
+                                                                                    {item.total_selisih > 0 ? '+' : ''}{formatRp(item.total_selisih)}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex gap-4 mt-3 text-xs text-slate-500">
+                                                                            <span>Desain: <b className={item.desain === 'Sesuai' ? 'text-green-600' : 'text-red-600'}>{item.desain || '-'}</b></span>
+                                                                            <span>Kualitas: <b className={item.kualitas === 'Baik' ? 'text-green-600' : 'text-red-600'}>{item.kualitas || '-'}</b></span>
+                                                                            <span>Spesifikasi: <b className={item.spesifikasi === 'Sesuai' ? 'text-green-600' : 'text-red-600'}>{item.spesifikasi || '-'}</b></span>
+                                                                        </div>
+
+                                                                        {item.catatan && (
+                                                                            <div className="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 italic">
+                                                                                📝 {item.catatan}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {item.foto && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleDownloadFoto(item.id)}
+                                                                                disabled={downloadingFotoId === item.id}
+                                                                                className="inline-flex items-center gap-1 mt-3 text-xs text-blue-600 hover:text-blue-800 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                            >
+                                                                                {downloadingFotoId === item.id
+                                                                                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                    : <Camera className="w-3 h-3" />}
+                                                                                {downloadingFotoId === item.id ? 'Mengunduh...' : 'Lihat Foto'}
+                                                                                <ExternalLink className="w-3 h-3" />
+                                                                            </button>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="text-xs text-slate-600 space-y-1 mt-2">
-                                                                        <p><span className="font-semibold">Volume Akhir:</span> {item.volume_akhir}</p>
-                                                                        <p><span className="font-semibold">Desain/Kualitas/Spek:</span> {item.desain} / {item.kualitas} / {item.spesifikasi}</p>
-                                                                        {item.catatan && <p><span className="font-semibold">Catatan:</span> {item.catatan}</p>}
+                                                                    {/* Right: Actions */}
+                                                                    <div className="shrink-0 w-full md:w-auto mt-2 md:mt-0">
+                                                                        <SupportReReviewActions item={item} onReviewed={() => handleSelectRab(selectedRab?.id?.toString() || '')} />
                                                                     </div>
                                                                 </div>
-                                                                <SupportReReviewActions item={item} onReviewed={() => handleSelectRab(selectedRab?.id?.toString() || '')} />
                                                             </div>
                                                         );
                                                     })}
