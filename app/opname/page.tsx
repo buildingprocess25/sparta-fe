@@ -240,8 +240,7 @@ const getContractorFirstRejectNote = (item: OpnameItem) =>
 
 const isContractorMenuVisibleOpname = (item: OpnameItem) => {
     if (isLegacyOpname(item)) return true;
-    const targetStatus = String(item.target_pengawasan_status || '').trim().toLowerCase();
-    return isRejectedOpnameStatus(item.status) && targetStatus === 'selesai';
+    return isRejectedOpnameStatus(item.status);
 };
 const withFallbackTimeout = async <T,>(promise: Promise<T>, fallback: T, timeoutMs = 15000): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -510,15 +509,7 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
                 const contractorFirstItemsForSelection = existingData.filter((item) => isContractorFirstOpname(item));
                 const latestContractorFirstForSelection = Array.from(buildLatestOpnameMap(contractorFirstItemsForSelection).values());
-                const hasContractorFirstMenuReview = contractorFirstItemsForSelection.some((item) => {
-                    const targetStatus = String((item as any).target_pengawasan_status || '').trim().toLowerCase();
-                    return isPendingOpnameStatus(item.status)
-                        && Number(item.revision_no || 0) > 0
-                        && targetStatus === 'selesai';
-                });
-                const contractorFirstReadyForFinalisasi = latestContractorFirstForSelection.length > 0
-                    && latestContractorFirstForSelection.every((item) => isApprovedOpnameStatus(item.status));
-                const inferredWorkflow: WorkflowVersion = hasContractorFirstMenuReview || contractorFirstReadyForFinalisasi
+                const inferredWorkflow: WorkflowVersion = contractorFirstItemsForSelection.length > 0
                     ? 'contractor_first'
                     : 'legacy';
                 workflowForSelected = inferredWorkflow;
@@ -690,10 +681,16 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         const approved = latestItems.filter((item) => isApprovedOpnameStatus(item.status)).length;
         const pending = latestItems.filter((item) => isPendingOpnameStatus(item.status)).length;
         const rejected = latestItems.filter((item) => isRejectedOpnameStatus(item.status)).length;
-        return { total: latestItems.length, approved, pending, rejected };
-    }, [latestContractorFirstOpnameByItemKey]);
+        return { total: rabItems.length, approved, pending, rejected };
+    }, [latestContractorFirstOpnameByItemKey, rabItems.length]);
 
-    const contractorFirstAllApproved = contractorFirstReviewStats.total > 0 && contractorFirstReviewStats.approved === contractorFirstReviewStats.total;
+    const contractorFirstAllApproved = useMemo(() => {
+        if (rabItems.length === 0) return false;
+        return rabItems.every((item) => {
+            const existing = latestContractorFirstOpnameByItemKey.get(getWorkItemKey(item));
+            return existing && isApprovedOpnameStatus(existing.status);
+        });
+    }, [rabItems, latestContractorFirstOpnameByItemKey]);
 
     const activeWorkflowAllApproved = supportFlowView === 'contractor_first' ? contractorFirstAllApproved : legacyAllApproved;
     const activeLatestOpnameByItemKey = supportFlowView === 'contractor_first' ? latestContractorFirstOpnameByItemKey : latestOpnameByItemKey;
@@ -709,11 +706,9 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
 
     const contractorFirstMenuReviewItems = useMemo(() => {
         return existingOpname.filter((item) => {
-            const targetStatus = String((item as any).target_pengawasan_status || '').trim().toLowerCase();
             return isContractorFirstOpname(item)
                 && String(item.status || '').trim().toLowerCase() === 'pending'
-                && Number(item.revision_no || 0) > 0
-                && targetStatus === 'selesai';
+                && Number(item.revision_no || 0) > 0;
         });
     }, [existingOpname]);
 

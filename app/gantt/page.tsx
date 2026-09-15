@@ -752,7 +752,8 @@ function GanttBoard() {
                     const detailResults = await Promise.all(
                         scopesWithGantt.map((scope: SupervisionScope) =>
                             fetchGanttDetail(Number(scope.gantt_id))
-                                .then(async (detail) => ({ scope, detail,
+                                .then(async (detail) => ({
+                                    scope, detail,
                                     draftCategories: isContractorDraft ? (await fetchGanttDetailByToko(scope.id_toko)).filtered_categories : [],
                                 }))
                                 .catch((error) => { if (isContractorDraft) throw error; return null; })
@@ -3113,8 +3114,8 @@ function GanttBoard() {
                                                             type="button"
                                                             onClick={() => handleSelectUlokOption(option.val)}
                                                             className={`group relative flex w-full flex-col gap-2 px-4 py-3 text-left transition-all duration-150 active:scale-[0.997] sm:flex-row sm:items-center sm:justify-between ${active
-                                                                    ? 'bg-red-600 text-white shadow-[inset_4px_0_0_rgba(255,255,255,0.75)]'
-                                                                    : 'bg-white text-slate-900 hover:bg-red-50 hover:text-red-900 hover:shadow-[inset_4px_0_0_#dc2626] focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400'
+                                                                ? 'bg-red-600 text-white shadow-[inset_4px_0_0_rgba(255,255,255,0.75)]'
+                                                                : 'bg-white text-slate-900 hover:bg-red-50 hover:text-red-900 hover:shadow-[inset_4px_0_0_#dc2626] focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400'
                                                                 }`}
                                                         >
                                                             <span className="min-w-0 truncate text-sm font-bold transition-transform duration-150 group-hover:translate-x-0.5">{option.identity}</span>
@@ -3173,8 +3174,8 @@ function GanttBoard() {
                                                 type="button"
                                                 onClick={() => setSpkFilter(option.key)}
                                                 className={`flex min-h-16 items-center justify-between rounded-lg border px-4 py-3 text-left transition ${active
-                                                        ? `${activeClass} shadow-sm`
-                                                        : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
+                                                    ? `${activeClass} shadow-sm`
+                                                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
@@ -3267,8 +3268,8 @@ function GanttBoard() {
                                             <p className="text-[11px] font-black uppercase text-red-700">Target ST</p>
                                             {(handoverReadiness.isGenerated || handoverReadiness.isReady) && (
                                                 <span className={`rounded px-2 py-0.5 text-[10px] font-black ${handoverReadiness.isGenerated
-                                                        ? "bg-emerald-600 text-white"
-                                                        : "bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.6)] animate-pulse"
+                                                    ? "bg-emerald-600 text-white"
+                                                    : "bg-teal-600 text-white shadow-[0_0_10px_rgba(13,148,136,0.6)] animate-pulse"
                                                     }`}>
                                                     {handoverStatusText}
                                                 </span>
@@ -3982,84 +3983,84 @@ function GanttBoard() {
                                                                 <span className="truncate" title={task.displayName || task.name}>{task.name}</span>
                                                             </span>
                                                         </div>
-                                                    <div
-                                                        className="relative cursor-crosshair"
-                                                        data-gantt-track="true"
-                                                        style={{ width: chartData.totalChartWidth }}
-                                                        onPointerDown={(event) => beginScheduleDrag(event, task, 0, 'create')}
-                                                    >
-                                                        {task.ranges && task.ranges.map((r: any, rIdx: number) => {
-                                                            if (!r.start || !r.end) return null;
-                                                            const s = parseInt(r.start) + shift;
-                                                            const e = parseInt(r.end) + shift;
-                                                            const dur = e - s + 1;
-                                                            const delay = parseInt(r.keterlambatan) || 0;
-                                                            return (
-                                                                <React.Fragment key={rIdx}>
-                                                                    <div
-                                                                        className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 select-none ${isReadOnly || isProjectLocked ? '' : 'cursor-grab active:cursor-grabbing'} ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
-                                                                        style={{ left: (s - 1) * DAY_WIDTH, width: Math.max(18, dur * DAY_WIDTH - 1) }}
-                                                                        onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'move')}
-                                                                    >
-                                                                        {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
-                                                                            <button
-                                                                                type="button"
-                                                                                aria-label="Resize mulai"
-                                                                                className="absolute left-0 top-0 h-full w-2 rounded-l bg-white/40 hover:bg-white/70 cursor-ew-resize"
-                                                                                onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-start')}
-                                                                            />
-                                                                        )}
-                                                                        <span className="pointer-events-none">{dur} Hari</span>
-                                                                        {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
-                                                                            <>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    aria-label="Hapus periode"
-                                                                                    title="Hapus periode"
-                                                                                    className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rounded bg-white/20 text-white hover:bg-red-600 hover:text-white flex items-center justify-center"
-                                                                                    onPointerDown={(event) => {
-                                                                                        event.preventDefault();
-                                                                                        event.stopPropagation();
-                                                                                    }}
-                                                                                    onClick={(event) => {
-                                                                                        event.preventDefault();
-                                                                                        event.stopPropagation();
-                                                                                        void removeRange(task.id, rIdx);
-                                                                                    }}
-                                                                                >
-                                                                                    <Trash2 className="h-3 w-3" />
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    aria-label="Resize selesai"
-                                                                                    className="absolute right-0 top-0 h-full w-2 rounded-r bg-white/40 hover:bg-white/70 cursor-ew-resize"
-                                                                                    onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-end')}
-                                                                                />
-                                                                                <button
-                                                                                    type="button"
-                                                                                    aria-label="Drag keterikatan"
-                                                                                    title="Drag ke tahapan tujuan"
-                                                                                    className="absolute left-1/2 -bottom-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-blue-600 shadow cursor-crosshair hover:bg-blue-700"
-                                                                                    onPointerDown={(event) => beginDependencyDrag(event, task.id)}
-                                                                                />
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                    {delay > 0 && (
+                                                        <div
+                                                            className="relative cursor-crosshair"
+                                                            data-gantt-track="true"
+                                                            style={{ width: chartData.totalChartWidth }}
+                                                            onPointerDown={(event) => beginScheduleDrag(event, task, 0, 'create')}
+                                                        >
+                                                            {task.ranges && task.ranges.map((r: any, rIdx: number) => {
+                                                                if (!r.start || !r.end) return null;
+                                                                const s = parseInt(r.start) + shift;
+                                                                const e = parseInt(r.end) + shift;
+                                                                const dur = e - s + 1;
+                                                                const delay = parseInt(r.keterlambatan) || 0;
+                                                                return (
+                                                                    <React.Fragment key={rIdx}>
                                                                         <div
-                                                                            className="absolute top-3.25 h-6 rounded border border-rose-500 bg-rose-50 flex items-center justify-center text-[11px] font-bold text-rose-800 shadow-sm z-10"
-                                                                            style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
-                                                                            title={`${delay} hari terlambat`}
+                                                                            className={`absolute top-3.25 h-6 rounded flex items-center justify-center text-[11px] font-bold text-white shadow-sm z-10 select-none ${isReadOnly || isProjectLocked ? '' : 'cursor-grab active:cursor-grabbing'} ${shift > 0 ? 'bg-linear-to-r from-orange-400 to-orange-500' : 'bg-linear-to-r from-green-500 to-green-600'}`}
+                                                                            style={{ left: (s - 1) * DAY_WIDTH, width: Math.max(18, dur * DAY_WIDTH - 1) }}
+                                                                            onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'move')}
                                                                         >
-                                                                            +{delay} hari terlambat
+                                                                            {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    aria-label="Resize mulai"
+                                                                                    className="absolute left-0 top-0 h-full w-2 rounded-l bg-white/40 hover:bg-white/70 cursor-ew-resize"
+                                                                                    onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-start')}
+                                                                                />
+                                                                            )}
+                                                                            <span className="pointer-events-none">{dur} Hari</span>
+                                                                            {!isReadOnly && !isProjectLocked && !task.scopeLocked && !isApplying && (
+                                                                                <>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        aria-label="Hapus periode"
+                                                                                        title="Hapus periode"
+                                                                                        className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rounded bg-white/20 text-white hover:bg-red-600 hover:text-white flex items-center justify-center"
+                                                                                        onPointerDown={(event) => {
+                                                                                            event.preventDefault();
+                                                                                            event.stopPropagation();
+                                                                                        }}
+                                                                                        onClick={(event) => {
+                                                                                            event.preventDefault();
+                                                                                            event.stopPropagation();
+                                                                                            void removeRange(task.id, rIdx);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Trash2 className="h-3 w-3" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        aria-label="Resize selesai"
+                                                                                        className="absolute right-0 top-0 h-full w-2 rounded-r bg-white/40 hover:bg-white/70 cursor-ew-resize"
+                                                                                        onPointerDown={(event) => beginScheduleDrag(event, task, rIdx, 'resize-end')}
+                                                                                    />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        aria-label="Drag keterikatan"
+                                                                                        title="Drag ke tahapan tujuan"
+                                                                                        className="absolute left-1/2 -bottom-2 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-blue-600 shadow cursor-crosshair hover:bg-blue-700"
+                                                                                        onPointerDown={(event) => beginDependencyDrag(event, task.id)}
+                                                                                    />
+                                                                                </>
+                                                                            )}
                                                                         </div>
-                                                                    )}
-                                                                </React.Fragment>
-                                                            )
-                                                        })}
+                                                                        {delay > 0 && (
+                                                                            <div
+                                                                                className="absolute top-3.25 h-6 rounded border border-rose-500 bg-rose-50 flex items-center justify-center text-[11px] font-bold text-rose-800 shadow-sm z-10"
+                                                                                style={{ left: e * DAY_WIDTH, width: delay * DAY_WIDTH - 1 }}
+                                                                                title={`${delay} hari terlambat`}
+                                                                            >
+                                                                                +{delay} hari terlambat
+                                                                            </div>
+                                                                        )}
+                                                                    </React.Fragment>
+                                                                )
+                                                            })}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </React.Fragment>
+                                                </React.Fragment>
                                             )
                                         })}
 
@@ -4516,7 +4517,7 @@ function SupportReReviewActions({ item, onReviewed }: { item: any; onReviewed: (
             setRejectReason('');
             showAlert({ message: decision === 'disetujui' ? 'Opname berhasil disetujui.' : 'Opname berhasil ditolak.', type: 'success' });
             onReviewed(result.data);
-        } catch(err: any) {
+        } catch (err: any) {
             showAlert({ message: `Gagal: ${err.message}`, type: 'error' });
         } finally {
             setIsProcessing(false);
@@ -4586,7 +4587,7 @@ function SupportReviewOpnameInline({ opname, onReviewed }: { opname: any; onRevi
         <div className="mt-4 overflow-hidden rounded-xl border border-orange-200 bg-orange-50 shadow-sm animate-in slide-in-from-top-1">
             <div className="border-b border-orange-200 bg-gradient-to-r from-orange-100 to-amber-100 px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="rounded-full bg-orange-500 p-1.5"><Clock className="h-4 w-4 text-white"/></div>
+                    <div className="rounded-full bg-orange-500 p-1.5"><Clock className="h-4 w-4 text-white" /></div>
                     <div>
                         <h5 className="text-sm font-bold text-orange-900">Review Opname Kontraktor</h5>
                         <p className="mt-0.5 text-[10px] font-medium text-orange-700">Kontraktor telah mensubmit opname. Harap direview.</p>
@@ -4963,7 +4964,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                 .filter(([key]) => buggedBlockedKeys.has(key))
                                 .map(([key, row]) => row),
                             ...missingOpnames
-                          ].map((row: any) => {
+                        ].map((row: any) => {
                             const key = `${row.kategori_pekerjaan.toUpperCase()}|${row.jenis_pekerjaan.toUpperCase()}`;
                             if (!initial[key]) {
                                 initial[key] = {
@@ -5608,7 +5609,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
         return `${dd}/${mm}/${yyyy}`;
     };
 
-        const handleContractorSubmit = async () => {
+    const handleContractorSubmit = async () => {
         const validationErrors: string[] = [];
         const itemsToSubmit: any[] = [];
         const filesMap: any[] = [];
@@ -5805,16 +5806,16 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
 
                 // Allow submit if it's just a visit log for empty days, but if we have items, we expect them to be edited.
                 if (editableItemCount === 0 && canCreateNextHandover && nextHandoverDate) {
-                     // Empty day but Handover is being created. allowed.
+                    // Empty day but Handover is being created. allowed.
                 } else if (editableItemCount === 0 && !canCreateNextHandover) {
                     validationErrors.push("Tidak ada item pekerjaan aktif yang perlu diperbarui pada tanggal ini.");
                 }
             }
         } else {
-             // memoConfig.length === 0
-             if (canCreateNextHandover && !nextHandoverDate) {
-                  validationErrors.push("Wajib mengisi tanggal serah terima berikutnya karena ada item terlambat dari pengawasan sebelumnya.");
-             }
+            // memoConfig.length === 0
+            if (canCreateNextHandover && !nextHandoverDate) {
+                validationErrors.push("Wajib mengisi tanggal serah terima berikutnya karena ada item terlambat dari pengawasan sebelumnya.");
+            }
         }
 
         if (canCreateNextHandover && !nextHandoverDate && memoConfig.length > 0) {
@@ -6323,7 +6324,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                         const renderOpnameForm = () => {
                                                             if (isContractorFirstCheckpoint && !isContractorSubmit) return null;
                                                             const isRejectedContractorRevision = isContractorSubmit && opnameForStatus?.workflow_version === 'contractor_first' && String(opnameForStatus?.status || '').toLowerCase() === 'ditolak';
-                                                            
+
                                                             if (isRejectedContractorRevision) return null;
 
                                                             if ((!isContractorSubmit && currentStatus !== 'Selesai') || isWorkItemBlockedByOpname(item, key)) return null;
@@ -6342,7 +6343,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                 <div className="mt-4 rounded-xl border border-blue-200 bg-white shadow-md overflow-hidden animate-in slide-in-from-top-1">
                                                                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
                                                                         <div className="flex items-center gap-2">
-                                                                            <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white"/></div>
+                                                                            <div className="bg-blue-600 p-1.5 rounded-full"><CheckCircle className="w-4 h-4 text-white" /></div>
                                                                             <div>
                                                                                 <h5 className="font-bold text-blue-900 text-sm">Formulir Opname & Verifikasi Pekerjaan</h5>
                                                                                 <p className="text-[10px] text-blue-600 font-medium mt-0.5">Lengkapi data di bawah ini karena pekerjaan telah selesai</p>
@@ -6507,26 +6508,26 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             </button>
                                                                                         )}
 
-                                                                                                {allowedStatuses.has('Terlambat') && (
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
-                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                                    >
-                                                                                                        Terlambat
-                                                                                                    </button>
-                                                                                                )}
+                                                                                        {allowedStatuses.has('Terlambat') && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Terlambat')}
+                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Terlambat' ? 'bg-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                            >
+                                                                                                Terlambat
+                                                                                            </button>
+                                                                                        )}
 
-                                                                                                {allowedStatuses.has('Progress') && (
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
-                                                                                                        className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                                                    >
-                                                                                                        Progress
-                                                                                                    </button>
-                                                                                                )}
-                                                                                            </div>
+                                                                                        {allowedStatuses.has('Progress') && (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handleSetStatus(d.category.name, item.jenis_pekerjaan, 'Progress')}
+                                                                                                className={`flex-1 py-1.5 px-3 rounded text-xs font-bold transition-all ${currentStatus === 'Progress' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                            >
+                                                                                                Progress
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </div>
 
                                                                                     {/* Input Hari Keterlambatan jika status Terlambat */}
                                                                                     {currentStatus === 'Terlambat' && (
@@ -6545,7 +6546,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                         </div>
                                                                                     )}
 
-                                                                                    {isContractorFirstCheckpoint && opnameForStatus?.status === 'pending' && (
+                                                                                    {isContractorFirstCheckpoint && opnameForStatus?.status === 'pending' && (!opnameForStatus?.revision_no || opnameForStatus.revision_no === 0) && (
                                                                                         <SupportReviewOpnameInline opname={opnameForStatus} onReviewed={handleContractorOpnameReviewed} />
                                                                                     )}
 
@@ -6555,11 +6556,34 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                                                                                             {/* 1. Pengawasan Catatan & Foto Form (SELALU MUNCUL saat status diisi) */}
                                                                                             <div className="mt-2 flex flex-col gap-2 rounded bg-slate-50 p-2 border border-slate-200">
                                                                                                 {currentStatus === 'Selesai' && isWorkItemBlockedByOpname(item, key) && (
-                                                                                                    <div className="mb-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 flex items-center gap-2">
-                                                                                                        <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                    <div className={`mb-2 p-3 border rounded-lg flex items-center gap-2 ${opnameForStatus?.status === 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+                                                                                                            opnameForStatus?.status === 'ditolak' ? 'bg-red-50 border-red-200 text-red-700' :
+                                                                                                                'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                                                                                        }`}>
+                                                                                                        {opnameForStatus?.status === 'pending' ? (
+                                                                                                            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                        ) : opnameForStatus?.status === 'ditolak' ? (
+                                                                                                            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                                                                                                        ) : (
+                                                                                                            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                                                                                                        )}
                                                                                                         <div>
-                                                                                                            <p className="font-bold text-sm">Data Opname Sudah Terisi</p>
-                                                                                                            <p className="text-xs">Anda sudah mengisi form opname untuk item ini sebelumnya. Tidak perlu mengisi ulang.</p>
+                                                                                                            {opnameForStatus?.status === 'pending' ? (
+                                                                                                                <>
+                                                                                                                    <p className="font-bold text-sm">Menunggu Review</p>
+                                                                                                                    <p className="text-xs">Kontraktor sudah mengajukan opname untuk item ini dan sedang menunggu persetujuan tim Support.</p>
+                                                                                                                </>
+                                                                                                            ) : opnameForStatus?.status === 'ditolak' ? (
+                                                                                                                <>
+                                                                                                                    <p className="font-bold text-sm">Opname Ditolak</p>
+                                                                                                                    <p className="text-xs">Pengajuan opname sebelumnya kamu tolak, silahkan beritahu Kontraktor untuk ajukan ulang</p>
+                                                                                                                </>
+                                                                                                            ) : (
+                                                                                                                <>
+                                                                                                                    <p className="font-bold text-sm">Opname Disetujui</p>
+                                                                                                                    <p className="text-xs">Pengajuan opname untuk item ini telah disetujui oleh tim Support.</p>
+                                                                                                                </>
+                                                                                                            )}
                                                                                                         </div>
                                                                                                     </div>
                                                                                                 )}
