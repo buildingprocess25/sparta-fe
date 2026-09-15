@@ -2057,6 +2057,7 @@ export type SupervisionScope = {
     nama_toko: string | null;
     kode_toko: string | null;
     cabang: string | null;
+    takeover_sequence?: number | null;
     gantt_id: number | null;
     gantt_status: string | null;
     pic_id: number | null;

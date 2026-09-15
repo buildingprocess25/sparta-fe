@@ -415,6 +415,8 @@ function mergeMemoInitialWithDraft(initial: Record<string, any>, draft?: Record<
     return merged;
 }
 
+const getCleanUlok = (u: string | null) => u ? (u.includes('___ts___') ? u.split('___ts___')[0] : u) : '';
+
 function GanttBoard() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -494,7 +496,7 @@ function GanttBoard() {
     const [availableProjects, setAvailableProjects] = useState<GanttListItem[]>([]);
     const [allTokoList, setAllTokoList] = useState<any[]>([]);
     const [isDirectAccess] = useState(true);
-    const [searchUlokInput, setSearchUlokInput] = useState("");
+    const [searchUlokInput, setSearchUlokInput] = useState(formatUlokWithDash(getCleanUlok(urlUlok)));
     const [isUlokListOpen, setIsUlokListOpen] = useState(false);
     const [visibleUlokCount, setVisibleUlokCount] = useState(10);
 
@@ -1965,14 +1967,18 @@ function GanttBoard() {
             scopeName: String(scope.lingkup_pekerjaan || "").trim().toUpperCase(),
             hasSpk: Boolean(scope.gantt_id),
         }));
+        
+        const currentTs = supervisionWorkspace?.scopes?.[0]?.takeover_sequence || projectData?.takeover_sequence || 0;
+
         const listScopes = allTokoList
-            .filter(toko => formatUlokWithDash(toko.nomor_ulok) === normalizedUlok)
+            .filter(toko => formatUlokWithDash(toko.nomor_ulok) === normalizedUlok && (toko.takeover_sequence || 0) === currentTs)
             .map(toko => ({
                 id: Number(toko.id_toko || toko.id),
                 scopeName: String(toko.lingkup_pekerjaan || "").trim().toUpperCase(),
                 hasSpk: spkTokoIds.has(Number(toko.id_toko || toko.id)),
             }));
-        const scopes = listScopes;
+            
+        const scopes = workspaceScopes.length > 0 ? workspaceScopes : listScopes;
         if (scopes.length === 0) return null;
 
         const spkScopes = scopes.filter(scope => scope.hasSpk);
@@ -2082,11 +2088,15 @@ function GanttBoard() {
         if (!val) return;
         if (val.startsWith('ulok-')) {
             const nomorUlok = decodeURIComponent(val.slice(5));
+            let actualUlok = nomorUlok;
+            if (nomorUlok.includes('___ts___')) {
+                actualUlok = nomorUlok.split('___ts___')[0];
+            }
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.set('ulok', nomorUlok);
             newUrl.searchParams.delete('id_toko');
             window.history.pushState({}, '', newUrl.toString());
-            setSearchUlokInput(formatUlokWithDash(nomorUlok));
+            setSearchUlokInput(formatUlokWithDash(actualUlok));
             setIsUlokListOpen(false);
             loadSupervisionWorkspace(nomorUlok);
         } else if (val.startsWith('gantt-')) {
@@ -2417,7 +2427,9 @@ function GanttBoard() {
                                         ) : (
                                             <div className="divide-y divide-slate-100">
                                                 {visibleUlokOptions.map((option) => {
-                                                    const active = formatUlokWithDash(selectedUlok || projectData?.ulokClean || '') === option.nomorUlok;
+                                                    const active = (appMode === 'pic' && selectedUlok)
+                                                        ? `ulok-${selectedUlok}` === option.val
+                                                        : formatUlokWithDash(selectedUlok || projectData?.ulokClean || '') === option.nomorUlok;
                                                     return (
                                                         <button
                                                             key={option.val}

@@ -1771,8 +1771,12 @@ function RABPageContent() {
                     <Checkbox id="isRenovasi" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isRenovasi} onCheckedChange={(c) => setFormData(prev => ({...prev, isRenovasi: !!c, proyek: !!c ? '' : 'Reguler'}))}/>
                     <Label htmlFor="isRenovasi" className="font-normal cursor-pointer mr-4">Proyek Renovasi (Format Baru)</Label>
                     
-                    <Checkbox id="isTakeover" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isTakeover} onCheckedChange={(c) => setFormData(prev => ({...prev, isTakeover: !!c}))}/>
-                    <Label htmlFor="isTakeover" className="font-normal cursor-pointer font-medium text-orange-600">Takeover (Pergantian Kontraktor)</Label>
+                    {(formData.cabang === 'HEAD OFFICE' || formData.cabang === 'GORONTALO') && (
+                      <>
+                        <Checkbox id="isTakeover" disabled={isProjectFieldLocked || hasProjectPlanningRequest} checked={formData.isTakeover} onCheckedChange={(c) => setFormData(prev => ({...prev, isTakeover: !!c}))}/>
+                        <Label htmlFor="isTakeover" className="font-normal cursor-pointer font-medium text-orange-600">Takeover (Pergantian Kontraktor)</Label>
+                      </>
+                    )}
                   </div>
                   <div className="flex gap-2 items-center">
                     {formData.isTakeover ? (
@@ -1843,7 +1847,8 @@ function RABPageContent() {
                           setFormData(prev => ({ 
                             ...prev, 
                             cabang: val, 
-                            lokasiCabang: newLokasiCabang 
+                            lokasiCabang: newLokasiCabang,
+                            isTakeover: (val === 'HEAD OFFICE' || val === 'GORONTALO') ? prev.isTakeover : false
                           }));
 
                           const userEmail = sessionStorage.getItem('loggedInUserEmail');
