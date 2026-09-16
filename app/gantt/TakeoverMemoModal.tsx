@@ -186,9 +186,9 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                         selisih_volume: selisihVolume,
                         total_selisih: totalSelisih,
                         total_harga_opname: totalHargaOpname,
-                        desain: item.desain,
-                        kualitas: item.kualitas,
-                        spesifikasi: item.spesifikasi,
+                        desain: item.desain || '',
+                        kualitas: item.kualitas || '',
+                        spesifikasi: item.spesifikasi || '',
                         catatan: item.catatan || ''
                     };
                     
@@ -196,7 +196,11 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                         formData.append(`file_opname_${idx}`, item.file_opname);
                     }
                 }
-                
+
+                if (item.file_dokumentasi) {
+                    formData.append(`file_dokumentasi_${idx}`, item.file_dokumentasi);
+                }
+
                 return payloadItem;
             });
 
@@ -305,7 +309,7 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                                         <Label className="text-[10px] text-slate-500 font-bold uppercase">Kualitas <span className="text-red-500">*</span></Label>
                                                         <Select value={item.kualitas || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'kualitas', v)}>
                                                             <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
-                                                            <SelectContent><SelectItem value="Baik">Baik</SelectItem><SelectItem value="Kurang Baik">Kurang Baik</SelectItem></SelectContent>
+                                                            <SelectContent><SelectItem value="Baik">Baik</SelectItem><SelectItem value="Tidak Baik">Tidak Baik</SelectItem></SelectContent>
                                                         </Select>
                                                     </div>
                                                     <div>

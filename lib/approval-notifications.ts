@@ -326,10 +326,7 @@ const canCountProjectPlanningForUser = (item: CountableApprovalItem, user: UserS
         (isBmManager && (upper === "WAITING_BM_APPROVAL" || upper === "WAITING_BM_APPROVAL_2")) ||
         (isBmRegionalManager && upper === "WAITING_BM_REGIONAL_APPROVAL") ||
         (isPpSpecialist && ["WAITING_PP_APPROVAL_1", "PP_DESIGN_3D_REQUIRED", "WAITING_PP_APPROVAL_2"].includes(upper)) ||
-        (isPpManager && (
-            upper === "WAITING_PP_MANAGER_APPROVAL" ||
-            (upper === "WAITING_RAB_UPLOAD" && !!getStringValue(raw, "pp_manager_approver_email"))
-        ));
+        (isPpManager && upper === "WAITING_PP_MANAGER_APPROVAL");
 
     if (!statusMatchesRole) return false;
     if (canSeeAll) return true;

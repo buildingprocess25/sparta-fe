@@ -145,7 +145,7 @@ function FormProjekPlanningInner() {
   useEffect(() => {
     if (rabSelectionOption === "approved" && approvedRabs.length === 0 && !isFetchingRabs) {
       setIsFetchingRabs(true);
-      fetchRABList({ status: "Disetujui" }, { suppressGlobalError: true })
+      fetchRABList({}, { suppressGlobalError: true })
         .then(res => {
           const rawData = res.data || [];
           const email = sessionStorage.getItem("loggedInUserEmail") || "";
@@ -208,8 +208,8 @@ function FormProjekPlanningInner() {
        let cancelled = false;
        const timer = setTimeout(() => {
          setRabPrefillStatus("loading");
-         setRabPrefillMessage(`Mengecek RAB approved untuk ${finalUlok}...`);
-         fetchRABList({ nomor_ulok: finalUlok, status: "Disetujui" }, { suppressGlobalError: true })
+         setRabPrefillMessage(`Mengecek data RAB untuk ${finalUlok}...`);
+         fetchRABList({ nomor_ulok: finalUlok }, { suppressGlobalError: true })
            .then(async res => {
              if (cancelled) return;
              const rows = (res.data || []).filter((r: any) =>
@@ -222,7 +222,7 @@ function FormProjekPlanningInner() {
 
              if (!sourceRab?.id) {
                setRabPrefillStatus("not_found");
-               setRabPrefillMessage(`Belum ada RAB approved untuk ULOK ${finalUlok}. Form tetap bisa diisi manual.`);
+               setRabPrefillMessage(`Belum ada RAB untuk ULOK ${finalUlok}. Form tetap bisa diisi manual.`);
                return;
              }
              try {
@@ -264,18 +264,18 @@ function FormProjekPlanningInner() {
                  is_ruko: rab?.kategori_lokasi ? (String(rab.kategori_lokasi).toUpperCase() === "RUKO") : prev.is_ruko,
                }));
                setRabPrefillStatus("found");
-               setRabPrefillMessage(`RAB approved ditemukan untuk ${finalUlok}. Data dasar FPD otomatis terisi dari RAB.`);
+               setRabPrefillMessage(`Data RAB ditemukan untuk ${finalUlok}. Data dasar FPD otomatis terisi dari RAB.`);
              } catch {
                if (cancelled) return;
                setRabPrefillStatus("error");
-               setRabPrefillMessage("RAB approved ditemukan, tetapi detail RAB belum bisa dimuat. Form tetap bisa diisi manual.");
+               setRabPrefillMessage("Data RAB ditemukan, tetapi detail RAB belum bisa dimuat. Form tetap bisa diisi manual.");
              }
            })
            .catch(() => {
              if (cancelled) return;
              setIsRabApproved(false);
              setRabPrefillStatus("error");
-             setRabPrefillMessage("Gagal mengecek RAB approved. Form tetap bisa diisi manual.");
+             setRabPrefillMessage("Gagal mengecek data RAB. Form tetap bisa diisi manual.");
            });
        }, 500);
        return () => {
@@ -796,8 +796,8 @@ function FormProjekPlanningInner() {
                         <FileCheck className="w-5 h-5" />
                       </div>
                       <div className="mt-3">
-                        <h3 className={`font-bold ${rabSelectionOption === "approved" ? "text-emerald-900" : "text-slate-700"}`}>Sudah Disetujui</h3>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pilih dari daftar ULOK yang sudah memiliki RAB disetujui.</p>
+                        <h3 className={`font-bold ${rabSelectionOption === "approved" ? "text-emerald-900" : "text-slate-700"}`}>Pernah di input</h3>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pilih dari daftar ULOK yang RAB-nya sudah pernah diinput (termasuk masih proses).</p>
                       </div>
                       {rabSelectionOption === "approved" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-emerald-500" />}
                     </div>
@@ -812,8 +812,8 @@ function FormProjekPlanningInner() {
                         <PenTool className="w-5 h-5" />
                       </div>
                       <div className="mt-3">
-                        <h3 className={`font-bold ${rabSelectionOption === "manual" ? "text-amber-900" : "text-slate-700"}`}>Belum / Input Manual</h3>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">RAB belum ada atau belum disetujui, input data ULOK secara manual.</p>
+                        <h3 className={`font-bold ${rabSelectionOption === "manual" ? "text-amber-900" : "text-slate-700"}`}>Belum pernah di input</h3>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">RAB belum pernah diinput sama sekali, input data ULOK secara manual.</p>
                       </div>
                       {rabSelectionOption === "manual" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-amber-500" />}
                     </div>
@@ -822,7 +822,7 @@ function FormProjekPlanningInner() {
 
                 {rabSelectionOption === "approved" && (
                   <div className="space-y-4 mb-6 p-5 border border-emerald-100 rounded-xl bg-emerald-50/30">
-                    <Label className="text-sm font-bold text-slate-700">Pilih ULOK dari RAB Disetujui *</Label>
+                    <Label className="text-sm font-bold text-slate-700">Pilih ULOK dari RAB yang Pernah Diinput *</Label>
                     {isFetchingRabs ? (
                       <div className="flex items-center gap-2 text-sm text-emerald-700">
                         <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar RAB...
@@ -1032,11 +1032,11 @@ function FormProjekPlanningInner() {
                   <div>
                     <p className="font-semibold">
                       {rabPrefillStatus === "found"
-                        ? "RAB approved ditemukan"
+                        ? "Data RAB ditemukan"
                         : rabPrefillStatus === "loading"
-                          ? "Mengecek RAB approved"
+                          ? "Mengecek data RAB"
                           : rabPrefillStatus === "not_found"
-                            ? "RAB approved belum ditemukan"
+                            ? "Data RAB belum ditemukan"
                             : "Cek RAB belum berhasil"}
                     </p>
                     <p className="text-xs opacity-90">{rabPrefillMessage}</p>
