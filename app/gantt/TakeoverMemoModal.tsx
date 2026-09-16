@@ -80,7 +80,9 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                 isSameWorkText(h.jenis_pekerjaan, rabItem.jenis_pekerjaan || rabItem.kategori_pekerjaan)
                             );
 
-                            if (!historyMatch || historyMatch.status !== 'Selesai') {
+                            const isSelesai = historyMatch && String(historyMatch.status || '').trim().toUpperCase() === 'SELESAI';
+
+                            if (!isSelesai) {
                                 const hargaMaterial = Number(rabItem.harga_material || 0);
                                 const hargaUpah = Number(rabItem.harga_upah || 0);
                                 const volumeRAB = Number(rabItem.volume || 0);
