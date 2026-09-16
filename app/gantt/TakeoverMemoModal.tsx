@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Calendar } from 'lucide-react';
-import { apiFetch, fetchPengawasanList } from '@/lib/api';
+import { apiFetch, fetchPengawasanList, fetchRABList, fetchRABDetail, fetchGanttDetail } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
 
 export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
@@ -16,43 +16,111 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
 
     useEffect(() => {
         if (!workspace) return;
-        
-        // Fetch ALL pengawasan items for ALL scopes in this workspace
+
         const fetchItems = async () => {
             const allItems: any[] = [];
-            
+            const isSameWorkText = (a: any, b: any) => String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
+
+            // 1. Fetch RAB details for this ULOK
+            let rabItems: any[] = [];
+            try {
+                const rabListRes = await fetchRABList({ nomor_ulok: workspace.nomor_ulok, status: 'DISETUJUI' });
+                if (rabListRes.status === 'success' && rabListRes.data) {
+                    for (const rab of rabListRes.data) {
+                        const detailRes = await fetchRABDetail(rab.id);
+                        if (detailRes.status === 'success' && detailRes.data?.items) {
+                            rabItems.push(...detailRes.data.items);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch RAB list/details", e);
+            }
+
+            // 2. Process each scope to find remaining unfinished items
             for (const scope of workspace.scopes) {
                 if (!scope.gantt_id) continue;
                 
                 try {
-                    const res = await fetchPengawasanList({ id_gantt: scope.gantt_id });
-                    if (res.status === 'success' && res.data) {
-                        res.data.forEach((item: any) => {
-                            allItems.push({
-                                id_pengawasan: item.id,
-                                kategori: item.kategori_pekerjaan,
-                                jenis: item.jenis_pekerjaan,
-                                lingkup: scope.lingkup_pekerjaan,
-                                oldStatus: item.status,
-                                status: item.status === 'Selesai' ? 'Selesai' : ''
-                            });
-                        });
+                    const ganttRes = await fetchGanttDetail(scope.gantt_id);
+                    const listRes = await fetchPengawasanList({ id_gantt: scope.gantt_id });
+                    
+                    if (ganttRes.status === 'success' && ganttRes.data) {
+                        const supervisedItems = (listRes.status === 'success' && listRes.data) ? listRes.data : [];
+                        const ilItems = ganttRes.data.instruksi_lapangan_items || [];
+                        
+                        // Filter RAB items that belong to this scope
+                        const scopeRabItems = rabItems.filter(r => isSameWorkText(r.lingkup_pekerjaan, scope.lingkup_pekerjaan));
+
+                        // Map IL items to RAB-like format
+                        const mappedIlItems = ilItems.map((item: any) => ({
+                            kategori_pekerjaan: `[IL] ${String(item.kategori_pekerjaan || 'LAIN-LAIN').toUpperCase()}`,
+                            jenis_pekerjaan: item.jenis_pekerjaan || '-',
+                            lingkup_pekerjaan: scope.lingkup_pekerjaan
+                        }));
+
+                        // Combine standard RAB items and IL items
+                        const combinedItems = [...scopeRabItems, ...mappedIlItems];
+
+                        for (const rabItem of combinedItems) {
+                            // Check if this RAB item is already 'Selesai' in pengawasan history
+                            const historyMatch = supervisedItems.find((h: any) => 
+                                isSameWorkText(h.kategori_pekerjaan, rabItem.kategori_pekerjaan) &&
+                                isSameWorkText(h.jenis_pekerjaan, rabItem.jenis_pekerjaan || rabItem.kategori_pekerjaan)
+                            );
+
+                            if (!historyMatch || historyMatch.status !== 'Selesai') {
+                                const hargaMaterial = Number(rabItem.harga_material || 0);
+                                const hargaUpah = Number(rabItem.harga_upah || 0);
+                                const volumeRAB = Number(rabItem.volume || 0);
+                                
+                                allItems.push({
+                                    id_pengawasan: historyMatch?.id,
+                                    id_gantt: scope.gantt_id,
+                                    kategori: rabItem.kategori_pekerjaan,
+                                    jenis: rabItem.jenis_pekerjaan,
+                                    lingkup: scope.lingkup_pekerjaan,
+                                    oldStatus: historyMatch ? (historyMatch as any).status : null,
+                                    status: '', // To be filled by user
+                                    volumeRAB,
+                                    satuan: rabItem.satuan || '-',
+                                    hargaSatuan: hargaMaterial + hargaUpah,
+                                    id_rab_item: rabItem.id_rab_item || rabItem.id, // for RAB
+                                    id_instruksi_lapangan_item: rabItem.id_instruksi_lapangan_item, // for IL
+                                    source_type: rabItem.id_instruksi_lapangan_item ? 'IL' : 'RAB'
+                                });
+                            }
+                        }
                     }
                 } catch (e) {
                     console.error("Failed to fetch gantt data for scope", scope.lingkup_pekerjaan, e);
                 }
             }
 
-            // Deduplicate items just in case
-            const uniqueItems = Array.from(new Map(allItems.map(i => [i.id_pengawasan, i])).values());
+            // Deduplicate items just in case (by id_gantt + kategori + jenis)
+            const uniqueItems = Array.from(new Map(allItems.map(i => [`${i.id_gantt}-${i.kategori}-${i.jenis}`, i])).values());
             setItems(uniqueItems);
         };
 
         fetchItems();
     }, [workspace]);
 
-    const handleItemChange = (id: number, status: string) => {
-        setItems(prev => prev.map(item => item.id_pengawasan === id ? { ...item, status } : item));
+    const handleItemChange = (index: number, status: string) => {
+        setItems(prev => prev.map((item, i) => {
+            if (i === index) {
+                const newItem = { ...item, status };
+                // Pre-fill volume_akhir with volume RAB if Selesai
+                if (status === 'Selesai' && newItem.volume_akhir === undefined) {
+                    newItem.volume_akhir = item.volumeRAB;
+                }
+                return newItem;
+            }
+            return item;
+        }));
+    };
+
+    const handleOpnameFieldChange = (index: number, field: string, value: any) => {
+        setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
     };
 
     const handleSubmit = async () => {
@@ -67,21 +135,61 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
             return;
         }
 
+        const incompleteOpname = items.find(i => 
+            i.status === 'Selesai' && 
+            (!i.volume_akhir || !i.desain || !i.kualitas || !i.spesifikasi || !i.file_opname)
+        );
+
+        if (incompleteOpname) {
+            alert(`Pekerjaan "${incompleteOpname.jenis || incompleteOpname.kategori}" wajib melengkapi form opname (Volume Akhir, Desain, Kualitas, Material, dan Upload Foto).`);
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            const payload = {
-                nomor_ulok: workspace.nomor_ulok,
-                tanggal_takeover: tanggalTakeover,
-                items: items.map(i => ({
-                    id_pengawasan: i.id_pengawasan,
-                    status: i.status
-                }))
-            };
+            const formData = new FormData();
+            formData.append('nomor_ulok', workspace.nomor_ulok);
+            formData.append('tanggal_takeover', tanggalTakeover);
+
+            const itemsPayload = items.map((item, idx) => {
+                const payloadItem: any = {
+                    id_gantt: item.id_gantt,
+                    kategori_pekerjaan: item.kategori,
+                    jenis_pekerjaan: item.jenis || null,
+                    status: item.status
+                };
+                
+                if (item.status === 'Selesai') {
+                    const totalHargaOpname = Math.round(Number(item.volume_akhir) * item.hargaSatuan);
+                    const totalSelisih = Math.round(item.volumeRAB * item.hargaSatuan) - totalHargaOpname;
+                    const selisihVolume = item.volumeRAB - Number(item.volume_akhir);
+                    
+                    payloadItem.opname_data = {
+                        id_rab_item: item.source_type === 'RAB' ? Number(item.id_rab_item) : undefined,
+                        id_instruksi_lapangan_item: item.source_type === 'IL' ? Number(item.id_instruksi_lapangan_item) : undefined,
+                        volume_akhir: Number(item.volume_akhir),
+                        selisih_volume: selisihVolume,
+                        total_selisih: totalSelisih,
+                        total_harga_opname: totalHargaOpname,
+                        desain: item.desain,
+                        kualitas: item.kualitas,
+                        spesifikasi: item.spesifikasi,
+                        catatan: item.catatan || ''
+                    };
+                    
+                    if (item.file_opname) {
+                        formData.append(`file_opname_${idx}`, item.file_opname);
+                    }
+                }
+                
+                return payloadItem;
+            });
+
+            formData.append('items', JSON.stringify(itemsPayload));
 
             const res = await apiFetch(`${API_URL.replace(/\/$/, '')}/api/gantt/takeover-inspection`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: formData
             });
 
             if (!res.ok) throw new Error("Gagal menyimpan inspeksi takeover");
@@ -135,17 +243,74 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                             </span>
                                         </div>
                                         <Select 
-                                            value={item.status} 
-                                            onValueChange={(val) => handleItemChange(item.id_pengawasan, val)}
+                                            value={item.status || ''} 
+                                            onValueChange={(val) => handleItemChange(idx, val)}
                                         >
-                                            <SelectTrigger className="h-8 text-xs bg-white">
+                                            <SelectTrigger className="w-32 h-8 text-xs bg-white">
                                                 <SelectValue placeholder="Pilih Status..." />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Selesai" className="text-green-600 font-semibold">Selesai</SelectItem>
-                                                <SelectItem value="Tidak Dikerjakan" className="text-red-600 font-semibold">Tidak Dikerjakan</SelectItem>
+                                                <SelectItem value="Selesai">Selesai</SelectItem>
+                                                <SelectItem value="Tidak Dikerjakan">Tidak Dikerjakan</SelectItem>
                                             </SelectContent>
                                         </Select>
+
+                                        {item.status === 'Selesai' && (
+                                            <div className="mt-3 bg-white p-3 rounded border border-slate-200 shadow-inner flex flex-col gap-3">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <Label className="text-[10px] text-slate-500 font-bold uppercase">Volume Akhir (RAB: {item.volumeRAB} {item.satuan}) <span className="text-red-500">*</span></Label>
+                                                        <Input 
+                                                            type="number" 
+                                                            className="h-8 text-xs mt-1" 
+                                                            value={item.volume_akhir ?? ''} 
+                                                            onChange={(e) => handleOpnameFieldChange(idx, 'volume_akhir', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-[10px] text-slate-500 font-bold uppercase">Desain <span className="text-red-500">*</span></Label>
+                                                        <Select value={item.desain || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'desain', v)}>
+                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
+                                                            <SelectContent><SelectItem value="Sesuai">Sesuai</SelectItem><SelectItem value="Tidak Sesuai">Tidak Sesuai</SelectItem></SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-[10px] text-slate-500 font-bold uppercase">Kualitas <span className="text-red-500">*</span></Label>
+                                                        <Select value={item.kualitas || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'kualitas', v)}>
+                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
+                                                            <SelectContent><SelectItem value="Baik">Baik</SelectItem><SelectItem value="Kurang Baik">Kurang Baik</SelectItem></SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-[10px] text-slate-500 font-bold uppercase">Material <span className="text-red-500">*</span></Label>
+                                                        <Select value={item.spesifikasi || ''} onValueChange={(v) => handleOpnameFieldChange(idx, 'spesifikasi', v)}>
+                                                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Pilih..."/></SelectTrigger>
+                                                            <SelectContent><SelectItem value="Sesuai">Sesuai</SelectItem><SelectItem value="Tidak Sesuai">Tidak Sesuai</SelectItem></SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div>
+                                                    <Label className="text-[10px] text-slate-500 font-bold uppercase">Upload Foto <span className="text-red-500">*</span></Label>
+                                                    <Input 
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        className="h-8 text-xs mt-1 py-1" 
+                                                        onChange={(e) => handleOpnameFieldChange(idx, 'file_opname', e.target.files?.[0] || null)}
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <Label className="text-[10px] text-slate-500 font-bold uppercase">Catatan Tambahan (Opsional)</Label>
+                                                    <Input 
+                                                        className="h-8 text-xs mt-1" 
+                                                        placeholder="Catatan masalah, selisih..." 
+                                                        value={item.catatan || ''} 
+                                                        onChange={(e) => handleOpnameFieldChange(idx, 'catatan', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
