@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Calendar } from 'lucide-react';
-import { apiFetch, fetchPengawasanList, API_URL } from '@/lib/api';
+import { apiFetch, fetchPengawasanList } from '@/lib/api';
+import { API_URL } from '@/lib/constants';
 
 export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
     const [tanggalTakeover, setTanggalTakeover] = useState('');
