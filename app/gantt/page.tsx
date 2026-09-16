@@ -1667,6 +1667,14 @@ function GanttBoard() {
         });
         const supervisionDays: Record<number, boolean> = {};
         const effectiveStartDate = (spkInfo && spkInfo.startDate) ? spkInfo.startDate : (projectData && projectData.startDate ? projectData.startDate : null);
+        let takeoverDayIndex = -1;
+        if (effectiveStartDate) {
+            const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
+            if (supervisionWorkspace?.tanggal_takeover) {
+                const takeoverD = new Date(supervisionWorkspace.tanggal_takeover.split('T')[0] + 'T00:00:00');
+                takeoverDayIndex = Math.floor((takeoverD.getTime() - startD.getTime()) / (24 * 60 * 60 * 1000));
+            }
+        }
         let maxSupervisionDay = 0;
         if (effectiveStartDate && pengawasanDates.length > 0) {
             const startD = new Date(effectiveStartDate.split('T')[0] + 'T00:00:00');
@@ -1765,8 +1773,8 @@ function GanttBoard() {
             }
         }
 
-        return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex };
-    }, [tasks, projectData, spkInfo, pengawasanDates]);
+        return { processedTasks, totalDaysToRender, totalChartWidth, svgHeight, supervisionDays, svgLines, liveDayIndex, takeoverDayIndex };
+    }, [tasks, projectData, spkInfo, pengawasanDates, supervisionWorkspace]);
 
     // Map dari tanggal pengawasan (DD/MM/YYYY) → data checkpoint agregat dari semua scopes
     // Digunakan untuk pewarnaan header kolom: hijau/merah/biru (Poin 7, 8, 9)
@@ -3106,7 +3114,8 @@ function GanttBoard() {
                                                     }
                                                 }
                                                 // --- Poin 1: Hanya BRANCH BUILDING SUPPORT yang bisa input ---
-                                                const isClickable = appMode === 'pic' && isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved;
+                                                const isPastTakeover = chartData.takeoverDayIndex !== -1 && i >= chartData.takeoverDayIndex;
+                                                const isClickable = appMode === 'pic' && isPengawasan && !isPengawasanReadOnly && isScopeSpkApproved && !isPastTakeover;
 
                                                 // --- Poin 7, 8, 9: Warna header berdasarkan status pengawasan ---
                                                 // Gunakan pengawasanCheckpointMap (dari supervisionWorkspace.checkpoints)
@@ -3173,7 +3182,7 @@ function GanttBoard() {
 
 
                                                 return (
-                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay ? 'bg-green-50 text-green-700' : isPengawasan ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (isPengawasan && !isPengawasanReadOnly ? '' : '')}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
+                                                    <div key={i} className={`shrink-0 flex flex-col items-center border-r-2 border-slate-300 py-1 font-bold ${isLiveDay && !isPastTakeover ? 'bg-green-50 text-green-700' : isPastTakeover ? 'bg-[repeating-linear-gradient(45deg,#1e293b,#1e293b_10px,#334155_10px,#334155_20px)] text-slate-300 opacity-90 border-none' : isPengawasan ? pengawasanHeaderColor : 'bg-slate-50 text-slate-500'} ${isClickable ? 'cursor-pointer hover:opacity-80 ring-inset hover:ring-2 hover:ring-blue-500 transition-all' : (isPastTakeover ? 'cursor-not-allowed' : (isPengawasan && !isPengawasanReadOnly ? '' : ''))}`} style={{ width: DAY_WIDTH, fontSize: spkInfo ? '9px' : '12px' }}
                                                         onClick={() => {
                                                             if (isClickable) {
                                                                 setActiveHeaderClick({ dayIndex: i, dateString: fullDateString, label });
@@ -3182,7 +3191,7 @@ function GanttBoard() {
                                                         }}>
                                                         <span>{label}</span>
                                                         {isPengawasan && <div className={`w-1.5 h-1.5 rounded-full ${pengawasanDotColor} mt-1`} title="Hari Pengawasan" />}
-                                                        {isLiveDay && !isPengawasan && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
+                                                        {isLiveDay && !isPastTakeover && <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1" title="Hari Ini" />}
                                                     </div>
                                                 )
 
@@ -3202,6 +3211,18 @@ function GanttBoard() {
                                             <div
                                                 className="absolute top-0 bottom-0 pointer-events-none"
                                                 style={{ left: labelColWidth + (chartData.liveDayIndex * DAY_WIDTH) + (DAY_WIDTH / 2), width: 2, zIndex: 16, backgroundColor: 'rgba(34, 197, 94, 0.7)' }}
+                                            />
+                                        )}
+
+                                        {chartData.takeoverDayIndex !== -1 && (
+                                            <div
+                                                className="absolute top-0 bottom-0 pointer-events-none z-10"
+                                                style={{
+                                                    left: labelColWidth + (Math.max(0, chartData.takeoverDayIndex) * DAY_WIDTH),
+                                                    width: Math.max(0, chartData.totalChartWidth - (Math.max(0, chartData.takeoverDayIndex) * DAY_WIDTH)),
+                                                    backgroundColor: 'rgba(15, 23, 42, 0.04)',
+                                                    backgroundImage: 'repeating-linear-gradient(45deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.03) 10px, rgba(15, 23, 42, 0.08) 10px, rgba(15, 23, 42, 0.08) 20px)'
+                                                }}
                                             />
                                         )}
 

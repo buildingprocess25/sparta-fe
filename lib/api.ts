@@ -2103,6 +2103,7 @@ export type SupervisionWorkspace = {
     unified_checkpoints?: UnifiedSupervisionCheckpoint[];
     scope_date_alignment?: SupervisionScopeDateAlignment[];
     has_date_mismatch?: boolean;
+    tanggal_takeover?: string | null;
 };
 
 export const fetchSupervisionWorkspace = async (
