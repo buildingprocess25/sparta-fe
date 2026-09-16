@@ -4530,12 +4530,12 @@ export const createPdfSerahTerima = async (id_toko: number): Promise<any> => {
     }
 };
 
-export const createPdfSerahTerimaUnified = async (nomor_ulok: string): Promise<any> => {
+export const createPdfSerahTerimaUnified = async (nomor_ulok: string, takeover_sequence?: number): Promise<any> => {
     const url = `${API_URL.replace(/\/$/, "")}/api/create_pdf_serah_terima_unified`;
     const res = await apiFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomor_ulok }),
+        body: JSON.stringify({ nomor_ulok, takeover_sequence }),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.message || "Gagal membuat PDF Serah Terima gabungan.");

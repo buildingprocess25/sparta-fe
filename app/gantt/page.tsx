@@ -813,7 +813,7 @@ function GanttBoard() {
         if (!supervisionWorkspace || (!supervisionWorkspace.unified_serah_terima_ready && !allReady)) return;
         setIsGeneratingHandover(true);
         try {
-            await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok);
+            await createPdfSerahTerimaUnified(supervisionWorkspace.nomor_ulok, currentTs);
             await loadSupervisionWorkspace(supervisionWorkspace.nomor_ulok);
             showAlert({ message: "PDF Serah Terima SIPIL/ME berhasil diproses.", type: "success" });
         } catch (error: any) {
@@ -821,7 +821,7 @@ function GanttBoard() {
         } finally {
             setIsGeneratingHandover(false);
         }
-    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace]);
+    }, [loadSupervisionWorkspace, showAlert, supervisionWorkspace, currentTs]);
 
     const handleGenerateIndividualHandover = useCallback(async (idToko: number) => {
         setGeneratingScopes(prev => ({ ...prev, [idToko]: true }));
