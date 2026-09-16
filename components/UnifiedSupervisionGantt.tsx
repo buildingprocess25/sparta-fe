@@ -1167,8 +1167,12 @@ export default function UnifiedSupervisionGantt({
                                 <button
                                     key={fullDate}
                                     type="button"
-                                    disabled={!checkpoint && !isTargetStDate}
+                                    disabled={!checkpoint && !isTargetStDate && !workspace.tanggal_takeover}
                                     onClick={() => {
+                                        if (workspace.tanggal_takeover) {
+                                            window.alert("ULOK ini sudah di-takeover. Tidak dapat mengisi pengawasan progress.");
+                                            return;
+                                        }
                                         if (isTargetStDate && onTargetStClick) {
                                             onTargetStClick(fullDate, dayIndex);
                                             return;
@@ -1435,6 +1439,36 @@ export default function UnifiedSupervisionGantt({
                                         <div className="absolute inset-0 bg-gradient-to-l from-slate-300/60 to-slate-200/30" />
                                     </div>
                                 );
+                            }
+
+                            // Add Takeover overlay if the workspace has been taken over
+                            if (workspace.tanggal_takeover) {
+                                const takeoverDate = parseDate(workspace.tanggal_takeover);
+                                if (takeoverDate) {
+                                    const takeoverOffset = diffDays(takeoverDate, timeline.start);
+                                    const blackoutStart = Math.max(0, takeoverOffset);
+                                    if (blackoutStart < timeline.days) {
+                                        acc.nodes.push(
+                                            <div
+                                                key={`${scope.id_toko}-takeover-blackout`}
+                                                className="absolute z-40 pointer-events-none"
+                                                style={{
+                                                    top: scopeTop,
+                                                    left: blackoutStart * DAY_WIDTH,
+                                                    width: (timeline.days - blackoutStart) * DAY_WIDTH,
+                                                    height: scopeHeight,
+                                                    background: "repeating-linear-gradient(45deg, rgba(0,0,0,0.8), rgba(0,0,0,0.8) 10px, rgba(15,23,42,0.9) 10px, rgba(15,23,42,0.9) 20px)",
+                                                    opacity: 0.85
+                                                }}
+                                                title={`Takeover: Proyek diambil alih`}
+                                            >
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className="rounded bg-black/60 px-3 py-1 text-xs font-bold text-white shadow-sm ring-1 ring-white/20">TAKEOVER</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                }
                             }
                             
                             // Add rows and bars
