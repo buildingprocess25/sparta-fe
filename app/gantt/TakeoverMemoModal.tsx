@@ -24,12 +24,23 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
             // 1. Fetch RAB details for this ULOK
             let rabItems: any[] = [];
             try {
-                const rabListRes = await fetchRABList({ nomor_ulok: workspace.nomor_ulok, status: 'DISETUJUI' });
+                const rabListRes = await fetchRABList({ nomor_ulok: workspace.nomor_ulok, status: 'Disetujui' });
                 if (rabListRes.status === 'success' && rabListRes.data) {
                     for (const rab of rabListRes.data) {
                         const detailRes = await fetchRABDetail(rab.id);
                         if (detailRes.status === 'success' && detailRes.data?.items) {
-                            rabItems.push(...detailRes.data.items);
+                            const tokoId = detailRes.data.toko?.id;
+                            // Ensure we only process the RAB belonging to the specific Takeover sequence of this workspace
+                            if (!workspace.scopes.some((s: any) => s.id_toko === tokoId)) {
+                                continue;
+                            }
+                            
+                            const lingkup = detailRes.data.toko?.lingkup_pekerjaan;
+                            const itemsWithLingkup = detailRes.data.items.map(item => ({
+                                ...item,
+                                lingkup_pekerjaan: lingkup
+                            }));
+                            rabItems.push(...itemsWithLingkup);
                         }
                     }
                 }
