@@ -3865,13 +3865,19 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         }
                     });
 
+                    const fKeys = new Set<string>();
+
                     dataAll.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                             const sourcePengawasanDate = p.tanggal_pengawasan ?? getPengawasanDateById(p.id_pengawasan_gantt);
                             const sourceNumeric = parseDateNumeric(sourcePengawasanDate);
-                            if (sourceNumeric && sourceNumeric > currentDateNumeric) return;
-
                             const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            
+                            if (sourceNumeric && sourceNumeric > currentDateNumeric) {
+                                fKeys.add(key);
+                                return;
+                            }
+
                             const normalizedStatus = p.status.charAt(0).toUpperCase() + p.status.slice(1);
 
                             // dataAll sudah diurutkan terbaru lebih dulu dari backend.
@@ -3972,6 +3978,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                     // setIsDirty is no longer forced here to allow continuing without saving when no changes were made.
                     setLatestStatusMapState(map);
                     setLatestIdMapState(idMap);
+                    setFutureStatusItemKeys(fKeys);
                 })
                 .catch(err => {
                     setForcedStBlockerItems([]);
@@ -3987,6 +3994,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [latestStatusMapState, setLatestStatusMapState] = useState<Map<string, string>>(new Map());
     const [latestIdMapState, setLatestIdMapState] = useState<Map<string, number>>(new Map());
+    const [futureStatusItemKeys, setFutureStatusItemKeys] = useState<Set<string>>(new Set());
 
     const hasCurrentDateSelesaiItems = liveHistory.some((p: any) => String(p.status || '').toLowerCase() === 'selesai');
     const hasLateItems = Object.values(memoInputs).some((val: any) => val.status === 'Terlambat');
@@ -4222,6 +4230,12 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 const jenisPekerjaan = item.jenis_pekerjaan || task.name;
                 const wasSupervisedToday = liveHistory.some((lh: any) => lh.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && (lh.jenis_pekerjaan || '').toUpperCase() === jenisPekerjaan.toUpperCase());
                 
+                // JIKA item ini sudah diisi di tanggal pengawasan masa depan (future),
+                // maka JANGAN tampilkan lagi di tanggal ini (kecuali jika di tanggal ini juga sudah terlanjur diisi).
+                if (futureStatusItemKeys.has(key) && !wasSupervisedToday) {
+                    return false;
+                }
+
                 const isForcedMissingOpname = validForcedStBlockerItems.some((fi: any) => 
                     fi.kategori_pekerjaan.toUpperCase() === task.name.toUpperCase() && 
                     (fi.jenis_pekerjaan || fi.kategori_pekerjaan).toUpperCase() === jenisPekerjaan.toUpperCase()
@@ -4247,7 +4261,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                 items: filteredItems
             };
         }).filter((d: any) => d.items.length > 0);
-    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart]);
+    }, [chartData, activeHeaderClick, rabItems, latestStatusMapState, memoInputs, liveHistory, forcedStBlockerItems, blockedOpnameItemKeys, getEffectiveWorkStart, futureStatusItemKeys]);
 
     const filteredMemoConfig = useMemo(() => {
         if (!searchQuery.trim()) return memoConfig;
