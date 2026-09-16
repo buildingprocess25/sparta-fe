@@ -61,7 +61,9 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                         const ilItems = ganttRes.data.instruksi_lapangan_items || [];
                         
                         // Filter RAB items that belong to this scope
-                        const scopeRabItems = rabItems.filter(r => isSameWorkText(r.lingkup_pekerjaan, scope.lingkup_pekerjaan));
+                        const scopeRabItems = rabItems
+                    .filter(item => String(item.lingkup_pekerjaan).toUpperCase() === String(scope.lingkup_pekerjaan).toUpperCase())
+                    .map(item => ({ ...item, id_gantt: scope.gantt_id }));
 
                         // Map IL items to RAB-like format
                         const mappedIlItems = ilItems.map((item: any) => ({

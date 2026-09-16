@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle } from "lucide-react";
+import { Send, Loader2, ChevronDown, Building2, Droplets, Wind, Zap, ClipboardList, FileText, Camera, Store, PlusCircle, Search, MapPin, CheckCircle2, FileImage, CheckCircle, Eye, AlertTriangle, FileCheck, PenTool } from "lucide-react";
 import { fetchTokoList, submitProjekPlanning, resubmitProjekPlanning, fetchProjekPlanningDetail, fetchRABList, fetchRABDetail } from "@/lib/api";
 import { getPpRoles, BRANCH_TO_ULOK, canAccessProjectPlanningByCabang, canViewAllBranches, getAccessibleBranchesForUser, getSessionBranchCoverage, getParentBranch } from "@/lib/constants";
 import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdokumen/photoPoints";
@@ -132,9 +132,71 @@ function FormProjekPlanningInner() {
   const [beanspotTipe, setBeanspotTipe] = useState("");
   const isDarkStoreDesign = jenisSelected.includes(DARK_STORE_OPTION);
 
+  // New RAB Option Feature States
+  const [rabSelectionOption, setRabSelectionOption] = useState<"approved" | "manual" | null>(null);
+  const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
+  const [isFetchingRabs, setIsFetchingRabs] = useState(false);
+  const [selectedApprovedRab, setSelectedApprovedRab] = useState("");
+
   const [isRabApproved, setIsRabApproved] = useState<boolean | null>(null);
   const [rabPrefillStatus, setRabPrefillStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
   const [rabPrefillMessage, setRabPrefillMessage] = useState("");
+
+  useEffect(() => {
+    if (rabSelectionOption === "approved" && approvedRabs.length === 0 && !isFetchingRabs) {
+      setIsFetchingRabs(true);
+      fetchRABList({ status: "Disetujui" }, { suppressGlobalError: true })
+        .then(res => {
+          const rawData = res.data || [];
+          const email = sessionStorage.getItem("loggedInUserEmail") || "";
+          const cabang = sessionStorage.getItem("loggedInUserCabang") || "";
+          const role = sessionStorage.getItem("userRole") || "";
+          const { isPP, isPPMgr } = getPpRoles(role, email);
+
+          let filteredData = rawData;
+          if (!isPP && !isPPMgr && cabang) {
+            const branchCoverage = getSessionBranchCoverage();
+            const accessibleBranches = getAccessibleBranchesForUser(role, cabang, branchCoverage);
+            const allowedCabang = new Set<string>(accessibleBranches.map(b => b.toUpperCase()));
+            for (const branchName of accessibleBranches) {
+              const ulokCode = BRANCH_TO_ULOK[branchName];
+              if (ulokCode) allowedCabang.add(ulokCode.toUpperCase());
+            }
+            filteredData = rawData.filter((r: any) => {
+              const tokoCabang = (r.toko?.cabang || r.cabang || "").toUpperCase();
+              const tokoUlok = (r.toko?.nomor_ulok || r.nomor_ulok || "").toUpperCase();
+              return Array.from(allowedCabang).some(ac => tokoCabang === ac || tokoUlok.startsWith(ac));
+            });
+          }
+
+          // Merge by nomor_ulok
+          const mergedMap = new Map<string, any>();
+          filteredData.forEach((r: any) => {
+            const ulok = (r.toko?.nomor_ulok || r.nomor_ulok || "").toUpperCase();
+            if (!ulok) return;
+            const scope = (r.toko?.lingkup_pekerjaan || r.lingkup_pekerjaan || "").toUpperCase();
+            
+            if (!mergedMap.has(ulok)) {
+              mergedMap.set(ulok, {
+                ...r,
+                nomor_ulok: ulok,
+                nama_toko: r.toko?.nama_toko || r.nama_toko || "",
+                scopes: new Set([scope])
+              });
+            } else {
+              mergedMap.get(ulok).scopes.add(scope);
+            }
+          });
+
+          setApprovedRabs(Array.from(mergedMap.values()).map(item => ({
+            ...item,
+            lingkup_gabungan: Array.from(item.scopes).filter(Boolean).join(", ") || "SIPIL, ME"
+          })).sort((a, b) => a.nomor_ulok.localeCompare(b.nomor_ulok)));
+        })
+        .catch(console.error)
+        .finally(() => setIsFetchingRabs(false));
+    }
+  }, [rabSelectionOption]);
 
   useEffect(() => {
     if (resubmitId) return;
@@ -680,6 +742,7 @@ function FormProjekPlanningInner() {
                     setIsManualUlok(false);
                     setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "", nama_lokasi: "" }));
                     setTokoSearch(""); setShowToko(false);
+                    setRabSelectionOption(null); setSelectedApprovedRab("");
                     // Keep manual variables intact so user doesn't lose them if switching
                     setFotoFiles({}); setFotoExistingUrls({}); setActiveFotoTab(1);
                   }}
@@ -703,6 +766,7 @@ function FormProjekPlanningInner() {
                     setIsManualUlok(true);
                     setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "Reguler", nama_lokasi: "", akhir_masa_sewa: "", spd: "", link_ba_tidak_sesuai_standar: "" }));
                     setTokoSearch(""); setShowToko(false);
+                    setRabSelectionOption(null); setSelectedApprovedRab("");
                     setFotoFiles({}); setFotoExistingUrls({}); setActiveFotoTab(1); setFileBaTidakSesuaiStandar([]);
                   }}
                 >
@@ -719,8 +783,86 @@ function FormProjekPlanningInner() {
 
               {/* Dynamic Content based on Selection */}
               <div className="mt-6">
-                {!isManualUlok ? (
-                  <div className="space-y-5 p-5 border border-red-100 rounded-xl bg-red-50/30">
+                <div className="space-y-4 mb-6">
+                  <Label className="text-sm font-bold text-slate-700">Status RAB *</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
+                        rabSelectionOption === "approved" ? "border-emerald-500 bg-emerald-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-emerald-200 hover:shadow-sm"
+                      } ${!!resubmitId ? "opacity-50 cursor-not-allowed" : ""}`}
+                      onClick={() => { if (!resubmitId) setRabSelectionOption("approved"); }}
+                    >
+                      <div className={`p-2.5 w-max rounded-full transition-colors ${rabSelectionOption === "approved" ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                        <FileCheck className="w-5 h-5" />
+                      </div>
+                      <div className="mt-3">
+                        <h3 className={`font-bold ${rabSelectionOption === "approved" ? "text-emerald-900" : "text-slate-700"}`}>Sudah Disetujui</h3>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pilih dari daftar ULOK yang sudah memiliki RAB disetujui.</p>
+                      </div>
+                      {rabSelectionOption === "approved" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-emerald-500" />}
+                    </div>
+                    
+                    <div
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
+                        rabSelectionOption === "manual" ? "border-amber-500 bg-amber-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-amber-200 hover:shadow-sm"
+                      } ${!!resubmitId ? "opacity-50 cursor-not-allowed" : ""}`}
+                      onClick={() => { if (!resubmitId) setRabSelectionOption("manual"); }}
+                    >
+                      <div className={`p-2.5 w-max rounded-full transition-colors ${rabSelectionOption === "manual" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                        <PenTool className="w-5 h-5" />
+                      </div>
+                      <div className="mt-3">
+                        <h3 className={`font-bold ${rabSelectionOption === "manual" ? "text-amber-900" : "text-slate-700"}`}>Belum / Input Manual</h3>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">RAB belum ada atau belum disetujui, input data ULOK secara manual.</p>
+                      </div>
+                      {rabSelectionOption === "manual" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-amber-500" />}
+                    </div>
+                  </div>
+                </div>
+
+                {rabSelectionOption === "approved" && (
+                  <div className="space-y-4 mb-6 p-5 border border-emerald-100 rounded-xl bg-emerald-50/30">
+                    <Label className="text-sm font-bold text-slate-700">Pilih ULOK dari RAB Disetujui *</Label>
+                    {isFetchingRabs ? (
+                      <div className="flex items-center gap-2 text-sm text-emerald-700">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar RAB...
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedApprovedRab}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setSelectedApprovedRab(val);
+                          if (val) {
+                            const parts = val.split("-");
+                            if (parts.length >= 3) {
+                              setManualCabang(parts[0]);
+                              setManualTanggal(parts[1]);
+                              setManualUrutan(parts[2]);
+                            }
+                          } else {
+                            setManualCabang(""); setManualTanggal(""); setManualUrutan("");
+                          }
+                        }}
+                        className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                      >
+                        <option value="">-- Pilih ULOK --</option>
+                        {approvedRabs
+                          .filter(r => !isManualUlok ? r.nomor_ulok.endsWith("-R") : !r.nomor_ulok.endsWith("-R"))
+                          .map(r => (
+                            <option key={r.nomor_ulok} value={r.nomor_ulok}>
+                              {r.nomor_ulok} — {r.nama_toko} ({r.lingkup_gabungan})
+                            </option>
+                          ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                {rabSelectionOption && (rabSelectionOption === "manual" || (rabSelectionOption === "approved" && selectedApprovedRab)) && (
+                  <>
+                  {!isManualUlok ? (
+                    <div className="space-y-5 p-5 border border-red-100 rounded-xl bg-red-50/30">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <Label className="text-sm font-bold text-slate-700">Nama Toko *</Label>
@@ -760,9 +902,9 @@ function FormProjekPlanningInner() {
                       <div className="flex items-center gap-3">
                         <Input placeholder="Cabang" className="h-11 w-[25%] bg-slate-100 uppercase text-slate-600 font-bold cursor-not-allowed border-slate-200" value={manualCabang} readOnly tabIndex={-1} maxLength={4} required />
                         <span className="font-bold text-slate-300">-</span>
-                        <Input placeholder="YYMM" className="h-11 w-[25%] bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required />
+                        <Input placeholder="YYMM" className={`h-11 w-[25%] bg-white border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                         <span className="font-bold text-slate-300">-</span>
-                        <Input placeholder="0001" className="h-11 w-[35%] bg-white uppercase border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400" value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required />
+                        <Input placeholder="0001" className={`h-11 w-[35%] bg-white uppercase border-slate-200 focus:border-red-400 focus:ring-1 focus:ring-red-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                         <span className="font-bold text-slate-300">-</span>
                         <Input className="h-11 w-[15%] bg-slate-100 uppercase text-slate-600 font-bold cursor-not-allowed border-slate-200 text-center" value="R" readOnly tabIndex={-1} />
                       </div>
@@ -851,9 +993,9 @@ function FormProjekPlanningInner() {
                         <div className="flex items-center gap-3">
                           <Input placeholder="Cabang" className="h-11 w-[30%] bg-slate-100 uppercase text-slate-600 font-bold cursor-not-allowed border-slate-200" value={manualCabang} readOnly tabIndex={-1} maxLength={4} required />
                           <span className="font-bold text-slate-300">-</span>
-                          <Input placeholder="YYMM" className="h-11 w-[30%] bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required />
+                          <Input placeholder="YYMM" className={`h-11 w-[30%] bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualTanggal} onChange={(e) => setManualTanggal(e.target.value)} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                           <span className="font-bold text-slate-300">-</span>
-                          <Input placeholder="0001" className="h-11 w-[40%] bg-white uppercase border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required />
+                          <Input placeholder="0001" className={`h-11 w-[40%] bg-white uppercase border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 ${rabSelectionOption === "approved" ? "bg-slate-100 cursor-not-allowed pointer-events-none" : ""}`} value={manualUrutan} onChange={(e) => setManualUrutan(e.target.value.toUpperCase())} maxLength={4} required readOnly={rabSelectionOption === "approved"} />
                         </div>
                       </div>
                     </div>
@@ -866,6 +1008,8 @@ function FormProjekPlanningInner() {
                       <Input value={(f as any).link_google_maps} onChange={e => set("link_google_maps", e.target.value)} placeholder="https://maps.google.com/..." className="h-11 bg-white border-slate-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400" />
                     </div>
                   </div>
+                )}
+                </>
                 )}
               </div>
               {rabPrefillStatus !== "idle" && (
