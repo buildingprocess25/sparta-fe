@@ -810,7 +810,7 @@ function ScopePicForm({
 
                             const ganttDurationFromItems = getGanttDurationFromDayItems(d.data?.day_items);
                             const fallbackDuration = Number(matchedSpk.durasi || 0);
-                            const duration = ganttDurationFromItems || fallbackDuration;
+                            const duration = fallbackDuration > 0 ? fallbackDuration : ganttDurationFromItems;
                             const startDate = matchedSpk.waktu_mulai || '';
                             const gScope = d.data.toko.lingkup_pekerjaan.toUpperCase();
                             targetsByGroup.set(matchedGroup.key, {
