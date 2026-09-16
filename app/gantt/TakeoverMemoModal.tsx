@@ -268,6 +268,18 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                                             </SelectContent>
                                         </Select>
 
+                                        {item.status && (
+                                            <div className="mt-3 bg-white p-3 rounded border border-slate-200 shadow-inner">
+                                                <Label className="text-[10px] text-slate-500 font-bold uppercase">Upload Foto Pengawasan (Opsional)</Label>
+                                                <Input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    className="h-8 text-xs mt-1 py-1" 
+                                                    onChange={(e) => handleOpnameFieldChange(idx, 'file_dokumentasi', e.target.files?.[0] || null)}
+                                                />
+                                            </div>
+                                        )}
+
                                         {item.status === 'Selesai' && (
                                             <div className="mt-3 bg-white p-3 rounded border border-slate-200 shadow-inner flex flex-col gap-3">
                                                 <div className="grid grid-cols-2 gap-3">
