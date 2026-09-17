@@ -333,8 +333,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             const pengawasanStatusMap = new Map<string, string>();
             try {
                 const ganttRes = await fetchGanttDetailByToko(rab.id_toko).catch(() => null);
-                if (ganttRes && ganttRes.pengawasan_data) {
-                    ganttRes.pengawasan_data.forEach((p: any) => {
+                if (ganttRes && ganttRes.pengawasan_items) {
+                    ganttRes.pengawasan_items.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                             const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
                             if (!pengawasanStatusMap.has(key)) {
@@ -1737,8 +1737,8 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 ]);
 
                 const pengawasanStatusMap = new Map<string, string>();
-                if (ganttRes && ganttRes.pengawasan_data) {
-                    ganttRes.pengawasan_data.forEach((p: any) => {
+                if (ganttRes && ganttRes.pengawasan_items) {
+                    ganttRes.pengawasan_items.forEach((p: any) => {
                         if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
                             const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
                             if (!pengawasanStatusMap.has(key)) {

@@ -2155,6 +2155,7 @@ export type GanttTokoDetailResponse = {
     day_gantt_data:      GanttDetailDayItem[];
     dependency_data:     GanttDetailDependency[];
     pengawasan_data:     GanttDetailPengawasan[];
+    pengawasan_items?:   any[];
     kategori_pekerjaan:  GanttDetailKategori[];
     instruksi_lapangan_items?: any[];
     toko:                GanttDetailToko;
