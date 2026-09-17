@@ -1721,8 +1721,8 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
                 if (rabDetail && rabDetail.data && rabDetail.data.items) {
                     reviewItems = rabDetail.data.items.map((item: RABDetailItem) => {
-                        const k = item.kategori?.toUpperCase();
-                        const j = (item.jenis_pekerjaan || item.kategori)?.toUpperCase();
+                        const k = item.kategori_pekerjaan?.toUpperCase();
+                        const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
                         const key = `${k}|${j}`;
                         return {
                             ...item,
@@ -1734,8 +1734,8 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
 
                 // Map instruksi lapangan items and attach pengawasan status
                 instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((item: any) => {
-                    const k = item.kategori?.toUpperCase();
-                    const j = (item.jenis_pekerjaan || item.kategori)?.toUpperCase();
+                    const k = item.kategori_pekerjaan?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
                     const key = `${k}|${j}`;
                     return {
                         ...item,
