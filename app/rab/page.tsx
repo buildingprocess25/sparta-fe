@@ -1484,8 +1484,8 @@ function RABPageContent() {
       luas_gudang: decimalPayloadValue(formData.luasGudang),
       no_polis: formData.noPolis,
       berlaku_polis: formData.berlakuPolis,
-      is_revisi: String(isRevisionSubmit),
-      is_takeover: String(formData.isTakeover),
+      is_revisi: String(!!isRevisionSubmit),
+      is_takeover: String(!!formData.isTakeover),
     };
 
     if (hasProjectPlanningRequest) {

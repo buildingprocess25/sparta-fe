@@ -1568,6 +1568,7 @@ function GanttBoard() {
                 const isRenovasiUlok = /-R$/i.test(String(projectData.ulokClean || '').trim());
                 const payload: any = {
                     nomor_ulok: projectData.ulokClean,
+                    takeover_sequence: currentTs,
                     nama_toko: projectData.store,
                     kode_toko: projectData.kode_toko,
                     proyek: isRenovasiUlok ? "Renovasi" : "Reguler",
