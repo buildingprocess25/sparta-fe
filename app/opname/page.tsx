@@ -516,7 +516,14 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
     // Check if all items are approved (for Opname button and finalized read-only view)
     const allApproved = useMemo(() => {
         if (rabItems.length === 0) return false;
-        return rabItems.every((item) => isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status));
+        return rabItems.every((item) => {
+            // Jika status pengawasan adalah "Tidak Dikerjakan", maka item ini otomatis "Approved" / di-skip
+            const statusPengawasan = (item as any).pengawasan_status;
+            if (statusPengawasan === 'tidak dikerjakan' || statusPengawasan === 'tidak_dikerjakan') {
+                return true;
+            }
+            return isApprovedOpnameStatus(latestOpnameByItemKey.get(getWorkItemKey(item))?.status);
+        });
     }, [rabItems, latestOpnameByItemKey]);
 
     const shouldShowReadOnlyOpnameItems = isOpnameFinalLocked || allApproved;
@@ -533,14 +540,21 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             if (!shouldShowReadOnlyOpnameItems) {
                 const isBlocked = isPendingOpnameStatus(status) || isApprovedOpnameStatus(status);
                 if (isBlocked) return;
-                if (!isRejectedOpnameStatus(status)) return;
+                if (status && !isRejectedOpnameStatus(status)) return;
             }
 
             const cat = item.kategori_pekerjaan;
             if (!map.has(cat)) map.set(cat, []);
             map.get(cat)!.push(item);
         });
-        return Array.from(map.entries()).map(([name, items]) => ({ name, items })).filter(g => g.items.length > 0);
+        return Array.from(map.entries()).map(([kategori, items]) => {
+            // Sembunyikan item yang "Tidak Dikerjakan" dari tampilan Opname (BBS dan Kontraktor)
+            const visibleItems = items.filter(item => {
+                const pStatus = (item as any).pengawasan_status;
+                return pStatus !== 'tidak dikerjakan' && pStatus !== 'tidak_dikerjakan';
+            });
+            return { name: kategori, items: visibleItems };
+        }).filter(group => group.items.length > 0);
     }, [rabItems, latestOpnameByItemKey, shouldShowReadOnlyOpnameItems]);
     const filteredGroupedItems = useMemo(() => {
         if (!opnameItemSearchQuery.trim()) return groupedItems;
@@ -1012,11 +1026,17 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         onChange={(e) => handleSelectRab(e.target.value)}
                                     >
                                         <option value="">— Pilih Proyek —</option>
-                                        {filteredRabList.map(rab => (
-                                            <option key={rab.id} value={rab.id}>
-                                                {formatUlokWithDash(rab.nomor_ulok)} - {rab.nama_toko} ({(rab as any).source_type === 'IL_ONLY' ? `IL${(rab as any).lingkup_pekerjaan ? ` - ${(rab as any).lingkup_pekerjaan}` : ''}` : rab.proyek})
-                                            </option>
-                                        ))}
+                                        {filteredRabList.map(rab => {
+                                                    const isTakeover = Number((rab.toko as any)?.takeover_sequence || (rab as any).takeover_sequence || 0) > 0;
+                                                    const projectType = (rab as any).source_type === 'IL_ONLY' 
+                                                        ? `IL${(rab as any).lingkup_pekerjaan ? ` - ${(rab as any).lingkup_pekerjaan}` : ''}` 
+                                                        : `${rab.proyek}${isTakeover ? ' - Takeover' : ''}`;
+                                                    return (
+                                                        <option key={rab.id} value={rab.id}>
+                                                            {formatUlokWithDash(rab.nomor_ulok)} - {rab.nama_toko} ({projectType})
+                                                        </option>
+                                                    );
+                                                })}
                                     </select>
                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                                 </div>
@@ -1157,8 +1177,8 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                                         {groupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
                                                 <Info className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                                <h4 className="font-bold text-slate-600">{shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Selesai'}</h4>
-                                                <p className="text-sm mt-1">{shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan (status Selesai) pada menu Gantt Chart terlebih dahulu.'}</p>
+                                                <h4 className="font-bold text-slate-600">{shouldShowReadOnlyOpnameItems ? 'Data Opname Tidak Ditemukan' : 'Belum Ada Pekerjaan Baru'}</h4>
+                                                <p className="text-sm mt-1">{shouldShowReadOnlyOpnameItems ? 'Data item final belum berhasil dimuat. Coba refresh halaman.' : 'Silakan isi laporan Pengawasan pada menu Gantt Chart terlebih dahulu (pastikan item berstatus Selesai atau Tidak Dikerjakan).'}</p>
                                             </div>
                                         ) : filteredGroupedItems.length === 0 ? (
                                             <div className="py-12 text-center text-slate-400">
@@ -1675,17 +1695,55 @@ function KontraktorOpnameView({ userInfo }: { userInfo: { name: string; role: st
                 });
             }
 
-            // Load RAB items for reference (volume RAB, kategori, jenis pekerjaan)
+            // Load RAB items and Gantt details for reference
             const rab = rabList.find(r => r.id_toko === tokoId);
             let reviewItems: RABDetailItem[] = [];
+            let instruksiItems: any[] = [];
+
             if (rab) {
-                const rabDetail = await fetchRABDetail(rab.id);
-                reviewItems = (rabDetail.data.items || []).map((item: RABDetailItem) => ({
-                    ...item,
-                    source_type: item.source_type || 'RAB'
-                }));
+                // Tarik detail RAB dan Gantt secara paralel
+                const [rabDetail, ganttRes] = await Promise.all([
+                    fetchRABDetail(rab.id).catch(() => null),
+                    fetchGanttDetailByToko(tokoId).catch(() => null)
+                ]);
+
+                const pengawasanStatusMap = new Map<string, string>();
+                if (ganttRes && ganttRes.pengawasan_data) {
+                    ganttRes.pengawasan_data.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            if (!pengawasanStatusMap.has(key)) {
+                                pengawasanStatusMap.set(key, p.status.toLowerCase());
+                            }
+                        }
+                    });
+                }
+
+                if (rabDetail && rabDetail.data && rabDetail.data.items) {
+                    reviewItems = rabDetail.data.items.map((item: RABDetailItem) => {
+                        const k = item.kategori?.toUpperCase();
+                        const j = (item.jenis_pekerjaan || item.kategori)?.toUpperCase();
+                        const key = `${k}|${j}`;
+                        return {
+                            ...item,
+                            source_type: item.source_type || 'RAB',
+                            pengawasan_status: pengawasanStatusMap.get(key)
+                        };
+                    });
+                }
+
+                // Map instruksi lapangan items and attach pengawasan status
+                instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((item: any) => {
+                    const k = item.kategori?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori)?.toUpperCase();
+                    const key = `${k}|${j}`;
+                    return {
+                        ...item,
+                        pengawasan_status: pengawasanStatusMap.get(key)
+                    };
+                });
             }
-            setRabItems([...reviewItems, ...mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || [])]);
+            setRabItems([...reviewItems, ...instruksiItems]);
         } catch (err: any) {
             showAlert({ message: `Gagal memuat data: ${err.message}`, type: "error" });
         } finally {
