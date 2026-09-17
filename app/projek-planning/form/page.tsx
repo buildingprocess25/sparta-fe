@@ -678,7 +678,7 @@ function FormProjekPlanningInner() {
       } else {
         res = await submitProjekPlanning(payload, fileFpd, fileGambarKerjaMe, fileGambarKompetitor, fileSiteplan, fileBaTidakSesuaiStandar, validFotoFiles);
       }
-      const skipBmApproval = ["BOGOR"].includes(finalCabang.toUpperCase());
+      const skipBmApproval = ["BATAM"].includes(finalCabang.toUpperCase());
       setAlertMsg({
         title: "Berhasil!",
         desc: skipBmApproval
