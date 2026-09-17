@@ -330,6 +330,21 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
         setIsLoadingDetail(true);
 
         try {
+            const pengawasanStatusMap = new Map<string, string>();
+            try {
+                const ganttRes = await fetchGanttDetailByToko(rab.id_toko).catch(() => null);
+                if (ganttRes && ganttRes.pengawasan_data) {
+                    ganttRes.pengawasan_data.forEach((p: any) => {
+                        if (p.kategori_pekerjaan && p.jenis_pekerjaan && p.status) {
+                            const key = `${p.kategori_pekerjaan.toUpperCase()}|${p.jenis_pekerjaan.toUpperCase()}`;
+                            if (!pengawasanStatusMap.has(key)) {
+                                pengawasanStatusMap.set(key, p.status.toLowerCase());
+                            }
+                        }
+                    });
+                }
+            } catch (e) { console.error(e); }
+
             const isIlOnlyProject = (rab as any).source_type === 'IL_ONLY' || Number(rab.id) < 0;
             let workingItems: RABDetailItem[] = [];
             if (isIlOnlyProject) {
@@ -348,10 +363,16 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
                 const detailRes = await fetchRABDetail(rab.id);
                 const { items, toko } = detailRes.data;
                 setTokoDetail(toko);
-                workingItems = (items || []).map((item: RABDetailItem) => ({
-                    ...item,
-                    source_type: item.source_type || 'RAB'
-                }));
+                workingItems = (items || []).map((item: RABDetailItem) => {
+                    const k = item.kategori_pekerjaan?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
+                    const key = `${k}|${j}`;
+                    return {
+                        ...item,
+                        source_type: item.source_type || 'RAB',
+                        pengawasan_status: pengawasanStatusMap.get(key)
+                    };
+                });
             }
 
             // Check for existing opname data
@@ -359,7 +380,15 @@ function PICOpnameView({ userInfo }: { userInfo: { name: string; role: string; c
             try {
                 const opnameRes = await fetchOpnameList({ id_toko: rab.id_toko });
                 existingData = opnameRes.data || [];
-                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []);
+                const instruksiItems = mapInstruksiLapanganToWorkItems(opnameRes.instruksi_lapangan_items || []).map((item: any) => {
+                    const k = item.kategori_pekerjaan?.toUpperCase();
+                    const j = (item.jenis_pekerjaan || item.kategori_pekerjaan)?.toUpperCase();
+                    const key = `${k}|${j}`;
+                    return {
+                        ...item,
+                        pengawasan_status: pengawasanStatusMap.get(key)
+                    };
+                });
                 workingItems = [...workingItems, ...instruksiItems];
                 setRabItems(workingItems);
                 setExistingOpname(existingData);
