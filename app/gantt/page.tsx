@@ -2681,7 +2681,7 @@ function GanttBoard() {
                                                 {showHandoverPanel ? 'Sembunyikan Panel' : 'Tampilkan Panel'}
                                             </Button>
                                         )}
-                                        {!isPengawasanReadOnly && currentTs === 0 && (
+                                        {!isPengawasanReadOnly && currentTs === 0 && ["GORONTALO", "HEAD OFFICE"].includes(String(projectData?.branch || projectData?.cabang || "").toUpperCase()) && (
                                             <Button
                                                 type="button"
                                                 onClick={() => setShowTakeoverMemoModal(true)}
