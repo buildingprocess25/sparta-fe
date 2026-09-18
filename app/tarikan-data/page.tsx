@@ -45,6 +45,7 @@ import {
 
 type PeriodMode = "months" | "ytd" | "all";
 type SpkStatus = "all" | "with_spk" | "without_spk";
+type JenisProyekStatus = "all" | "reguler" | "renovasi";
 
 type DataTypeOption = {
     id: string;
@@ -149,6 +150,7 @@ export default function TarikanDataPage() {
     const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
     const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
+    const [jenisProyek, setJenisProyek] = useState<JenisProyekStatus>("all");
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [exporting, setExporting] = useState<DashboardExportFormat | null>(null);
     const [notice, setNotice] = useState("");
@@ -248,6 +250,14 @@ export default function TarikanDataPage() {
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
 
+            if (jenisProyek === "reguler") {
+                const isReguler = String(project?.toko?.proyek || "").toUpperCase() === "REGULER";
+                if (!isReguler) return false;
+            } else if (jenisProyek === "renovasi") {
+                const isRenovasi = String(project?.toko?.proyek || "").toUpperCase().includes("RENOVASI");
+                if (!isRenovasi) return false;
+            }
+
             if (periodMode !== "all") {
                 const dates = collectProjectDates(project);
                 if (dates.length === 0) return false;
@@ -260,7 +270,7 @@ export default function TarikanDataPage() {
                 .map(normalizeText)
                 .some((value) => value.includes(query));
         }).sort((a, b) => String(a?.toko?.nama_toko || "").localeCompare(String(b?.toko?.nama_toko || ""), "id"));
-    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus]);
+    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus, jenisProyek]);
 
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
@@ -456,7 +466,7 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-2">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-3">
                             <div>
                                 <label className="text-xs font-medium uppercase text-slate-600">Cabang</label>
                                 <DropdownMenu>
@@ -512,6 +522,30 @@ export default function TarikanDataPage() {
                                             ["without_spk", "Belum SPK"],
                                         ] as Array<[SpkStatus, string]>).map(([value, label]) => (
                                             <DropdownMenuCheckboxItem key={value} checked={spkStatus === value} onCheckedChange={() => setSpkStatus(value)}>
+                                                {label}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium uppercase text-slate-600">Jenis Proyek</label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
+                                            {jenisProyek === "all" ? "Semua Jenis" : jenisProyek === "reguler" ? "Reguler" : "Renovasi"}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-full min-w-[200px]">
+                                        <DropdownMenuLabel>Jenis Proyek</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {([
+                                            ["all", "Semua Jenis"],
+                                            ["reguler", "Reguler"],
+                                            ["renovasi", "Renovasi"],
+                                        ] as Array<[JenisProyekStatus, string]>).map(([value, label]) => (
+                                            <DropdownMenuCheckboxItem key={value} checked={jenisProyek === value} onCheckedChange={() => setJenisProyek(value)}>
                                                 {label}
                                             </DropdownMenuCheckboxItem>
                                         ))}
