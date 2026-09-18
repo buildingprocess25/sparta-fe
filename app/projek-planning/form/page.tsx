@@ -511,6 +511,7 @@ function FormProjekPlanningInner() {
                 setIsManualUlok(false); // Renovasi
               } else {
                 setIsManualUlok(true); // Reguler
+                setRabSelectionOption("manual");
               }
             }
           }

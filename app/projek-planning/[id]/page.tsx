@@ -645,6 +645,7 @@ export default function DetailProjekPlanning() {
   const [openedLinks, setOpenedLinks] = useState<Set<string>>(new Set());
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
   const [allRabsForUlok, setAllRabsForUlok] = useState<any[]>([]);
+  const [branchApprovedRabs, setBranchApprovedRabs] = useState<any[]>([]);
   const [fasilitasTahap2, setFasilitasTahap2] = useState<FacilityInput[]>(DEFAULT_FASILITAS_TAHAP2);
   const [approvalNote, setApprovalNote] = useState("");
   const [rabReviewAction, setRabReviewAction] = useState<ReviewDecision>("");
@@ -657,9 +658,27 @@ export default function DetailProjekPlanning() {
   const [gambarApprovalNote, setGambarApprovalNote] = useState("");
 
   const [revisiUlok, setRevisiUlok] = useState(false);
+  const [revisiUlokMode, setRevisiUlokMode] = useState<"dropdown" | "manual" | "">("");
+  const [selectedBranchRabId, setSelectedBranchRabId] = useState<string>("");
   const [newUlok, setNewUlok] = useState("");
+  const [manualCabang, setManualCabang] = useState("");
+  const [manualTanggal, setManualTanggal] = useState("");
+  const [manualUrutan, setManualUrutan] = useState("");
   const [newNamaToko, setNewNamaToko] = useState("");
   const [newProyek, setNewProyek] = useState("");
+
+  useEffect(() => {
+    if (data && data.cabang && !manualCabang) {
+      const code = BRANCH_TO_ULOK[data.cabang] || BRANCH_TO_ULOK[data.cabang.toUpperCase()] || data.cabang;
+      setManualCabang(code);
+    }
+  }, [data, manualCabang]);
+
+  useEffect(() => {
+    if (revisiUlokMode === "manual") {
+      setNewUlok(`${manualCabang}-${manualTanggal}-${manualUrutan}`);
+    }
+  }, [revisiUlokMode, manualCabang, manualTanggal, manualUrutan]);
 
   const markFieldViewed = React.useCallback((field: string) => {
     setOpenedLinks(prev => {
@@ -736,19 +755,23 @@ export default function DetailProjekPlanning() {
       }
       if (projek.status === "WAITING_RAB_UPLOAD") {
         try {
-          const [rabApprovedRes, rabAllRes] = await Promise.all([
+          const [rabApprovedRes, rabAllRes, branchRabsRes] = await Promise.all([
             fetchRABList({ nomor_ulok: projek.nomor_ulok, status: "Disetujui" }, { suppressGlobalError: true }),
             fetchRABList({ nomor_ulok: projek.nomor_ulok }, { suppressGlobalError: true }),
+            fetchRABList({ status: "Disetujui" }, { suppressGlobalError: true }),
           ]);
           setApprovedRabs(rabApprovedRes.data || []);
           setAllRabsForUlok(rabAllRes.data || []);
+          setBranchApprovedRabs(branchRabsRes.data || []);
         } catch {
           setApprovedRabs([]);
           setAllRabsForUlok([]);
+          setBranchApprovedRabs([]);
         }
       } else {
         setApprovedRabs([]);
         setAllRabsForUlok([]);
+        setBranchApprovedRabs([]);
       }
       if (projek.fasilitas && projek.fasilitas.length > 0) {
         setFasilitasTahap2(() => {
@@ -913,14 +936,19 @@ export default function DetailProjekPlanning() {
   };
 
   const handleUploadRab = async () => {
-    const selectedRabSipil = approvedRabs.find(r => getRabScope(r).includes("SIPIL"));
-    const selectedRabMe = approvedRabs.find(r => getRabScope(r).includes("ME"));
-    if (approvedRabs.length === 0) {
-      showAlert("RAB Belum Tersedia", "RAB untuk ULOK ini belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.");
+    const activeRabs = revisiUlok ? branchApprovedRabs.filter(r => {
+      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+      return u === newUlok.trim().toUpperCase();
+    }) : approvedRabs;
+
+    const selectedRabSipil = activeRabs.find(r => getRabScope(r).includes("SIPIL"));
+    const selectedRabMe = activeRabs.find(r => getRabScope(r).includes("ME"));
+    if (activeRabs.length === 0) {
+      showAlert("RAB Belum Tersedia", `RAB untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} belum diinput kontraktor atau belum selesai approval. Input dan approve RAB terlebih dahulu sebelum melanjutkan FPD.`);
       return;
     }
     if (!selectedRabSipil || !selectedRabMe) {
-      showAlert("RAB Belum Lengkap", "RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ini sebelum melanjutkan FPD.");
+      showAlert("RAB Belum Lengkap", `RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} sebelum melanjutkan FPD.`);
       return;
     }
     if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
@@ -1497,26 +1525,142 @@ export default function DetailProjekPlanning() {
                     <Label htmlFor="rev-ulok" className="font-semibold text-blue-900 cursor-pointer">Revisi Identitas Toko (Opsional)</Label>
                   </div>
                   {revisiUlok && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 p-3 bg-white border border-blue-100 rounded-md">
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold text-slate-700">Nomor ULOK Baru</Label>
-                        <Input value={newUlok} onChange={e => setNewUlok(e.target.value)} placeholder="Format: CABANG-TGL-URUT" className="h-9 text-sm" />
+                    <div className="mt-3 p-4 bg-white border border-blue-100 rounded-lg space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Option 1: Dropdown */}
+                        <div
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${
+                            revisiUlokMode === "dropdown" ? "border-blue-500 bg-blue-50 shadow-sm" : "border-slate-200 hover:border-blue-300 bg-white"
+                          }`}
+                          onClick={() => setRevisiUlokMode("dropdown")}
+                        >
+                          <div className={`p-2.5 w-max rounded-full transition-colors ${revisiUlokMode === "dropdown" ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
+                            <ClipboardList className="w-5 h-5" />
+                          </div>
+                          <div className="mt-3">
+                            <h3 className={`font-bold ${revisiUlokMode === "dropdown" ? "text-blue-900" : "text-slate-700"}`}>Pilih dari RAB</h3>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pilih Nomor ULOK dari daftar RAB yang sudah diinput oleh kontraktor.</p>
+                          </div>
+                          {revisiUlokMode === "dropdown" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-blue-500" />}
+                        </div>
+
+                        {/* Option 2: Manual */}
+                        <div
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 group ${
+                            revisiUlokMode === "manual" ? "border-amber-500 bg-amber-50 shadow-sm" : "border-slate-200 hover:border-amber-300 bg-white"
+                          }`}
+                          onClick={() => setRevisiUlokMode("manual")}
+                        >
+                          <div className={`p-2.5 w-max rounded-full transition-colors ${revisiUlokMode === "manual" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                            <PenTool className="w-5 h-5" />
+                          </div>
+                          <div className="mt-3">
+                            <h3 className={`font-bold ${revisiUlokMode === "manual" ? "text-amber-900" : "text-slate-700"}`}>Input Manual</h3>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Input Nomor ULOK secara manual jika RAB belum dibuat.</p>
+                          </div>
+                          {revisiUlokMode === "manual" && <CheckCircle2 className="absolute top-4 right-4 w-5 h-5 text-amber-500" />}
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold text-slate-700">Nama Toko Baru</Label>
-                        <Input value={newNamaToko} onChange={e => setNewNamaToko(e.target.value)} placeholder="Nama Toko" className="h-9 text-sm" />
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                        <Label className="text-xs font-semibold text-slate-700">Jenis Proyek Baru</Label>
-                        <select value={newProyek} onChange={e => setNewProyek(e.target.value)} className="w-full h-9 rounded-md border border-slate-200 bg-white text-sm px-3">
-                          <option value="">-- Tetap ({data.proyek}) --</option>
-                          <option value="Reguler">Toko Baru (Reguler)</option>
-                          <option value="Renovasi">Renovasi (Umum)</option>
-                          <option value="Renovasi Perluasan">Renovasi Perluasan</option>
-                          <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
-                          <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
-                        </select>
-                      </div>
+
+                      {revisiUlokMode === "dropdown" && (
+                        <div className="space-y-4 pt-2 border-t border-blue-100">
+                          <Label className="text-sm font-bold text-slate-700">Pilih RAB yang Benar *</Label>
+                          {branchApprovedRabs.length === 0 ? (
+                            <div className="text-sm text-slate-500 italic p-3 bg-slate-50 rounded border border-slate-100">
+                              Tidak ada RAB yang berstatus Disetujui di cabang ini.
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedBranchRabId}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setSelectedBranchRabId(val);
+                                const selected = branchApprovedRabs.find(r => r.id === Number(val));
+                                if (selected) {
+                                  const u = selected.nomor_ulok || (selected.toko && selected.toko.nomor_ulok) || "";
+                                  setNewUlok(u);
+                                  setNewNamaToko(selected.nama_toko || (selected.toko && selected.toko.nama_toko) || "");
+                                  setNewProyek(selected.proyek || (selected.toko && selected.toko.proyek) || "");
+                                  // Update manual inputs as well just in case they switch
+                                  const parts = u.split("-");
+                                  if (parts.length >= 3) {
+                                    setManualCabang(parts[0]);
+                                    setManualTanggal(parts[1]);
+                                    setManualUrutan(parts[2]);
+                                  }
+                                }
+                              }}
+                              className="w-full h-10 rounded-md border border-slate-200 bg-white text-sm px-3 focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">-- Pilih RAB yang Disetujui --</option>
+                              {branchApprovedRabs.map(r => {
+                                const scope = r.lingkup_pekerjaan || r.scope || "";
+                                const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "-";
+                                const tokoName = r.nama_toko || (r.toko && r.toko.nama_toko) || "-";
+                                return (
+                                  <option key={r.id} value={r.id}>
+                                    [{scope}] {ulok} - {tokoName}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-slate-700">Nomor ULOK Terpilih</Label>
+                              <Input value={newUlok} readOnly className="h-9 text-sm bg-slate-50 text-slate-500 cursor-not-allowed" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-slate-700">Nama Toko Terpilih</Label>
+                              <Input value={newNamaToko} readOnly className="h-9 text-sm bg-slate-50 text-slate-500 cursor-not-allowed" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {revisiUlokMode === "manual" && (
+                        <div className="space-y-4 pt-2 border-t border-amber-100">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold text-slate-700">Nomor ULOK Baru *</Label>
+                              <div className="flex gap-2 items-center">
+                                <Input value={manualCabang} readOnly className="w-20 text-center h-9 bg-slate-50 text-slate-500 font-mono text-sm cursor-not-allowed" />
+                                <span className="text-slate-400 font-bold">-</span>
+                                <Input 
+                                  value={manualTanggal} 
+                                  onChange={e => setManualTanggal(e.target.value.replace(/\D/g, '').slice(0, 4))} 
+                                  placeholder="MMYY" 
+                                  className="w-20 text-center h-9 font-mono text-sm"
+                                  maxLength={4}
+                                />
+                                <span className="text-slate-400 font-bold">-</span>
+                                <Input 
+                                  value={manualUrutan} 
+                                  onChange={e => setManualUrutan(e.target.value.replace(/\D/g, '').slice(0, 4))} 
+                                  placeholder="0001" 
+                                  className="w-20 text-center h-9 font-mono text-sm"
+                                  maxLength={4}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold text-slate-700">Nama Toko Baru</Label>
+                              <Input value={newNamaToko} onChange={e => setNewNamaToko(e.target.value)} placeholder="Nama Toko" className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <Label className="text-xs font-semibold text-slate-700">Jenis Proyek Baru</Label>
+                              <select value={newProyek} onChange={e => setNewProyek(e.target.value)} className="w-full h-9 rounded-md border border-slate-200 bg-white text-sm px-3">
+                                <option value="">-- Tetap ({data.proyek}) --</option>
+                                <option value="Reguler">Toko Baru (Reguler)</option>
+                                <option value="Renovasi">Renovasi (Umum)</option>
+                                <option value="Renovasi Perluasan">Renovasi Perluasan</option>
+                                <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
+                                <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
