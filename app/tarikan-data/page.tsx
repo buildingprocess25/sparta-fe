@@ -151,6 +151,7 @@ export default function TarikanDataPage() {
     const [selectedJobTypes, setSelectedJobTypes] = useState<Set<string>>(new Set());
     const [spkStatus, setSpkStatus] = useState<SpkStatus>("all");
     const [jenisProyek, setJenisProyek] = useState<JenisProyekStatus>("all");
+    const [filterBeanspot, setFilterBeanspot] = useState<"all" | "yes" | "no">("all");
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [exporting, setExporting] = useState<DashboardExportFormat | null>(null);
     const [notice, setNotice] = useState("");
@@ -245,11 +246,6 @@ export default function TarikanDataPage() {
                 if (!matches) return false;
             }
 
-            const workItems = collectProjectWorkItems(project);
-            if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
-            if (spkStatus === "with_spk" && !hasSpk(project)) return false;
-            if (spkStatus === "without_spk" && hasSpk(project)) return false;
-
             if (jenisProyek === "reguler") {
                 const isReguler = String(project?.toko?.proyek || "").toUpperCase() === "REGULER";
                 if (!isReguler) return false;
@@ -258,7 +254,13 @@ export default function TarikanDataPage() {
                 if (!isRenovasi) return false;
             }
 
-            if (periodMode !== "all") {
+            const workItems = collectProjectWorkItems(project);
+            const hasBeanspotJob = workItems.some((item) => item.includes("BEANSPOT"));
+            if (filterBeanspot === "yes" && !hasBeanspotJob) return false;
+            if (filterBeanspot === "no" && hasBeanspotJob) return false;
+
+            if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
+            if (spkStatus === "with_spk" && !hasSpk(project)) return false;
                 const dates = collectProjectDates(project);
                 if (dates.length === 0) return false;
                 if (periodMode === "ytd" && !dates.some((date) => date.getFullYear() === selectedYear && date <= new Date())) return false;
@@ -270,7 +272,7 @@ export default function TarikanDataPage() {
                 .map(normalizeText)
                 .some((value) => value.includes(query));
         }).sort((a, b) => String(a?.toko?.nama_toko || "").localeCompare(String(b?.toko?.nama_toko || ""), "id"));
-    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus, jenisProyek]);
+    }, [periodMode, projects, search, selectedBranches, selectedJobTypes, selectedMonths, selectedYear, spkStatus, jenisProyek, filterBeanspot]);
 
     const visibleIds = useMemo(() => filteredProjects.map(projectId).filter(Boolean), [filteredProjects]);
     const selectedVisibleCount = visibleIds.filter((id) => selectedIds.has(id)).length;
@@ -466,7 +468,7 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-3">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-4">
                             <div>
                                 <label className="text-xs font-medium uppercase text-slate-600">Cabang</label>
                                 <DropdownMenu>
@@ -546,6 +548,30 @@ export default function TarikanDataPage() {
                                             ["renovasi", "Renovasi"],
                                         ] as Array<[JenisProyekStatus, string]>).map(([value, label]) => (
                                             <DropdownMenuCheckboxItem key={value} checked={jenisProyek === value} onCheckedChange={() => setJenisProyek(value)}>
+                                                {label}
+                                            </DropdownMenuCheckboxItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium uppercase text-slate-600">Pekerjaan Beanspot</label>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
+                                            {filterBeanspot === "all" ? "Semua (Ada/Tidak)" : filterBeanspot === "yes" ? "Hanya Beanspot" : "Tanpa Beanspot"}
+                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-full min-w-[200px]">
+                                        <DropdownMenuLabel>Pekerjaan Beanspot</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {([
+                                            ["all", "Semua (Ada/Tidak)"],
+                                            ["yes", "Hanya Beanspot"],
+                                            ["no", "Tanpa Beanspot"],
+                                        ] as Array<[string, string]>).map(([value, label]) => (
+                                            <DropdownMenuCheckboxItem key={value} checked={filterBeanspot === value} onCheckedChange={() => setFilterBeanspot(value as any)}>
                                                 {label}
                                             </DropdownMenuCheckboxItem>
                                         ))}

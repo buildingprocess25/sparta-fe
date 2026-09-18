@@ -4981,13 +4981,13 @@ export const downloadDashboardExport = async (params: {
     query.set("actor_cabang", params.actorCabang);
     if (params.cabang && params.cabang !== "ALL") query.set("cabang", params.cabang);
     if (params.search?.trim()) query.set("search", params.search.trim());
-    if (params.tokoIds?.length) query.set("toko_ids", params.tokoIds.join(","));
-    if (params.months?.length) query.set("months", params.months.join(","));
+    if (params.tokoIds?.length) query.set("toko_ids", params.tokoIds.join("|"));
+    if (params.months?.length) query.set("months", params.months.join("|"));
     if (params.year) query.set("year", String(params.year));
     if (params.periodMode) query.set("period_mode", params.periodMode);
-    if (params.dataTypes?.length) query.set("data_types", params.dataTypes.join(","));
-    if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join(","));
-    if (params.cabangs?.length) query.set("cabangs", params.cabangs.join(","));
+    if (params.dataTypes?.length) query.set("data_types", params.dataTypes.join("|"));
+    if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join("|"));
+    if (params.cabangs?.length) query.set("cabangs", params.cabangs.join("|"));
     if (params.spkStatus && params.spkStatus !== "all") query.set("spk_status", params.spkStatus);
 
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
