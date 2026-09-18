@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CheckCircle2, XCircle, Clock, FileText, ClipboardList,
+  CheckCircle2, XCircle, Clock, FileText, ClipboardList, PenTool,
   User, Building2, Droplets, Wind, Zap, History, Loader2, Send, Eye, Download, AlertTriangle,
 } from "lucide-react";
 import {
@@ -22,7 +22,7 @@ import {
   downloadProjekPlanningPdf, downloadProjekPlanningPhotosPdf, proxyProjekPlanningFile, fetchRABList, fetchRABDetail,
   type ProjekPlanningItem, type ProjekPlanningLog, type RABDetailItem,
 } from "@/lib/api";
-import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch } from "@/lib/constants";
+import { getPpRoles, canAccessProjectPlanningByCabang, canViewAllBranches, canCoordinatorApproveBmForBranch, BRANCH_TO_ULOK } from "@/lib/constants";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-slate-100 text-slate-700" },
