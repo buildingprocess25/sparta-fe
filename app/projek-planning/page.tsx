@@ -214,10 +214,10 @@ export default function ProjekPlanningPage() {
                       <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
                         <span className="bg-slate-100/80 px-2 py-1 rounded-md border border-slate-200 text-slate-700 tracking-tight">{item.nomor_ulok}</span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-sm text-slate-800 max-w-[14rem] truncate" title={item.nama_toko}>{item.nama_toko || "-"}</td>
+                      <td className="px-4 py-3 font-medium text-sm text-slate-800 max-w-[14rem] truncate" title={item.nama_toko || undefined}>{item.nama_toko || "-"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-slate-700">{item.cabang || "-"}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 max-w-[10rem] truncate" title={item.nama_pengaju || item.email_pembuat}>{item.nama_pengaju || item.email_pembuat}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 max-w-[10rem] truncate" title={item.jenis_pengajuan}>{item.jenis_pengajuan || "-"}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 max-w-[10rem] truncate" title={item.nama_pengaju || item.email_pembuat || undefined}>{item.nama_pengaju || item.email_pembuat}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 max-w-[10rem] truncate" title={item.jenis_pengajuan || undefined}>{item.jenis_pengajuan || "-"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={item.status} /></td>
                       <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap font-medium">{fmt(item.created_at)}</td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
