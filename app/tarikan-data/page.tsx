@@ -261,6 +261,9 @@ export default function TarikanDataPage() {
 
             if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
+            if (spkStatus === "without_spk" && hasSpk(project)) return false;
+
+            if (periodMode !== "all") {
                 const dates = collectProjectDates(project);
                 if (dates.length === 0) return false;
                 if (periodMode === "ytd" && !dates.some((date) => date.getFullYear() === selectedYear && date <= new Date())) return false;
