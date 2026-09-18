@@ -192,7 +192,31 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                 const ulok = p.toko?.nomor_ulok;
                 const checkSpkAktif = (proj: any) => {
                     const spkArray = Array.isArray(proj.spk) ? proj.spk : (proj.spk ? [proj.spk] : []);
-                    return spkArray.some((s: any) => ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase()));
+                    return spkArray.some((s: any) => {
+                        const isApproved = ['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes((s.status || '').toUpperCase());
+                        if (!isApproved) return false;
+
+                        const endDateStr = s.waktu_selesai;
+                        if (!endDateStr) return true; // If no end date is found, keep it by default
+
+                        const tHari = (s.pertambahan_spk || [])
+                            .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt.status_persetujuan || '').toUpperCase()))
+                            .reduce((acc: number, curr: any) => acc + (Number(curr.pertambahan_hari) || 0), 0);
+                        
+                        const finalDate = new Date(endDateStr);
+                        if (isNaN(finalDate.getTime())) return true;
+                        
+                        if (tHari > 0) {
+                            finalDate.setDate(finalDate.getDate() + tHari);
+                        }
+
+                        // Compare with today
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0); 
+                        finalDate.setHours(0, 0, 0, 0);
+
+                        return finalDate.getTime() >= today.getTime();
+                    });
                 };
                 if (!ulok) return checkSpkAktif(p);
                 return projects.some(proj => proj.toko?.nomor_ulok === ulok && checkSpkAktif(proj));
@@ -659,6 +683,8 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                             statusApprovalLabel = latestPt?.status_persetujuan || 'PENDING';
                         } else if (initialCardType === 'IL') {
                             statusApprovalLabel = statusIL;
+                        } else if (initialCardType === 'SPK_AKTIF' || initialCardType === 'SPK') {
+                            statusApprovalLabel = project.spk?.[0]?.status || 'Menunggu Persetujuan';
                         } else if (initialCardType === 'PENAWARAN' || statusTerkini === 'Approval RAB' || statusTerkini === 'Proses Gantt') {
                             statusApprovalLabel = project.rab?.[0]?.status || 'Menunggu Persetujuan';
                         } else if (statusTerkini === 'Approval SPK' || statusTerkini === 'Ongoing') {

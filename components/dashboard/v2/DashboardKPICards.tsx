@@ -33,12 +33,23 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
         },
         {
             title: 'SPK AKTIF',
-            value: extraStats.spkDone || 0,
+            value: extraStats.spkAktifBaru || 0,
             icon: <HardHat className="w-6 h-6 text-emerald-600" />,
             glow: 'shadow-emerald-500/20',
             bg: 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100',
             text: 'text-emerald-900',
-            subtext: `Dari ${(extraStats.spkOngoing || 0) + (extraStats.spkDone || 0)} total SPK diterbitkan`,
+            subtext: (
+                <div className="flex flex-col gap-1.5 mt-0.5 w-full">
+                    <div className="flex justify-between items-center text-[10px] 2xl:text-[11px]">
+                        <span className="text-slate-400">Total Diterbitkan</span>
+                        <span className="font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">{extraStats.spkDone || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] 2xl:text-[11px]">
+                        <span className="text-slate-400">Melewati Batas</span>
+                        <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">{extraStats.spkLewat || 0}</span>
+                    </div>
+                </div>
+            ),
             type: 'SPK_AKTIF'
         },
         {
@@ -88,9 +99,9 @@ export const DashboardKPICards: React.FC<DashboardKPICardsProps> = ({ stats, ext
                         </div>
 
                         <div className="pt-4 border-t border-slate-200/50">
-                            <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
+                            <div className="text-[11px] font-semibold text-slate-500 leading-relaxed w-full">
                                 {card.subtext}
-                            </p>
+                            </div>
                         </div>
                     </div>
                 </div>

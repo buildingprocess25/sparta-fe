@@ -69,6 +69,8 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
         let spkDone = 0;
         let spkOngoing = 0;
+        let spkAktifBaru = 0;
+        let spkLewat = 0;
         let totalNilaiSPK = 0;
 
         let totalNilaiIL = 0;
@@ -105,6 +107,34 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
                     if (['APPROVED', 'ACTIVE', 'SPK_APPROVED', 'DISETUJUI', 'AKTIF', 'SELESAI'].includes(status)) {
                         spkDone++;
+
+                        const endDateStr = s.waktu_selesai;
+                        let isLewat = false;
+                        if (endDateStr) {
+                            const tHari = (s.pertambahan_spk || [])
+                                .filter((pt: any) => ['APPROVED', 'DISETUJUI', 'DISETUJUI BM'].includes(String(pt.status_persetujuan || '').toUpperCase()))
+                                .reduce((acc: number, curr: any) => acc + (Number(curr.pertambahan_hari) || 0), 0);
+                            
+                            const finalDate = new Date(endDateStr);
+                            if (!isNaN(finalDate.getTime())) {
+                                if (tHari > 0) {
+                                    finalDate.setDate(finalDate.getDate() + tHari);
+                                }
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                finalDate.setHours(0, 0, 0, 0);
+                                
+                                if (finalDate.getTime() < today.getTime()) {
+                                    isLewat = true;
+                                }
+                            }
+                        }
+
+                        if (isLewat) {
+                            spkLewat++;
+                        } else {
+                            spkAktifBaru++;
+                        }
                     } else if (!['REJECTED', 'REJECT', 'DITOLAK', 'CANCELLED', 'CANCEL'].includes(status)) {
                         spkOngoing++;
                     }
@@ -194,7 +224,7 @@ export const DashboardViewV2: React.FC<DashboardViewV2Props> = ({
 
         return {
             penawaranDone, penawaranOngoing,
-            spkDone, spkOngoing, totalNilaiSPK,
+            spkDone, spkOngoing, spkAktifBaru, spkLewat, totalNilaiSPK,
             totalNilaiIL, ilDone, ilOngoing,
             pengawasanSelesai, pengawasanProgress, pengawasanTerlambat,
             tambahHariDone, tambahHariOngoing,
