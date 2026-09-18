@@ -1081,8 +1081,12 @@ export default function DetailProjekPlanning() {
     : [...coordinatorFields, ...ppSpecialistFields, ...rabFinalFields];
   const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
   const isRabReupload = !!(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan);
-  const selectedApprovedRabSipil = approvedRabs.find(r => getRabScope(r).includes("SIPIL"));
-  const selectedApprovedRabMe = approvedRabs.find(r => getRabScope(r).includes("ME"));
+  const currentActiveRabs = revisiUlok ? branchApprovedRabs.filter(r => {
+    const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+    return u === newUlok.trim().toUpperCase();
+  }) : approvedRabs;
+  const selectedApprovedRabSipil = currentActiveRabs.find(r => getRabScope(r).includes("SIPIL"));
+  const selectedApprovedRabMe = currentActiveRabs.find(r => getRabScope(r).includes("ME"));
   const hasCompleteApprovedRab = !!selectedApprovedRabSipil && !!selectedApprovedRabMe;
   const hasRabUploadInput = hasCompleteApprovedRab && !!(linkGambarSipil.trim() || fileGambarSipil.length > 0 || linkGambarMe.trim() || fileGambarMe.length > 0);
   const hasRabUploadChange = !!(
@@ -1518,7 +1522,7 @@ export default function DetailProjekPlanning() {
                 </div>
               )}
 
-              {isRabReupload && (
+              {true && (
                 <div className="p-4 border border-blue-200 bg-blue-50/50 rounded-lg space-y-3 mb-2">
                   <div className="flex items-center gap-2">
                     <input type="checkbox" checked={revisiUlok} onChange={e => setRevisiUlok(e.target.checked)} id="rev-ulok" className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4" />
