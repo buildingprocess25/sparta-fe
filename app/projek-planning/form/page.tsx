@@ -736,9 +736,8 @@ function FormProjekPlanningInner() {
                 {/* Opsi 1: Renovasi */}
                 <div
                   className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex items-start gap-4 ${!isManualUlok ? "border-red-500 bg-red-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-red-200 hover:shadow-sm"
-                    } ${!!resubmitId && isManualUlok ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } cursor-pointer`}
                   onClick={() => {
-                    if (!!resubmitId) return;
                     setIsManualUlok(false);
                     setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "", nama_lokasi: "" }));
                     setTokoSearch(""); setShowToko(false);
@@ -760,9 +759,8 @@ function FormProjekPlanningInner() {
                 {/* Opsi 2: Reguler / Baru */}
                 <div
                   className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex items-start gap-4 ${isManualUlok ? "border-blue-500 bg-blue-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"
-                    } ${!!resubmitId && !isManualUlok ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    } cursor-pointer`}
                   onClick={() => {
-                    if (!!resubmitId) return;
                     setIsManualUlok(true);
                     setF(p => ({ ...p, id_toko: 0, nomor_ulok: "", lingkup_pekerjaan: "", jenis_proyek: "Reguler", nama_lokasi: "", akhir_masa_sewa: "", spd: "", link_ba_tidak_sesuai_standar: "" }));
                     setTokoSearch(""); setShowToko(false);
@@ -789,8 +787,8 @@ function FormProjekPlanningInner() {
                     <div
                       className={`relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
                         rabSelectionOption === "approved" ? "border-emerald-500 bg-emerald-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-emerald-200 hover:shadow-sm"
-                      } ${!!resubmitId ? "opacity-50 cursor-not-allowed" : ""}`}
-                      onClick={() => { if (!resubmitId) setRabSelectionOption("approved"); }}
+                      }`}
+                      onClick={() => { setRabSelectionOption("approved"); }}
                     >
                       <div className={`p-2.5 w-max rounded-full transition-colors ${rabSelectionOption === "approved" ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
                         <FileCheck className="w-5 h-5" />
@@ -805,8 +803,8 @@ function FormProjekPlanningInner() {
                     <div
                       className={`relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
                         rabSelectionOption === "manual" ? "border-amber-500 bg-amber-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-amber-200 hover:shadow-sm"
-                      } ${!!resubmitId ? "opacity-50 cursor-not-allowed" : ""}`}
-                      onClick={() => { if (!resubmitId) setRabSelectionOption("manual"); }}
+                      }`}
+                      onClick={() => { setRabSelectionOption("manual"); }}
                     >
                       <div className={`p-2.5 w-max rounded-full transition-colors ${rabSelectionOption === "manual" ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
                         <PenTool className="w-5 h-5" />

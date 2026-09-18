@@ -656,6 +656,11 @@ export default function DetailProjekPlanning() {
   const [rabApprovalNote, setRabApprovalNote] = useState("");
   const [gambarApprovalNote, setGambarApprovalNote] = useState("");
 
+  const [revisiUlok, setRevisiUlok] = useState(false);
+  const [newUlok, setNewUlok] = useState("");
+  const [newNamaToko, setNewNamaToko] = useState("");
+  const [newProyek, setNewProyek] = useState("");
+
   const markFieldViewed = React.useCallback((field: string) => {
     setOpenedLinks(prev => {
       const next = new Set(prev);
@@ -948,16 +953,24 @@ export default function DetailProjekPlanning() {
 
     setActionLoading(true);
     try {
-      await uploadRabGambarKerja(
-        id,
-        {
+      const payload: any = {
           uploader_email: userEmail,
           id_rab_sipil: selectedRabSipil?.id,
           id_rab_me: selectedRabMe?.id,
           fasilitas: fasilitasTahap2.filter(f => f.is_tersedia || (f as any).nama_fasilitas_lainnya?.trim()),
           link_gambar_kerja_final_sipil: linkGambarSipil,
           link_gambar_kerja_final_me: linkGambarMe,
-        } as any,
+      };
+      
+      if (revisiUlok) {
+          if (newUlok.trim()) payload.nomor_ulok = newUlok.trim();
+          if (newNamaToko.trim()) payload.nama_toko = newNamaToko.trim();
+          if (newProyek.trim()) payload.jenis_proyek = newProyek.trim();
+      }
+
+      await uploadRabGambarKerja(
+        id,
+        payload,
         fileGambarSipil,
         fileGambarMe
       );
@@ -1474,6 +1487,38 @@ export default function DetailProjekPlanning() {
                 <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>Anda harus <strong>melihat atau mengunduh Desain 3D</strong> terlebih dahulu sebelum bisa mengupload RAB. Buka dokumen di bagian Dokumen PP Specialist di atas.</span>
+                </div>
+              )}
+
+              {isRabReupload && (
+                <div className="p-4 border border-blue-200 bg-blue-50/50 rounded-lg space-y-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={revisiUlok} onChange={e => setRevisiUlok(e.target.checked)} id="rev-ulok" className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4" />
+                    <Label htmlFor="rev-ulok" className="font-semibold text-blue-900 cursor-pointer">Revisi Identitas Toko (Opsional)</Label>
+                  </div>
+                  {revisiUlok && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 p-3 bg-white border border-blue-100 rounded-md">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-slate-700">Nomor ULOK Baru</Label>
+                        <Input value={newUlok} onChange={e => setNewUlok(e.target.value)} placeholder="Format: CABANG-TGL-URUT" className="h-9 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-slate-700">Nama Toko Baru</Label>
+                        <Input value={newNamaToko} onChange={e => setNewNamaToko(e.target.value)} placeholder="Nama Toko" className="h-9 text-sm" />
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <Label className="text-xs font-semibold text-slate-700">Jenis Proyek Baru</Label>
+                        <select value={newProyek} onChange={e => setNewProyek(e.target.value)} className="w-full h-9 rounded-md border border-slate-200 bg-white text-sm px-3">
+                          <option value="">-- Tetap ({data.proyek}) --</option>
+                          <option value="Reguler">Toko Baru (Reguler)</option>
+                          <option value="Renovasi">Renovasi (Umum)</option>
+                          <option value="Renovasi Perluasan">Renovasi Perluasan</option>
+                          <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
+                          <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
