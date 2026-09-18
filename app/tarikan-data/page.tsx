@@ -254,12 +254,6 @@ export default function TarikanDataPage() {
                 if (!isRenovasi) return false;
             }
 
-            const workItems = collectProjectWorkItems(project);
-            const hasBeanspotJob = workItems.some((item) => item.includes("BEANSPOT"));
-            if (filterBeanspot === "yes" && !hasBeanspotJob) return false;
-            if (filterBeanspot === "no" && hasBeanspotJob) return false;
-
-            if (selectedJobTypes.size > 0 && !workItems.some((item) => selectedJobTypes.has(item))) return false;
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
 
@@ -356,6 +350,8 @@ export default function TarikanDataPage() {
                 jobTypes: Array.from(selectedJobTypes),
                 cabangs: cabangsPayload,
                 spkStatus,
+                jenisProyek,
+                beanspot: filterBeanspot,
             });
             setNotice("Export berhasil dibuat sesuai pilihan data.");
         } catch (err) {

@@ -4989,6 +4989,7 @@ export const downloadDashboardExport = async (params: {
     if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join("|"));
     if (params.cabangs?.length) query.set("cabangs", params.cabangs.join("|"));
     if (params.spkStatus && params.spkStatus !== "all") query.set("spk_status", params.spkStatus);
+    if (params.beanspot && params.beanspot !== "all") query.set("beanspot", params.beanspot);
 
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);
     if (!res.ok) {
