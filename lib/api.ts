@@ -4974,6 +4974,8 @@ export const downloadDashboardExport = async (params: {
     jobTypes?: string[];
     cabangs?: string[];
     spkStatus?: 'all' | 'with_spk' | 'without_spk';
+    jenisProyek?: 'all' | 'reguler' | 'renovasi';
+    beanspot?: 'all' | 'yes' | 'no';
 }): Promise<boolean> => {
     const query = new URLSearchParams();
     query.set("format", params.format);
@@ -4989,6 +4991,7 @@ export const downloadDashboardExport = async (params: {
     if (params.jobTypes?.length) query.set("job_types", params.jobTypes.join("|"));
     if (params.cabangs?.length) query.set("cabangs", params.cabangs.join("|"));
     if (params.spkStatus && params.spkStatus !== "all") query.set("spk_status", params.spkStatus);
+    if (params.jenisProyek && params.jenisProyek !== "all") query.set("jenis_proyek", params.jenisProyek);
     if (params.beanspot && params.beanspot !== "all") query.set("beanspot", params.beanspot);
 
     const res = await apiFetch(`${API_URL.replace(/\/$/, "")}/api/dashboard/export?${query.toString()}`);

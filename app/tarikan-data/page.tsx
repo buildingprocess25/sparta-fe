@@ -246,14 +246,6 @@ export default function TarikanDataPage() {
                 if (!matches) return false;
             }
 
-            if (jenisProyek === "reguler") {
-                const isReguler = String(project?.toko?.proyek || "").toUpperCase() === "REGULER";
-                if (!isReguler) return false;
-            } else if (jenisProyek === "renovasi") {
-                const isRenovasi = String(project?.toko?.proyek || "").toUpperCase().includes("RENOVASI");
-                if (!isRenovasi) return false;
-            }
-
             if (spkStatus === "with_spk" && !hasSpk(project)) return false;
             if (spkStatus === "without_spk" && hasSpk(project)) return false;
 
