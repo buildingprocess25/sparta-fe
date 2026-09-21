@@ -1348,6 +1348,7 @@ function ApprovalPageContent() {
                     approval_koordinator: { pemberi: d.rab.pemberi_persetujuan_koordinator, waktu: d.rab.waktu_persetujuan_koordinator, catatan: d.rab.catatan_persetujuan_koordinator },
                     approval_manager:     { pemberi: d.rab.pemberi_persetujuan_manager,     waktu: d.rab.waktu_persetujuan_manager, catatan: d.rab.catatan_persetujuan_manager },
                     approval_direktur:    { pemberi: d.rab.pemberi_persetujuan_direktur,    waktu: d.rab.waktu_persetujuan_direktur, catatan: d.rab.catatan_persetujuan_direktur },
+                    durasi:               d.rab.durasi_pekerjaan ? Number(d.rab.durasi_pekerjaan) : undefined,
                     // Coordinator info (beanspot, HTH, fasade) - hanya untuk manager
                     beanspot_type: d.rab.beanspot_type,
                     is_hth: d.rab.is_hth,
@@ -2885,10 +2886,16 @@ function ApprovalPageContent() {
                                                             Kontraktor: <b>{selectedDetail.nama_kontraktor}</b>
                                                         </span>
                                                     )}
-                                                    {selectedDetail.durasi && (
+                                                    {selectedDetail.durasi && selectedDetail.tipe !== 'RAB' && (
                                                         <span className="flex items-center gap-1.5">
                                                             <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
                                                             Durasi: <b>{selectedDetail.durasi} Hari</b>
+                                                        </span>
+                                                    )}
+                                                    {selectedDetail.durasi && selectedDetail.tipe === 'RAB' && (
+                                                        <span className="flex items-center gap-1.5">
+                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                                                            durasi pekerjaan: <b>{selectedDetail.durasi} hari</b>
                                                         </span>
                                                     )}
                                                     {selectedDetail.waktu_mulai && (
