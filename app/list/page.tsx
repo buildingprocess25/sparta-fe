@@ -3543,8 +3543,9 @@ export default function DaftarDokumenPage() {
                                             {/* Pertambahan SPK-specific fields */}
                                             {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && (
                                                 <>
-                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor ULOK" value={selectedDetail.nomor_ulok} />
-                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_spk || '-'} />
+                                                    {(!selectedDetail.nomor_spk_sipil && !selectedDetail.nomor_spk_me) && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_spk || '-'} />
+                                                    )}
                                                     {selectedDetail.nomor_spk_sipil && (
                                                         <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK (Sipil)" value={selectedDetail.nomor_spk_sipil} />
                                                     )}
