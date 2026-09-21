@@ -198,6 +198,8 @@ interface NormalizedDetail {
     tanggal_spk_akhir_setelah_perpanjangan?: string;
     alasan_perpanjangan?: string;
     nomor_spk?: string;
+    nomor_spk_sipil?: string | null;
+    nomor_spk_me?: string | null;
     link_pdf?: string | null;
     hari_denda?: number;
     nilai_denda?: string;
@@ -1429,6 +1431,9 @@ function ApprovalPageContent() {
                     tanggal_spk_akhir_setelah_perpanjangan: d.tanggal_spk_akhir_setelah_perpanjangan,
                     alasan_perpanjangan: d.alasan_perpanjangan,
                     nomor_spk:         d.nomor_spk || d.spk?.nomor_spk,
+                    nomor_spk_sipil:   d.nomor_spk_sipil,
+                    nomor_spk_me:      d.nomor_spk_me,
+                    link_pdf_gabungan: d.link_pdf,
                     items: [],
                 };
             } else if (item.tipe === 'OPNAME') {
@@ -3147,6 +3152,18 @@ function ApprovalPageContent() {
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK</p>
                                                     <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk || '-'}</p>
                                                 </div>
+                                                {selectedDetail.nomor_spk_sipil && (
+                                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK (Sipil)</p>
+                                                        <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk_sipil}</p>
+                                                    </div>
+                                                )}
+                                                {selectedDetail.nomor_spk_me && (
+                                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nomor SPK (ME)</p>
+                                                        <p className="text-sm font-semibold text-slate-800">{selectedDetail.nomor_spk_me}</p>
+                                                    </div>
+                                                )}
                                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Pertambahan Hari</p>
                                                     <p className="text-sm font-bold text-emerald-700">+{selectedDetail.pertambahan_hari} Hari</p>

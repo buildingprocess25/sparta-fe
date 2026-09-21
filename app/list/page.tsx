@@ -222,6 +222,8 @@ interface NormalizedDetail {
     // Pertambahan SPK specific
     pertambahan_hari?: string;
     alasan_perpanjangan?: string;
+    nomor_spk_sipil?: string | null;
+    nomor_spk_me?: string | null;
     tanggal_spk_akhir?: string;
     tanggal_spk_akhir_setelah_perpanjangan?: string;
     disetujui_oleh?: string;
@@ -1010,7 +1012,7 @@ const normalizePertambahanSPKDocs = (items: PertambahanSPKListItem[]): Normalize
     items.map(p => ({
         id: p.id,
         tipe: 'PERTAMBAHAN_SPK' as DokumenKategori,
-        nomor_ulok: p.nomor_spk || p.toko?.nomor_ulok || p.spk?.nomor_ulok || '-',
+        nomor_ulok: p.toko?.nomor_ulok || p.spk?.nomor_ulok || p.nomor_spk || '-',
         nama_toko: p.toko?.nama_toko || p.spk?.nama_toko || '-',
         cabang: p.toko?.cabang || p.spk?.cabang || '',
         proyek: p.toko?.proyek || p.spk?.proyek || '-',
@@ -1830,7 +1832,9 @@ export default function DaftarDokumenPage() {
                     email_pembuat: d.dibuat_oleh,
                     total_nilai: 0,
                     created_at: d.created_at,
-                    nomor_spk: d.nomor_spk || d.spk?.nomor_spk,
+                    nomor_spk: perData.nomor_spk || perData.spk?.nomor_spk || d.nomor_spk || d.spk?.nomor_spk,
+                    nomor_spk_sipil: perData.nomor_spk_sipil || perData.spk?.nomor_spk_sipil,
+                    nomor_spk_me: perData.nomor_spk_me || perData.spk?.nomor_spk_me,
                     nama_kontraktor: d.spk?.nama_kontraktor || d.toko?.nama_kontraktor,
                     lingkup_pekerjaan: d.spk?.lingkup_pekerjaan || d.toko?.lingkup_pekerjaan,
                     durasi: d.spk?.durasi,
@@ -3539,7 +3543,14 @@ export default function DaftarDokumenPage() {
                                             {/* Pertambahan SPK-specific fields */}
                                             {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && (
                                                 <>
-                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_ulok} />
+                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor ULOK" value={selectedDetail.nomor_ulok} />
+                                                    <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_spk || '-'} />
+                                                    {selectedDetail.nomor_spk_sipil && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK (Sipil)" value={selectedDetail.nomor_spk_sipil} />
+                                                    )}
+                                                    {selectedDetail.nomor_spk_me && (
+                                                        <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK (ME)" value={selectedDetail.nomor_spk_me} />
+                                                    )}
                                                     <InfoRow icon={<Clock className="w-4 h-4" />} label="Pertambahan Hari" value={`+${selectedDetail.pertambahan_hari || '-'} Hari`} />
                                                     <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir SPK" value={selectedDetail.tanggal_spk_akhir ? formatDateFull(selectedDetail.tanggal_spk_akhir) : '-'} />
                                                     <InfoRow icon={<CalendarDays className="w-4 h-4" />} label="Tgl Akhir Setelah Perpanjangan" value={selectedDetail.tanggal_spk_akhir_setelah_perpanjangan ? formatDateFull(selectedDetail.tanggal_spk_akhir_setelah_perpanjangan) : '-'} />

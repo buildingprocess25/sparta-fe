@@ -3841,6 +3841,8 @@ export type PertambahanSPKListFilters = {
 };
 
 export type PertambahanSPKDetailResponse = PertambahanSPKListItem & {
+    nomor_spk_sipil?: string | null;
+    nomor_spk_me?: string | null;
     spk?: {
         id: number;
         nomor_ulok: string;
