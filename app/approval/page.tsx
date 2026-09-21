@@ -2855,71 +2855,115 @@ function ApprovalPageContent() {
                                                 {selectedDetail.alamat && (
                                                     <p className="text-sm text-slate-500 mb-2">{selectedDetail.alamat}</p>
                                                 )}
-                                                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600">
-                                                    <span className="flex items-center gap-1.5">
-                                                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                        ULOK: <b>{selectedDetail.nomor_ulok}</b>
-                                                    </span>
-                                                    {selectedDetail.kode_toko && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                            Kode Toko: <b>{selectedDetail.kode_toko}</b>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
+                                                    <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <Building2 className="w-3.5 h-3.5" /> ULOK
                                                         </span>
+                                                        <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.nomor_ulok}>
+                                                            {selectedDetail.nomor_ulok}
+                                                        </span>
+                                                    </div>
+                                                    {selectedDetail.kode_toko && (
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <Building2 className="w-3.5 h-3.5" /> Kode Toko
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.kode_toko}>
+                                                                {selectedDetail.kode_toko}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.lingkup_pekerjaan && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <FileText className="w-3.5 h-3.5 text-slate-400" />
-                                                            Lingkup: <b>{selectedDetail.lingkup_pekerjaan}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <FileText className="w-3.5 h-3.5" /> Lingkup
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.lingkup_pekerjaan}>
+                                                                {selectedDetail.lingkup_pekerjaan}
+                                                            </span>
+                                                        </div>
                                                     )}
-                                                    <span className="flex items-center gap-1.5">
-                                                        <User className="w-3.5 h-3.5 text-slate-400" />
-                                                        Pengaju: <b>{selectedDetail.email_pembuat}</b>
-                                                    </span>
-                                                    <span className="flex items-center gap-1.5">
-                                                        <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                        Tgl Pengajuan: <b>{formatDate(selectedDetail.created_at)}</b>
-                                                    </span>
-                                                    {selectedDetail.nama_kontraktor && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <ClipboardList className="w-3.5 h-3.5 text-slate-400" />
-                                                            Kontraktor: <b>{selectedDetail.nama_kontraktor}</b>
+                                                    <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <User className="w-3.5 h-3.5" /> Pengaju
                                                         </span>
+                                                        <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.email_pembuat}>
+                                                            {selectedDetail.email_pembuat}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <CalendarDays className="w-3.5 h-3.5" /> Tgl Pengajuan
+                                                        </span>
+                                                        <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                            {formatDate(selectedDetail.created_at)}
+                                                        </span>
+                                                    </div>
+                                                    {selectedDetail.nama_kontraktor && (
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <ClipboardList className="w-3.5 h-3.5" /> Kontraktor
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1" title={selectedDetail.nama_kontraktor}>
+                                                                {selectedDetail.nama_kontraktor}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.durasi && selectedDetail.tipe !== 'RAB' && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Durasi: <b>{selectedDetail.durasi} Hari</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Durasi
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {selectedDetail.durasi} Hari
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.durasi && selectedDetail.tipe === 'RAB' && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            durasi pekerjaan: <b>{selectedDetail.durasi} hari</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Durasi Pekerjaan
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {selectedDetail.durasi} Hari
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.waktu_mulai && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Tanggal Mulai: <b>{formatDate(selectedDetail.waktu_mulai)}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Tanggal Mulai
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {formatDate(selectedDetail.waktu_mulai)}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.waktu_selesai && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                                                            Tanggal Selesai: <b>{formatDate(selectedDetail.waktu_selesai)}</b>
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5" /> Tanggal Selesai
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 line-clamp-1">
+                                                                {formatDate(selectedDetail.waktu_selesai)}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {selectedDetail.st_target_date && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            <CalendarDays className="w-3.5 h-3.5 text-teal-600" />
-                                                            Target ST: <b>{formatDate(selectedDetail.st_target_date)}</b>
-                                                            {selectedDetail.st_offset_label && (
-                                                                <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
-                                                                    {selectedDetail.st_offset_label}
-                                                                </span>
-                                                            )}
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                            <span className="flex items-center gap-1.5 text-[10px] font-bold text-teal-600 uppercase tracking-wider">
+                                                                <CalendarDays className="w-3.5 h-3.5 text-teal-600" /> Target ST
+                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800 flex items-center gap-2 line-clamp-1">
+                                                                {formatDate(selectedDetail.st_target_date)}
+                                                                {selectedDetail.st_offset_label && (
+                                                                    <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
+                                                                        {selectedDetail.st_offset_label}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                 </div>
 
