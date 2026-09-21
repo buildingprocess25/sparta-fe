@@ -3543,7 +3543,7 @@ export default function DaftarDokumenPage() {
                                             {/* Pertambahan SPK-specific fields */}
                                             {selectedDetail.tipe === 'PERTAMBAHAN_SPK' && (
                                                 <>
-                                                    {(!selectedDetail.nomor_spk_sipil && !selectedDetail.nomor_spk_me) && (
+                                                    {!(selectedDetail.nomor_spk_sipil || selectedDetail.nomor_spk_me) && (
                                                         <InfoRow icon={<Hash className="w-4 h-4" />} label="Nomor SPK" value={selectedDetail.nomor_spk || '-'} />
                                                     )}
                                                     {selectedDetail.nomor_spk_sipil && (
