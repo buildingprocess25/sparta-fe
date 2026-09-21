@@ -951,7 +951,10 @@ export default function DetailProjekPlanning() {
       showAlert("RAB Belum Lengkap", `RAB Sipil DAN RAB ME harus tersedia dan disetujui untuk ULOK ${revisiUlok ? newUlok : data?.nomor_ulok || ''} sebelum melanjutkan FPD.`);
       return;
     }
-    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) return;
+    if (!linkGambarSipil.trim() && fileGambarSipil.length === 0 && !linkGambarMe.trim() && fileGambarMe.length === 0) {
+      showAlert("Peringatan", "File Gambar Kerja Final Sipil atau ME belum terisi! Silakan upload atau masukkan link.");
+      return;
+    }
     
     // Wajib buka desain 3D jika ada
     if (data?.link_desain_3d && !openedLinks.has("desain_3d")) {
@@ -1093,7 +1096,9 @@ export default function DetailProjekPlanning() {
     fileGambarSipil.length > 0 ||
     fileGambarMe.length > 0 ||
     linkGambarSipil.trim() !== (((data as any).link_gambar_kerja_final_sipil || "")).trim() ||
-    linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim()
+    linkGambarMe.trim() !== ((data as any).link_gambar_kerja_final_me || "").trim() ||
+    (selectedApprovedRabSipil?.id ?? null) !== ((data as any).id_rab_sipil ?? null) ||
+    (selectedApprovedRabMe?.id ?? null) !== ((data as any).id_rab_me ?? null)
   );
   const latestRevisionSummary = [...logs]
     .reverse()
@@ -1682,7 +1687,16 @@ export default function DetailProjekPlanning() {
                   'DITOLAK': { label: 'Ditolak', emoji: '❌', color: 'text-red-700 font-semibold' },
                 };
                 const getRabStatusDisplay = (scope: string) => {
-                  const rab = allRabsForUlok.find(r => getRabScope(r).includes(scope.toUpperCase()));
+                  let rab;
+                  if (revisiUlok) {
+                    rab = branchApprovedRabs.find(r => {
+                      const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
+                      return u === newUlok.trim().toUpperCase() && getRabScope(r).includes(scope.toUpperCase());
+                    });
+                  } else {
+                    rab = allRabsForUlok.find(r => getRabScope(r).includes(scope.toUpperCase()));
+                  }
+
                   if (!rab) return { label: 'Belum disubmit', emoji: '⬜', color: 'text-slate-400' };
                   const key = (rab.status || '').toUpperCase().trim();
                   return RAB_STATUS_LABEL[key] || { label: rab.status || 'Tidak diketahui', emoji: '❓', color: 'text-slate-500' };
