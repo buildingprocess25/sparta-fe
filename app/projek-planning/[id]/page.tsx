@@ -666,6 +666,7 @@ export default function DetailProjekPlanning() {
   const [manualUrutan, setManualUrutan] = useState("");
   const [newNamaToko, setNewNamaToko] = useState("");
   const [newProyek, setNewProyek] = useState("");
+  const [searchUlok, setSearchUlok] = useState("");
 
   useEffect(() => {
     if (data && data.cabang && !manualCabang) {
@@ -762,7 +763,29 @@ export default function DetailProjekPlanning() {
           ]);
           setApprovedRabs(rabApprovedRes.data || []);
           setAllRabsForUlok(rabAllRes.data || []);
-          setBranchApprovedRabs(branchRabsRes.data || []);
+          
+          const rawBranchRabs = branchRabsRes.data || [];
+          const mergedMap = new Map<string, any>();
+          rawBranchRabs.forEach((r: any) => {
+            const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "";
+            const scope = r.lingkup_pekerjaan || r.scope || "";
+            if (!ulok) return;
+            if (!mergedMap.has(ulok)) {
+              mergedMap.set(ulok, {
+                ...r,
+                nomor_ulok: ulok,
+                nama_toko: r.toko?.nama_toko || r.nama_toko || "",
+                scopes: new Set([scope])
+              });
+            } else {
+              mergedMap.get(ulok).scopes.add(scope);
+            }
+          });
+
+          setBranchApprovedRabs(Array.from(mergedMap.values()).map(item => ({
+            ...item,
+            lingkup_gabungan: Array.from(item.scopes).filter(Boolean).join(", ") || "SIPIL, ME"
+          })).sort((a, b) => a.nomor_ulok.localeCompare(b.nomor_ulok)));
         } catch {
           setApprovedRabs([]);
           setAllRabsForUlok([]);
@@ -1579,40 +1602,56 @@ export default function DetailProjekPlanning() {
                               Tidak ada RAB yang berstatus Disetujui di cabang ini.
                             </div>
                           ) : (
-                            <select
-                              value={selectedBranchRabId}
-                              onChange={e => {
-                                const val = e.target.value;
-                                setSelectedBranchRabId(val);
-                                const selected = branchApprovedRabs.find(r => r.id === Number(val));
-                                if (selected) {
-                                  const u = selected.nomor_ulok || (selected.toko && selected.toko.nomor_ulok) || "";
-                                  setNewUlok(u);
-                                  setNewNamaToko(selected.nama_toko || (selected.toko && selected.toko.nama_toko) || "");
-                                  setNewProyek(selected.proyek || (selected.toko && selected.toko.proyek) || "");
-                                  // Update manual inputs as well just in case they switch
-                                  const parts = u.split("-");
-                                  if (parts.length >= 3) {
-                                    setManualCabang(parts[0]);
-                                    setManualTanggal(parts[1]);
-                                    setManualUrutan(parts[2]);
+                            <div className="space-y-2">
+                              <Input
+                                placeholder="Cari ULOK / Nama Toko..."
+                                value={searchUlok}
+                                onChange={e => setSearchUlok(e.target.value)}
+                                className="h-9 text-sm"
+                              />
+                              <select
+                                value={selectedBranchRabId}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setSelectedBranchRabId(val);
+                                  const selected = branchApprovedRabs.find(r => r.id === Number(val));
+                                  if (selected) {
+                                    const u = selected.nomor_ulok || (selected.toko && selected.toko.nomor_ulok) || "";
+                                    setNewUlok(u);
+                                    setNewNamaToko(selected.nama_toko || (selected.toko && selected.toko.nama_toko) || "");
+                                    setNewProyek(selected.proyek || (selected.toko && selected.toko.proyek) || "");
+                                    // Update manual inputs as well just in case they switch
+                                    const parts = u.split("-");
+                                    if (parts.length >= 3) {
+                                      setManualCabang(parts[0]);
+                                      setManualTanggal(parts[1]);
+                                      setManualUrutan(parts[2]);
+                                    }
                                   }
-                                }
-                              }}
-                              className="w-full h-10 rounded-md border border-slate-200 bg-white text-sm px-3 focus:ring-2 focus:ring-blue-500"
-                            >
-                              <option value="">-- Pilih RAB yang Disetujui --</option>
-                              {branchApprovedRabs.map(r => {
-                                const scope = r.lingkup_pekerjaan || r.scope || "";
-                                const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "-";
-                                const tokoName = r.nama_toko || (r.toko && r.toko.nama_toko) || "-";
-                                return (
-                                  <option key={r.id} value={r.id}>
-                                    [{scope}] {ulok} - {tokoName}
-                                  </option>
-                                );
-                              })}
-                            </select>
+                                }}
+                                className="w-full h-10 rounded-md border border-slate-200 bg-white text-sm px-3 focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">-- Pilih RAB yang Disetujui --</option>
+                                {branchApprovedRabs
+                                  .filter(r => {
+                                    if (!searchUlok) return true;
+                                    const searchLower = searchUlok.toLowerCase();
+                                    const ulok = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").toLowerCase();
+                                    const tokoName = (r.nama_toko || (r.toko && r.toko.nama_toko) || "").toLowerCase();
+                                    return ulok.includes(searchLower) || tokoName.includes(searchLower);
+                                  })
+                                  .map(r => {
+                                  const scope = r.lingkup_gabungan || r.lingkup_pekerjaan || r.scope || "";
+                                  const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "-";
+                                  const tokoName = r.nama_toko || (r.toko && r.toko.nama_toko) || "-";
+                                  return (
+                                    <option key={r.id} value={r.id}>
+                                      [{scope}] {ulok} - {tokoName}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
                           )}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                             <div className="space-y-1">

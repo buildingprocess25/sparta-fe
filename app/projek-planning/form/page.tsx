@@ -137,6 +137,7 @@ function FormProjekPlanningInner() {
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
   const [isFetchingRabs, setIsFetchingRabs] = useState(false);
   const [selectedApprovedRab, setSelectedApprovedRab] = useState("");
+  const [searchApprovedRab, setSearchApprovedRab] = useState("");
 
   const [isRabApproved, setIsRabApproved] = useState<boolean | null>(null);
   const [rabPrefillStatus, setRabPrefillStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
@@ -827,33 +828,48 @@ function FormProjekPlanningInner() {
                         <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar RAB...
                       </div>
                     ) : (
-                      <select
-                        value={selectedApprovedRab}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setSelectedApprovedRab(val);
-                          if (val) {
-                            const parts = val.split("-");
-                            if (parts.length >= 3) {
-                              setManualCabang(parts[0]);
-                              setManualTanggal(parts[1]);
-                              setManualUrutan(parts[2]);
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="Cari ULOK / Nama Toko..."
+                          value={searchApprovedRab}
+                          onChange={e => setSearchApprovedRab(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                        <select
+                          value={selectedApprovedRab}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSelectedApprovedRab(val);
+                            if (val) {
+                              const parts = val.split("-");
+                              if (parts.length >= 3) {
+                                setManualCabang(parts[0]);
+                                setManualTanggal(parts[1]);
+                                setManualUrutan(parts[2]);
+                              }
+                            } else {
+                              setManualCabang(""); setManualTanggal(""); setManualUrutan("");
                             }
-                          } else {
-                            setManualCabang(""); setManualTanggal(""); setManualUrutan("");
-                          }
-                        }}
-                        className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-                      >
-                        <option value="">-- Pilih ULOK --</option>
-                        {approvedRabs
-                          .filter(r => !isManualUlok ? r.nomor_ulok.endsWith("-R") : !r.nomor_ulok.endsWith("-R"))
-                          .map(r => (
-                            <option key={r.nomor_ulok} value={r.nomor_ulok}>
-                              {r.nomor_ulok} — {r.nama_toko} ({r.lingkup_gabungan})
-                            </option>
-                          ))}
-                      </select>
+                          }}
+                          className="w-full h-11 px-3 rounded-md border border-slate-200 bg-white text-sm focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                        >
+                          <option value="">-- Pilih ULOK --</option>
+                          {approvedRabs
+                            .filter(r => !isManualUlok ? r.nomor_ulok.endsWith("-R") : !r.nomor_ulok.endsWith("-R"))
+                            .filter(r => {
+                              if (!searchApprovedRab) return true;
+                              const searchLower = searchApprovedRab.toLowerCase();
+                              const ulok = (r.nomor_ulok || "").toLowerCase();
+                              const tokoName = (r.nama_toko || "").toLowerCase();
+                              return ulok.includes(searchLower) || tokoName.includes(searchLower);
+                            })
+                            .map(r => (
+                              <option key={r.nomor_ulok} value={r.nomor_ulok}>
+                                {r.nomor_ulok} — {r.nama_toko} ({r.lingkup_gabungan})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                     )}
                   </div>
                 )}

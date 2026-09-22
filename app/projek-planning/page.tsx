@@ -51,6 +51,7 @@ export default function ProjekPlanningPage() {
   const [userEmail, setUserEmail] = useState("");
   const [userCabang, setUserCabang] = useState("");
   const [userRole, setUserRole] = useState("");
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +111,7 @@ export default function ProjekPlanningPage() {
       });
 
       setItems(data);
+      setVisibleCount(10);
       localStorage.setItem("last_checked_fpd", new Date().toISOString());
     } catch (e: any) { console.error(e); }
     setLoading(false);
@@ -208,7 +210,7 @@ export default function ProjekPlanningPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item, idx) => (
+                  {items.slice(0, visibleCount).map((item, idx) => (
                     <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-sm text-slate-500">{idx + 1}</td>
                       <td className="px-4 py-3 font-mono text-xs font-semibold whitespace-nowrap">
@@ -232,8 +234,15 @@ export default function ProjekPlanningPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-2 bg-slate-50 border-t text-xs text-slate-500">
-              Total: {items.length} pengajuan
+            <div className="px-4 py-3 bg-slate-50 border-t flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Menampilkan {Math.min(visibleCount, items.length)} dari {items.length} pengajuan
+              </span>
+              {visibleCount < items.length && (
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount(v => v + 10)} className="h-8 text-xs">
+                  Muat Lebih Banyak
+                </Button>
+              )}
             </div>
           </div>
         )}
