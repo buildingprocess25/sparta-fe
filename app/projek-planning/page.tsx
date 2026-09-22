@@ -69,17 +69,14 @@ export default function ProjekPlanningPage() {
       // Coordinator: filter by email only — their FPDs may be for any branch
       if (isOnlyCoor && userEmail) {
         filters.email_pembuat = userEmail;
-      } else if (search.trim()) {
-        // Manual search override
-        filters.cabang = search.trim();
       } else if (!isHO && (!canSeeAllBranches || isBMRegional) && !isCoor && userCabang) {
         // BM, PP, Manager, Regional Manager
         const coverage = getSessionBranchCoverage();
         const parentBranch = getParentBranch(userCabang);
         
         // Opsi A: Jika user berasal dari CIKOKOL/CILEUNGSI atau Regional Manager dan memiliki coverage pembagian wilayah,
-        // kita paksa filter ke cabang pertama dalam coverage mereka.
-        if ((parentBranch === "CIKOKOL" || parentBranch === "CILEUNGSI" || isBMRegional) && coverage.length > 0) {
+        // kita paksa filter ke cabang pertama dalam coverage mereka, KECUALI sedang pencarian (agar mencari ke semua coverage-nya).
+        if (!search.trim() && (parentBranch === "CIKOKOL" || parentBranch === "CILEUNGSI" || isBMRegional) && coverage.length > 0) {
           filters.cabang = coverage[0];
         }
       }
@@ -96,7 +93,18 @@ export default function ProjekPlanningPage() {
         "REJECTED",
       ];
 
+      const searchQuery = search.trim().toLowerCase();
+
       data = data.filter((d: any) => {
+        if (searchQuery) {
+          const u = String(d.nomor_ulok || "").toLowerCase();
+          const t = String(d.nama_toko || "").toLowerCase();
+          const c = String(d.cabang || "").toLowerCase();
+          if (!u.includes(searchQuery) && !t.includes(searchQuery) && !c.includes(searchQuery)) {
+            return false;
+          }
+        }
+
         if (isSuperHuman) return true;
         if (isBMRegional) return BM_REGIONAL_VISIBLE_STATUSES.includes(d.status);
         if (isPP || isPPMgr) return true;
@@ -164,7 +172,7 @@ export default function ProjekPlanningPage() {
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input placeholder="Cari cabang..." value={search} onChange={e => setSearch(e.target.value)}
+            <Input placeholder="Cari cabang, ULOK, atau nama toko..." value={search} onChange={e => setSearch(e.target.value)}
               className="pl-9 h-9 text-sm" onKeyDown={e => e.key === "Enter" && load()} />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
