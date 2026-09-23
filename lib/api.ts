@@ -5916,6 +5916,9 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         keterangan?: string;
     }[];
     keterangan?: string;
+    nomor_ulok?: string;
+    nama_toko?: string;
+    jenis_proyek?: string;
 }, fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
     let body: BodyInit;
     const headers: Record<string, string> = {};
@@ -5936,6 +5939,9 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         if (payload.link_gambar_kerja) formData.append("link_gambar_kerja", payload.link_gambar_kerja);
         if (payload.link_gambar_kerja_final_sipil) formData.append("link_gambar_kerja_final_sipil", payload.link_gambar_kerja_final_sipil);
         if (payload.link_gambar_kerja_final_me) formData.append("link_gambar_kerja_final_me", payload.link_gambar_kerja_final_me);
+        if (payload.nomor_ulok) formData.append("nomor_ulok", payload.nomor_ulok);
+        if (payload.nama_toko) formData.append("nama_toko", payload.nama_toko);
+        if (payload.jenis_proyek) formData.append("jenis_proyek", payload.jenis_proyek);
         if (payload.fasilitas) formData.append("fasilitas", JSON.stringify(payload.fasilitas));
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
