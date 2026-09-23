@@ -417,6 +417,71 @@ function LoginPageContent() {
 
         <CardContent>
           <div className="space-y-5 mt-4">
+            {/* Form manual HANYA tampil di environment development / localhost */}
+            {(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) && (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email SAT (Khusus Dev)</Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="email@sat.co.id"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 h-11 border-slate-300 focus:border-[#005a9e] focus:ring-[#005a9e]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="password" className="text-sm font-semibold text-slate-700">Password Cabang (Khusus Dev)</Label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="NAMA CABANG"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 pr-10 h-11 border-slate-300 focus:border-[#005a9e] focus:ring-[#005a9e]"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button 
+                  type="submit" 
+                  disabled={isLoading || !email || !password}
+                  className="w-full h-12 text-base font-bold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98] shadow-md"
+                >
+                  {isLoading ? "Memproses..." : "Masuk (Dev Mode)"}
+                </Button>
+                
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-slate-500 font-medium">Atau</span>
+                  </div>
+                </div>
+              </form>
+            )}
+
             <Button 
               type="button" 
               disabled={isLoading}
@@ -424,9 +489,10 @@ function LoginPageContent() {
                  const fallbackUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://sparta-alfamart.web.id';
                  window.location.href = process.env.NEXT_PUBLIC_SSO_PORTAL_URL || fallbackUrl;
               }}
-              className="w-full h-12 text-base font-bold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98] shadow-md"
+              variant={(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) ? "outline" : "default"}
+              className={`w-full h-12 text-base font-bold transition-transform active:scale-[0.98] ${(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) ? "border-slate-300 text-slate-700 hover:bg-slate-50" : "bg-[#005a9e] hover:bg-[#004a80] shadow-md"}`}
             >
-              {isLoading ? "Memproses..." : "Masuk via SPARTA SSO"}
+              Masuk via SPARTA SSO
             </Button>
 
             {/* Pesan Alert */}
