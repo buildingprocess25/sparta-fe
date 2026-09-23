@@ -1187,7 +1187,7 @@ export default function DetailProjekPlanning() {
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b">Informasi Utama</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                 <InfoRow label="Nomor ULOK" value={data.nomor_ulok} />
-                <InfoRow label="Nama Toko / Lokasi" value={data.nama_lokasi || data.nama_toko} />
+                <InfoRow label="Nama Toko / Lokasi" value={(data as any).toko?.nama_toko || data.nama_toko || data.nama_lokasi} />
                 <InfoRow label="Cabang" value={data.cabang} />
                 <InfoRow label="Proyek" value={data.proyek || data.jenis_proyek} />
                 <InfoRow label="Akhir Masa Sewa" value={(data as any).akhir_masa_sewa ? fmtDateLong((data as any).akhir_masa_sewa) : null} />
