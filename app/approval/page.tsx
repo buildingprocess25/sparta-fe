@@ -688,7 +688,7 @@ const normalizeProjekPlanningList = (items: ProjekPlanningItem[]): NormalizedLis
         id: p.id,
         tipe: 'PROJECT_PLANNING' as ApprovalType,
         nomor_ulok:    p.nomor_ulok ?? '-',
-        nama_toko:     p.nama_lokasi || p.nama_toko || '-',
+        nama_toko:     (p as any).toko?.nama_toko || p.nama_toko || p.nama_lokasi || '-',
         cabang:        p.cabang || '-',
         status:        p.status,
         total_nilai:   parseCurrency(p.estimasi_biaya ?? '0'),
