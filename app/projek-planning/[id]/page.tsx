@@ -153,25 +153,25 @@ const isDirectUserLink = (url?: string | null) => {
   return !!first && !shouldUseDriveProxy(first);
 };
 
-function FpdTimeline({ currentStatus }: { currentStatus: string }) {
+function FpdTimeline({ currentStatus, cabang }: { currentStatus: string, cabang?: string | null }) {
   const isRejected = currentStatus === "REJECTED";
+  
+  const isSkipBm = (cabang || "").toUpperCase() === "BATAM";
+  const steps = FPD_STEPS.filter(s => {
+    if (isSkipBm && (s.id === "WAITING_BM_APPROVAL" || s.id === "WAITING_BM_APPROVAL_2")) return false;
+    return true;
+  });
 
-  let activeIndex = -1;
-  if (currentStatus === "WAITING_BM_APPROVAL") activeIndex = 0;
-  if (currentStatus === "WAITING_PP_APPROVAL_1") activeIndex = 1;
-  if (currentStatus === "PP_DESIGN_3D_REQUIRED" || currentStatus === "WAITING_RAB_UPLOAD") activeIndex = 2;
-  if (currentStatus === "WAITING_BM_APPROVAL_2") activeIndex = 3;
-  if (currentStatus === "WAITING_BM_REGIONAL_APPROVAL") activeIndex = 4;
-  if (currentStatus === "WAITING_PP_APPROVAL_2") activeIndex = 5;
-  if (currentStatus === "WAITING_PP_MANAGER_APPROVAL") activeIndex = 6;
-  if (currentStatus === "COMPLETED") activeIndex = 7;
+  const targetId = currentStatus === "PP_DESIGN_3D_REQUIRED" ? "WAITING_RAB_UPLOAD" : currentStatus;
+  let activeIndex = steps.findIndex(s => s.id === targetId);
+  if (currentStatus === "COMPLETED") activeIndex = steps.length - 1;
 
   return (
     <div className="mb-10 mt-2 w-full relative">
       <div className="relative flex justify-between items-center w-full px-2 sm:px-6">
         <div className="absolute left-4 right-4 sm:left-10 sm:right-10 top-1/2 -translate-y-1/2 h-1 bg-slate-200 z-0"></div>
-        <div className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-1 bg-green-500 z-0 transition-all duration-500" style={{ width: `calc(${Math.max(0, (activeIndex / (FPD_STEPS.length - 1)) * 100)}% - 2rem)` }}></div>
-        {FPD_STEPS.map((step, idx) => {
+        <div className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-1 bg-green-500 z-0 transition-all duration-500" style={{ width: `calc(${Math.max(0, (activeIndex / (steps.length - 1)) * 100)}% - 2rem)` }}></div>
+        {steps.map((step, idx) => {
           const isCompleted = activeIndex > idx || currentStatus === "COMPLETED";
           const isActive = activeIndex === idx;
           const isError = isRejected;
@@ -1158,7 +1158,7 @@ export default function DetailProjekPlanning() {
       <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
       <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
 
-        <FpdTimeline currentStatus={data.status} />
+        <FpdTimeline currentStatus={data.status} cabang={data.cabang} />
 
         {/* Status Banner */}
         <div className={`px-4 py-3 rounded-xl ${st.color} flex items-center justify-between`}>
