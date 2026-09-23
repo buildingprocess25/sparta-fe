@@ -1158,7 +1158,7 @@ export default function DetailProjekPlanning() {
       <AppNavbar title="Detail FPD" showBackButton backHref={backHref} />
       <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
 
-        <FpdTimeline currentStatus={data.status} cabang={data.cabang} />
+        <FpdTimeline currentStatus={data.status} cabang={(data as any).toko?.cabang || data.cabang} />
 
         {/* Status Banner */}
         <div className={`px-4 py-3 rounded-xl ${st.color} flex items-center justify-between`}>
