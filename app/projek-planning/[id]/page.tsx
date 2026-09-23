@@ -646,6 +646,7 @@ export default function DetailProjekPlanning() {
   const [approvedRabs, setApprovedRabs] = useState<any[]>([]);
   const [allRabsForUlok, setAllRabsForUlok] = useState<any[]>([]);
   const [branchApprovedRabs, setBranchApprovedRabs] = useState<any[]>([]);
+  const [rawBranchApprovedRabs, setRawBranchApprovedRabs] = useState<any[]>([]);
   const [fasilitasTahap2, setFasilitasTahap2] = useState<FacilityInput[]>(DEFAULT_FASILITAS_TAHAP2);
   const [approvalNote, setApprovalNote] = useState("");
   const [rabReviewAction, setRabReviewAction] = useState<ReviewDecision>("");
@@ -765,6 +766,8 @@ export default function DetailProjekPlanning() {
           setAllRabsForUlok(rabAllRes.data || []);
           
           const rawBranchRabs = branchRabsRes.data || [];
+          setRawBranchApprovedRabs(rawBranchRabs);
+          
           const mergedMap = new Map<string, any>();
           rawBranchRabs.forEach((r: any) => {
             const ulok = r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "";
@@ -790,11 +793,13 @@ export default function DetailProjekPlanning() {
           setApprovedRabs([]);
           setAllRabsForUlok([]);
           setBranchApprovedRabs([]);
+          setRawBranchApprovedRabs([]);
         }
       } else {
         setApprovedRabs([]);
         setAllRabsForUlok([]);
         setBranchApprovedRabs([]);
+        setRawBranchApprovedRabs([]);
       }
       if (projek.fasilitas && projek.fasilitas.length > 0) {
         setFasilitasTahap2(() => {
@@ -959,7 +964,7 @@ export default function DetailProjekPlanning() {
   };
 
   const handleUploadRab = async () => {
-    const activeRabs = revisiUlok ? branchApprovedRabs.filter(r => {
+    const activeRabs = revisiUlok ? rawBranchApprovedRabs.filter(r => {
       const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
       return u === newUlok.trim().toUpperCase();
     }) : approvedRabs;
@@ -1107,7 +1112,7 @@ export default function DetailProjekPlanning() {
     : [...coordinatorFields, ...ppSpecialistFields, ...rabFinalFields];
   const allLinksOpened = requiredFields.length === 0 || requiredFields.every(f => openedLinks.has(f));
   const isRabReupload = !!(data.pp2_alasan_penolakan || data.pp_manager_alasan_penolakan);
-  const currentActiveRabs = revisiUlok ? branchApprovedRabs.filter(r => {
+  const currentActiveRabs = revisiUlok ? rawBranchApprovedRabs.filter(r => {
     const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
     return u === newUlok.trim().toUpperCase();
   }) : approvedRabs;
@@ -1728,7 +1733,7 @@ export default function DetailProjekPlanning() {
                 const getRabStatusDisplay = (scope: string) => {
                   let rab;
                   if (revisiUlok) {
-                    rab = branchApprovedRabs.find(r => {
+                    rab = rawBranchApprovedRabs.find(r => {
                       const u = (r.nomor_ulok || (r.toko && r.toko.nomor_ulok) || "").trim().toUpperCase();
                       return u === newUlok.trim().toUpperCase() && getRabScope(r).includes(scope.toUpperCase());
                     });
