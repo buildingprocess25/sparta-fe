@@ -8,7 +8,7 @@ import {
     Camera, FilePlus, FolderArchive, BarChartHorizontal,
     AlertTriangle, ClipboardCheck,
     FileStack, ClipboardList, FileEdit, Upload, Building2,
-    ShieldAlert, SlidersHorizontal, CalendarClock, Download,
+    ShieldAlert, SlidersHorizontal, CalendarClock, Download, Tag,
 } from "lucide-react";
 
 // -----------------------------------------------------------------------------
@@ -45,6 +45,13 @@ export const ALL_MENUS = [
         desc: "Ubah item RAB dan replace via CSV.",
         href: "/ubah-rab-item",
         icon: FileEdit,
+    },
+    {
+        id: "menu-pengajuan-harga",
+        title: "Pengajuan Harga",
+        desc: "Pengajuan penetapan harga spesifikasi material toko.",
+        href: "/pengajuan-harga",
+        icon: Tag,
     },
     {
         id: "menu-migrasi-rab",
@@ -266,6 +273,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
         "menu-spk", "menu-opname", "menu-tambahspk",
         "menu-gantt", "menu-sp", "menu-dokumentasi", "menu-svdokumen",
         "menu-approval", "menu-daftardokumen", "menu-tarikan-data", "menu-projek-planning",
+        "menu-pengajuan-harga",
     ],
 
     "BRANCH BUILDING COORDINATOR": [
@@ -358,7 +366,7 @@ export const ROLE_CONFIG: Record<string, string[]> = {
 
     "BUILDING & MAINTENANCE SUPER HUMAN": [
         "menu-dc-development",
-        "menu-rab", "menu-ubah-rab-item", "menu-spk", "menu-inputpic", "menu-opname",
+        "menu-rab", "menu-ubah-rab-item", "menu-pengajuan-harga", "menu-spk", "menu-inputpic", "menu-opname",
         "menu-dokumentasi", "menu-tambahspk", "menu-svdokumen",
         "menu-gantt", "menu-sp", "menu-approval", "menu-daftardokumen",
         "menu-intervensi", "menu-il", "menu-users", "menu-system-maintenance", "menu-spk-backdate-policy", "menu-serah-terima-date-correction",

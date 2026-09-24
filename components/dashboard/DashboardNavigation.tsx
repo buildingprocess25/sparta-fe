@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   Upload,
   Download,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -41,7 +42,7 @@ const GROUPS: NavigationGroup[] = [
     id: "planning",
     label: "Perencanaan & RAB",
     icon: FileText,
-    menuIds: ["menu-projek-planning", "menu-rab", "menu-ubah-rab-item"],
+    menuIds: ["menu-projek-planning", "menu-rab", "menu-ubah-rab-item", "menu-pengajuan-harga"],
   },
   {
     id: "execution",
@@ -93,6 +94,7 @@ const SPECIAL_ICONS: Record<string, typeof LayoutDashboard> = {
   "menu-system-maintenance": SlidersHorizontal,
   "menu-spk-backdate-policy": CalendarClock,
   "menu-serah-terima-date-correction": CalendarClock,
+  "menu-pengajuan-harga": Tag,
 };
 
 type Props = {
