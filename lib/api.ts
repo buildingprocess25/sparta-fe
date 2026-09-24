@@ -3928,7 +3928,10 @@ export const submitPertambahanSPK = async (payload: PertambahanSPKPayload) => {
 
     const result = await res.json();
     if (res.status === 404) throw new Error(result.message || "SPK tidak ditemukan.");
-    if (res.status === 422) throw new Error(result.message || "Validasi gagal. Pastikan semua field terisi.");
+    if (res.status === 422) {
+        const issuesMsg = result.issues ? ": " + JSON.stringify(result.issues) : "";
+        throw new Error((result.message || "Validasi gagal.") + issuesMsg);
+    }
     if (!res.ok || result.status !== "success") {
         throw new Error(result.message || "Gagal menyimpan data pertambahan SPK.");
     }
