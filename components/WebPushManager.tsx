@@ -81,6 +81,7 @@ export default function WebPushManager() {
       const permission = await Notification.requestPermission();
       setPermissionState(permission);
       if (permission === 'granted') {
+        setShowBanner(false);
         await subscribeToPush();
       }
     } catch (err) {
@@ -88,52 +89,7 @@ export default function WebPushManager() {
     }
   };
 
-  const handleTestNotification = async () => {
-    try {
-      const res = await safeFetchJSON('/api/task-notifications/web-push/test-trigger') as any;
-      if (res?.status === 'success') {
-        alert("Sinyal notifikasi telah dikirim! Silakan tunggu beberapa detik.");
-      } else {
-        alert("Gagal mengirim sinyal: " + (res?.message || 'Error tidak diketahui'));
-      }
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
-
   if (!showBanner || !user) return null;
-
-  if (permissionState === 'granted') {
-    return (
-      <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-green-100 p-4 z-[9999] flex items-start space-x-4 animate-in slide-in-from-bottom-5">
-        <div className="bg-green-50 p-2 rounded-full flex-shrink-0 mt-1">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-        </div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-gray-900 text-sm">Notifikasi Aktif!</h3>
-          <p className="text-xs text-gray-500 mt-1 mb-3 leading-relaxed">
-            Izin notifikasi telah diberikan. Silakan uji untuk memastikan notifikasi muncul di layar Anda.
-          </p>
-          <div className="flex space-x-2">
-            <button 
-              onClick={handleTestNotification}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-2 px-3 rounded-lg transition-colors"
-            >
-              Uji Notifikasi
-            </button>
-            <button 
-              onClick={() => setShowBanner(false)}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-2 px-3 rounded-lg transition-colors"
-            >
-              Tutup
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-4 z-[9999] flex items-start space-x-4 animate-in slide-in-from-bottom-5">
