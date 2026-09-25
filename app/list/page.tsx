@@ -672,10 +672,6 @@ type RabDisplayTotalSource = {
 };
 
 const getRabDisplayTotal = (rab: RabDisplayTotalSource) => {
-    const cabang = (rab?.cabang || rab?.toko?.cabang || '').trim().toUpperCase();
-    if (cabang === 'BATAM' || cabang === 'BINTAN') {
-        return parseCurrency(rab?.grand_total);
-    }
     return parseCurrency(rab?.grand_total_final ?? rab?.grand_total);
 };
 
