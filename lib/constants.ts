@@ -558,6 +558,7 @@ export const BRANCH_GROUPS: Record<string, string[]> = {
     LAMPUNG: ["LAMPUNG", "KOTABUMI"],
     PALEMBANG: ["PALEMBANG", "BENGKULU", "BANGKA", "BELITUNG"],
     SIDOARJO: ["SIDOARJO", "SIDOARJO BPN SMD", "MANOKWARI", "NTT", "SORONG"], // FIX: spasi bukan underscore
+    BANJARMASIN: ["BANJARMASIN", "PALANGKARAYA"],
 };
 
 export const normalizeBranchValue = (branch?: string | null): string =>
@@ -612,7 +613,7 @@ export const SUPPORTED_PRICE_BRANCHES = [
     "CIKOKOL", "BINTAN", "CILACAP", "CILEUNGSI", "GORONTALO", "JAMBI",
     "JEMBER", "KARAWANG", "KLATEN", "KOTABUMI", "LAMPUNG", "LOMBOK",
     "LUWU", "MADIUN", "MAKASSAR", "MALANG", "MANADO", "MANOKWARI",
-    "MEDAN", "NTT", "PALEMBANG", "PARUNG", "PEKANBARU", "PLUMBON",
+    "MEDAN", "NTT", "PALANGKARAYA", "PALEMBANG", "PARUNG", "PEKANBARU", "PLUMBON",
     "PONTIANAK", "REMBANG", "SEMARANG", "SERANG", "SIDOARJO",
     "SIDOARJO BPN SMD", "SORONG", "SUMBAWA", "TEGAL", "HEAD OFFICE"
 ];
@@ -723,6 +724,7 @@ export const BRANCH_TO_ULOK: Record<string, string> = {
     "BATAM": "2DZ1",
     "MADIUN": "2MZ1",
     "BINTAN": "KZ01",
+    "PALANGKARAYA": "1GZ1",
 };
 
 // -----------------------------------------------------------------------------
