@@ -226,7 +226,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       if (ignore) return;
 
-      setUser(sessionUser);
+      setUser((prev) => {
+      if (prev && prev.email === sessionUser.email && prev.role === sessionUser.role) {
+        return prev;
+      }
+      return sessionUser;
+    });
       setMaintenanceStatus(nextMaintenanceStatus);
       setIsMaintenanceBlocked(nextMaintenanceBlocked);
       setAccessSchedule(nextAccessSchedule);
