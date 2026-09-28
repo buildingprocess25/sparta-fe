@@ -1,37 +1,258 @@
 "use client";
 
-import React from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useMemo } from 'react';
 import AppNavbar from '@/components/AppNavbar';
-import { Button } from '@/components/ui/button';
-import { HardHat, ArrowLeft, Clock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Search, Store, Clock, CheckCircle2 } from 'lucide-react';
+import { PengajuanHargaItem } from '@/components/pengajuan-harga/types';
+import { getStoredPengajuan } from '@/components/pengajuan-harga/store';
+import { BuildingCoordHero } from '@/components/pengajuan-harga/building-coord/BuildingCoordHero';
+import { TableSiapSurvei } from '@/components/pengajuan-harga/building-coord/TableSiapSurvei';
+import { TablePengajuanBerjalan } from '@/components/pengajuan-harga/building-coord/TablePengajuanBerjalan';
+import { ModalRincianToko } from '@/components/pengajuan-harga/building-coord/ModalRincianToko';
+import { ModalCatatanApprover } from '@/components/pengajuan-harga/building-coord/ModalCatatanApprover';
 
-export default function BuildingCoordPlaceholderPage() {
+export default function BuildingCoordPage() {
+  // Data State
+  const [items, setItems] = useState<PengajuanHargaItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'siap_survei' | 'diproses' | 'selesai'>('siap_survei');
+  const [search, setSearch] = useState('');
+
+  // Modal View Detail Survei State (Quick Preview 3 Toko)
+  const [selectedItemDetail, setSelectedItemDetail] = useState<PengajuanHargaItem | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Modal Catatan Review State (jika dikembalikan/revisi)
+  const [selectedItemCatatan, setSelectedItemCatatan] = useState<PengajuanHargaItem | null>(null);
+  const [isCatatanModalOpen, setIsCatatanModalOpen] = useState(false);
+
+  // Load Initial Data
+  useEffect(() => {
+    const stored = getStoredPengajuan();
+    setItems(stored);
+  }, []);
+
+  // Filter Items Siap Survei
+  const itemsSiapSurvei = useMemo(() => {
+    return items.filter((item) => {
+      const isSiap =
+        item.status === 'SIAP_SURVEI' ||
+        (item.status === 'DISETUJUI' ||
+          item.status === 'DISETUJUI_MASTERING') &&
+        (!item.surveyToko || item.surveyToko.length < 3);
+
+      if (!isSiap) return false;
+
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        return (
+          item.kode.toLowerCase().includes(q) ||
+          (item.kodeMaster && item.kodeMaster.toLowerCase().includes(q)) ||
+          item.item.toLowerCase().includes(q) ||
+          item.merk.toLowerCase().includes(q) ||
+          item.kategori.toLowerCase().includes(q) ||
+          item.lokasi.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [items, search]);
+
+  // Filter Items Diproses (Sedang proses approval 4-layer atau dikembalikan untuk revisi survei)
+  const itemsDiproses = useMemo(() => {
+    return items.filter((item) => {
+      const isDiproses =
+        item.status === 'PENDING_BM_MGR' ||
+        item.status === 'PENDING_SB_SPECIALIST' ||
+        item.status === 'PENDING_REGIONAL_MGR' ||
+        item.status === 'PENDING_KONTRAKTOR' ||
+        item.status === 'RETURNED_TO_BC';
+
+      if (!isDiproses) return false;
+
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        return (
+          item.kode.toLowerCase().includes(q) ||
+          (item.kodeMaster && item.kodeMaster.toLowerCase().includes(q)) ||
+          item.item.toLowerCase().includes(q) ||
+          item.merk.toLowerCase().includes(q) ||
+          item.kategori.toLowerCase().includes(q) ||
+          item.lokasi.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [items, search]);
+
+  // Filter Items Selesai (Sudah disepakati final dan rilis)
+  const itemsSelesai = useMemo(() => {
+    return items.filter((item) => {
+      const isSelesai =
+        item.status === 'RELEASED' ||
+        item.status === 'APPROVED_ACTIVE';
+
+      if (!isSelesai) return false;
+
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        return (
+          item.kode.toLowerCase().includes(q) ||
+          (item.kodeMaster && item.kodeMaster.toLowerCase().includes(q)) ||
+          item.item.toLowerCase().includes(q) ||
+          item.merk.toLowerCase().includes(q) ||
+          item.kategori.toLowerCase().includes(q) ||
+          item.lokasi.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [items, search]);
+
+  // Handlers untuk Modal Preview
+  const handleOpenDetailModal = (item: PengajuanHargaItem) => {
+    setSelectedItemDetail(item);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleOpenCatatanModal = (item: PengajuanHargaItem) => {
+    setSelectedItemCatatan(item);
+    setIsCatatanModalOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
-      <AppNavbar title="Building Coordinator" showBackButton backHref="/pengajuan-harga" />
-      
-      <main className="flex-1 w-full max-w-4xl mx-auto p-6 md:p-12 flex flex-col items-center justify-center text-center">
-        <div className="p-4 bg-amber-100 text-amber-600 rounded-2xl mb-4">
-          <HardHat className="w-10 h-10" />
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <AppNavbar />
+
+      <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+        {/* Hero Section */}
+        <BuildingCoordHero
+          countSiapSurvei={itemsSiapSurvei.length}
+          countDiproses={itemsDiproses.length}
+          countSelesai={itemsSelesai.length}
+        />
+
+        {/* Tab & Filter Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl flex-wrap">
+            <button
+              onClick={() => setActiveTab('siap_survei')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'siap_survei'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Store className="w-3.5 h-3.5 text-amber-600" />
+              <span>Siap Survei</span>
+              <Badge
+                variant="secondary"
+                className={`text-[10px] px-1.5 py-0.2 ${
+                  activeTab === 'siap_survei'
+                    ? 'bg-amber-100 text-amber-900 font-bold'
+                    : 'bg-slate-300 text-slate-700'
+                }`}
+              >
+                {itemsSiapSurvei.length}
+              </Badge>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('diproses')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'diproses'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              <span>Diproses</span>
+              <Badge
+                variant="secondary"
+                className={`text-[10px] px-1.5 py-0.2 ${
+                  activeTab === 'diproses'
+                    ? 'bg-blue-100 text-blue-900 font-bold'
+                    : 'bg-slate-300 text-slate-700'
+                }`}
+              >
+                {itemsDiproses.length}
+              </Badge>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('selesai')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'selesai'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Selesai</span>
+              <Badge
+                variant="secondary"
+                className={`text-[10px] px-1.5 py-0.2 ${
+                  activeTab === 'selesai'
+                    ? 'bg-emerald-100 text-emerald-900 font-bold'
+                    : 'bg-slate-300 text-slate-700'
+                }`}
+              >
+                {itemsSelesai.length}
+              </Badge>
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              type="text"
+              placeholder="Cari material..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 text-xs h-9 bg-white rounded-xl border-slate-200"
+            />
+          </div>
         </div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold mb-3">
-          <Clock className="w-3.5 h-3.5" />
-          <span>Menunggu Tahap Konfirmasi</span>
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">
-          Halaman Building Coordinator
-        </h1>
-        <p className="text-slate-600 max-w-md text-sm mb-6">
-          Sesuai arahan, pengerjaan prototype dilakukan secara bertahap. Halaman ini (Input Survei 3 Toko, Perhitungan AHSP, & Pengajuan Alur 2A) akan dikembangkan setelah tahap sebelumnya dikonfirmasi.
-        </p>
-        <Link href="/pengajuan-harga">
-          <Button variant="outline" className="rounded-4xl gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Kembali ke Pilihan Peran</span>
-          </Button>
-        </Link>
+
+        {/* Content Section: Render active table */}
+        {activeTab === 'siap_survei' && (
+          <TableSiapSurvei items={itemsSiapSurvei} />
+        )}
+        {activeTab === 'diproses' && (
+          <TablePengajuanBerjalan
+            items={itemsDiproses}
+            title="Pengajuan Diproses"
+            emptyMessage="Belum ada pengajuan harga yang sedang diproses."
+            onOpenDetailModal={handleOpenDetailModal}
+            onOpenCatatanModal={handleOpenCatatanModal}
+          />
+        )}
+        {activeTab === 'selesai' && (
+          <TablePengajuanBerjalan
+            items={itemsSelesai}
+            title="Pengajuan Selesai"
+            emptyMessage="Belum ada pengajuan harga yang selesai."
+            onOpenDetailModal={handleOpenDetailModal}
+            onOpenCatatanModal={handleOpenCatatanModal}
+          />
+        )}
       </main>
+
+      {/* Modal Quick View 3 Toko */}
+      <ModalRincianToko
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        item={selectedItemDetail}
+      />
+
+      {/* Modal Catatan Approver (jika returned) */}
+      <ModalCatatanApprover
+        isOpen={isCatatanModalOpen}
+        onClose={() => setIsCatatanModalOpen(false)}
+        item={selectedItemCatatan}
+      />
     </div>
   );
 }

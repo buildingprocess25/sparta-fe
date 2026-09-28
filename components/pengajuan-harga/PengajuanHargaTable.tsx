@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PengajuanHargaItem } from './types';
-import { CheckCircle2, RotateCcw, Clock, XCircle, ShieldCheck, FileText } from 'lucide-react';
+import { CheckCircle2, RotateCcw, Clock, XCircle, ShieldCheck, FileText, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -39,6 +39,13 @@ export function PengajuanHargaTable({
 
   const renderStatusBadge = (status?: string) => {
     switch (status) {
+      case 'SIAP_SURVEI':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
+            <Store className="w-3 h-3 text-blue-600" />
+            Siap Survei
+          </span>
+        );
       case 'DIAJUKAN':
       case 'PENDING_VALIDASI_SB':
       case 'PENDING_BM_MGR':

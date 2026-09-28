@@ -16,6 +16,7 @@ import {
   Trash2,
   Save,
   SlidersHorizontal,
+  Store,
 } from "lucide-react";
 import {
   PengajuanHargaItem,
@@ -169,6 +170,7 @@ export default function SBSpecialistDetailPage() {
 
         return {
           ...i,
+          status: "SIAP_SURVEI" as const,
           koefisienUpahItems: upahItems,
           koefisienMaterialItems: materialItems,
           historyLog: [
@@ -177,7 +179,7 @@ export default function SBSpecialistDetailPage() {
               role: "S&B Specialist" as const,
               action: "MASTERING" as const,
               tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan: `Update Koefisien [Upah: ${summaryUpah}] | [Material: ${summaryMat}]`,
+              catatan: `Koefisien AHSP disimpan. Status berubah menjadi Siap Survei untuk Building Coordinator. [Upah: ${summaryUpah}] | [Material: ${summaryMat}]`,
             },
           ],
         };
@@ -190,6 +192,7 @@ export default function SBSpecialistDetailPage() {
       prev
         ? {
             ...prev,
+            status: "SIAP_SURVEI" as const,
             koefisienUpahItems: upahItems,
             koefisienMaterialItems: materialItems,
           }
@@ -198,7 +201,7 @@ export default function SBSpecialistDetailPage() {
 
     showAlert({
       title: "Koefisien Berhasil Disimpan",
-      message: `Rincian koefisien untuk item ${item.kode} (${item.item}) telah berhasil diperbarui.`,
+      message: `Koefisien ${item.kode} disimpan. Item siap untuk survei harga 3 toko oleh Building Coordinator.`,
       type: "success",
     });
   };
@@ -244,10 +247,17 @@ export default function SBSpecialistDetailPage() {
             <ArrowLeft className="w-4 h-4" />
             <span>Kembali ke Antrean S&amp;B Specialist</span>
           </Link>
-          <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs px-2.5 py-0.5">
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-            Status: Disetujui
-          </Badge>
+          {item.status === 'SIAP_SURVEI' ? (
+            <Badge className="bg-blue-50 text-blue-800 border-blue-200 text-xs px-2.5 py-0.5">
+              <Store className="w-3.5 h-3.5 mr-1 text-blue-600" />
+              Status: Siap Survei
+            </Badge>
+          ) : (
+            <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs px-2.5 py-0.5">
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+              Status: Disetujui
+            </Badge>
+          )}
         </div>
 
         {/* Card Ringkasan Spesifikasi Item */}
@@ -627,7 +637,7 @@ export default function SBSpecialistDetailPage() {
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Perubahan</span>
+                  <span>Simpan &amp; Siap Survei</span>
                 </button>
               </div>
             </div>

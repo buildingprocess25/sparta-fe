@@ -25,7 +25,7 @@ import {
   generateDeskripsiOtomatis,
   getKodeData,
 } from "./types";
-import { Sparkles, Copy, Check, AlertTriangle, RotateCcw } from "lucide-react";
+import { Sparkles, Copy, Check, RotateCcw } from "lucide-react";
 
 export interface TambahPengajuanModalProps {
   isOpen: boolean;
@@ -34,10 +34,8 @@ export interface TambahPengajuanModalProps {
   nextIndex?: number;
   existingItems?: PengajuanHargaItem[];
   itemToEdit?: PengajuanHargaItem | null;
-  initialMode?: 'BARU' | 'UPDATE';
 }
 
-// Opsi Awal untuk Creatable Combobox
 const INITIAL_MATERIAL_OPTIONS = [
   "Keramik",
   "Granit",
@@ -99,56 +97,43 @@ export function TambahPengajuanModal({
   nextIndex = 7,
   existingItems = [],
   itemToEdit = null,
-  initialMode = "BARU",
 }: TambahPengajuanModalProps) {
-  // Mode Pengajuan: 'BARU' (input material baru) vs 'UPDATE' (pembaruan item yang ada untuk review ulang)
-  const [pengajuanMode, setPengajuanMode] = useState<"BARU" | "UPDATE">("BARU");
-  const [selectedExistingId, setSelectedExistingId] = useState<string>("");
-
-  // Kelompok 1: Data Pokok Material
+  // Form State
   const [kategori, setKategori] = useState("Pekerjaan Keramik");
   const [item, setItem] = useState("");
   const [ukuran, setUkuran] = useState("");
   const [merk, setMerk] = useState("");
-
-  // Kelompok 2: Fisik & Karakteristik (Permukaan sekarang input teks bebas)
   const [warna, setWarna] = useState("");
   const [tipe, setTipe] = useState("");
   const [permukaan, setPermukaan] = useState("");
   const [tebal, setTebal] = useState("");
   const [toleransi, setToleransi] = useState("");
-
-  // Kelompok 3: Penempatan & Catatan
   const [implementasi, setImplementasi] = useState("Dinding Gerai");
   const [lokasi, setLokasi] = useState("");
   const [informasiTambahan, setInformasiTambahan] = useState("");
-  const [estimasiHarga] = useState<string>("0");
 
-  // Item aktif yang sedang diedit (bisa dari itemToEdit atau pilihan dropdown update)
-  const activeItemBeingEdited = useMemo(() => {
-    if (itemToEdit) return itemToEdit;
-    if (pengajuanMode === "UPDATE" && selectedExistingId) {
-      return existingItems.find((i) => i.id === selectedExistingId) || null;
-    }
-    return null;
-  }, [itemToEdit, pengajuanMode, selectedExistingId, existingItems]);
+  const [kodeItem, setKodeItem] = useState(
+    `SIP-${String(nextIndex).padStart(3, "0")}`
+  );
+  const [kodeMaster, setKodeMaster] = useState("");
+  const [deskripsiOtomatis, setDeskripsiOtomatis] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  // Filter existing items agar item yang sedang diedit tidak bentrok dengan dirinya sendiri
-  const filteredExistingItems = useMemo(() => {
-    if (!activeItemBeingEdited) return existingItems;
-    return existingItems.filter((i) => i.id !== activeItemBeingEdited.id);
-  }, [existingItems, activeItemBeingEdited]);
+  // Filter items excluding itemToEdit
+  const otherItems = useMemo(() => {
+    if (!itemToEdit) return existingItems;
+    return existingItems.filter((i) => i.id !== itemToEdit.id);
+  }, [existingItems, itemToEdit]);
 
-  // Ambil catatan revisi terakhir dari S&B Specialist jika ada
+  // Catatan revisi jika mode edit revisi
   const latestCatatanRevisi = useMemo(() => {
-    if (!activeItemBeingEdited?.historyLog) return null;
-    const revLog = [...activeItemBeingEdited.historyLog]
+    if (!itemToEdit?.historyLog) return null;
+    const revLog = [...itemToEdit.historyLog]
       .reverse()
       .find((l) => l.action === "REVISE" || (l.role === "S&B Specialist" && l.catatan));
     return revLog?.catatan || null;
-  }, [activeItemBeingEdited]);
+  }, [itemToEdit]);
 
-  // Opsi Dinamis: Gabungan Opsi Awal + Data Yang Sudah Ada di Tabel
   const materialOptions = useMemo(() => {
     const fromExisting = existingItems.map((i) => i.item).filter(Boolean);
     return Array.from(new Set([...INITIAL_MATERIAL_OPTIONS, ...fromExisting]));
@@ -174,19 +159,6 @@ export function TambahPengajuanModal({
     return Array.from(new Set([...INITIAL_AREA_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
-  // Pembedaan Jelas: Kode Item (SIP-001) vs Kode Master Item (SIP-001-A-Keramik-60x60)
-  const [kodeItem, setKodeItem] = useState(
-    `SIP-${String(nextIndex).padStart(3, "0")}`,
-  );
-  const [kodeArea, setKodeArea] = useState("A");
-  const [kodeMaster, setKodeMaster] = useState("");
-  const [isKodeMasterManual, setIsKodeMasterManual] = useState(false);
-
-  // Pratinjau Deskripsi Otomatis & Status Salin
-  const [deskripsiOtomatis, setDeskripsiOtomatis] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  // Perhitungan 2-Tier: Kode SIP (Parent Scope) & Varian Huruf (A, B, C...) + Deteksi Duplikasi
   const kodeData = useMemo(() => {
     return getKodeData({
       kategori,
@@ -201,7 +173,7 @@ export function TambahPengajuanModal({
       tebal,
       toleransi,
       nextIndex,
-      existingItems: filteredExistingItems,
+      existingItems: otherItems,
     });
   }, [
     kategori,
@@ -216,23 +188,18 @@ export function TambahPengajuanModal({
     tebal,
     toleransi,
     nextIndex,
-    filteredExistingItems,
+    otherItems,
   ]);
 
-  // Status Duplikat: Hanya true jika seluruh kombinasi spesifikasi persis sama dengan varian yang sudah ada
   const isDuplicate = kodeData.isDuplicate;
 
-  // Sinkronisasi otomatis Kode Item dan Kode Master Item
   useEffect(() => {
-    setKodeItem(kodeData.kodeItem);
-    setKodeArea(kodeData.kodeArea);
-
-    if (!isKodeMasterManual) {
-      setKodeMaster(kodeData.kodeMaster);
+    if (!itemToEdit) {
+      setKodeItem(kodeData.kodeItem);
     }
-  }, [kodeData, isKodeMasterManual]);
+    setKodeMaster(kodeData.kodeMaster);
+  }, [kodeData, itemToEdit]);
 
-  // Auto-generate deskripsi lengkap
   useEffect(() => {
     const desc = generateDeskripsiOtomatis({
       item,
@@ -245,43 +212,7 @@ export function TambahPengajuanModal({
       implementasi,
     });
     setDeskripsiOtomatis(desc);
-  }, [
-    item,
-    ukuran,
-    merk,
-    warna,
-    tipe,
-    permukaan,
-    lokasi,
-    informasiTambahan,
-    implementasi,
-  ]);
-
-  const handleCopyDescription = async () => {
-    if (!deskripsiOtomatis) return;
-    try {
-      await navigator.clipboard.writeText(deskripsiOtomatis);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback
-    }
-  };
-
-  const handleReset = () => {
-    setItem("");
-    setUkuran("");
-    setMerk("");
-    setWarna("");
-    setTipe("");
-    setPermukaan("");
-    setTebal("");
-    setToleransi("");
-    setImplementasi("Dinding Gerai");
-    setLokasi("");
-    setInformasiTambahan("");
-    setIsKodeMasterManual(false);
-  };
+  }, [item, ukuran, merk, warna, tipe, permukaan, lokasi, implementasi]);
 
   const populateForm = (target: PengajuanHargaItem) => {
     setKategori(target.kategori || "Pekerjaan Keramik");
@@ -298,34 +229,50 @@ export function TambahPengajuanModal({
     setInformasiTambahan(target.informasiTambahan || "");
     setKodeItem(target.kode || "");
     setKodeMaster(target.kodeMaster || "");
-    setIsKodeMasterManual(false);
   };
 
-  // Reset form atau isi dengan item jika mode revisi/update
+  const handleReset = () => {
+    setItem("");
+    setUkuran("");
+    setMerk("");
+    setWarna("");
+    setTipe("");
+    setPermukaan("");
+    setTebal("");
+    setToleransi("");
+    setImplementasi("Dinding Gerai");
+    setLokasi("");
+    setInformasiTambahan("");
+  };
+
   useEffect(() => {
     if (isOpen) {
       if (itemToEdit) {
-        setPengajuanMode("UPDATE");
-        setSelectedExistingId(itemToEdit.id);
         populateForm(itemToEdit);
       } else {
-        const mode = initialMode || "BARU";
-        setPengajuanMode(mode);
-        setSelectedExistingId("");
         handleReset();
       }
     }
-  }, [isOpen, itemToEdit, initialMode]);
+  }, [isOpen, itemToEdit]);
+
+  const handleCopyDescription = async () => {
+    if (!deskripsiOtomatis) return;
+    try {
+      await navigator.clipboard.writeText(deskripsiOtomatis);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Blokir jika duplikat data sudah ada
     if (isDuplicate) {
       return;
     }
 
-    // Validasi semua field wajib diisi (required)
     if (
       !kategori.trim() ||
       !item.trim() ||
@@ -346,27 +293,23 @@ export function TambahPengajuanModal({
     const finalKodeItem = kodeItem.trim() || kodeData.kodeItem;
     const finalKodeMaster = kodeMaster.trim() || kodeData.kodeMaster;
 
-    const isUpdateMode = Boolean(activeItemBeingEdited);
-
-    const updatedHistory = isUpdateMode
+    const updatedHistory = itemToEdit
       ? [
-          ...(activeItemBeingEdited?.historyLog || []),
+          ...(itemToEdit.historyLog || []),
           {
             role: "B&M Manager" as const,
             action: "SUBMIT" as const,
             tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-            catatan: itemToEdit
-              ? "Spesifikasi material telah diperbaiki sesuai catatan dan diajukan kembali ke S&B Specialist."
-              : "Pengajuan pembaruan spesifikasi/perubahan untuk review ulang oleh S&B Specialist.",
+            catatan: "Spesifikasi diperbaiki dan diajukan ulang ke S&B Specialist.",
           },
         ]
       : undefined;
 
     const newItem: PengajuanHargaItem = {
-      ...(activeItemBeingEdited || {}),
-      id: activeItemBeingEdited?.id || `item-${Date.now()}`,
-      kode: finalKodeItem, // Kode Item murni (misal: "SIP-001")
-      kodeMaster: finalKodeMaster, // Kode Master Item (misal: "SIP-001-A-Keramik-60x60")
+      ...(itemToEdit || {}),
+      id: itemToEdit?.id || `item-${Date.now()}`,
+      kode: finalKodeItem,
+      kodeMaster: finalKodeMaster,
       item: item.trim(),
       ukuran: ukuran.trim(),
       merk: merk.trim(),
@@ -380,9 +323,9 @@ export function TambahPengajuanModal({
       toleransi: toleransi.trim() || undefined,
       informasiTambahan: informasiTambahan.trim(),
       deskripsiOtomatis,
-      estimasiHarga: Number(estimasiHarga) || 0,
+      estimasiHarga: itemToEdit?.estimasiHarga || 0,
       satuan: "m2",
-      status: "DIAJUKAN", // Kembali masuk ke antrean validasi S&B
+      status: "DIAJUKAN",
       tanggalPengajuan: new Date().toISOString().slice(0, 10),
       historyLog: updatedHistory,
     };
@@ -395,49 +338,34 @@ export function TambahPengajuanModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl p-5 sm:p-6">
-        {/* Header Modal */}
         <DialogHeader className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <DialogTitle className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
-              <span className={`w-2.5 h-5 rounded-full inline-block ${itemToEdit ? "bg-amber-600" : pengajuanMode === "UPDATE" ? "bg-blue-600" : "bg-red-600"}`} />
-              {itemToEdit
-                ? "Formulir Revisi Spesifikasi Material"
-                : pengajuanMode === "UPDATE"
-                ? "Pembaruan Spesifikasi Material (Review Ulang)"
-                : "Formulir Pengajuan Spesifikasi Material"}
+              <span className={`w-2.5 h-5 rounded-full inline-block ${itemToEdit ? "bg-amber-600" : "bg-red-600"}`} />
+              <span>{itemToEdit ? "Edit Revisi Spesifikasi" : "Pengajuan Spesifikasi Material Baru"}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 mt-0.5">
               {itemToEdit
-                ? "Perbaiki data material sesuai catatan instruksi dari S&B Specialist, lalu ajukan kembali."
-                : pengajuanMode === "UPDATE"
-                ? "Pilih material yang sudah ada, sesuaikan spesifikasi yang berubah, lalu ajukan ke S&B Specialist."
-                : "Isi data material di bawah ini. Kode master dan deskripsi lengkap dibuat otomatis."}
+                ? "Perbaiki data material sesuai catatan instruksi dari S&B Specialist."
+                : "Isi data spesifikasi material untuk diajukan ke S&B Specialist."}
             </DialogDescription>
           </div>
           <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shrink-0 self-start sm:self-auto ${
             itemToEdit
               ? "bg-amber-50 text-amber-800 border-amber-200"
-              : pengajuanMode === "UPDATE"
-              ? "bg-blue-50 text-blue-800 border-blue-200"
               : "bg-emerald-50 text-emerald-800 border-emerald-200"
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${itemToEdit ? "bg-amber-500" : pengajuanMode === "UPDATE" ? "bg-blue-500" : "bg-emerald-500"}`} />
-            <span>
-              {itemToEdit
-                ? "Mode Revisi"
-                : pengajuanMode === "UPDATE"
-                ? "Pembaruan Item"
-                : "Material Baru"}
-            </span>
+            <span className={`w-1.5 h-1.5 rounded-full ${itemToEdit ? "bg-amber-500" : "bg-emerald-500"}`} />
+            <span>{itemToEdit ? "Mode Revisi" : "Material Baru"}</span>
           </div>
         </DialogHeader>
 
-        {/* Banner Catatan Revisi dari S&B Specialist (Jika mode revisi spesifik) */}
+        {/* Catatan Revisi jika ada */}
         {itemToEdit && latestCatatanRevisi && (
-          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-950 mt-2 shadow-2xs animate-in fade-in duration-200">
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-950 mt-2 shadow-2xs">
             <RotateCcw className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <p className="font-bold text-amber-900">Catatan Revisi dari S&amp;B Controlling Specialist:</p>
+              <p className="font-bold text-amber-900">Catatan Revisi S&amp;B Specialist:</p>
               <p className="text-amber-800 text-[11px] leading-relaxed italic">
                 "{latestCatatanRevisi}"
               </p>
@@ -446,74 +374,6 @@ export function TambahPengajuanModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          {/* Switcher Tipe Pengajuan: Pengajuan Baru vs Pembaruan Item yang Sudah Ada */}
-          {!itemToEdit && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPengajuanMode("BARU");
-                    setSelectedExistingId("");
-                    handleReset();
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-all cursor-pointer ${
-                    pengajuanMode === "BARU"
-                      ? "bg-white text-slate-900 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  + Pengajuan Baru
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPengajuanMode("UPDATE");
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-all cursor-pointer ${
-                    pengajuanMode === "UPDATE"
-                      ? "bg-white text-blue-900 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Pembaruan Item yang Ada (Review Ulang)
-                </button>
-              </div>
-
-              {/* Selector Material untuk Mode Pembaruan */}
-              {pengajuanMode === "UPDATE" && (
-                <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 space-y-1.5 animate-in fade-in duration-200">
-                  <Label className="text-xs font-bold text-blue-950">
-                    Pilih Material yang Ingin Diperbarui
-                  </Label>
-                  <Select
-                    value={selectedExistingId}
-                    onValueChange={(val) => {
-                      setSelectedExistingId(val);
-                      const found = existingItems.find((i) => i.id === val);
-                      if (found) {
-                        populateForm(found);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="bg-white border-blue-200 h-9 text-xs">
-                      <SelectValue placeholder="Pilih dari daftar material yang sudah ada..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingItems.map((itm) => (
-                        <SelectItem key={itm.id} value={itm.id}>
-                          {itm.kodeMaster || itm.kode} - {itm.item} ({itm.merk} - {itm.ukuran})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-blue-700 leading-relaxed">
-                    Pilih material di atas, lalu ubah spesifikasi yang berubah. Item akan diajukan ulang ke S&amp;B untuk direview.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
           {/* Section 1: Data Pokok Material */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
@@ -526,7 +386,6 @@ export function TambahPengajuanModal({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Kategori Pekerjaan */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Kategori Pekerjaan <span className="text-red-500">*</span>
@@ -536,24 +395,15 @@ export function TambahPengajuanModal({
                     <SelectValue placeholder="Pilih Kategori" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Pekerjaan Keramik">
-                      Pekerjaan Keramik
-                    </SelectItem>
+                    <SelectItem value="Pekerjaan Keramik">Pekerjaan Keramik</SelectItem>
                     <SelectItem value="Area Terbuka">Area Terbuka</SelectItem>
-                    <SelectItem value="Pekerjaan Finishing">
-                      Pekerjaan Finishing
-                    </SelectItem>
-                    <SelectItem value="Pekerjaan Pasangan">
-                      Pekerjaan Pasangan
-                    </SelectItem>
-                    <SelectItem value="Pekerjaan Sanitair">
-                      Pekerjaan Sanitair
-                    </SelectItem>
+                    <SelectItem value="Pekerjaan Finishing">Pekerjaan Finishing</SelectItem>
+                    <SelectItem value="Pekerjaan Pasangan">Pekerjaan Pasangan</SelectItem>
+                    <SelectItem value="Pekerjaan Sanitair">Pekerjaan Sanitair</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Nama Material (Creatable Combobox) */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Nama Material <span className="text-red-500">*</span>
@@ -564,11 +414,9 @@ export function TambahPengajuanModal({
                   options={materialOptions}
                   required
                   placeholder="Pilih / ketik nama material"
-                  searchPlaceholder="Cari atau ketik baru..."
                 />
               </div>
 
-              {/* Ukuran Material (Creatable Combobox) */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Ukuran <span className="text-red-500">*</span>
@@ -579,11 +427,9 @@ export function TambahPengajuanModal({
                   options={ukuranOptions}
                   required
                   placeholder="Pilih / ketik ukuran"
-                  searchPlaceholder="Cari atau ketik ukuran baru..."
                 />
               </div>
 
-              {/* Merk */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Merk / Brand <span className="text-red-500">*</span>
@@ -594,15 +440,15 @@ export function TambahPengajuanModal({
                   options={merkOptions}
                   required
                   placeholder="Pilih / ketik merk"
-                  searchPlaceholder="Cari atau ketik merk baru..."
                 />
               </div>
             </div>
           </div>
+
           {/* Section 2: Fisik & Karakteristik */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-md bg-slate-700 text-white text-[11px] font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
                 2
               </span>
               <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
@@ -611,267 +457,206 @@ export function TambahPengajuanModal({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              {/* Tipe / Corak */}
-              <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Tipe / Corak <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={tipe}
-                  required
-                  onChange={(e) => setTipe(e.target.value)}
-                  placeholder="Contoh: Sicily Grey Matte"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                />
-              </div>
-
-              {/* Warna Material */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Warna <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   value={warna}
-                  required
                   onChange={(e) => setWarna(e.target.value)}
-                  placeholder="Contoh: Grey"
+                  placeholder="Contoh: Cream, Putih"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                  required
                 />
               </div>
 
-              {/* Finishing Permukaan (Input Teks Bebas Sesuai Permintaan) */}
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Tipe / Motif <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={tipe}
+                  onChange={(e) => setTipe(e.target.value)}
+                  placeholder="Contoh: Polos, Wood"
+                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                  required
+                />
+              </div>
+
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Permukaan <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   value={permukaan}
-                  required
                   onChange={(e) => setPermukaan(e.target.value)}
-                  placeholder="Contoh: Matte, Polish, Rustic"
+                  placeholder="Contoh: Glossy, Matte"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                  required
                 />
               </div>
 
-              {/* Tebal & Toleransi dalam 1 kolom split */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Tebal &amp; Toleransi <span className="text-red-500">*</span>
+                  Ketebalan <span className="text-red-500">*</span>
                 </Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <Input
-                    value={tebal}
-                    required
-                    onChange={(e) => setTebal(e.target.value)}
-                    placeholder="9mm"
-                    title="Ketebalan"
-                    className="h-9 rounded-lg text-xs bg-white border-slate-200 px-2"
-                  />
-                  <Input
-                    value={toleransi}
-                    required
-                    onChange={(e) => setToleransi(e.target.value)}
-                    placeholder="±0.2mm"
-                    title="Toleransi Presisi"
-                    className="h-9 rounded-lg text-xs bg-white border-slate-200 px-2"
-                  />
-                </div>
+                <Input
+                  value={tebal}
+                  onChange={(e) => setTebal(e.target.value)}
+                  placeholder="Contoh: 9 mm"
+                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Toleransi Presisi <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={toleransi}
+                  onChange={(e) => setToleransi(e.target.value)}
+                  placeholder="Contoh: ± 0.5 mm"
+                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                  required
+                />
               </div>
             </div>
           </div>
 
-          {/* Section 3: Penempatan, Kode Item & Kode Master Item */}
+          {/* Section 3: Penempatan & Catatan */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-md bg-slate-700 text-white text-[11px] font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
                 3
               </span>
               <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
-                Pemasangan &amp; Kode Master Item
+                Penempatan &amp; Catatan
               </h3>
             </div>
 
-            {/* Baris 1: Posisi Bidang & Area / Ruangan */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Posisi Bidang / Dinding (Creatable Combobox) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Posisi Bidang <span className="text-red-500">*</span>
+                  Implementasi <span className="text-red-500">*</span>
                 </Label>
                 <CreatableCombobox
                   value={implementasi}
                   onChange={setImplementasi}
                   options={posisiOptions}
                   required
-                  placeholder="Pilih / ketik posisi"
-                  searchPlaceholder="Cari atau ketik posisi baru..."
+                  placeholder="Pilih / ketik implementasi"
                 />
               </div>
 
-              {/* Area / Ruangan (Creatable Combobox) */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Area / Ruangan <span className="text-red-500">*</span>
+                  Lokasi / Posisi <span className="text-red-500">*</span>
                 </Label>
                 <CreatableCombobox
                   value={lokasi}
                   onChange={setLokasi}
                   options={areaOptions}
                   required
-                  placeholder="Pilih / ketik area"
-                  searchPlaceholder="Cari atau ketik area baru..."
-                />
-              </div>
-            </div>
-
-            {/* Baris 2: Pemisahan Jelas antara Kode Item vs Kode Master Item */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              {/* Kode Item (Hanya format SIP-001) */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-slate-700">
-                    Kode Item
-                  </Label>
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                    Varian {kodeArea}
-                  </span>
-                </div>
-                <Input
-                  value={kodeItem}
-                  readOnly
-                  placeholder="SIP-001"
-                  className="h-9 rounded-lg text-xs font-mono font-bold bg-slate-100/90 border-slate-200 text-slate-700 cursor-not-allowed"
+                  placeholder="Pilih / ketik lokasi"
                 />
               </div>
 
-              {/* Kode Master Item (Format: Kode-Area-Material-Ukuran) */}
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-slate-700">
-                    Kode Master Item <span className="text-red-500">*</span>
-                  </Label>
-                </div>
-                <Input
-                  value={kodeMaster}
-                  disabled
-                  onChange={(e) => {
-                    setIsKodeMasterManual(true);
-                    setKodeMaster(e.target.value);
-                  }}
-                  placeholder={`Contoh: ${kodeItem}-A-Keramik-60x60`}
-                  required
-                  className="h-9 rounded-lg text-xs font-mono font-bold bg-blue-50/70 border-blue-200 text-blue-800 focus-visible:ring-blue-500/20"
-                />
-              </div>
-            </div>
-
-            {/* Baris 3: Catatan & Metode Kerja */}
-            <div className="pt-1">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Informasi Tambahan &amp; Metode Kerja
+                  Informasi Tambahan
                 </Label>
                 <Input
                   value={informasiTambahan}
                   onChange={(e) => setInformasiTambahan(e.target.value)}
-                  placeholder="Contoh: Nat semen SIKA Tile Grout"
+                  placeholder="Catatan penyesuaian..."
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                 />
               </div>
             </div>
           </div>
 
-          {/* Pratinjau Deskripsi Otomatis (Live Sync Card) */}
-          <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3.5 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="p-1 bg-blue-100 text-blue-700 rounded-md">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-xs font-bold text-blue-900 tracking-wide">
-                  Deskripsi Lengkap
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="bg-white text-blue-700 font-mono font-bold text-[10px] px-2 py-0.5 rounded border border-blue-200">
-                    Kode Master: {kodeMaster}
-                  </span>
-                </div>
+          {/* Section 4: Kode & Deskripsi */}
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
+                4
+              </span>
+              <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
+                Kode Master &amp; Deskripsi
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Kode Item
+                </Label>
+                <Input
+                  value={kodeItem}
+                  disabled
+                  readOnly
+                  className="h-9 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-600 cursor-not-allowed"
+                />
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Tersinkronisasi
-                </span>
-                <Button
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Kode Master Item
+                </Label>
+                <Input
+                  value={kodeMaster}
+                  disabled
+                  readOnly
+                  className="h-9 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Deskripsi Otomatis</span>
+                </Label>
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
                   onClick={handleCopyDescription}
-                  className="h-7 px-2 text-xs text-blue-700 hover:bg-blue-100 rounded-md gap-1"
-                  title="Salin deskripsi ke clipboard"
+                  className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer font-medium"
                 >
                   {copied ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-[11px] text-emerald-600 font-semibold">
-                        Tersalin
-                      </span>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-600 font-semibold">Tersalin</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span className="text-[11px]">Salin</span>
+                      <Copy className="w-3 h-3" />
+                      <span>Salin</span>
                     </>
                   )}
-                </Button>
+                </button>
+              </div>
+              <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-700 leading-relaxed font-sans min-h-[48px]">
+                {deskripsiOtomatis || "-"}
               </div>
             </div>
-
-            <p className="text-xs font-semibold text-slate-800 bg-white p-3 rounded-lg border border-blue-100 shadow-2xs leading-relaxed">
-              {deskripsiOtomatis || (
-                <span className="text-slate-400 italic font-normal">
-                  Deskripsi lengkap akan tersusun otomatis saat spesifikasi
-                  material diisi...
-                </span>
-              )}
-            </p>
           </div>
 
-          {/* Notifikasi Peringatan Duplikasi Data */}
-          {isDuplicate && (
-            <div className="bg-amber-50 border border-amber-300 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 text-amber-800 text-xs font-semibold animate-in fade-in duration-200">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Data sudah ada</span>
-            </div>
-          )}
-
-          {/* Footer Aksi */}
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100">
+          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="rounded-xl h-9 text-xs border-slate-200 cursor-pointer"
+              className="rounded-xl h-9 text-xs cursor-pointer"
             >
               Batal
             </Button>
             <Button
               type="submit"
-              disabled={isDuplicate}
-              className={`rounded-xl h-9 text-xs font-semibold shadow-xs transition-colors ${
-                isDuplicate
-                  ? "bg-slate-300 text-slate-500 cursor-not-allowed hover:bg-slate-300"
-                  : "bg-red-600 hover:bg-red-700 text-white cursor-pointer"
-              }`}
+              className="rounded-xl h-9 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 cursor-pointer shadow-xs"
             >
-              {isDuplicate
-                ? "Data sudah ada"
-                : itemToEdit
-                ? "Simpan & Ajukan Kembali"
-                : pengajuanMode === "UPDATE"
-                ? "Simpan & Ajukan Ulang"
-                : "Simpan Pengajuan"}
+              {itemToEdit ? "Ajukan Ulang Revisi" : "Ajukan Spesifikasi"}
             </Button>
           </DialogFooter>
         </form>

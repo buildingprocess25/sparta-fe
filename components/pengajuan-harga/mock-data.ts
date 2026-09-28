@@ -124,7 +124,17 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
     deskripsiOtomatis: 'Keramik 60×60 Indogress Black Tipe Nero Portoro Polish Fascia Depan Bracket stainless (Dinding)',
     estimasiHarga: 245000,
     satuan: 'm2',
-    status: 'DISETUJUI',
+    status: 'SIAP_SURVEI',
     tanggalPengajuan: '2026-09-20',
+    koefisienUpahItems: [
+      { id: 'u-1', label: 'Mandor', value: 0.0188, unit: 'Oh' },
+      { id: 'u-2', label: 'Tukang', value: 0.1875, unit: 'Oh' },
+      { id: 'u-3', label: 'Pekerja', value: 0.125, unit: 'Oh' },
+    ],
+    koefisienMaterialItems: [
+      { id: 'm-1', label: 'Keramik', value: 1.034, unit: 'M2' },
+      { id: 'm-2', label: 'Semen PC', value: 9.327, unit: 'Kg' },
+      { id: 'm-3', label: 'Pasir', value: 0.0436, unit: 'M3' },
+    ],
   },
 ];

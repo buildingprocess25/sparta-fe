@@ -5,7 +5,11 @@
 
 export interface SurveyTokoItem {
   namaToko: string;
-  hargaSatuan: number;
+  alamatToko?: string; // Alamat Toko / Lokasi Survei
+  volumeAcuan?: number; // Volume Acuan (dikunci, dan selalu 1)
+  hargaSatuan: number; // Harga Survei (Rp)
+  buktiSurveiUrl?: string; // Lampiran Bukti Survei (upload gambar)
+  buktiSurveiName?: string;
   tanggalSurvei: string;
   catatan?: string;
 }
@@ -20,7 +24,7 @@ export interface AHSPKomponen {
 }
 
 export interface ApprovalLog {
-  role: 'B&M Manager' | 'S&B Specialist' | 'Regional Manager' | 'Kontraktor' | 'Building Coord';
+  role: 'B&M Manager' | 'S&B Specialist' | 'Regional Manager' | 'Kontraktor' | 'Building Coord' | 'Building Coordinator';
   action: 'SUBMIT' | 'APPROVE' | 'REJECT' | 'REVISE' | 'MASTERING';
   tanggal: string;
   catatan?: string;
@@ -68,11 +72,13 @@ export interface PengajuanHargaItem {
   informasiTambahan?: string;
   deskripsiOtomatis: string;
   estimasiHarga?: number;
+  hargaRataRata?: number;
   satuan?: string;
   
   // Status Persetujuan
   status:
     | 'DIAJUKAN'
+    | 'SIAP_SURVEI'
     | 'DISETUJUI'
     | 'DITOLAK'
     | 'REVISI'

@@ -54,11 +54,13 @@ import {
 } from '@/components/pengajuan-harga/store';
 import { PengajuanHargaTable } from '@/components/pengajuan-harga/PengajuanHargaTable';
 import { TambahPengajuanModal } from '@/components/pengajuan-harga/TambahPengajuanModal';
+import { ReviewUlangSpesifikasiModal } from '@/components/pengajuan-harga/ReviewUlangSpesifikasiModal';
 import {
   exportToCSV,
   exportToExcel,
   exportToPDF,
 } from '@/components/pengajuan-harga/export-utils';
+import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
 export default function BMManagerPage() {
@@ -70,8 +72,8 @@ export default function BMManagerPage() {
   // Master Data State
   const [items, setItems] = useState<PengajuanHargaItem[]>([]);
   const [isTambahModalOpen, setIsTambahModalOpen] = useState(false);
+  const [isReviewUlangModalOpen, setIsReviewUlangModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PengajuanHargaItem | null>(null);
-  const [modalInitialMode, setModalInitialMode] = useState<'BARU' | 'UPDATE'>('BARU');
   const [viewingCatatanItem, setViewingCatatanItem] = useState<PengajuanHargaItem | null>(null);
   const [isCatatanModalOpen, setIsCatatanModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -129,9 +131,9 @@ export default function BMManagerPage() {
     });
   }, [items, filters]);
 
-  // Items Pending Approval Layer 1 (B&M Manager)
+  // Items Pending Approval Layer 1 (Survei Harga dari Building Coordinator)
   const pendingApprovals = useMemo(() => {
-    return items.filter(i => i.status === 'DIAJUKAN' || i.status === 'PENDING_BM_MGR');
+    return items.filter(i => i.status === 'PENDING_BM_MGR');
   }, [items]);
 
   const filteredPendingApprovals = useMemo(() => {
@@ -185,8 +187,8 @@ export default function BMManagerPage() {
 
     if (check.isDuplicate) {
       showAlert({
-        title: 'Data sudah ada',
-        message: 'Data material dengan seluruh kombinasi spesifikasi tersebut sudah ada di sistem.',
+        title: 'Perhatian',
+        message: 'Data material sudah terdaftar.',
         type: 'warning',
       });
       return;
@@ -199,8 +201,8 @@ export default function BMManagerPage() {
       saveStoredPengajuan(updated);
       setEditingItem(null);
       showAlert({
-        title: 'Berhasil Diajukan Ulang',
-        message: `${newItem.item} (${newItem.kodeMaster || newItem.kode}) berhasil diajukan ke S&B Specialist untuk direview.`,
+        title: 'Berhasil',
+        message: 'Pengajuan berhasil diajukan ulang.',
         type: 'success',
       });
       return;
@@ -219,8 +221,8 @@ export default function BMManagerPage() {
     saveStoredPengajuan(updated);
 
     showAlert({
-      title: 'Material Berhasil Diajukan',
-      message: `${newItem.item} (${itemWithStatus.kodeMaster || itemWithStatus.kode}) berhasil ditambahkan dan diajukan.`,
+      title: 'Berhasil',
+      message: 'Material berhasil diajukan.',
       type: 'success',
     });
   };
@@ -284,7 +286,10 @@ export default function BMManagerPage() {
     if (!selectedPengajuan) return;
 
     const isApprove = approvalAction === 'APPROVE';
-    const nextStatus: 'DISETUJUI' | 'DITOLAK' = isApprove ? 'DISETUJUI' : 'DITOLAK';
+    const isSurveyApproval = selectedPengajuan.status === 'PENDING_BM_MGR';
+    const nextStatus = isApprove
+      ? (isSurveyApproval ? 'PENDING_SB_SPECIALIST' : 'DISETUJUI')
+      : (isSurveyApproval ? 'RETURNED_TO_BC' : 'DITOLAK');
 
     const updated = items.map(i => {
       if (i.id === selectedPengajuan.id) {
@@ -299,7 +304,7 @@ export default function BMManagerPage() {
         ];
         return {
           ...i,
-          status: nextStatus,
+          status: nextStatus as any,
           historyLog: newLog,
         };
       }
@@ -312,14 +317,14 @@ export default function BMManagerPage() {
 
     if (isApprove) {
       showAlert({
-        title: 'Approval Layer 1 Berhasil',
-        message: `Pengajuan ${selectedPengajuan.kode} disetujui dan diteruskan ke S&B Controlling Specialist.`,
+        title: 'Berhasil',
+        message: 'Pengajuan harga disetujui.',
         type: 'success',
       });
     } else {
       showAlert({
-        title: 'Pengajuan Dikembalikan',
-        message: `Pengajuan ${selectedPengajuan.kode} dikembalikan ke Building Coordinator untuk revisi.`,
+        title: 'Berhasil',
+        message: 'Pengajuan dikembalikan.',
         type: 'warning',
       });
     }
@@ -341,9 +346,7 @@ export default function BMManagerPage() {
                 <h1 className="text-xl md:text-2xl font-black tracking-tight">
                   Branch Building &amp; Maintenance (B&amp;M) Manager
                 </h1>
-                <Badge className="bg-white/20 text-white border-white/30 text-[11px]">
-                  Role 1 / Inisiator
-                </Badge>
+              
               </div>
               <p className="text-xs md:text-sm text-red-100 mt-1 max-w-2xl leading-relaxed">
                 Kelola daftar spesifikasi material, inisiasi request pengajuan baru, dan tinjau persetujuan.
@@ -351,13 +354,6 @@ export default function BMManagerPage() {
             </div>
           </div>
 
-          <Button
-            onClick={() => setIsTambahModalOpen(true)}
-            className="rounded-xl h-10 px-4 bg-white text-red-700 hover:bg-red-50 font-bold text-xs shadow-sm gap-2 shrink-0 self-stretch md:self-auto justify-center cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-red-600" />
-            <span>Tambah Pengajuan Baru</span>
-          </Button>
         </div>
 
         {/* Tab Switcher Navigation */}
@@ -371,11 +367,11 @@ export default function BMManagerPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Pengajuan Harga Satuan</span>
+            <span>Pengajuan Spesifikasi (ke S&amp;B)</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
               activeTab === 'materials' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-600'
             }`}>
-              {items.length}
+              {filteredMaterials.length}
             </span>
           </button>
 
@@ -388,7 +384,7 @@ export default function BMManagerPage() {
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>Approval</span>
+            <span>Approval Harga Survei (dari BC)</span>
             {pendingApprovals.length > 0 && (
               <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-500 text-white animate-pulse">
                 {pendingApprovals.length} Pending
@@ -527,7 +523,6 @@ export default function BMManagerPage() {
                 <DropdownMenuItem
                   onClick={() => {
                     setEditingItem(null);
-                    setModalInitialMode('BARU');
                     setIsTambahModalOpen(true);
                   }}
                   className="text-xs cursor-pointer py-2 px-2.5 gap-2.5 rounded-lg hover:bg-slate-100"
@@ -537,14 +532,12 @@ export default function BMManagerPage() {
                   </div>
                   <div>
                     <div className="font-semibold text-slate-900">Pengajuan Baru</div>
-                    <div className="text-[11px] text-slate-500">Input material baru dari awal</div>
+                    <div className="text-[11px] text-slate-500">Input spesifikasi material baru</div>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
-                    setEditingItem(null);
-                    setModalInitialMode('UPDATE');
-                    setIsTambahModalOpen(true);
+                    setIsReviewUlangModalOpen(true);
                   }}
                   className="text-xs cursor-pointer py-2 px-2.5 gap-2.5 rounded-lg hover:bg-slate-100"
                 >
@@ -552,8 +545,8 @@ export default function BMManagerPage() {
                     <RotateCcw className="w-4 h-4 text-blue-700" />
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900">Pembaruan Item</div>
-                    <div className="text-[11px] text-slate-500">Pilih item yang ada untuk diubah &amp; diajukan ulang</div>
+                    <div className="font-semibold text-slate-900">Review Ulang Spesifikasi</div>
+                    <div className="text-[11px] text-slate-500">Dari katalog master harga resmi</div>
                   </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -590,6 +583,13 @@ export default function BMManagerPage() {
                   </span>
                 );
               }
+              if (item.status === 'SIAP_SURVEI') {
+                return (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
+                    Siap Survei (BC)
+                  </span>
+                );
+              }
               if (item.status === 'DISETUJUI' || item.status === 'DISETUJUI_MASTERING' || item.status === 'APPROVED_ACTIVE' || item.status === 'RELEASED') {
                 return (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
@@ -619,7 +619,7 @@ export default function BMManagerPage() {
         )}
       </main>
 
-      {/* Modal Tambah / Revisi / Update Pengajuan dari components/pengajuan-harga */}
+      {/* Modal Tambah Spesifikasi Baru / Edit Revisi */}
       <TambahPengajuanModal
         isOpen={isTambahModalOpen}
         onClose={handleCloseTambahModal}
@@ -627,12 +627,19 @@ export default function BMManagerPage() {
         nextIndex={items.length + 1}
         existingItems={items}
         itemToEdit={editingItem}
-        initialMode={modalInitialMode}
+      />
+
+      {/* Modal Review Ulang Spesifikasi (Khusus Item dari Master Katalog) */}
+      <ReviewUlangSpesifikasiModal
+        isOpen={isReviewUlangModalOpen}
+        onClose={() => setIsReviewUlangModalOpen(false)}
+        onSubmit={handleAddItem}
+        existingItems={items}
       />
 
       {/* Modal Konfirmasi Approval Layer 1 */}
       <Dialog open={isApprovalModalOpen} onOpenChange={open => !open && setIsApprovalModalOpen(false)}>
-        <DialogContent className="max-w-md rounded-2xl p-5">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-5">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
               {approvalAction === 'APPROVE' ? (
@@ -651,17 +658,20 @@ export default function BMManagerPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 mt-2">
-            {approvalAction === 'APPROVE' ? (
-              <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200 leading-relaxed">
-                Persetujuan Layer 1 akan meneruskan pengajuan ini ke <strong>Layer 2: S&amp;B Controlling Specialist</strong>.
-              </p>
-            ) : (
-              <p className="text-xs text-slate-600 bg-rose-50 p-3 rounded-xl border border-rose-200 leading-relaxed">
-                Dokumen akan langsung <strong>dikembalikan ke titik awal (Building Coordinator)</strong> untuk revisi total.
-              </p>
-            )}
+          {/* Rincian Survei 3 Toko (Reusable Component) */}
+          {selectedPengajuan?.surveyToko && selectedPengajuan.surveyToko.length > 0 && (
+            <div className="py-2 border-y border-slate-100 my-2">
+              <RincianSurvei3TokoCard
+                mode="readonly"
+                surveyToko={selectedPengajuan.surveyToko}
+                satuan={selectedPengajuan.satuan || 'm2'}
+                materialCode={selectedPengajuan.kodeMaster || selectedPengajuan.kode}
+                materialName={`${selectedPengajuan.item} ${selectedPengajuan.ukuran} ${selectedPengajuan.merk}`}
+              />
+            </div>
+          )}
 
+          <div className="space-y-3 mt-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-700">Catatan B&amp;M Manager</label>
               <Textarea
