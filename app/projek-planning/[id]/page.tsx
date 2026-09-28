@@ -1232,7 +1232,12 @@ export default function DetailProjekPlanning() {
                   label="Link Google Maps" 
                   value={(data as any).link_google_maps ? (
                     <a 
-                      href={String((data as any).link_google_maps).startsWith('http') ? (data as any).link_google_maps : `https://${(data as any).link_google_maps}`} 
+                      href={(() => {
+                        let u = String((data as any).link_google_maps);
+                        if (u.startsWith('http:/') && !u.startsWith('http://')) u = u.replace('http:/', 'http://');
+                        if (u.startsWith('https:/') && !u.startsWith('https://')) u = u.replace('https:/', 'https://');
+                        return u.startsWith('http') ? u : `https://${u}`;
+                      })()}
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline break-all"

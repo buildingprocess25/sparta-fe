@@ -884,8 +884,12 @@ type ProjectPlanningAttachment = {
 
 const hasLink = (url?: string | null) => !!url && url.trim() !== '';
 
-const firstAttachmentUrl = (url?: string | null) =>
-    String(url || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || '';
+const firstAttachmentUrl = (url?: string | null) => {
+    let u = String(url || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || '';
+    if (u.startsWith('http:/') && !u.startsWith('http://')) u = u.replace('http:/', 'http://');
+    if (u.startsWith('https:/') && !u.startsWith('https://')) u = u.replace('https:/', 'https://');
+    return u;
+};
 
 const isUploadedDriveFileLink = (url: string) => {
     const lower = firstAttachmentUrl(url).toLowerCase();
