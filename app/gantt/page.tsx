@@ -2689,7 +2689,7 @@ function GanttBoard() {
                                                 className="h-8 gap-1.5 rounded border border-blue-700 bg-blue-600 hover:bg-blue-700 px-3 text-xs font-bold text-white shadow-sm transition-all hover:scale-105"
                                             >
                                                 <ClipboardList className="h-3.5 w-3.5" />
-                                                Pre-inspeksi Takeover
+                                                Takeover
                                             </Button>
                                         )}
                                     </div>
@@ -5016,7 +5016,7 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             if (catsLate.size > 0) {
                 const { updateGanttDelay } = await import('@/lib/api');
                 const updates = Array.from(catsLate.entries()).map(([catName, totalLate]) => ({
-                    kategori_pekerjaan: catName.toUpperCase(),
+                    kategori_pekerjaan: catName,
                     keterlambatan: String(totalLate)
                 }));
                 const nextTanggalPengawasan = hasNextHandoverAction && nextHandoverDate
