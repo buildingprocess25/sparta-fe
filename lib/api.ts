@@ -5464,6 +5464,43 @@ export type ProjectPlanningInterventionPayload = {
 
 // --- Fungsi ---
 
+const compressFileIfNeeded = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/")) return file;
+    try {
+        const imageCompression = (await import("browser-image-compression")).default;
+        const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+        };
+        const compressedBlob = await imageCompression(file, options);
+        return new File([compressedBlob], file.name, { type: file.type });
+    } catch (error) {
+        console.error("Gagal mengompres gambar:", error);
+        return file;
+    }
+};
+
+const compressFilesIfNeeded = async (fileOrFiles?: File | File[]): Promise<File | File[] | undefined> => {
+    if (!fileOrFiles) return fileOrFiles;
+    if (Array.isArray(fileOrFiles)) {
+        return await Promise.all(fileOrFiles.map(compressFileIfNeeded));
+    }
+    return await compressFileIfNeeded(fileOrFiles);
+};
+
+const compressPhotoDictIfNeeded = async (fotoFiles?: { [key: number]: File }): Promise<{ [key: number]: File } | undefined> => {
+    if (!fotoFiles) return fotoFiles;
+    const result: { [key: number]: File } = {};
+    for (const key of Object.keys(fotoFiles)) {
+        const numKey = Number(key);
+        if (fotoFiles[numKey]) {
+            result[numKey] = await compressFileIfNeeded(fotoFiles[numKey]);
+        }
+    }
+    return result;
+};
+
 /** Submit FPD baru (Coordinator/Cabang). */
 export const submitProjekPlanning = async (
     payload: Record<string, unknown>,
@@ -5474,6 +5511,13 @@ export const submitProjekPlanning = async (
     fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
+    fileFpd = await compressFilesIfNeeded(fileFpd) as any;
+    fileGambarKerjaMe = await compressFilesIfNeeded(fileGambarKerjaMe) as any;
+    fileGambarKompetitor = await compressFilesIfNeeded(fileGambarKompetitor) as any;
+    fileSiteplan = await compressFilesIfNeeded(fileSiteplan) as any;
+    fileBaTidakSesuaiStandar = await compressFilesIfNeeded(fileBaTidakSesuaiStandar) as any;
+    fotoFiles = await compressPhotoDictIfNeeded(fotoFiles);
+
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/submit`;
 
     let body: BodyInit;
@@ -5535,6 +5579,13 @@ export const resubmitProjekPlanning = async (
     fileBaTidakSesuaiStandar?: File | File[],
     fotoFiles?: { [key: number]: File }
 ) => {
+    fileFpd = await compressFilesIfNeeded(fileFpd) as any;
+    fileGambarKerjaMe = await compressFilesIfNeeded(fileGambarKerjaMe) as any;
+    fileGambarKompetitor = await compressFilesIfNeeded(fileGambarKompetitor) as any;
+    fileSiteplan = await compressFilesIfNeeded(fileSiteplan) as any;
+    fileBaTidakSesuaiStandar = await compressFilesIfNeeded(fileBaTidakSesuaiStandar) as any;
+    fotoFiles = await compressPhotoDictIfNeeded(fotoFiles);
+
     const url = `${API_URL.replace(/\/$/, "")}/api/projek-planning/${id}/resubmit`;
 
     let body: BodyInit;
