@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { BnmMigrationModal } from "@/components/BnmMigrationModal";
 import {
   BarChart3,
   CalendarClock,
@@ -17,6 +19,7 @@ import {
   SlidersHorizontal,
   Upload,
   Download,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -113,11 +116,13 @@ function NavigationItem({
   onCloseMobile,
   onFeatureAlert,
   cabang,
+  onBnmClick,
 }: {
   menu: DashboardMenu;
   count: number;
   onCloseMobile: () => void;
   onFeatureAlert: Props["onFeatureAlert"];
+  onBnmClick?: () => void;
   cabang: string;
 }) {
   const Icon = SPECIAL_ICONS[menu.id] ?? FileText;
@@ -147,6 +152,21 @@ function NavigationItem({
             "Akses Diberhentikan Sementara",
             "Penyimpanan dokumen saat ini terpusat di GDrive regional.",
           );
+          onCloseMobile();
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (menu.id === "menu-rab") {
+    return (
+      <button
+        type="button"
+        className="w-full text-left"
+        onClick={() => {
+          if (onBnmClick) onBnmClick();
           onCloseMobile();
         }}
       >
@@ -196,6 +216,8 @@ export default function DashboardNavigation({
   onFeatureAlert,
   onChangeWorkspace,
 }: Props) {
+  const [showBnmMigration, setShowBnmMigration] = useState(false);
+
   const menuById = new Map(menus.map((menu) => [menu.id, menu]));
   const assignedIds = new Set(GROUPS.flatMap((group) => group.menuIds));
   const ungroupedMenus = menus.filter((menu) => !assignedIds.has(menu.id));
@@ -206,31 +228,31 @@ export default function DashboardNavigation({
         <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">Ruang kerja</p>
 
         <details className="group/nav-dash mt-2 overflow-hidden rounded-xl border border-red-100 bg-white open:shadow-sm" open>
-            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-red-50 px-3 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-100 [&::-webkit-details-marker]:hidden">
-                <LayoutDashboard className="h-4 w-4" />
-                <span className="flex-1">Dashboard</span>
-                <ChevronDown className="h-3.5 w-3.5 text-red-700 transition-transform group-open/nav-dash:rotate-180" />
-            </summary>
-            <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5 flex flex-col gap-1">
-                <Link
-                    href="/dashboard?view=monitoring"
-                    className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
-                    onClick={onCloseMobile}
-                >
-                    <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
-                    <span className="min-w-0 flex-1 leading-snug">Monitoring Tracking</span>
-                </Link>
-                {canAccessPerformanceDashboard && (
-                    <Link
-                        href="/dashboard?view=performance"
-                        className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
-                        onClick={onCloseMobile}
-                    >
-                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" aria-hidden="true" />
-                        <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
-                    </Link>
-                )}
-            </div>
+          <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-red-50 px-3 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-100 [&::-webkit-details-marker]:hidden">
+            <LayoutDashboard className="h-4 w-4" />
+            <span className="flex-1">Dashboard</span>
+            <ChevronDown className="h-3.5 w-3.5 text-red-700 transition-transform group-open/nav-dash:rotate-180" />
+          </summary>
+          <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5 flex flex-col gap-1">
+            <Link
+              href="/dashboard?view=monitoring"
+              className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
+              onClick={onCloseMobile}
+            >
+              <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
+              <span className="min-w-0 flex-1 leading-snug">Monitoring Tracking</span>
+            </Link>
+            {canAccessPerformanceDashboard && (
+              <Link
+                href="/dashboard?view=performance"
+                className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
+                onClick={onCloseMobile}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" aria-hidden="true" />
+                <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
+              </Link>
+            )}
+          </div>
         </details>
       </div>
 
@@ -263,6 +285,7 @@ export default function DashboardNavigation({
                     cabang={cabang}
                     onCloseMobile={onCloseMobile}
                     onFeatureAlert={onFeatureAlert}
+                    onBnmClick={() => setShowBnmMigration(true)}
                   />
                 ))}
               </div>
@@ -278,6 +301,7 @@ export default function DashboardNavigation({
             cabang={cabang}
             onCloseMobile={onCloseMobile}
             onFeatureAlert={onFeatureAlert}
+            onBnmClick={() => setShowBnmMigration(true)}
           />
         ))}
       </nav>
@@ -301,6 +325,11 @@ export default function DashboardNavigation({
           Ganti Workspace
         </Button>
       </div>
+
+      <BnmMigrationModal 
+        open={showBnmMigration} 
+        onOpenChange={setShowBnmMigration} 
+      />
     </div>
   );
 }

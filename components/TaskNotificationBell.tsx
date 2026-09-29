@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/context/SessionContext";
+import { BnmMigrationModal } from "@/components/BnmMigrationModal";
 import {
     fetchTaskNotifications,
     type TaskNotificationGroup,
@@ -76,6 +77,7 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
     const [loading, setLoading] = useState(false);
     const [autoPopupDone, setAutoPopupDone] = useState(false);
+    const [showBnmMigration, setShowBnmMigration] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const refresh = useCallback(async () => {
@@ -138,6 +140,12 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
     if (isLoading || !user) return null;
 
     const goToItem = (item: TaskNotificationItem) => {
+        if (item.action_url.includes("/rab") || activeGroup?.key === "revision_rab") {
+            setOpen(false);
+            setShowBnmMigration(true);
+            return;
+        }
+        
         setOpen(false);
         setActiveGroupKey(null);
         router.push(item.action_url);
@@ -291,6 +299,11 @@ export default function TaskNotificationBell({ variant = "brand" }: { variant?: 
                     )}
                 </div>
             )}
+
+            <BnmMigrationModal 
+                open={showBnmMigration} 
+                onOpenChange={setShowBnmMigration} 
+            />
         </div>
     );
 }
