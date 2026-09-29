@@ -19,8 +19,8 @@ import { PHOTO_POINTS, FLOOR_IMAGES, PAGE_LABELS, ALL_POINTS } from "@/app/ftdok
 
 type TokoOption = { id: number; nomor_ulok: string; nama_toko: string; cabang: string; proyek: string; lingkup_pekerjaan: string; kode_toko: string };
 
-const JENIS_OPTIONS = ["DRIVE THRU", "BEAN SPOT", "FASADE", "DARK STORE", "LAINNYA"];
-const DARK_STORE_OPTION = "DARK STORE";
+const JENIS_OPTIONS = ["DRIVE THRU", "BEAN SPOT", "FASADE", "LAINNYA"];
+
 const BEANSPOT_TIPE_OPTIONS = ["RTD ONLY", "Medium", "Advance"];
 
 type ProjectFileState = File[];
@@ -130,7 +130,6 @@ function FormProjekPlanningInner() {
   const [isSeatingArea, setIsSeatingArea] = useState(false);
   const [isDarkStore, setIsDarkStore] = useState(false);
   const [beanspotTipe, setBeanspotTipe] = useState("");
-  const isDarkStoreDesign = jenisSelected.includes(DARK_STORE_OPTION);
 
   // New RAB Option Feature States
   const [rabSelectionOption, setRabSelectionOption] = useState<"approved" | "manual" | null>(null);
@@ -1214,31 +1213,17 @@ function FormProjekPlanningInner() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {JENIS_OPTIONS.map(j => {
                   const isActive = jenisSelected.includes(j);
-                  const isDisabled = isDarkStoreDesign && j !== DARK_STORE_OPTION;
                   return (
                     <button key={j} type="button"
-                      disabled={isDisabled}
                       onClick={() => {
                         setJenisSelected(prev => {
-                          if (j === DARK_STORE_OPTION) {
-                            const next = isActive ? [] : [DARK_STORE_OPTION];
-                            if (!isActive) {
-                              setIsHeadToHead(false);
-                              setIsSeatingArea(false);
-                              setFileGambarKompetitor([]);
-                              set("link_gambar_kompetitor", "");
-                            }
-                            return next;
-                          }
-                          return isActive ? prev.filter(x => x !== j) : [...prev.filter(x => x !== DARK_STORE_OPTION), j];
+                          return isActive ? prev.filter(x => x !== j) : [...prev, j];
                         });
                       }}
                       className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
                         isActive
                           ? "bg-red-600 text-white border-red-600 shadow-sm"
-                          : isDisabled
-                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
                       }`}>
                       {isActive && <span className="text-xs">✓</span>} {j}
                     </button>
