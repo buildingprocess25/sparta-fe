@@ -289,12 +289,6 @@ function FormProjekPlanningInner() {
     }
   }, [isManualUlok, manualCabang, manualTanggal, manualUrutan, resubmitId]);
 
-  useEffect(() => {
-    if (!isDarkStoreDesign) return;
-    setIsHeadToHead(false);
-    setIsSeatingArea(false);
-    setIsDarkStore(false);
-  }, [isDarkStoreDesign]);
 
   // Foto State
   const [fotoFiles, setFotoFiles] = useState<{ [key: number]: File | null }>({});
@@ -658,10 +652,10 @@ function FormProjekPlanningInner() {
         spd: !isManualUlok ? parseRupiahInput(String((f as any).spd || "")) : undefined,
         link_ba_tidak_sesuai_standar: !isManualUlok ? (f as any).link_ba_tidak_sesuai_standar : undefined,
         // New fields
-        is_head_to_head: isDarkStoreDesign ? false : isHeadToHead,
-        is_seating_area: isDarkStoreDesign ? false : isSeatingArea,
-        is_dark_store: isDarkStoreDesign ? false : isDarkStore,
-        jarak_head_to_head: isDarkStoreDesign || !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
+        is_head_to_head: isHeadToHead,
+        is_seating_area: isSeatingArea,
+        is_dark_store: isDarkStore,
+        jarak_head_to_head: !isHeadToHead || !(f as any).jarak_head_to_head ? undefined : Number((f as any).jarak_head_to_head),
         beanspot_tipe: jenisSelected.includes("BEAN SPOT") ? beanspotTipe : "",
         ketentuan: JSON.stringify(ketentuan.filter(k => k.trim() !== "")),
         catatan_design: JSON.stringify(catatanDesign.filter(c => c.trim() !== "")),
@@ -1280,7 +1274,6 @@ function FormProjekPlanningInner() {
                   </div>
                 </div>
 
-                {!isDarkStoreDesign && (
                   <div className="pt-2 border-t border-slate-100">
                     <Label className="text-sm font-bold text-slate-700 mb-2 block">Kategori Toko</Label>
                     <div className="flex gap-4">
@@ -1294,26 +1287,24 @@ function FormProjekPlanningInner() {
                       </label>
                     </div>
                   </div>
-                )}
               </div>
 
               {/* === SECTION: Head to Head & Seating Area === */}
-              {!isDarkStoreDesign && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                 {/* Head to Head */}
                 <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-3">
                   <Label className="text-sm font-bold text-slate-700">🏪 Apakah Toko Head to Head?</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="is_head_to_head" checked={!isHeadToHead || isDarkStoreDesign} onChange={() => setIsHeadToHead(false)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                      <input type="radio" name="is_head_to_head" checked={!isHeadToHead} onChange={() => setIsHeadToHead(false)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm">Tidak</span>
                     </label>
-                    <label className={`flex items-center gap-2 ${isDarkStoreDesign ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                      <input type="radio" name="is_head_to_head" checked={isHeadToHead && !isDarkStoreDesign} onChange={() => setIsHeadToHead(true)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="is_head_to_head" checked={isHeadToHead} onChange={() => setIsHeadToHead(true)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm font-semibold text-red-700">Ya</span>
                     </label>
                   </div>
-                  {isHeadToHead && !isDarkStoreDesign && (
+                  {isHeadToHead && (
                     <div className="space-y-2 pt-2 border-t border-slate-100">
                       <Label className="text-xs font-semibold text-slate-600">Jarak Head to Head *</Label>
                       <div className="flex items-center gap-2">
@@ -1342,17 +1333,16 @@ function FormProjekPlanningInner() {
                   <Label className="text-sm font-bold text-slate-700">🪑 Apakah Ada Seating Area?</Label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="is_seating_area" checked={!isSeatingArea || isDarkStoreDesign} onChange={() => setIsSeatingArea(false)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                      <input type="radio" name="is_seating_area" checked={!isSeatingArea} onChange={() => setIsSeatingArea(false)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm">Tidak</span>
                     </label>
-                    <label className={`flex items-center gap-2 ${isDarkStoreDesign ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
-                      <input type="radio" name="is_seating_area" checked={isSeatingArea && !isDarkStoreDesign} onChange={() => setIsSeatingArea(true)} className="w-4 h-4 text-red-600" disabled={isDarkStoreDesign} />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="is_seating_area" checked={isSeatingArea} onChange={() => setIsSeatingArea(true)} className="w-4 h-4 text-red-600" />
                       <span className="text-sm font-semibold text-green-700">Ya</span>
                     </label>
                   </div>
                 </div>
               </div>
-              )}
 
               {/* === SECTION: Fasilitas dipindahkan ke inputan kedua === */}
               {false && (
