@@ -5973,7 +5973,11 @@ export const uploadRabGambarKerja = async (id: number, payload: {
     nomor_ulok?: string;
     nama_toko?: string;
     jenis_proyek?: string;
-}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[]) => {
+}, 
+fileGambarSipil?: File | File[], 
+fileGambarMe?: File | File[],
+fileRabSipil?: File | File[],
+fileRabMe?: File | File[]) => {
     let body: BodyInit;
     const headers: Record<string, string> = {};
 
@@ -5981,7 +5985,7 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         const files = Array.isArray(fileOrFiles) ? fileOrFiles : fileOrFiles ? [fileOrFiles] : [];
         files.slice(0, 2).forEach(file => formData.append(field, file));
     };
-    const hasFiles = [fileGambarSipil, fileGambarMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
+    const hasFiles = [fileGambarSipil, fileGambarMe, fileRabSipil, fileRabMe].some(fileOrFiles => Array.isArray(fileOrFiles) ? fileOrFiles.length > 0 : !!fileOrFiles);
 
     if (hasFiles) {
         const formData = new FormData();
@@ -6000,6 +6004,8 @@ export const uploadRabGambarKerja = async (id: number, payload: {
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
+        appendFiles(formData, "file_rab_sipil", fileRabSipil);
+        appendFiles(formData, "file_rab_me", fileRabMe);
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
