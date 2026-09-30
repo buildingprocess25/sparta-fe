@@ -5973,11 +5973,7 @@ export const uploadRabGambarKerja = async (id: number, payload: {
     nomor_ulok?: string;
     nama_toko?: string;
     jenis_proyek?: string;
-}, 
-fileGambarSipil?: File | File[], 
-fileGambarMe?: File | File[],
-fileRabSipil?: File | File[],
-fileRabMe?: File | File[]) => {
+}, fileGambarSipil?: File | File[], fileGambarMe?: File | File[], fileRabSipil?: File | File[], fileRabMe?: File | File[]) => {
     let body: BodyInit;
     const headers: Record<string, string> = {};
 
@@ -6004,8 +6000,8 @@ fileRabMe?: File | File[]) => {
         if (payload.keterangan) formData.append("keterangan", payload.keterangan);
         appendFiles(formData, "file_gambar_kerja_final_sipil", fileGambarSipil);
         appendFiles(formData, "file_gambar_kerja_final_me", fileGambarMe);
-        appendFiles(formData, "file_rab_sipil", fileRabSipil);
-        appendFiles(formData, "file_rab_me", fileRabMe);
+        appendFiles(formData, "file_rab_sipil_final", fileRabSipil);
+        appendFiles(formData, "file_rab_me_final", fileRabMe);
         body = formData;
     } else {
         headers["Content-Type"] = "application/json";
