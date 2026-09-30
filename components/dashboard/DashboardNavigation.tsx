@@ -227,29 +227,49 @@ export default function DashboardNavigation({
       <div className="border-b border-slate-100 px-4 py-4">
         <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">Ruang kerja</p>
 
-        <details className="group/nav-dash mt-2 overflow-hidden rounded-xl border border-red-100 bg-white open:shadow-sm" open>
-          <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-red-50 px-3 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-100 [&::-webkit-details-marker]:hidden">
-            <LayoutDashboard className="h-4 w-4" />
-            <span className="flex-1">Dashboard</span>
-            <ChevronDown className="h-3.5 w-3.5 text-red-700 transition-transform group-open/nav-dash:rotate-180" />
+        <details className="group/nav-dash mt-2.5 overflow-hidden rounded-xl border border-red-100 bg-white shadow-sm" open>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 rounded-t-xl bg-gradient-to-r from-red-600 to-red-700 px-3 text-[12px] font-semibold text-white transition-colors hover:from-red-700 hover:to-red-800 [&::-webkit-details-marker]:hidden">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-white backdrop-blur-sm">
+              <LayoutDashboard className="h-3.5 w-3.5" />
+            </span>
+            <span className="flex-1">Pusat Dashboard</span>
+            <ChevronDown className="h-3.5 w-3.5 text-white transition-transform group-open/nav-dash:rotate-180" />
           </summary>
-          <div className="border-t border-red-100 bg-slate-50/50 px-1.5 py-1.5 flex flex-col gap-1">
+          
+          <div className="flex flex-col gap-1.5 p-2 bg-slate-50/50 border-t border-red-100">
             <Link
               href="/dashboard?view=monitoring"
-              className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
               onClick={onCloseMobile}
+              className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-sm transition-all hover:border-red-300 hover:shadow-md hover:ring-1 hover:ring-red-100"
             >
-              <BarChart3 className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" />
-              <span className="min-w-0 flex-1 leading-snug">Monitoring Tracking</span>
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition-colors group-hover:bg-red-100">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-800 leading-none">Monitoring Tracking</span>
+                  <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Lacak progress proyek</span>
+                </div>
+              </div>
             </Link>
+
             {canAccessPerformanceDashboard && (
               <Link
                 href="/dashboard?view=performance"
-                className="group flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-red-950/70 transition-all hover:bg-red-50 hover:text-red-800 hover:shadow-[inset_3px_0_0_#dc2626]"
                 onClick={onCloseMobile}
+                className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md hover:ring-1 hover:ring-blue-100"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-red-600" aria-hidden="true" />
-                <span className="min-w-0 flex-1 leading-snug">Performance Internal SAT</span>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-slate-800 leading-none">Performance SAT</span>
+                    <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Metrik & KPI tim internal</span>
+                  </div>
+                </div>
               </Link>
             )}
           </div>
