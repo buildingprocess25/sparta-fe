@@ -15,13 +15,44 @@ interface KpiSupportTableProps {
   onSupportClick: (row: PerformanceTableRow) => void;
 }
 
-const columns: Array<{ key: PerformanceTableMetric; label: string; format: (value: number | null) => string }> = [
-  { key: "jhk_notaris_to_end_spk", label: "JHK Notaris to End SPK", format: (value) => formatNumberKpi(value, " hari") },
-  { key: "jhk_notaris_to_start_spk", label: "JHK Notaris to Start SPK", format: (value) => formatNumberKpi(value, " hari") },
-  { key: "persentase_temuan", label: "% Temuan", format: formatPercentKpi },
-  { key: "ketepatan_st", label: "Ketepatan ST", format: formatSignedDays },
-  { key: "deviasi_pe", label: "Deviasi (%) PE vs Penawaran", format: formatPercentKpi },
-  { key: "finalisasi_ktk", label: "Finalisasi KTK", format: (value) => formatNumberKpi(value, " hari") }
+const columns: Array<{ key: PerformanceTableMetric; label: string; format: (value: number | null, row: PerformanceTableRow) => React.ReactNode }> = [
+  { key: "jhk_notaris_to_end_spk", label: "JHK Not. to End", format: (value) => (
+      value !== null ? <span className="font-semibold text-slate-800">{formatNumberKpi(value, " hari")}</span> : <span className="text-slate-300">-</span>
+  ) },
+  { key: "jhk_notaris_to_start_spk", label: "JHK Not. to Start", format: (value) => (
+      value !== null ? <span className="font-semibold text-slate-800">{formatNumberKpi(value, " hari")}</span> : <span className="text-slate-300">-</span>
+  ) },
+  { key: "persentase_temuan", label: "% Temuan", format: (value) => {
+      if (value === null) return <span className="text-slate-300">-</span>;
+      const isHigh = value > 50; // Just an example threshold
+      return (
+        <span className={cn("font-bold", isHigh ? "text-amber-600" : "text-slate-800")}>
+          {formatPercentKpi(value)}
+        </span>
+      );
+  } },
+  { key: "ketepatan_st", label: "Ketepatan ST", format: (value) => {
+      if (value === null) return <span className="text-slate-300">-</span>;
+      if (value < 0) return (
+        <div className="flex flex-col">
+          <span className="text-[13px] font-bold text-emerald-600">-{formatNumberKpi(Math.abs(value), " hari")}</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/80 mt-0.5">Lebih Cepat</span>
+        </div>
+      );
+      if (value > 0) return (
+        <div className="flex flex-col">
+          <span className="text-[13px] font-bold text-rose-600">+{formatNumberKpi(value, " hari")}</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-rose-500/80 mt-0.5">Terlambat</span>
+        </div>
+      );
+      return <span className="text-[13px] font-bold text-slate-500">Tepat Waktu</span>;
+  } },
+  { key: "deviasi_pe", label: "Deviasi PE", format: (value) => (
+      value !== null ? <span className="font-semibold text-slate-800">{formatPercentKpi(value)}</span> : <span className="text-slate-300">-</span>
+  ) },
+  { key: "finalisasi_ktk", label: "Finalisasi KTK", format: (value) => (
+      value !== null ? <span className="font-semibold text-slate-800">{formatNumberKpi(value, " hari")}</span> : <span className="text-slate-300">-</span>
+  ) }
 ];
 
 export function KpiSupportTable({
@@ -120,44 +151,50 @@ export function KpiSupportTable({
           </div>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="border-b border-slate-200/60 text-xs font-bold uppercase tracking-widest text-slate-400">
-              <tr>
-                <th className="px-4 py-3 font-bold">Nama Support & Aktivitas</th>
-                {columns.map((column) => <th key={column.key} className="px-4 py-3 font-bold">{column.label}</th>)}
+        <div className="overflow-x-auto custom-scrollbar pb-4">
+          <table className="w-full min-w-[1000px] text-left">
+            <thead>
+              <tr className="border-b border-slate-200/80">
+                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Nama Support & Aktivitas</th>
+                {columns.map((column) => <th key={column.key} className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">{column.label}</th>)}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/40">
+            <tbody className="divide-y divide-slate-200/50">
               {filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((row) => (
-                <tr
-                  key={row.nama_support}
-                  onClick={() => onSupportClick(row)}
-                  className="group cursor-pointer transition-colors duration-200 hover:bg-red-50/40"
-                >
-                  <td className="relative px-4 py-4 transition-colors">
-                    <div className="absolute inset-y-0 left-0 w-[3px] bg-transparent transition-colors group-hover:bg-red-500" />
-                    <div className="text-left font-bold tracking-tight text-slate-800 group-hover:text-red-700">
-                      {row.nama_support}
-                      <span className="mt-1 block text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-red-500/70">
-                        {row.total_ulok} ULOK &bull; <span className={row.incomplete_ulok > 0 ? "text-amber-600" : ""}>{row.incomplete_ulok} catatan</span>
-                      </span>
-                    </div>
-                  </td>
-                  {columns.map((column) => (
-                    <td
-                      key={column.key}
-                      className="px-4 py-4 text-slate-700 font-medium transition-colors group-hover:text-red-900"
-                    >
-                      {column.format(row[column.key])}
+                  <tr
+                    key={row.nama_support}
+                    onClick={() => onSupportClick(row)}
+                    className="group cursor-pointer bg-white transition-colors hover:bg-slate-50/70"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                         <span className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                           {row.nama_support}
+                         </span>
+                         <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                           <span>{row.total_ulok} ULOK</span>
+                           {row.incomplete_ulok > 0 && (
+                             <>
+                               <span>&bull;</span>
+                               <span className="font-bold text-amber-600">{row.incomplete_ulok} Catatan</span>
+                             </>
+                           )}
+                         </div>
+                      </div>
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {columns.map((column) => (
+                      <td key={column.key} className="px-6 py-4">
+                        {column.format(row[column.key], row)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              )}
               {!filteredData.length && (
                 <tr>
-                  <td colSpan={columns.length + 1} className="px-4 py-16 text-center text-sm font-medium text-slate-500">
-                    Tidak ada data support untuk filter ini.
+                  <td colSpan={columns.length + 1} className="px-6 py-20 text-center bg-white">
+                    <div className="text-sm font-bold text-slate-500">Tidak ada data support untuk filter ini.</div>
+                    <div className="mt-1 text-xs text-slate-400">Coba ubah filter pencarian Anda.</div>
                   </td>
                 </tr>
               )}

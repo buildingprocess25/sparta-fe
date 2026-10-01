@@ -16,7 +16,7 @@ import { KpiDrilldownModal } from "./KpiDrilldownModal";
 import { KpiSupportTable } from "./KpiSupportTable";
 import { KpiSupportMetricModal } from "./KpiSupportMetricModal";
 import { formatNumberKpi, formatRupiahKpi, formatSignedDays } from "./kpi-formatters";
-import { AlertTriangle, Banknote, CheckCircle2, Clock3, FileText, Gauge, Loader2, TrendingDown, TrendingUp, UserCheck, ArrowRight } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, Clock3, FileText, Gauge, Loader2, TrendingDown, TrendingUp, UserCheck, ArrowRight, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Skeleton = ({ className }: { className?: string }) => <div className={cn("animate-pulse rounded-md bg-slate-200", className)} />;
@@ -45,6 +45,7 @@ export function DashboardKPI({
   const [data, setData] = useState<PerformanceSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFiltersVisible, setIsFiltersVisible] = useState(true);
   const [selectedCabang, setSelectedCabang] = useState("ALL");
   const [selectedCoordinator, setSelectedCoordinator] = useState("ALL");
   const [selectedSupport, setSelectedSupport] = useState("ALL");
@@ -222,244 +223,271 @@ export function DashboardKPI({
     ];
   }, [data]);
 
-  const renderCard = (card?: MetricCardConfig) => {
+  const getCardColors = (id: string) => {
+    switch(id) {
+      case 'jhk': return { bg: 'bg-white', border: 'border-indigo-200', shadow: 'shadow-[0_4px_20px_rgba(99,102,241,0.05)] hover:shadow-[0_8px_30px_rgba(99,102,241,0.25)]', text: 'text-indigo-900', iconBg: 'bg-indigo-50 text-indigo-600 ring-indigo-200', value: 'text-indigo-700', hoverBg: 'hover:bg-indigo-50/50' };
+      case 'ketepatan_st': return { bg: 'bg-white', border: 'border-emerald-200', shadow: 'shadow-[0_4px_20px_rgba(16,185,129,0.05)] hover:shadow-[0_8px_30px_rgba(16,185,129,0.25)]', text: 'text-emerald-900', iconBg: 'bg-emerald-50 text-emerald-600 ring-emerald-200', value: 'text-emerald-700', hoverBg: 'hover:bg-emerald-50/50' };
+      case 'sla_approval': return { bg: 'bg-white', border: 'border-amber-200', shadow: 'shadow-[0_4px_20px_rgba(245,158,11,0.05)] hover:shadow-[0_8px_30px_rgba(245,158,11,0.25)]', text: 'text-amber-900', iconBg: 'bg-amber-50 text-amber-600 ring-amber-200', value: 'text-amber-700', hoverBg: 'hover:bg-amber-50/50' };
+      case 'sla_ktk': return { bg: 'bg-white', border: 'border-violet-200', shadow: 'shadow-[0_4px_20px_rgba(139,92,246,0.05)] hover:shadow-[0_8px_30px_rgba(139,92,246,0.25)]', text: 'text-violet-900', iconBg: 'bg-violet-50 text-violet-600 ring-violet-200', value: 'text-violet-700', hoverBg: 'hover:bg-violet-50/50' };
+      case 'kerja_tambah': return { bg: 'bg-white', border: 'border-blue-200', shadow: 'shadow-[0_4px_20px_rgba(59,130,246,0.05)] hover:shadow-[0_8px_30px_rgba(59,130,246,0.25)]', text: 'text-blue-900', iconBg: 'bg-blue-50 text-blue-600 ring-blue-200', value: 'text-blue-700', hoverBg: 'hover:bg-blue-50/50' };
+      case 'kerja_kurang': return { bg: 'bg-white', border: 'border-rose-200', shadow: 'shadow-[0_4px_20px_rgba(244,63,94,0.05)] hover:shadow-[0_8px_30px_rgba(244,63,94,0.25)]', text: 'text-rose-900', iconBg: 'bg-rose-50 text-rose-600 ring-rose-200', value: 'text-rose-700', hoverBg: 'hover:bg-rose-50/50' };
+      case 'denda': return { bg: 'bg-white', border: 'border-orange-200', shadow: 'shadow-[0_4px_20px_rgba(249,115,22,0.05)] hover:shadow-[0_8px_30px_rgba(249,115,22,0.25)]', text: 'text-orange-900', iconBg: 'bg-orange-50 text-orange-600 ring-orange-200', value: 'text-orange-700', hoverBg: 'hover:bg-orange-50/50' };
+      default: return { bg: 'bg-white', border: 'border-slate-200', shadow: 'shadow-sm hover:shadow-slate-500/20', text: 'text-slate-900', iconBg: 'bg-slate-50 text-slate-600 ring-slate-200', value: 'text-slate-700', hoverBg: 'hover:bg-slate-50/50' };
+    }
+  };
+
+  const renderFloatingCard = (card?: MetricCardConfig, headerLabel?: string) => {
     if (!card) return null;
     const Icon = card.icon;
-
-
-    // Inner content rendering based on card ID to break uniformity
-    const renderContent = () => {
-      switch (card.id) {
-        case "cost_m2":
-          return (
-            <div className="flex h-full w-full flex-col justify-between">
-               <div className="flex items-start justify-between">
-                 <div>
-                   <h3 className="text-lg font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
-                   <p className="mt-1.5 max-w-sm text-xs font-medium leading-relaxed text-slate-500">{card.helper}</p>
-                 </div>
-                 <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 backdrop-blur-md transition-transform duration-300 group-hover:scale-110", card.tone)}>
-                   <Icon className="h-5 w-5" aria-hidden="true" />
-                 </div>
-               </div>
-
-               <div className="mt-6 flex-1 w-full rounded-2xl bg-white/50 p-4 ring-1 ring-slate-100/60">
-                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                   {card.subvalues?.map((item) => (
-                     <div key={item.label} className="flex flex-col">
-                       <div className="mb-1.5 flex items-center gap-1.5">
-                         <span className={cn("h-1.5 w-1.5 rounded-full", item.accent)} />
-                         <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</span>
-                       </div>
-                       {loading ? <Skeleton className="h-6 w-24" /> : <span className="text-lg font-semibold tracking-tight text-slate-800">{item.value}</span>}
-                     </div>
-                   ))}
-                 </div>
-               </div>
-            </div>
-          );
-
-        case "sla_approval":
-        case "jhk":
-          return (
-            <div className="flex h-full w-full flex-col justify-between">
-              <div className="flex items-start justify-between">
-                 <div>
-                   <h3 className="text-base font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
-                 </div>
-                 <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md transition-transform duration-300 group-hover:scale-110", card.tone)}>
-                   <Icon className="h-4 w-4" aria-hidden="true" />
-                 </div>
-               </div>
-               <div className="mt-6 flex-1">
-                 {loading ? <Skeleton className="h-10 w-32" /> : <p className="text-4xl font-bold tracking-tighter text-slate-800 drop-shadow-sm">{card.value}</p>}
-                 {card.id === "jhk" && card.subvalues && !loading && (
-                   <div className="mt-3 grid grid-cols-2 gap-2">
-                     {card.subvalues.map((item) => (
-                       <div key={item.label} className="rounded-xl bg-white/60 px-2.5 py-2 ring-1 ring-slate-100">
-                         <div className="mb-1 flex items-center gap-1.5">
-                           <span className={cn("h-1.5 w-1.5 rounded-full", item.accent)} />
-                           <span className="truncate text-[9px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</span>
-                         </div>
-                         <span className="text-xs font-bold text-slate-700">{item.value}</span>
-                       </div>
-                     ))}
-                   </div>
-                 )}
-               </div>
-            </div>
-          );
-
-        case "ketepatan_st":
-          return (
-            <div className="flex h-full w-full flex-col justify-between">
-              <div className="flex items-center gap-3">
-                 <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md", card.tone)}>
-                   <Icon className="h-4 w-4" aria-hidden="true" />
-                 </div>
-                 <div>
-                   <h3 className="text-sm font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
-                 </div>
-              </div>
-              <div className="mt-4 flex-1">
-                 {loading ? <Skeleton className="h-8 w-24" /> : <p className="text-3xl font-bold tracking-tight text-slate-800 drop-shadow-sm">{card.value}</p>}
-                 <p className="mt-1 text-xs font-medium text-slate-500">{card.helper}</p>
-               </div>
-            </div>
-          );
-
-        case "denda":
-        case "kerja_tambah":
-        case "kerja_kurang":
-          return (
-            <div className="flex h-full w-full flex-col justify-between">
-              <div className="flex items-center gap-3">
-                 <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md", card.tone)}>
-                   <Icon className="h-4 w-4" aria-hidden="true" />
-                 </div>
-                 <div>
-                   <h3 className="text-sm font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
-                 </div>
-               </div>
-               <div className="mt-4 flex-1">
-                 {loading ? <Skeleton className="h-8 w-32" /> : <p className="text-2xl font-bold tracking-tight text-slate-800 drop-shadow-sm">{card.value}</p>}
-                 {card.sumValue && !loading && (
-                   <p className="mt-1 text-[11px] font-semibold text-slate-500">Total: <span className="text-slate-700">{card.sumValue}</span></p>
-                 )}
-               </div>
-            </div>
-          );
-
-        case "sla_ktk":
-          return (
-             <div className="flex h-full w-full flex-col justify-between sm:flex-row sm:items-center">
-               <div>
-                 <div className="flex items-center gap-3">
-                   <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 backdrop-blur-md transition-transform duration-300 group-hover:scale-110", card.tone)}>
-                     <Icon className="h-4 w-4" aria-hidden="true" />
-                   </div>
-                   <h3 className="text-base font-semibold tracking-tight text-slate-800 transition-colors group-hover:text-red-600">{card.title}</h3>
-                 </div>
-                 <p className="mt-2 max-w-sm text-xs font-medium text-slate-500">{card.helper}</p>
-               </div>
-               <div className="mt-4 sm:mt-0 sm:text-right">
-                 {loading ? <Skeleton className="h-10 w-24 sm:ml-auto" /> : <p className="text-4xl font-bold tracking-tighter text-slate-800 drop-shadow-sm">{card.value}</p>}
-               </div>
-             </div>
-          );
-        default:
-          return null;
-      }
-    };
+    const colors = getCardColors(card.id);
 
     return (
       <button
         key={card.id}
         onClick={() => openCard(card.id, card.title)}
-        className={cn(
-          "group relative flex w-full flex-col overflow-hidden rounded-3xl bg-white/70 p-5 text-left ring-1 ring-slate-200/60 backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-white hover:shadow-lg hover:shadow-slate-200/50 hover:ring-slate-300",
-          card.span === 2 ? "sm:col-span-2" : "col-span-1",
-          card.rowSpan === 2 ? "row-span-2" : "row-span-1"
-        )}
+        className={cn("group relative flex w-full flex-col border rounded-[24px] p-6 text-left transition-all duration-300 focus:outline-none overflow-hidden hover:-translate-y-1", colors.bg, colors.border, colors.shadow)}
       >
-        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-gradient-to-br from-transparent to-slate-100/50 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-        
-        {renderContent()}
+        <div className={cn("absolute -bottom-6 -right-6 opacity-[0.07] group-hover:scale-110 group-hover:-rotate-12 transition-transform duration-500", colors.text)}>
+           <Icon className="h-40 w-40" strokeWidth={1} />
+        </div>
 
-        <div className="mt-6 flex w-full items-center justify-between border-t border-slate-100 pt-4">
-          <div className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-500">
-            {card.count} Data Valid
+        <div className="relative z-10 w-full">
+          {headerLabel && (
+             <div className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+               {headerLabel}
+             </div>
+          )}
+          
+          <div className="flex items-start gap-3 mb-4">
+            <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1", colors.iconBg)}>
+               <Icon className="h-4 w-4" />
+            </div>
+            <div>
+               <h3 className={cn("text-xs font-bold", colors.text)}>{card.title}</h3>
+               {card.kicker && <p className="text-[10px] font-medium text-slate-400 mt-0.5">{card.kicker}</p>}
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-red-600 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2">
-            Lihat Detail <ArrowRight className="h-3 w-3" />
+
+          <div className="mt-2 w-full">
+            <div className="flex items-baseline gap-2">
+              <span className={cn("text-3xl font-black tracking-tighter transition-colors", colors.value)}>{card.value}</span>
+              {card.sumValue && <span className="text-[10px] font-bold text-slate-400">/ {card.sumValue}</span>}
+            </div>
+            
+            {card.subvalues && !loading ? (
+               <div className="mt-4 flex flex-wrap gap-4 pt-2">
+                 {card.subvalues.map(v => (
+                   <div key={v.label}>
+                     <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{v.label}</div>
+                     <div className={cn("text-xs font-semibold", colors.text)}>{v.value}</div>
+                   </div>
+                 ))}
+               </div>
+            ) : (
+               <p className="mt-4 text-[10px] font-medium text-slate-400 max-w-[200px] leading-relaxed line-clamp-2">{card.helper}</p>
+            )}
           </div>
         </div>
       </button>
     );
   };
 
+  const renderStackedList = () => {
+     const metricIds = ["kerja_tambah", "kerja_kurang", "denda"];
+     const stackedCards = metricIds.map(id => cards.find(c => c.id === id)).filter(Boolean) as MetricCardConfig[];
+     
+     return (
+       <div className="flex h-full w-full flex-col bg-white border border-slate-200/60 rounded-[24px] shadow-sm overflow-hidden">
+          <div className="px-6 pt-6 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+             Project Cost Variations
+          </div>
+          <div className="flex flex-col gap-3 p-4 h-full">
+             {stackedCards.map((card) => {
+                const Icon = card.icon;
+                const colors = getCardColors(card.id);
+                
+                return (
+                  <button
+                    key={card.id}
+                    onClick={() => openCard(card.id, card.title)}
+                    className={cn(
+                      "group relative flex flex-1 items-center justify-between p-4 rounded-2xl border transition-all duration-300 text-left focus:outline-none hover:-translate-y-0.5",
+                      colors.border,
+                      colors.hoverBg
+                    )}
+                  >
+                     <div className="flex flex-col">
+                        <span className={cn("text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors", colors.text)}>{card.title}</span>
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className={cn("text-xl font-bold tracking-tight", colors.value)}>{card.value}</span>
+                          {card.sumValue && <span className="text-[10px] font-medium text-slate-400">/ {card.sumValue}</span>}
+                        </div>
+                        <span className="text-[10px] text-slate-500 max-w-[220px] line-clamp-1">{card.helper}</span>
+                     </div>
+                     <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-transform group-hover:scale-110 ring-1", colors.iconBg)}>
+                        <Icon className="h-4 w-4" />
+                     </div>
+                  </button>
+                )
+             })}
+          </div>
+       </div>
+     );
+  };
+
+
+
+  const renderHeroCard = () => {
+    const card = cards.find(c => c.id === "cost_m2");
+    if (!card) return null;
+    return (
+       <div className="relative overflow-hidden bg-white rounded-[24px] border border-slate-200/60 shadow-sm p-8 lg:p-10 flex flex-col lg:flex-row justify-between items-center gap-12">
+          {/* Subtle blueprint pattern simulation */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          
+          {/* Left: Main Metric */}
+          <div className="relative z-10 flex-1 w-full lg:w-auto">
+             <div className="inline-flex items-center gap-2 rounded-full bg-[#E5484D] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white mb-4 shadow-sm">
+                Primary Metric
+             </div>
+             <h3 className="text-sm font-semibold text-slate-700 mb-1">{card.title}</h3>
+             <div className="text-5xl lg:text-6xl font-black tracking-tighter text-slate-900 mb-3">{card.value}</div>
+             <p className="text-xs font-medium text-slate-500 max-w-sm leading-relaxed mb-6">{card.helper}</p>
+             <button 
+               onClick={() => openCard(card.id, card.title)}
+               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+             >
+                View Breakdown <ArrowRight className="h-3.5 w-3.5" />
+             </button>
+          </div>
+          
+          {/* Right: Fake Donut Chart & Distribution */}
+          <div className="relative z-10 flex flex-col sm:flex-row items-center gap-8 lg:border-l border-slate-100 lg:pl-12 w-full lg:w-auto">
+             
+             {/* CSS Conic Gradient Donut */}
+             <div className="relative h-32 w-32 shrink-0 items-center justify-center rounded-full shadow-sm" style={{ background: 'conic-gradient(#10b981 0% 30%, #3b82f6 30% 80%, #cbd5e1 80% 100%)' }}>
+                <div className="absolute inset-0 m-auto h-20 w-20 rounded-full bg-white shadow-inner" />
+             </div>
+
+             <div className="flex flex-col gap-4 w-full">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-700 mb-1">Cost Distribution</h4>
+                {card.subvalues?.map((item, idx) => (
+                   <div key={item.label} className="flex items-start gap-3">
+                      <div className={cn("h-3 w-3 rounded-sm shadow-sm mt-0.5 shrink-0", idx === 0 ? "bg-emerald-500" : idx === 1 ? "bg-blue-500" : "bg-slate-300")} />
+                      <div>
+                         <span className="block text-[10px] font-medium text-slate-500">{item.label}</span>
+                         <span className="block text-sm font-bold text-slate-800">{item.value}</span>
+                      </div>
+                   </div>
+                ))}
+             </div>
+          </div>
+       </div>
+    );
+  };
+
   return (
-    <main className="relative flex h-full flex-col gap-8 overflow-y-auto bg-[#f8fafc] p-6 custom-scrollbar lg:p-10">
-      {/* Abstract Background Decoration */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute -left-[10%] -top-[10%] h-[500px] w-[500px] rounded-full bg-red-400/10 blur-[100px]" />
-        <div className="absolute right-[5%] top-[20%] h-[400px] w-[400px] rounded-full bg-indigo-400/5 blur-[100px]" />
+    <div className="relative flex h-full flex-col bg-slate-50 font-sans text-slate-900 overflow-hidden">
+      
+      {/* Fixed Header & Filters Container */}
+      <div className="flex-none bg-slate-50 border-b border-slate-200/60 shadow-sm z-50 px-6 pt-6 pb-4 lg:px-10 lg:pt-8 transition-all duration-500">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-2xl w-full">
+            
+            <div className="flex items-center justify-between lg:justify-start lg:gap-4 w-full">
+               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-sm">
+                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Live Dashboard
+               </div>
+               
+               {/* Toggle Button */}
+               <button 
+                 onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-colors shadow-sm text-[10px] font-bold uppercase tracking-widest focus:outline-none"
+               >
+                 {isFiltersVisible ? (
+                   <>Sembunyikan Filter <ChevronUp className="h-3.5 w-3.5" /></>
+                 ) : (
+                   <>Tampilkan Filter <ChevronDown className="h-3.5 w-3.5" /></>
+                 )}
+               </button>
+            </div>
+            
+            <div className={cn("transition-all duration-500 origin-top", isFiltersVisible ? "max-h-[150px] opacity-100 mt-5 overflow-visible" : "max-h-0 opacity-0 mt-0 overflow-hidden pointer-events-none")}>
+               <h1 className="text-3xl lg:text-4xl font-bold tracking-tight text-slate-900">Performance Internal SAT</h1>
+               <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
+                 Monitor dan evaluasi performance dari internal SAT. Menampilkan analitik biaya, durasi pekerjaan, denda, dan efisiensi serah terima proyek.
+               </p>
+            </div>
+          </div>
+        </header>
+
+        {/* Filters */}
+        <div className={cn("transition-all duration-500 origin-top", isFiltersVisible ? "max-h-[800px] opacity-100 mt-6 overflow-visible" : "max-h-0 opacity-0 mt-0 overflow-hidden pointer-events-none")}>
+          <KPIFilters
+            userInfo={userInfo}
+            selectedCabang={selectedCabang}
+            selectedCoordinator={selectedCoordinator}
+            selectedSupport={selectedSupport}
+            selectedPeriod={selectedPeriod}
+            selectedJobType={selectedJobType}
+            selectedTipeBangunan={selectedTipeBangunan}
+            search={personSearch}
+            onCabangChange={setSelectedCabang}
+            onCoordinatorChange={setSelectedCoordinator}
+            onSupportChange={setSelectedSupport}
+            onPeriodChange={setSelectedPeriod}
+            onJobTypeChange={setSelectedJobType}
+            onTipeBangunanChange={setSelectedTipeBangunan}
+            onSearchChange={setPersonSearch}
+            onSearchSubmit={handleSearchSubmit}
+            onFiltersLoaded={setFilterOptions}
+          />
+        </div>
       </div>
 
-      {/* Header */}
-      <header className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-red-600 shadow-sm ring-1 ring-slate-200/60">
-            <Gauge className="h-3.5 w-3.5" aria-hidden="true" /> Live Dashboard
+      {/* Scrollable Main Content */}
+      <main className="flex-1 overflow-y-auto p-6 lg:p-10 custom-scrollbar flex flex-col gap-8">
+        
+        {error && (
+          <div className="relative z-10 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50/80 p-5 text-sm font-semibold text-red-700 shadow-sm backdrop-blur-sm" aria-live="polite">
+            <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" /> {error}
           </div>
-          <h1 className="mt-4 text-4xl lg:text-5xl font-semibold tracking-tighter text-slate-900 drop-shadow-sm">Performance Internal SAT</h1>
-          <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
-            Monitor dan evaluasi performance dari internal SAT. Menampilkan analitik biaya, durasi pekerjaan, denda, dan efisiensi serah terima proyek.
-          </p>
-        </div>
+        )}
 
-        <div className="hidden">
-        </div>
-
-      </header>
-
-      {/* Filters */}
-      <KPIFilters
-        userInfo={userInfo}
-        selectedCabang={selectedCabang}
-        selectedCoordinator={selectedCoordinator}
-        selectedSupport={selectedSupport}
-        selectedPeriod={selectedPeriod}
-        selectedJobType={selectedJobType}
-        selectedTipeBangunan={selectedTipeBangunan}
-        search={personSearch}
-        onCabangChange={setSelectedCabang}
-        onCoordinatorChange={setSelectedCoordinator}
-        onSupportChange={setSelectedSupport}
-        onPeriodChange={setSelectedPeriod}
-        onJobTypeChange={setSelectedJobType}
-        onTipeBangunanChange={setSelectedTipeBangunan}
-        onSearchChange={setPersonSearch}
-        onSearchSubmit={handleSearchSubmit}
-        onFiltersLoaded={setFilterOptions}
-      />
-
-      {error && (
-        <div className="relative z-10 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50/80 p-5 text-sm font-semibold text-red-700 shadow-sm backdrop-blur-sm" aria-live="polite">
-          <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" /> {error}
-        </div>
-      )}
-
-      {/* Bento Grid Metrics */}
-      <div className="relative z-10 w-full">
+        {/* Floating Cards Canvas matching Reference Image */}
+      <div className="relative z-10 w-full mt-4">
         {loading && !data ? (
-          <div className="flex h-64 items-center justify-center rounded-3xl border border-white/60 bg-white/40 backdrop-blur-xl shadow-sm">
-            <Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" />
+          <div className="flex h-64 items-center justify-center rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <Loader2 className="h-8 w-8 animate-spin text-red-500" aria-hidden="true" />
           </div>
         ) : (
-          <section className="flex flex-col gap-5 xl:flex-row xl:items-start" aria-label="Kartu KPI Performance SAT">
-            {/* Column 1 (50% on xl) */}
-            <div className="flex w-full flex-col gap-5 xl:w-1/2">
-              {renderCard(cards.find(c => c.id === "cost_m2"))}
-              <div className="flex flex-col gap-5 md:flex-row">
-                <div className="w-full md:w-1/2">{renderCard(cards.find(c => c.id === "ketepatan_st"))}</div>
-                <div className="w-full md:w-1/2">{renderCard(cards.find(c => c.id === "denda"))}</div>
-              </div>
-            </div>
+          <div className="flex flex-col gap-6" aria-label="Kartu KPI Performance SAT">
+            
+            {/* ROW 1: Hero */}
+            {renderHeroCard()}
 
-            {/* Column 2 (25% on xl) */}
-            <div className="flex w-full flex-col gap-5 xl:w-1/4">
-              {renderCard(cards.find(c => c.id === "sla_approval"))}
-              {renderCard(cards.find(c => c.id === "kerja_tambah"))}
-              {renderCard(cards.find(c => c.id === "sla_ktk"))}
-            </div>
+            {/* ROW 2: 3 Columns Grid (with Colored Tints) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+               
+               {/* Col 1: Time Performance */}
+               <div className="flex flex-col gap-6">
+                  {renderFloatingCard(cards.find(c => c.id === "jhk"), "Time Performance")}
+                  {renderFloatingCard(cards.find(c => c.id === "ketepatan_st"))}
+               </div>
 
-            {/* Column 3 (25% on xl) */}
-            <div className="flex w-full flex-col gap-5 xl:w-1/4">
-              {renderCard(cards.find(c => c.id === "jhk"))}
-              {renderCard(cards.find(c => c.id === "kerja_kurang"))}
+               {/* Col 2: SLA & Approvals */}
+               <div className="flex flex-col gap-6">
+                  {renderFloatingCard(cards.find(c => c.id === "sla_approval"), "SLA & Approvals")}
+                  {renderFloatingCard(cards.find(c => c.id === "sla_ktk"))}
+               </div>
+
+               {/* Col 3: Cost Variations (Stacked) */}
+               <div className="flex flex-col">
+                  {renderStackedList()}
+               </div>
+               
             </div>
-          </section>
+          </div>
         )}
       </div>
 
@@ -511,6 +539,7 @@ export function DashboardKPI({
         approvalActors={filterOptions.approvalActors}
         globalSearchResults={modalState?.globalSearchResults}
       />
-    </main>
+      </main>
+    </div>
   );
 }

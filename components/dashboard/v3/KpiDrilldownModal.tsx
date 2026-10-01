@@ -3,16 +3,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   Building2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Circle,
   CircleDollarSign,
   FileText,
   Loader2,
   ReceiptText,
+  Search,
   UserCheck,
   Users,
   Wrench,
-  X
+  X,
+  Zap
 } from "lucide-react";
 import {
   fetchPerformanceDetail,
@@ -59,11 +63,11 @@ interface KpiDrilldownModalProps {
 
 type DrilldownStep = "search_results" | "select_role" | "select_doc" | "select_name" | "list_ulok" | "select_scope";
 
-const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string }> = [
-  { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200" },
-  { id: "bm_manager", label: "Branch Building & Maintenance Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200" },
-  { id: "coordinator", label: "Branch Building Coordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200" },
-  { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200" }
+const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string; accentBorder: string; accentBg: string }> = [
+  { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200", accentBorder: "border-l-cyan-500", accentBg: "hover:bg-cyan-50/20 hover:border-r-cyan-200 hover:border-y-cyan-200" },
+  { id: "bm_manager", label: "BBM Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200", accentBorder: "border-l-indigo-500", accentBg: "hover:bg-indigo-50/20 hover:border-r-indigo-200 hover:border-y-indigo-200" },
+  { id: "coordinator", label: "Branch Building Coordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200", accentBorder: "border-l-sky-500", accentBg: "hover:bg-sky-50/20 hover:border-r-sky-200 hover:border-y-sky-200" },
+  { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200", accentBorder: "border-l-emerald-500", accentBg: "hover:bg-emerald-50/20 hover:border-r-emerald-200 hover:border-y-emerald-200" }
 ];
 
 const docOptions: Array<{ id: PerformanceDocument; label: string; roles: PerformanceSlaRole[]; icon: React.ElementType }> = [
@@ -134,6 +138,8 @@ export function KpiDrilldownModal({
   const [selectedRole, setSelectedRole] = useState<PerformanceSlaRole | PerformancePersonRole | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<PerformanceDocument | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [personSearch, setPersonSearch] = useState("");
+  const [listSearch, setListSearch] = useState("");
   const [rows, setRows] = useState<PerformanceDrilldownItem[]>([]);
   const [meta, setMeta] = useState<{ total: number; page: number; limit: number; totalPages: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -161,6 +167,8 @@ export function KpiDrilldownModal({
     setDetail(null);
     setSelectedDoc(null);
     setSelectedName(null);
+    setPersonSearch("");
+    setListSearch("");
 
     if (kpiType === "all") {
       setStep("search_results");
@@ -218,37 +226,41 @@ export function KpiDrilldownModal({
   const statById = useCallback((items: PerformanceOptionStat[], id?: string | null) => items.find((item) => item.id === id || item.label === id), []);
   const allPeopleStat = useMemo(() => mergeStats(optionStats.people), [optionStats.people]);
 
-  const renderOptionStat = (stat?: PerformanceOptionStat) => {
+  const renderOptionStat = (stat?: PerformanceOptionStat, alignLeft = true) => {
     if (kpiType === "cost_m2") {
       return (
-        <div className="mt-4 flex w-full flex-col gap-3">
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Terbangun</span>
-              <span className="text-xs font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</span>
+        <div className="mt-4 flex w-full flex-col">
+          <div className="mb-4 text-left">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Cost / m² (Terbangun)</div>
+            <div className="mt-1 text-2xl font-black tracking-tight text-slate-900">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.value)}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-100/80">
+            <div className="flex flex-col text-left">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Bangunan</span>
+              <span className="mt-0.5 text-xs font-bold text-slate-800">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.bangunan)}</span>
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Bangunan</span>
-              <span className="text-xs font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.bangunan)}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Area Terbuka</span>
-              <span className="text-xs font-bold text-slate-700">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.area_terbuka)}</span>
+            <div className="flex flex-col text-left">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Area Terbuka</span>
+              <span className="mt-0.5 text-xs font-bold text-slate-800">{optionStatsLoading ? "..." : formatRupiahKpi(stat?.area_terbuka)}</span>
             </div>
           </div>
-          <div className="flex justify-center mt-1">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500 shadow-sm">
-              {optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}
-            </span>
+          <div className={cn("mt-4 text-[10px] font-bold text-slate-400", alignLeft ? "text-left" : "text-center")}>
+            Berdasarkan {optionStatsLoading ? "..." : stat?.count ?? 0} data
           </div>
         </div>
       );
     }
     return (
-      <span className="mt-2 flex w-full flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-500">
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-800">Avg {optionStatsLoading ? "..." : statLabel(stat, kpiType)}</span>
-        <span className="rounded-full bg-white px-2.5 py-1 text-slate-500 ring-1 ring-slate-200">{optionStatsLoading ? "..." : `${stat?.count ?? 0} data`}</span>
-      </span>
+      <div className={cn("mt-4 flex flex-col gap-1", alignLeft ? "text-left" : "text-center")}>
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold tracking-tight text-slate-900">
+            {optionStatsLoading ? "..." : statLabel(stat, kpiType)}
+          </span>
+        </div>
+        <span className="text-[11px] font-semibold text-slate-500">
+          Rata-rata dari {optionStatsLoading ? "..." : stat?.count ?? 0} data
+        </span>
+      </div>
     );
   };
 
@@ -294,7 +306,7 @@ export function KpiDrilldownModal({
         support: supportFilter,
         job_type: jobType,
         period,
-        search,
+        search: listSearch || search,
         card_type: kpiType as PerformanceCardType,
         sla_role: kpiType === "sla_approval" ? selectedRole as PerformanceSlaRole : undefined,
         sla_doc: selectedDoc ?? undefined,
@@ -311,7 +323,7 @@ export function KpiDrilldownModal({
     } finally {
       setLoading(false);
     }
-  }, [actorCabang, actorRole, cabangFilter, coordinatorFilter, jobType, kpiType, period, search, selectedDoc, selectedName, selectedRole, supportFilter, supportMetric]);
+  }, [actorCabang, actorRole, cabangFilter, coordinatorFilter, jobType, kpiType, period, search, listSearch, selectedDoc, selectedName, selectedRole, supportFilter, supportMetric]);
 
   useEffect(() => { if (isOpen && step === "list_ulok") loadRows(1); }, [isOpen, step, loadRows]);
 
@@ -373,14 +385,13 @@ export function KpiDrilldownModal({
   };
 
   const renderRole = () => (
-    <div className="flex flex-col items-center justify-center p-8 lg:p-12">
-      <div className="mb-10 text-center">
+    <div className="flex flex-col items-center justify-center p-6 sm:p-10 lg:p-12">
+      <div className={cn("mb-10 w-full text-left", allowedRoles.length === 3 ? "max-w-4xl" : "max-w-2xl")}>
         <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Role KPI</h3>
-        <p className="mt-2 text-sm font-bold text-slate-500">Tentukan perspektif evaluasi performa</p>
+        <p className="mt-2 text-sm font-medium text-slate-500">Pilih peran mana yang ingin Anda evaluasi performanya.</p>
       </div>
-      <div className="grid w-full max-w-xl grid-cols-1 gap-5 sm:grid-cols-2">
-        {allowedRoles.map((role, index) => {
-          const isLastAndOdd = allowedRoles.length % 2 !== 0 && index === allowedRoles.length - 1;
+      <div className={cn("grid w-full gap-5", allowedRoles.length === 3 ? "max-w-4xl grid-cols-1 sm:grid-cols-3" : "max-w-2xl grid-cols-1 sm:grid-cols-2")}>
+        {allowedRoles.map((role) => {
           const Icon = role.icon;
           return (
             <button 
@@ -388,20 +399,19 @@ export function KpiDrilldownModal({
               type="button" 
               onClick={() => { setSelectedRole(role.id); setStep("select_name"); }} 
               className={cn(
-                "group relative flex rounded-[24px] border border-slate-200/60 bg-white/50 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20",
-                isLastAndOdd 
-                  ? "flex-col sm:flex-row sm:col-span-2 items-center sm:justify-between text-center sm:text-left gap-4 sm:px-8" 
-                  : "flex-col items-center text-center gap-4"
+                "group flex flex-col items-start rounded-2xl border-y border-r border-l-[6px] border-y-slate-200/70 border-r-slate-200/70 bg-white p-5 text-left transition-all duration-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+                role.accentBorder,
+                role.accentBg
               )}
             >
-              <div className={cn("flex items-center gap-4", isLastAndOdd ? "flex-col sm:flex-row" : "flex-col")}>
-                <div className={cn("flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset transition-transform duration-300 group-hover:scale-110", role.tone)}>
-                  <Icon className="h-7 w-7" aria-hidden="true" />
+              <div className="flex items-center gap-3">
+                <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors", role.tone)}>
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <span className="text-sm font-bold tracking-tight text-slate-800">{role.label}</span>
+                <span className="text-sm font-bold leading-tight text-slate-900">{role.label}</span>
               </div>
-              <div className={cn("flex", isLastAndOdd ? "[&>span]:mt-0 sm:[&>span]:justify-end" : "w-full")}>
-                {renderOptionStat(statById(optionStats.roles, role.id))}
+              <div className="mt-2 w-full">
+                {renderOptionStat(statById(optionStats.roles, role.id), true)}
               </div>
             </button>
           );
@@ -413,28 +423,35 @@ export function KpiDrilldownModal({
   const renderDoc = () => {
     const docs = docOptions.filter((doc) => selectedRole && doc.roles.includes(selectedRole as PerformanceSlaRole));
     return (
-      <div className="flex flex-col items-center justify-center p-8 lg:p-12">
-        <div className="mb-10 text-center">
+      <div className="flex flex-col h-full bg-slate-50/50">
+        <div className="shrink-0 p-6 sm:px-10 lg:px-12 pt-10 pb-6 text-left">
           <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Dokumen</h3>
-          <p className="mt-2 text-sm font-bold text-slate-500">Evaluasi SLA untuk {roleLabel(selectedRole)}</p>
+          <p className="mt-1.5 text-sm font-medium text-slate-500">Evaluasi SLA untuk {roleLabel(selectedRole)}</p>
         </div>
-        <div className="grid w-full max-w-4xl grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {docs.map((doc) => {
-            const Icon = doc.icon;
-            return (
-              <button key={doc.id} type="button" onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }} className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-                <div className="flex flex-col items-start gap-4 p-6">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-inset ring-red-100 transition-transform duration-300 group-hover:scale-110 group-hover:bg-red-100">
-                    <Icon className="h-6 w-6" aria-hidden="true" />
+        <div className="flex-1 overflow-y-auto p-6 sm:px-10 lg:px-12 pt-2 custom-scrollbar">
+          <div className="grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {docs.map((doc) => {
+              const Icon = doc.icon;
+              return (
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => { setSelectedDoc(doc.id); setStep("list_ulok"); }}
+                  className="group flex flex-col items-start rounded-2xl border border-slate-200/70 bg-white p-6 text-left transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 transition-colors group-hover:bg-red-100">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <span className="text-sm font-bold leading-tight text-slate-900">{doc.label}</span>
                   </div>
-                  <span className="block text-lg font-black tracking-tight text-slate-800 group-hover:text-red-700">{doc.label}</span>
-                </div>
-                <div className="w-full border-t border-slate-100/60 bg-slate-50/50 px-6 py-4 transition-colors group-hover:bg-red-50/30">
-                  {renderOptionStat(statById(optionStats.documents, doc.id))}
-                </div>
-              </button>
-            );
-          })}
+                  <div className="mt-4 w-full">
+                    {renderOptionStat(statById(optionStats.documents, doc.id), true)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -448,33 +465,77 @@ export function KpiDrilldownModal({
       names = Array.from(new Set((selectedRole === "coordinator" ? availableCoordinators : availableSupports).filter(Boolean)));
     }
 
+    const filteredNames = names.filter(n => n.toLowerCase().includes(personSearch.toLowerCase()));
+
+    const getInitials = (name: string) => {
+      if (!name || name === "Semua Personil") return "All";
+      const parts = name.trim().split(" ");
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    };
+
+    const renderPersonRow = (name: string, isAll = false) => {
+      const stat = isAll ? allPeopleStat : statById(optionStats.people, name);
+      const valStr = statLabel(stat, kpiType);
+      
+      return (
+        <button 
+          key={name} 
+          type="button" 
+          onClick={() => { setSelectedName(isAll ? null : name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} 
+          className="group flex w-full items-center justify-between rounded-xl border border-slate-200/70 bg-white p-4 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors", isAll ? "bg-slate-800 text-white group-hover:bg-blue-600" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700")}>
+              {isAll ? <Users className="h-4 w-4" /> : getInitials(name)}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col text-left pr-4">
+              <span className="truncate text-sm font-bold text-slate-900 group-hover:text-blue-700">{name}</span>
+              <span className="truncate text-[11px] font-medium text-slate-500">
+                {stat?.count ?? 0} Data
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="flex flex-col text-right">
+              <span className="text-sm font-bold text-slate-900">{optionStatsLoading ? "..." : valStr}</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Rata-rata</span>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 group-hover:text-blue-500" aria-hidden="true" />
+          </div>
+        </button>
+      );
+    };
+
     return (
-      <div className="flex flex-col items-center justify-center p-8 lg:p-12">
-        <div className="mb-8 text-center">
+      <div className="flex flex-col h-full overflow-hidden bg-slate-50/50">
+        <div className="shrink-0 p-6 sm:px-10 lg:px-12 pt-8 pb-4">
           <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Personil</h3>
-          <p className="mt-2 text-sm font-bold text-slate-500">Pilih spesifik personil {roleLabel(selectedRole)}</p>
+          <p className="mt-1.5 text-sm font-medium text-slate-500">Pilih spesifik personil {roleLabel(selectedRole)}</p>
+          
+          <div className="mt-6 relative max-w-md">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Cari nama personil..."
+              value={personSearch}
+              onChange={(e) => setPersonSearch(e.target.value)}
+              className="block w-full rounded-xl border border-slate-200/70 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400 transition-colors"
+            />
+          </div>
         </div>
-        <div className="grid max-h-[50vh] w-full max-w-4xl grid-cols-1 gap-3 overflow-y-auto pr-2 sm:grid-cols-2 lg:grid-cols-3 custom-scrollbar">
-          <button type="button" onClick={() => { setSelectedName(null); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex flex-col w-full overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-            <div className="flex w-full items-center justify-between border-b border-slate-100/60 bg-slate-50/50 px-5 py-4 transition-colors group-hover:bg-red-50/30">
-              <span className="block font-bold tracking-tight text-slate-800">Semua Personil</span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
-            </div>
-            <div className="w-full px-5 pb-5">
-              {renderOptionStat(allPeopleStat)}
-            </div>
-          </button>
-          {names.map((name) => (
-            <button key={name} type="button" onClick={() => { setSelectedName(name); setStep(kpiType === "sla_approval" ? "select_doc" : "list_ulok"); }} className="group flex flex-col w-full overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 text-left transition-all duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20">
-              <div className="flex w-full items-center justify-between border-b border-slate-100/60 bg-slate-50/50 px-5 py-4 transition-colors group-hover:bg-red-50/30">
-                <span className="block truncate font-bold tracking-tight text-slate-800">{name}</span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
+
+        <div className="flex-1 overflow-y-auto p-6 sm:px-10 lg:px-12 pt-2 pb-10 custom-scrollbar">
+          <div className="grid w-full max-w-4xl grid-cols-1 gap-3 lg:grid-cols-2">
+            {!personSearch && renderPersonRow("Semua Personil", true)}
+            {filteredNames.map(name => renderPersonRow(name))}
+            
+            {filteredNames.length === 0 && personSearch && (
+              <div className="col-span-full py-10 text-center text-sm font-medium text-slate-500">
+                Tidak ada personil yang cocok dengan pencarian "{personSearch}"
               </div>
-              <div className="w-full px-5 pb-5">
-                {renderOptionStat(statById(optionStats.people, name))}
-              </div>
-            </button>
-          ))}
+            )}
+          </div>
         </div>
       </div>
     );
@@ -526,46 +587,85 @@ export function KpiDrilldownModal({
 
   const renderScopeSelection = () => {
     const row = scopeSelectionRow;
-    const scopes = row?.scopes?.length ? row.scopes : [{ lingkup_pekerjaan: "LAINNYA", toko_id: 0 }];
+    const rawScopes = row?.scopes?.length ? row.scopes : [{ lingkup_pekerjaan: "LAINNYA", toko_id: 0 }];
+    const scopes = [...rawScopes].sort((a, b) => {
+      const aName = a.lingkup_pekerjaan?.toUpperCase() || "";
+      const bName = b.lingkup_pekerjaan?.toUpperCase() || "";
+      if (aName === "SIPIL" && bName !== "SIPIL") return -1;
+      if (bName === "SIPIL" && aName !== "SIPIL") return 1;
+      return aName.localeCompare(bName);
+    });
 
     return (
-      <div className="flex flex-col items-center justify-center p-8 lg:p-12">
-        <div className="mb-8 text-center">
+      <div className="flex flex-col h-full bg-slate-50/50">
+        <div className="shrink-0 p-6 sm:px-10 lg:px-12 pt-10 pb-6 text-left">
           <h3 className="text-2xl font-bold tracking-tight text-slate-900">Pilih Lingkup Pekerjaan</h3>
-          <p className="mt-2 text-sm font-bold text-slate-500">{row?.nomor_ulok} - {row?.nama_toko ?? "-"}</p>
+          <p className="mt-1.5 text-sm font-medium text-slate-500">{row?.nomor_ulok} - {row?.nama_toko ?? "-"}</p>
         </div>
-        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
-          {scopes.map((scope) => {
-            const statusItems = [
-              { label: "RAB", active: scope.has_rab },
-              { label: "SPK", active: scope.has_spk },
-              { label: "ST", active: scope.has_st },
-              { label: "KTK", active: scope.has_opname }
-            ];
-            return (
-              <button
-                key={(row?.nomor_ulok ?? "ULOK") + "-" + scope.lingkup_pekerjaan}
-                type="button"
-                onClick={() => row && openDetail(row, scope.lingkup_pekerjaan)}
-                className="group flex min-h-36 flex-col justify-between rounded-2xl border border-slate-200/70 bg-white/70 p-5 text-left shadow-sm transition-[transform,border-color,box-shadow,background-color] duration-300 hover:-translate-y-1 hover:border-red-200 hover:bg-white hover:shadow-[0_8px_30px_rgb(220,38,38,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20"
-              >
-                <span className="flex items-start justify-between gap-4">
-                  <span className="min-w-0">
-                    <span className="block text-xl font-black tracking-tight text-slate-900 group-hover:text-red-700">{scope.lingkup_pekerjaan}</span>
-                    <span className="mt-1 block truncate text-xs font-bold uppercase tracking-widest text-slate-400">{scope.project_type ?? "PROJECT"}</span>
-                  </span>
-                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-red-500" aria-hidden="true" />
-                </span>
-                <span className="mt-5 flex flex-wrap gap-2">
-                  {statusItems.map((item) => (
-                    <span key={item.label} className={cn("rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ring-1", item.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-400 ring-slate-200")}>
-                      {item.label}
-                    </span>
-                  ))}
-                </span>
-              </button>
-            );
-          })}
+        <div className="flex-1 overflow-y-auto p-6 sm:px-10 lg:px-12 pt-2 custom-scrollbar">
+          <div className="grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2">
+            {scopes.map((scope) => {
+              const statusItems = [
+                { label: "RAB", active: scope.has_rab },
+                { label: "SPK", active: scope.has_spk },
+                { label: "ST", active: scope.has_st },
+                { label: "KTK", active: scope.has_opname }
+              ];
+              
+              const isSipil = scope.lingkup_pekerjaan?.toUpperCase() === "SIPIL";
+              const isMe = scope.lingkup_pekerjaan?.toUpperCase() === "ME";
+              
+              return (
+                <button
+                  key={(row?.nomor_ulok ?? "ULOK") + "-" + scope.lingkup_pekerjaan}
+                  type="button"
+                  onClick={() => row && openDetail(row, scope.lingkup_pekerjaan)}
+                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-6 text-left transition-all duration-300 hover:border-slate-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                >
+                  <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 transition-colors", isSipil ? "bg-blue-500 group-hover:bg-blue-600" : isMe ? "bg-amber-500 group-hover:bg-amber-600" : "bg-slate-400 group-hover:bg-slate-500")} />
+                  
+                  <div className="flex items-start justify-between gap-4 pl-2">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors", 
+                        isSipil ? "bg-blue-50 text-blue-600 group-hover:bg-blue-100" : 
+                        isMe ? "bg-amber-50 text-amber-600 group-hover:bg-amber-100" : 
+                        "bg-slate-100 text-slate-600 group-hover:bg-slate-200"
+                      )}>
+                        {isSipil ? <Building2 className="h-5 w-5" /> : isMe ? <Zap className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-lg font-bold tracking-tight text-slate-900">{scope.lingkup_pekerjaan}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{scope.project_type ?? "PROJECT"}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-slate-600" aria-hidden="true" />
+                  </div>
+
+                  <div className="mt-8 flex items-center gap-1.5 pl-2">
+                    {statusItems.map((item, idx) => (
+                      <React.Fragment key={item.label}>
+                        <div className={cn("flex items-center gap-1.5 transition-colors", 
+                          item.active ? "text-slate-900" : "text-slate-300"
+                        )}>
+                          {item.active ? (
+                            <CheckCircle2 className={cn("h-4 w-4", isSipil ? "text-blue-500" : isMe ? "text-amber-500" : "text-slate-500")} />
+                          ) : (
+                            <Circle className="h-3.5 w-3.5 opacity-60" />
+                          )}
+                          <span className={cn("text-[10px] uppercase tracking-wider", item.active ? "font-bold" : "font-medium")}>
+                            {item.label}
+                          </span>
+                        </div>
+                        {idx < statusItems.length - 1 && (
+                          <div className={cn("h-[2px] w-4 rounded-full", item.active && statusItems[idx+1].active ? (isSipil ? "bg-blue-200" : isMe ? "bg-amber-200" : "bg-slate-200") : "bg-slate-100")} />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -574,12 +674,28 @@ export function KpiDrilldownModal({
   const renderList = () => {
     const isCostM2 = kpiType === "cost_m2";
     return (
-      <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-slate-50">
-        <div className="flex-1 overflow-y-auto p-5">
-          {loading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-red-600" aria-hidden="true" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : (
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-slate-50/50">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/60 bg-white px-6 py-4">
+          <div className="text-sm font-bold text-slate-800">
+            Daftar ULOK
+          </div>
+          <div className="relative w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Cari Toko / ULOK..."
+              value={listSearch}
+              onChange={(e) => setListSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && loadRows(1)}
+              className="block w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 transition-colors"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+          {loading ? <div className="flex h-40 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" aria-hidden="true" /></div> : error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div> : (
+            <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-bold uppercase tracking-normal text-slate-500">
+                <thead className="border-b border-slate-200/80 bg-slate-50/50 text-xs font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-4 py-3">ULOK</th>
                     <th className="px-4 py-3">Cabang</th>
@@ -608,36 +724,38 @@ export function KpiDrilldownModal({
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100/80">
                   {rows.map((row) => (
                     <tr 
                       key={row.nomor_ulok} 
                       onClick={() => { setScopeSelectionRow(row); setStep("select_scope"); }}
-                      className="group cursor-pointer hover:bg-red-50/50 transition-colors"
+                      className="group cursor-pointer hover:bg-slate-50/70 transition-colors"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-4">
                         <span className="min-w-0">
-                          <span className="block font-bold text-slate-950 underline-offset-4 group-hover:text-red-700 group-hover:underline">{row.nomor_ulok}</span>
-                          <span className="block truncate text-xs font-semibold text-slate-500">{row.nama_toko ?? "-"}</span>
-                          <span className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="block font-bold text-slate-900 underline-offset-4 group-hover:text-blue-700 group-hover:underline">{row.nomor_ulok}</span>
+                          <span className="block truncate text-xs font-semibold text-slate-500 mt-0.5">{row.nama_toko ?? "-"}</span>
+                          <span className="mt-2.5 flex flex-wrap gap-1.5">
                             {(row.scopes?.length ? row.scopes : [{ lingkup_pekerjaan: "LAINNYA", toko_id: 0 }]).map((scope) => (
-                              <span key={row.nomor_ulok + "-" + scope.lingkup_pekerjaan} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                              <span key={row.nomor_ulok + "-" + scope.lingkup_pekerjaan} className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600 ring-1 ring-inset ring-slate-200/60">
                                 {scope.lingkup_pekerjaan}
                               </span>
                             ))}
                           </span>
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-bold text-slate-700">{row.cabang ?? "-"}</td>
-                      <td className="px-4 py-3 text-xs font-semibold text-slate-600">
-                        <span className="block truncate">Support: {row.supports.join(", ") || "-"}</span>
-                        <span className="mt-1 block truncate text-slate-400">Koord: {row.coordinators.join(", ") || "-"}</span>
+                      <td className="px-4 py-4 font-bold tracking-wide text-slate-700">{row.cabang ?? "-"}</td>
+                      <td className="px-4 py-4 text-[11px] font-semibold text-slate-600">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="block truncate"><span className="text-slate-400 font-medium">Support:</span> {row.supports.join(", ") || "-"}</span>
+                          <span className="block truncate"><span className="text-slate-400 font-medium">Koord:</span> {row.coordinators.join(", ") || "-"}</span>
+                        </div>
                       </td>
                       {isCostM2 ? (
                         <>
-                          <td className="px-4 py-3 text-right font-bold text-slate-800"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{row.value !== null && row.value !== undefined ? formatRupiahKpi(row.value) : "-"}</span></td>
-                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.bangunan !== null && row.bangunan !== undefined ? formatRupiahKpi(row.bangunan) : "-"}</td>
-                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-700">{row.area_terbuka !== null && row.area_terbuka !== undefined ? formatRupiahKpi(row.area_terbuka) : "-"}</td>
+                          <td className="px-4 py-4 text-right font-black text-slate-900">{row.value !== null && row.value !== undefined ? formatRupiahKpi(row.value) : "-"}</td>
+                          <td className="px-4 py-4 text-right text-xs font-semibold text-slate-500">{row.bangunan !== null && row.bangunan !== undefined ? formatRupiahKpi(row.bangunan) : "-"}</td>
+                          <td className="px-4 py-4 text-right text-xs font-semibold text-slate-500">{row.area_terbuka !== null && row.area_terbuka !== undefined ? formatRupiahKpi(row.area_terbuka) : "-"}</td>
                         </>
                       ) : kpiType === "all" ? (
                         <>
@@ -693,28 +811,32 @@ export function KpiDrilldownModal({
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className={cn(
-          "!flex flex-col gap-0 overflow-hidden border border-white/60 bg-[#f8fafc]/95 p-0 shadow-2xl backdrop-blur-3xl transition-all duration-500 sm:rounded-[32px] max-h-[90dvh]",
-          step === "list_ulok" ? "w-[95vw] sm:max-w-5xl" : "w-[95vw] sm:max-w-4xl"
+          "!flex flex-col gap-0 overflow-hidden border border-slate-200/60 bg-white p-0 shadow-2xl transition-all duration-300 sm:rounded-2xl max-h-[90dvh]",
+          step === "list_ulok" ? "w-[95vw] sm:max-w-5xl" : "w-[95vw] sm:max-w-3xl"
         )}>
-          <DialogHeader className="relative z-10 flex shrink-0 flex-col justify-center border-b border-slate-200/50 bg-white/40 px-6 py-5 backdrop-blur-xl">
+          <DialogHeader className="relative z-10 flex shrink-0 flex-col justify-center border-b border-slate-200/60 bg-white px-6 py-5">
             <div className="flex items-center gap-4">
               {step !== "select_role" && (
                 <button
                   type="button"
                   aria-label="Kembali"
                   onClick={goBack}
-                  className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
                   <ChevronLeft className="h-5 w-5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
                 </button>
               )}
               <div className="min-w-0 flex-1">
-                <DialogTitle className="truncate text-2xl font-bold tracking-tight text-slate-900">{kpiTitle}</DialogTitle>
-                <p className="mt-1 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400">
-                  <span className="flex h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                  <span className="truncate">{roleLabel(selectedRole)} {selectedDoc ? `\u2022 ${selectedDoc.toUpperCase()}` : ""}</span>
-                </p>
+                <DialogTitle className="truncate text-xl font-bold tracking-tight text-slate-900">{kpiTitle}</DialogTitle>
+                {selectedRole && (
+                  <p className="mt-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                    <span className="truncate">{roleLabel(selectedRole)} {selectedDoc ? `\u2022 ${selectedDoc.toUpperCase()}` : ""}</span>
+                  </p>
+                )}
               </div>
+              <DialogPrimitive.Close className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                <X className="h-4 w-4 transition-transform group-hover:rotate-90" aria-hidden="true" />
+              </DialogPrimitive.Close>
             </div>
           </DialogHeader>
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-transparent">
@@ -731,27 +853,37 @@ export function KpiDrilldownModal({
       {selectedUlok && (
         <DialogPrimitive.Root open={!!selectedUlok} onOpenChange={(open) => !open && setSelectedUlok(null)}>
           <DialogPrimitive.Portal>
-            <div className="fixed inset-0 z-[100] isolate overflow-hidden">
-              <DialogPrimitive.Overlay className="absolute inset-0 z-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 data-[state=closed]:opacity-0" />
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+              <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm transition-all duration-300 data-[state=closed]:opacity-0" />
               <DialogPrimitive.Content
                 aria-describedby={undefined}
-                className="fixed !right-0 !top-0 !left-auto !bottom-auto !translate-x-0 !translate-y-0 z-[110] flex h-dvh w-full max-w-2xl flex-col border-l border-white/60 bg-[#f8fafc] shadow-2xl duration-500 data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right focus-visible:outline-none"
+                className="relative z-[110] flex w-full max-w-5xl max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-[#f8fafc] shadow-2xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 focus-visible:outline-none"
               >
                 <header className="sticky top-0 z-10 shrink-0 border-b border-slate-200/50 bg-white/70 px-6 py-5 backdrop-blur-xl">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-red-600">
-                        <span className="flex h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
-                        Detail ULOK {selectedUlok.nomor_ulok}
-                      </p>
-                      <DialogPrimitive.Title className="mt-1.5 truncate text-2xl font-bold tracking-tight text-slate-900">
-                        {selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}
-                      </DialogPrimitive.Title>
-                      {detail?.selected_scope && (
-                        <span className="mt-2 inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-red-700 ring-1 ring-red-100">
-                          Lingkup {detail.selected_scope}
-                        </span>
-                      )}
+                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                      <button
+                        type="button"
+                        aria-label="Kembali"
+                        onClick={() => setSelectedUlok(null)}
+                        className="group mt-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      >
+                        <ChevronLeft className="h-5 w-5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-red-600">
+                          <span className="flex h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
+                          Detail ULOK {selectedUlok.nomor_ulok}
+                        </p>
+                        <DialogPrimitive.Title className="mt-1.5 truncate text-2xl font-bold tracking-tight text-slate-900">
+                          {selectedUlok.nama_toko ?? selectedUlok.nomor_ulok}
+                        </DialogPrimitive.Title>
+                        {detail?.selected_scope && (
+                          <span className="mt-2 inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-red-700 ring-1 ring-red-100">
+                            Lingkup {detail.selected_scope}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <DialogPrimitive.Close className="group rounded-full bg-slate-100 p-2.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                       <X className="h-5 w-5 transition-transform group-hover:rotate-90" aria-hidden="true" />

@@ -34,6 +34,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     onTipeBangunanChange
 }) => {
     const [localSearch, setLocalSearch] = useState(searchQuery);
+    const [isOpen, setIsOpen] = useState(true);
 
     useEffect(() => {
         setLocalSearch(searchQuery);
@@ -50,14 +51,31 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
     };
 
     return (
-        <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center relative z-30 mb-6">
-            <div className="flex-1 min-w-[250px] relative">
+        <div className="relative z-40">
+            <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Navigasi Pencarian</span>
                 <button
-                    className="absolute left-3.5 top-2.5 text-slate-400 mt-0.5 hover:text-red-500 focus:outline-none transition-colors"
-                    onClick={handleSearch}
-                    title="Klik untuk mencari"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-red-200 hover:text-red-600"
                 >
-                    <Search className="w-4 h-4" />
+                    <Search className="h-3.5 w-3.5" />
+                    {isOpen ? 'Sembunyikan Filter' : 'Tampilkan Filter'}
+                </button>
+            </div>
+
+            <div
+                className={`transform overflow-hidden transition-all duration-300 ease-in-out origin-top ${
+                    isOpen ? 'scale-y-100 opacity-100 max-h-[500px]' : 'scale-y-0 opacity-0 max-h-0'
+                }`}
+            >
+                <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center relative">
+                    <div className="flex-1 min-w-[250px] relative">
+                        <button
+                            className="absolute left-3.5 top-2.5 text-slate-400 mt-0.5 hover:text-red-500 focus:outline-none transition-colors"
+                            onClick={handleSearch}
+                            title="Klik untuk mencari"
+                        >
+                            <Search className="w-4 h-4" />
                 </button>
                 <input
                     type="text"
@@ -149,6 +167,8 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
                     <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                     Segarkan
                 </Button>
+            </div>
+            </div>
             </div>
         </div>
     );
