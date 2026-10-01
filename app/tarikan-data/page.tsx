@@ -459,7 +459,7 @@ export default function TarikanDataPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 md:grid-cols-4">
+                        <div className="grid gap-4 rounded-xl border border-slate-200/60 bg-slate-50/50 p-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
                             <div>
                                 <label className="text-xs font-medium uppercase text-slate-600">Cabang</label>
                                 <DropdownMenu>
