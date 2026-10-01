@@ -464,9 +464,9 @@ export default function TarikanDataPage() {
                                 <label className="text-xs font-medium uppercase text-slate-600">Cabang</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === displayBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{selectedBranches.size === 0 ? "Semua cabang akses" : selectedBranches.size === displayBranches.length ? "Semua cabang akses" : `${selectedBranches.size} cabang`}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
@@ -501,9 +501,9 @@ export default function TarikanDataPage() {
                                 <label className="text-xs font-medium uppercase text-slate-600">Status SPK</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {spkStatus === "all" ? "Kedua Status" : spkStatus === "with_spk" ? "Sudah SPK" : "Belum SPK"}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{spkStatus === "all" ? "Kedua Status" : spkStatus === "with_spk" ? "Sudah SPK" : "Belum SPK"}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-full min-w-[200px]">
@@ -525,9 +525,9 @@ export default function TarikanDataPage() {
                                 <label className="text-xs font-medium uppercase text-slate-600">Jenis Proyek</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {jenisProyek === "all" ? "Semua Jenis" : jenisProyek === "reguler" ? "Reguler" : "Renovasi"}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{jenisProyek === "all" ? "Semua Jenis" : jenisProyek === "reguler" ? "Reguler" : "Renovasi"}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-full min-w-[200px]">
@@ -549,9 +549,9 @@ export default function TarikanDataPage() {
                                 <label className="text-xs font-medium uppercase text-slate-600">Pekerjaan Beanspot</label>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold">
-                                            {filterBeanspot === "all" ? "Semua (Ada/Tidak)" : filterBeanspot === "yes" ? "Hanya Beanspot" : "Tanpa Beanspot"}
-                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                        <Button variant="outline" className="mt-2 h-10 w-full justify-between rounded-lg bg-white font-bold overflow-hidden">
+                                            <span className="truncate">{filterBeanspot === "all" ? "Semua (Ada/Tidak)" : filterBeanspot === "yes" ? "Hanya Beanspot" : "Tanpa Beanspot"}</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-full min-w-[200px]">
