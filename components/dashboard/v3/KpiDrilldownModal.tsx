@@ -65,7 +65,7 @@ type DrilldownStep = "search_results" | "select_role" | "select_doc" | "select_n
 
 const roleOptions: Array<{ id: PerformanceSlaRole | PerformancePersonRole; label: string; icon: React.ElementType; tone: string; accentBorder: string; accentBg: string }> = [
   { id: "branch_manager", label: "Branch Manager", icon: Building2, tone: "text-cyan-700 bg-cyan-50 border-cyan-200", accentBorder: "border-l-cyan-500", accentBg: "hover:bg-cyan-50/20 hover:border-r-cyan-200 hover:border-y-cyan-200" },
-  { id: "bm_manager", label: "BBM Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200", accentBorder: "border-l-indigo-500", accentBg: "hover:bg-indigo-50/20 hover:border-r-indigo-200 hover:border-y-indigo-200" },
+  { id: "bm_manager", label: "B&M Manager", icon: Users, tone: "text-indigo-700 bg-indigo-50 border-indigo-200", accentBorder: "border-l-indigo-500", accentBg: "hover:bg-indigo-50/20 hover:border-r-indigo-200 hover:border-y-indigo-200" },
   { id: "coordinator", label: "Branch Building Coordinator", icon: UserCheck, tone: "text-sky-700 bg-sky-50 border-sky-200", accentBorder: "border-l-sky-500", accentBg: "hover:bg-sky-50/20 hover:border-r-sky-200 hover:border-y-sky-200" },
   { id: "support", label: "Branch Building Support", icon: Wrench, tone: "text-emerald-700 bg-emerald-50 border-emerald-200", accentBorder: "border-l-emerald-500", accentBg: "hover:bg-emerald-50/20 hover:border-r-emerald-200 hover:border-y-emerald-200" }
 ];

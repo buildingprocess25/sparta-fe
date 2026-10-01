@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   FileText,
   FolderArchive,
+  HardHat,
   LayoutDashboard,
   LogOut,
   Settings2,
@@ -105,6 +106,7 @@ type Props = {
   roleLabel: string;
   cabang: string;
   canAccessPerformanceDashboard: boolean;
+  canAccessContractorPerformance: boolean;
   onCloseMobile: () => void;
   onFeatureAlert: (title: string, description: string) => void;
   onChangeWorkspace: () => void;
@@ -212,6 +214,7 @@ export default function DashboardNavigation({
   roleLabel,
   cabang,
   canAccessPerformanceDashboard,
+  canAccessContractorPerformance,
   onCloseMobile,
   onFeatureAlert,
   onChangeWorkspace,
@@ -268,6 +271,25 @@ export default function DashboardNavigation({
                   <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-slate-800 leading-none">Performance SAT</span>
                     <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Metrik & KPI tim internal</span>
+                  </div>
+                </div>
+              </Link>
+            )}
+
+            {canAccessContractorPerformance && (
+              <Link
+                href="/dashboard?view=kontraktor"
+                onClick={onCloseMobile}
+                className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-sm transition-all hover:border-amber-300 hover:shadow-md hover:ring-1 hover:ring-amber-100"
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 transition-colors group-hover:bg-amber-100">
+                    <HardHat className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-slate-800 leading-none">Performance Kontraktor</span>
+                    <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Evaluasi & kinerja mitra</span>
                   </div>
                 </div>
               </Link>

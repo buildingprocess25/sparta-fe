@@ -73,7 +73,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { DashboardViewV2 } from '@/components/dashboard/v2/DashboardViewV2';
 import { DashboardKPI } from '@/components/dashboard/v3/DashboardKPI';
-
+import ContractorPerformanceDashboard from '@/components/dashboard/contractor/ContractorPerformanceDashboard';
 import DashboardCommandWorkspace from '@/components/dashboard/DashboardCommandWorkspace';
 
 import TaskNotificationBell from '@/components/TaskNotificationBell';
@@ -2817,7 +2817,8 @@ function DashboardPageContent() {
         window.location.href = ssoUrl;
     };
 
-    const canAccessPerformanceDashboard = Boolean(user?.isSuperHuman) && !isPerformanceDashboardBlockedRole(userInfo.roles);
+    const canAccessPerformanceDashboard = (Boolean(user?.isSuperHuman) || userInfo.cabang === 'HEAD OFFICE' || userInfo.roles.some((role: string) => role.toUpperCase().includes('REGIONAL MANAGER'))) && !isPerformanceDashboardBlockedRole(userInfo.roles);
+    const canAccessContractorPerformance = user?.email?.toLowerCase() === 'wildan.fadillah@nusaputra.ac.id';
     const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
 
     const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;
@@ -3035,6 +3036,8 @@ function DashboardPageContent() {
                         onFeatureAlert={showFeatureAlert}
 
                         canAccessPerformanceDashboard={canAccessPerformanceDashboard}
+
+                        canAccessContractorPerformance={canAccessContractorPerformance}
 
                         onChangeWorkspace={() => router.push('/workspace')}
 
@@ -3302,6 +3305,15 @@ function DashboardPageContent() {
 
                     </div>
 
+                    <div className={cn("h-full w-full", currentView === 'kontraktor' ? 'block' : 'hidden')}>
+                        {(currentView === 'kontraktor' || deferredView === 'all') && (
+                            canAccessContractorPerformance ? (
+                                <ContractorPerformanceDashboard />
+                            ) : (
+                                <PerformanceComingSoon onBack={() => router.push('/dashboard?view=monitoring')} />
+                            )
+                        )}
+                    </div>
                 </main>
 
 

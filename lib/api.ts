@@ -85,6 +85,7 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
     headers.set("ngrok-skip-browser-warning", "69420");
 
     const response = await globalThis.fetch(input, {
+        cache: "no-store",
         ...init,
         headers
     });

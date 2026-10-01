@@ -54,7 +54,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         const key = normalizeDateKey(value);
         if (!key) return '-';
         const parsed = new Date(`${key}T00:00:00`);
-        return Number.isNaN(parsed.getTime()) ? key : parsed.toLocaleDateString('id-ID');
+        return Number.isNaN(parsed.getTime()) ? key : parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     };
 
     const timestampValue = (value: unknown) => {
@@ -125,7 +125,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasRab ? proj.rab[0] : null,
         isActive: hasRab,
         isCompleted: hasRab,
-        url: hasRab ? proj.rab[0].link_pdf_gabungan : null
+        url: hasRab ? proj.rab[0].link_pdf_gabungan : null,
+        dateList: hasRab ? [
+            { label: 'Dibuat', val: proj.rab[0].created_at },
+            { label: 'Approve', val: proj.rab[0].waktu_persetujuan_direktur }
+        ] : []
     });
 
     // 2. SPK
@@ -139,7 +143,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasSpk ? proj.spk[0] : null,
         isActive: hasSpk,
         isCompleted: hasSpk,
-        url: hasSpk ? proj.spk[0].link_pdf : null
+        url: hasSpk ? proj.spk[0].link_pdf : null,
+        dateList: hasSpk ? [
+            { label: 'Mulai', val: proj.spk[0].waktu_mulai },
+            { label: 'Selesai', val: proj.spk[0].waktu_selesai }
+        ] : []
     });
 
     // 3. Tambah SPK (ULOK gabungan: pakai tanggal akhir SPK paling jauh lintas lingkup)
@@ -153,7 +161,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
             data: latestTambahSpk,
             isActive: true,
             isCompleted: true,
-            url: latestTambahSpk.link_pdf || latestTambahSpk.link_lampiran_pendukung || null
+            url: latestTambahSpk.link_pdf || latestTambahSpk.link_lampiran_pendukung || null,
+            dateList: [
+                { label: 'Mulai Ext', val: latestTambahSpk.created_at },
+                { label: 'Selesai Ext', val: latestTambahSpk.tanggal_spk_akhir_setelah_perpanjangan || latestTambahSpk.tanggal_spk_akhir }
+            ]
         });
     }
 
@@ -165,7 +177,7 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     if (hasIL) {
         ilSubItems = proj.instruksi_lapangan.filter((il: any) => il.link_pdf_gabungan || il.link_pdf_non_sbo).map((il: any, idx: number) => ({
             title: `Instruksi Lapangan ${idx + 1}`,
-            desc: new Date(il.created_at).toLocaleDateString('id-ID'),
+            desc: new Date(il.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             url: il.link_pdf_gabungan || il.link_pdf_non_sbo
         }));
         
@@ -282,7 +294,10 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasST ? proj.berkas_serah_terima[0] : null,
         isActive: hasST,
         isCompleted: hasST,
-        url: hasST ? proj.berkas_serah_terima[0].link_pdf : null
+        url: hasST ? proj.berkas_serah_terima[0].link_pdf : null,
+        dateList: hasST ? [
+            { label: 'Tanggal ST', val: proj.berkas_serah_terima[0].tanggal_serah_terima || proj.berkas_serah_terima[0].created_at }
+        ] : []
     });
 
     // 8. Opname Final / KTK
@@ -304,7 +319,11 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
         data: hasFinal ? opnameFinal[0] : null,
         isActive: hasFinal,
         isCompleted: hasFinal,
-        url: hasFinal ? opnameFinal[0].link_pdf_opname : null
+        url: hasFinal ? opnameFinal[0].link_pdf_opname : null,
+        dateList: hasFinal ? [
+            { label: 'KTK Final', val: opnameFinal[0].created_at },
+            { label: 'Approve Dir', val: opnameFinal[0].waktu_persetujuan_direktur }
+        ] : []
     });
 
     // 9. DONE
@@ -371,6 +390,15 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
                                             <p className={`font-semibold text-xs mt-0.5 ${node.isActive ? colors.text : 'text-slate-400'}`}>
                                                 {node.desc}
                                             </p>
+                                            {node.dateList && node.dateList.length > 0 && (
+                                                <div className={`flex flex-col gap-0.5 mt-2 ${isEven ? 'md:items-end' : 'items-start'}`}>
+                                                    {node.dateList.map((d: any, idxD: number) => d.val && (
+                                                        <span key={idxD} className="text-[10px] font-medium text-slate-500">
+                                                            <span className="text-slate-400">{d.label}:</span> {formatDateLabel(d.val)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     {node.url && !hasSubItems && (
