@@ -162,20 +162,6 @@ function NavigationItem({
     );
   }
 
-  if (menu.id === "menu-rab") {
-    return (
-      <button
-        type="button"
-        className="w-full text-left"
-        onClick={() => {
-          if (onBnmClick) onBnmClick();
-          onCloseMobile();
-        }}
-      >
-        {content}
-      </button>
-    );
-  }
 
   if (menu.isAlert) {
     return (
