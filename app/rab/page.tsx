@@ -454,6 +454,43 @@ function RABPageContent() {
   
   const [activeWarnings, setActiveWarnings] = useState<DendaAction[]>([]);
 
+  // Pastikan scroll body selalu terbuka di mode Project Planning (Pembersih Sisa Radix UI Lock)
+  useEffect(() => {
+    if (hasProjectPlanningRequest) {
+      const nukeScrollLocks = () => {
+        document.documentElement.style.pointerEvents = '';
+        document.documentElement.style.overflow = '';
+        document.documentElement.removeAttribute('data-scroll-locked');
+        
+        document.body.style.pointerEvents = '';
+        document.body.style.overflow = '';
+        document.body.removeAttribute('data-scroll-locked');
+        
+        document.querySelectorAll('[data-radix-scroll-lock-style]').forEach(el => el.remove());
+
+        if (!document.getElementById('nuke-scroll-lock')) {
+          const style = document.createElement('style');
+          style.id = 'nuke-scroll-lock';
+          style.innerHTML = `
+            html, body { 
+              overflow: auto !important; 
+              overflow-y: auto !important; 
+              pointer-events: auto !important; 
+              height: auto !important;
+              position: static !important;
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      };
+
+      nukeScrollLocks();
+      const t1 = setTimeout(nukeScrollLocks, 100);
+      const t2 = setTimeout(nukeScrollLocks, 500);
+      const t3 = setTimeout(nukeScrollLocks, 1500);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    }
+  }, [hasProjectPlanningRequest]);
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: true, isTakeover: false,
@@ -2290,9 +2327,7 @@ function RABPageContent() {
                     className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       setPlanningRequestDialogOpen(false);
-                      setTimeout(() => {
-                        router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`);
-                      }, 150);
+                      window.location.href = `/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`;
                     }}
                   >
                     Buat Penawaran <ArrowRight className="ml-2 h-4 w-4" />
