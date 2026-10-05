@@ -612,6 +612,22 @@ function RABPageContent() {
         try {
           const parsed = JSON.parse(savedDraft);
           if (parsed && parsed.formData && (parsed.tableRows?.length > 0 || parsed.formData.namaToko !== '')) {
+            
+            // --- LOGIKA BARU: BLOKIR DRAFT REGULER ---
+            if (parsed.formData.isRenovasi === false || parsed.formData.proyek === 'Reguler') {
+              // 1. Hapus draft dari storage
+              localStorage.removeItem(draftKey);
+              // 2. Munculkan error / warning kepada pengguna
+              showAlert(
+                "Draft Tidak Didukung", 
+                "Draft yang tersimpan sebelumnya adalah draft Reguler. Saat ini sistem hanya mendukung pengajuan Renovasi. Draft lama Anda telah dihapus otomatis, silakan buat pengajuan dari awal.", 
+                "warning"
+              );
+              // 3. Hentikan eksekusi, biarkan form tetap default (Renovasi)
+              return;
+            }
+            // ----------------------------------------
+
             setDraftData(parsed);
             setDraftDialogOpen(true);
           }
