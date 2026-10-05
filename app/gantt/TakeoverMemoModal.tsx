@@ -8,11 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Calendar } from 'lucide-react';
 import { apiFetch, fetchPengawasanList, fetchRABList, fetchRABDetail, fetchGanttDetail } from '@/lib/api';
 import { API_URL } from '@/lib/constants';
+import { FileLimitWarningModal } from '@/components/FileLimitWarningModal';
+
+const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
     const [tanggalTakeover, setTanggalTakeover] = useState('');
     const [items, setItems] = useState<any[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
 
     useEffect(() => {
         if (!workspace) return;
@@ -134,8 +138,22 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
         }));
     };
 
-    const handleOpnameFieldChange = (index: number, field: string, value: any) => {
-        setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    const handleOpnameFieldChange = async (index: number, field: string, value: any) => {
+        let finalValue = value;
+        if ((field === 'file_opname' || field === 'file_dokumentasi') && value instanceof File) {
+            const { compressImage } = await import('@/lib/utils');
+            finalValue = await compressImage(value);
+            
+            if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
+                setFileLimitWarning({
+                    isOpen: true,
+                    fileName: finalValue.name,
+                    fileSizeMB: finalValue.size / (1024 * 1024)
+                });
+                return;
+            }
+        }
+        setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: finalValue } : item));
     };
 
     const handleSubmit = async () => {
@@ -356,6 +374,13 @@ export function TakeoverMemoModal({ workspace, onClose, onSuccess }: any) {
                     </Button>
                 </div>
             </div>
+            
+            <FileLimitWarningModal
+                isOpen={fileLimitWarning.isOpen}
+                onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
+                fileName={fileLimitWarning.fileName}
+                fileSizeMB={fileLimitWarning.fileSizeMB}
+            />
         </div>
     );
 }

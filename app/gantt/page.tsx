@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Lock, Send, Loader2, Info, Plus, Trash2, X, AlertTriangle, AlertCircle, Calendar, CheckCircle, Save, FileText, Search, Download, Clock, Maximize, Minimize, Database, Building2, ClipboardCheck, ClipboardList, Sparkles, ChevronDown, ChevronUp, SlidersHorizontal, RefreshCw, Eye, EyeOff, PanelRightClose, PanelRightOpen, MinusCircle, ArrowRight, CornerDownRight, CornerRightDown } from 'lucide-react';
 import { TakeoverMemoModal } from './TakeoverMemoModal';
+import { FileLimitWarningModal } from '@/components/FileLimitWarningModal';
 import {
     fetchGanttDetail, fetchGanttList, submitGanttChart,
     updateGanttChart, lockGanttChart, deleteGanttChart,
@@ -151,7 +152,7 @@ type GanttDetailResponse = Awaited<ReturnType<typeof fetchGanttDetail>>;
 const DAY_WIDTH = 40;
 const ROW_HEIGHT = 50;
 const PENGAWASAN_UPLOAD_BATCH_SIZE = 50;
-const PENGAWASAN_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const PENGAWASAN_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function parseCalendarDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -3671,6 +3672,7 @@ function isReasonableWorkStartDate(date: Date | null): date is Date {
 // Komponen Modal Diekstraksi untuk memisahkan state/kalkulasi
 function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasanHistory, onClose, selectedGanttId, spkInfo, projectData, id_toko, onSuccess, scopeLabel, nextScopeLabel, flowStep, onNavigateScope, draft, onDraftChange, missingInOtherScopes, targetStDate, takeoverSequence }: any) {
     const { showAlert } = useGlobalAlert();
+    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
     const router = useRouter();
     const { user } = useSession();
     const canCreateInstruksiLapangan = (user?.isSuperHuman ?? false) || (user?.roles ?? []).includes('BRANCH BUILDING SUPPORT');
@@ -4416,9 +4418,10 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
             finalValue = await compressImage(value);
 
             if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
-                showAlert({
-                    message: `File "${finalValue.name}" masih lebih besar dari 10MB setelah proses kompresi. Pilih file yang lebih kecil.`,
-                    type: 'warning'
+                setFileLimitWarning({
+                    isOpen: true,
+                    fileName: finalValue.name,
+                    fileSizeMB: finalValue.size / (1024 * 1024)
                 });
                 return;
             }
@@ -5593,11 +5596,18 @@ function MemoPengawasanModal({ activeHeaderClick, chartData, rabItems, pengawasa
                         showInstruksiToast(message || "Gagal menyimpan Instruksi Lapangan.", "error");
                     }}
                     initialTokoId={id_toko}
+                    />
+                )}
+                
+                <FileLimitWarningModal
+                    isOpen={fileLimitWarning.isOpen}
+                    onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
+                    fileName={fileLimitWarning.fileName}
+                    fileSizeMB={fileLimitWarning.fileSizeMB}
                 />
-            )}
-        </>
-    );
-}
+            </>
+        );
+    }
 
 // Komponen OpnameModal
 function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose, selectedGanttId, onSuccess, spkInfo, scopeLabel, nextScopeLabel, flowStep, onNavigateScope }: any) {
@@ -5606,6 +5616,7 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
     const [isLoading, setIsLoading] = useState(true);
     const [opnameInputs, setOpnameInputs] = useState<Record<string, any>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fileLimitWarning, setFileLimitWarning] = useState<{isOpen: boolean, fileName: string, fileSizeMB: number}>({isOpen: false, fileName: '', fileSizeMB: 0});
     const [hasOpnameFinal, setHasOpnameFinal] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [completedPengawasanCount, setCompletedPengawasanCount] = useState(0);
@@ -5809,12 +5820,26 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
         };
     }, [selectedGanttId, activeHeaderClick?.dateString, rabItems, id_toko, nomorUlok]);
 
-    const handleSetOpname = (id: string | number, field: string, value: any) => {
+    const handleSetOpname = async (id: string | number, field: string, value: any) => {
+        let finalValue = value;
+        if (field === 'file' && value instanceof File) {
+            const { compressImage } = await import('@/lib/utils');
+            finalValue = await compressImage(value);
+            
+            if (finalValue.size > PENGAWASAN_MAX_FILE_SIZE) {
+                setFileLimitWarning({
+                    isOpen: true,
+                    fileName: finalValue.name,
+                    fileSizeMB: finalValue.size / (1024 * 1024)
+                });
+                return;
+            }
+        }
         setOpnameInputs(prev => ({
             ...prev,
             [id]: {
                 ...prev[id],
-                [field]: value
+                [field]: finalValue
             }
         }));
     };
@@ -6241,6 +6266,12 @@ function OpnameModal({ activeHeaderClick, rabItems, id_toko, nomorUlok, onClose,
                     </Button>
                 </div>
             </div>
+            <FileLimitWarningModal
+                isOpen={fileLimitWarning.isOpen}
+                onClose={() => setFileLimitWarning(prev => ({ ...prev, isOpen: false }))}
+                fileName={fileLimitWarning.fileName}
+                fileSizeMB={fileLimitWarning.fileSizeMB}
+            />
         </div>
     );
 }
