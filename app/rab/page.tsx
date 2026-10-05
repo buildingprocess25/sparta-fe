@@ -2290,7 +2290,9 @@ function RABPageContent() {
                     className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       setPlanningRequestDialogOpen(false);
-                      router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`);
+                      setTimeout(() => {
+                        router.push(`/rab?projek_planning_id=${request.projek_planning_id}&lingkup=${request.lingkup_pekerjaan}`);
+                      }, 150);
                     }}
                   >
                     Buat Penawaran <ArrowRight className="ml-2 h-4 w-4" />
