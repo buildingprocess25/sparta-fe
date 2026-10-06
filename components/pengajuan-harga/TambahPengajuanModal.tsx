@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -22,7 +21,6 @@ import {
 } from "@/components/ui/select";
 import { CreatableCombobox } from "@/components/ui/creatable-combobox";
 import CreatableSelect from "react-select/creatable";
-import SelectMulti from "react-select";
 import {
   PengajuanHargaItem,
   generateDeskripsiOtomatis,
@@ -48,18 +46,6 @@ const INITIAL_MATERIAL_OPTIONS = [
   "Batu Alam",
   "Marmer",
   "Porselen",
-];
-
-const INITIAL_UKURAN_OPTIONS = [
-  "60x60 cm",
-  "30x30 cm",
-  "40x40 cm",
-  "60x120 cm",
-  "80x80 cm",
-  "20x20 cm",
-  "30x60 cm",
-  "15x60 cm",
-  "100x100 cm",
 ];
 
 const INITIAL_MERK_OPTIONS = [
@@ -93,6 +79,253 @@ const INITIAL_AREA_OPTIONS = [
   "Dinding Area Belakang",
 ];
 
+const SATUAN_UKURAN_OPTIONS = [
+  { label: "cm", value: "cm" },
+  { label: "mm", value: "mm" },
+  { label: "m", value: "m" },
+  { label: "inch", value: "inch" },
+];
+
+const SATUAN_TEBAL_OPTIONS = [
+  { label: "mm", value: "mm" },
+  { label: "cm", value: "cm" },
+  { label: "m", value: "m" },
+];
+
+const SATUAN_TOLERANSI_OPTIONS = [
+  { label: "mm", value: "mm" },
+  { label: "%", value: "%" },
+  { label: "cm", value: "cm" },
+];
+
+const unitSelectStyles = {
+  control: (base: any) => ({
+    ...base,
+    minHeight: "36px",
+    height: "36px",
+    borderRadius: "0.5rem",
+    borderColor: "#e2e8f0",
+    fontSize: "12px",
+    boxShadow: "none",
+  }),
+  menu: (base: any) => ({
+    ...base,
+    minWidth: "90px",
+    fontSize: "12px",
+    zIndex: 50,
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: "0 6px",
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    padding: "0",
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    padding: "2px",
+  }),
+};
+
+const INITIAL_KATEGORI_OPTIONS = [
+  "Pekerjaan Keramik",
+  "Area Terbuka",
+  "Pekerjaan Finishing",
+  "Pekerjaan Pasangan",
+  "Pekerjaan Sanitair",
+  "Pekerjaan Lantai",
+  "Pekerjaan Dinding",
+  "Pekerjaan Plafon",
+  "Pekerjaan Elektrikal",
+  "Pekerjaan Pengecatan",
+  "Pekerjaan Pintu & Jendela",
+];
+
+const INITIAL_UKURAN_OPTIONS = [
+  "60x60",
+  "40x40",
+  "30x30",
+  "30x60",
+  "80x80",
+  "50x50",
+  "20x20",
+  "15x90",
+  "20x290",
+  "20x400",
+  "120",
+  "120x240",
+  "100x210",
+  "300x300",
+  "4",
+  "6",
+  "20",
+];
+
+const INITIAL_WARNA_OPTIONS = [
+  "Grey",
+  "White",
+  "Cream",
+  "Black",
+  "Green",
+  "Ivory",
+  "Dark Grey",
+  "Clear",
+  "Oak Wood",
+  "Teak Wood",
+  "Signal Red",
+  "Cool Daylight (6500K)",
+  "Light Grey",
+  "White Lily",
+  "Natural Oak",
+  "Hitam Anodized",
+];
+
+const INITIAL_TIPE_OPTIONS = [
+  "Sicily Grey Matte",
+  "Antique White",
+  "Cream Carolina",
+  "Green Moss",
+  "Polish White",
+  "Nero Portoro",
+  "Travertine Cream Polish",
+  "Pentalite Ultra Matt",
+  "Rustic Stone Unpolished",
+  "Moisture Shield 9mm",
+  "Weatherbond Extreme",
+  "Tempered Glass Frameless",
+  "Plank Click Series",
+  "One Sheet Solid",
+  "dPorto Ivory Polished",
+  "dPorto Ivory Matte Unpolished",
+  "Shopfront 4\" Anodized",
+  "Meson 59464 17W/18W",
+  "Linear Fluted",
+  "Linear Fluted 4-Groove",
+  "Epogreen Multi-layer",
+  "Hollow Anti-Sagging",
+  "Essential SmartBright",
+  "Silver Ion Shield",
+  "Commercial Wear Layer 0.5mm",
+  "Polos",
+  "Wood",
+];
+
+const INITIAL_PERMUKAAN_OPTIONS = [
+  "Matte",
+  "Polish",
+  "Glossy",
+  "Unpolished",
+  "Double Loading",
+  "Nano Polish",
+  "Embossed Wood",
+  "Embossed Woodgrain",
+  "Gloss Anti-Slip",
+  "Matte Flat",
+  "Diffuser Polycarbonate",
+  "Satin Eggshell",
+  "Deep Embossed Anti-Slip",
+  "Semi Gloss",
+  "Matt",
+  "Halus",
+  "Polished Edge",
+  "Zincalume Coating",
+  "Anodized",
+  "Frosted Diffuser",
+];
+
+const comboboxStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    minHeight: "36px",
+    height: "36px",
+    borderRadius: "0.5rem",
+    borderColor: state.isFocused ? "#94a3b8" : "#e2e8f0",
+    fontSize: "12px",
+    backgroundColor: state.isDisabled ? "#f8fafc" : "#ffffff",
+    boxShadow: "none",
+    "&:hover": {
+      borderColor: "#cbd5e1",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    fontSize: "12px",
+    zIndex: 50,
+    borderRadius: "0.5rem",
+    overflow: "hidden",
+    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    fontSize: "12px",
+    backgroundColor: state.isSelected
+      ? "#ef4444"
+      : state.isFocused
+      ? "#fee2e2"
+      : undefined,
+    color: state.isSelected ? "#ffffff" : "#1e293b",
+    cursor: "pointer",
+    "&:active": {
+      backgroundColor: "#dc2626",
+    },
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: "0 8px",
+    overflow: "hidden",
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: "#94a3b8",
+    fontSize: "12px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: "#1e293b",
+    fontSize: "12px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }),
+  input: (base: any) => ({
+    ...base,
+    margin: "0",
+    padding: "0",
+    fontSize: "12px",
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    padding: "0 2px",
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    padding: "2px 4px",
+    color: "#64748b",
+  }),
+  clearIndicator: (base: any) => ({
+    ...base,
+    padding: "2px 4px",
+    color: "#64748b",
+  }),
+};
+
+function parseNilaiDanSatuan(
+  val?: string,
+  defaultSatuan = "cm"
+): { nilai: string; satuan: string } {
+  if (!val) return { nilai: "", satuan: defaultSatuan };
+  const trimmed = val.trim();
+  const match = trimmed.match(/^(.+?)\s*([a-zA-Z%]+)$/);
+  if (match) {
+    return { nilai: match[1].trim(), satuan: match[2].trim() };
+  }
+  return { nilai: trimmed, satuan: defaultSatuan };
+}
+
 export function TambahPengajuanModal({
   isOpen,
   onClose,
@@ -104,17 +337,27 @@ export function TambahPengajuanModal({
   // Form State
   const [kategori, setKategori] = useState("Pekerjaan Keramik");
   const [item, setItem] = useState("");
-  const [ukuran, setUkuran] = useState("");
+
+  // Ukuran dipisah nilai & satuan
+  const [ukuranNilai, setUkuranNilai] = useState("");
+  const [ukuranSatuan, setUkuranSatuan] = useState("cm");
+
   const [merk, setMerk] = useState("");
   const [warna, setWarna] = useState("");
   const [tipe, setTipe] = useState("");
   const [permukaan, setPermukaan] = useState("");
-  const [tebal, setTebal] = useState("");
-  const [toleransi, setToleransi] = useState("");
+
+  // Ketebalan dipisah nilai & satuan
+  const [tebalNilai, setTebalNilai] = useState("");
+  const [tebalSatuan, setTebalSatuan] = useState("mm");
+
+  // Toleransi dipisah nilai & satuan
+  const [toleransiNilai, setToleransiNilai] = useState("");
+  const [toleransiSatuan, setToleransiSatuan] = useState("mm");
+
   const [implementasi, setImplementasi] = useState<string[]>(["Dinding Gerai"]);
   const [lokasi, setLokasi] = useState<string[]>([]);
   const [jenisPengajuan, setJenisPengajuan] = useState<"Hanya Jasa" | "Material">("Material");
-  const [estimasiHarga, setEstimasiHarga] = useState<number | "">("");
   const [informasiTambahan, setInformasiTambahan] = useState("");
 
   const [kodeItem, setKodeItem] = useState(
@@ -123,6 +366,22 @@ export function TambahPengajuanModal({
   const [kodeMaster, setKodeMaster] = useState("");
   const [deskripsiOtomatis, setDeskripsiOtomatis] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Nilai gabungan
+  const combinedUkuran = useMemo(() => {
+    if (!ukuranNilai.trim()) return "";
+    return [ukuranNilai.trim(), ukuranSatuan.trim()].filter(Boolean).join(" ");
+  }, [ukuranNilai, ukuranSatuan]);
+
+  const combinedTebal = useMemo(() => {
+    if (!tebalNilai.trim()) return "";
+    return [tebalNilai.trim(), tebalSatuan.trim()].filter(Boolean).join(" ");
+  }, [tebalNilai, tebalSatuan]);
+
+  const combinedToleransi = useMemo(() => {
+    if (!toleransiNilai.trim()) return "";
+    return [toleransiNilai.trim(), toleransiSatuan.trim()].filter(Boolean).join(" ");
+  }, [toleransiNilai, toleransiSatuan]);
 
   // Filter items excluding itemToEdit
   const otherItems = useMemo(() => {
@@ -140,20 +399,20 @@ export function TambahPengajuanModal({
   }, [itemToEdit]);
 
   const materialReactSelectOptions = useMemo(() => {
-    const existingOptions = existingItems.map(i => {
+    const existingOptions = existingItems.map((i) => {
       const parts = [i.ukuran, i.merk].filter(Boolean).join(" ");
       return {
         label: parts ? `${i.item} - ${parts}` : i.item,
         value: i.item,
-        data: i
+        data: i,
       };
     });
-    
-    const usedNames = new Set(existingItems.map(i => i.item));
-    const initialOpts = INITIAL_MATERIAL_OPTIONS.filter(name => !usedNames.has(name)).map(name => ({
+
+    const usedNames = new Set(existingItems.map((i) => i.item));
+    const initialOpts = INITIAL_MATERIAL_OPTIONS.filter((name) => !usedNames.has(name)).map((name) => ({
       label: name,
       value: name,
-      data: null
+      data: null,
     }));
 
     return [...existingOptions, ...initialOpts];
@@ -164,28 +423,46 @@ export function TambahPengajuanModal({
       setItem("");
       return;
     }
-    
+
     setItem(selectedOption.value);
-    
+
     if (selectedOption.data) {
-       const target = selectedOption.data;
-       setKategori(target.kategori || "Pekerjaan Keramik");
-       setUkuran(target.ukuran || "");
-       setMerk(target.merk || "");
-       setWarna(target.warna || "");
-       setTipe(target.tipe || "");
-       setPermukaan(target.permukaan || "");
-       setTebal(target.tebal || "");
-       setToleransi(target.toleransi || "");
-       setImplementasi(target.implementasi ? (Array.isArray(target.implementasi) ? target.implementasi : [target.implementasi]) : []);
-       setLokasi(target.lokasi ? (Array.isArray(target.lokasi) ? target.lokasi : [target.lokasi]) : []);
+      const target = selectedOption.data;
+      setKategori(target.kategori || "Pekerjaan Keramik");
+
+      const parsedUkuran = parseNilaiDanSatuan(target.ukuran, "cm");
+      setUkuranNilai(parsedUkuran.nilai);
+      setUkuranSatuan(parsedUkuran.satuan || "cm");
+
+      setMerk(target.merk || "");
+      setWarna(target.warna || "");
+      setTipe(target.tipe || "");
+      setPermukaan(target.permukaan || "");
+
+      const parsedTebal = parseNilaiDanSatuan(target.tebal, "mm");
+      setTebalNilai(parsedTebal.nilai);
+      setTebalSatuan(parsedTebal.satuan || "mm");
+
+      const parsedTol = parseNilaiDanSatuan(target.toleransi, "mm");
+      setToleransiNilai(parsedTol.nilai);
+      setToleransiSatuan(parsedTol.satuan || "mm");
+
+      if (target.implementasi) {
+        setImplementasi(
+          Array.isArray(target.implementasi)
+            ? target.implementasi
+            : target.implementasi.split(",").map((s: string) => s.trim()).filter(Boolean)
+        );
+      }
+      if (target.lokasi) {
+        setLokasi(
+          Array.isArray(target.lokasi)
+            ? target.lokasi
+            : target.lokasi.split(",").map((s: string) => s.trim()).filter(Boolean)
+        );
+      }
     }
   };
-
-  const ukuranOptions = useMemo(() => {
-    const fromExisting = existingItems.map((i) => i.ukuran).filter(Boolean);
-    return Array.from(new Set([...INITIAL_UKURAN_OPTIONS, ...fromExisting]));
-  }, [existingItems]);
 
   const merkOptions = useMemo(() => {
     const fromExisting = existingItems.map((i) => i.merk).filter(Boolean);
@@ -193,13 +470,44 @@ export function TambahPengajuanModal({
   }, [existingItems]);
 
   const posisiOptions = useMemo(() => {
-    const fromExisting = existingItems.flatMap((i) => Array.isArray(i.implementasi) ? i.implementasi : [i.implementasi]).filter(Boolean) as string[];
+    const fromExisting = existingItems
+      .flatMap((i) => (Array.isArray(i.implementasi) ? i.implementasi : [i.implementasi]))
+      .filter(Boolean) as string[];
     return Array.from(new Set([...INITIAL_POSISI_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
   const areaOptions = useMemo(() => {
-    const fromExisting = existingItems.flatMap((i) => Array.isArray(i.lokasi) ? i.lokasi : [i.lokasi]).filter(Boolean) as string[];
+    const fromExisting = existingItems
+      .flatMap((i) => (Array.isArray(i.lokasi) ? i.lokasi : [i.lokasi]))
+      .filter(Boolean) as string[];
     return Array.from(new Set([...INITIAL_AREA_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const kategoriOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.kategori).filter(Boolean);
+    return Array.from(new Set([...INITIAL_KATEGORI_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const ukuranOptions = useMemo(() => {
+    const fromExisting = existingItems
+      .map((i) => parseNilaiDanSatuan(i.ukuran).nilai)
+      .filter(Boolean);
+    return Array.from(new Set([...INITIAL_UKURAN_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const warnaOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.warna).filter(Boolean);
+    return Array.from(new Set([...INITIAL_WARNA_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const tipeOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.tipe).filter(Boolean);
+    return Array.from(new Set([...INITIAL_TIPE_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const permukaanOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.permukaan).filter(Boolean);
+    return Array.from(new Set([...INITIAL_PERMUKAAN_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
   const kodeData = useMemo(() => {
@@ -208,13 +516,13 @@ export function TambahPengajuanModal({
       item,
       implementasi,
       lokasi,
-      ukuran,
+      ukuran: combinedUkuran,
       merk,
       warna,
       tipe,
       permukaan,
-      tebal,
-      toleransi,
+      tebal: combinedTebal,
+      toleransi: combinedToleransi,
       nextIndex,
       existingItems: otherItems,
     });
@@ -223,13 +531,13 @@ export function TambahPengajuanModal({
     item,
     implementasi,
     lokasi,
-    ukuran,
+    combinedUkuran,
     merk,
     warna,
     tipe,
     permukaan,
-    tebal,
-    toleransi,
+    combinedTebal,
+    combinedToleransi,
     nextIndex,
     otherItems,
   ]);
@@ -246,49 +554,89 @@ export function TambahPengajuanModal({
   useEffect(() => {
     const desc = generateDeskripsiOtomatis({
       item,
-      ukuran,
+      ukuran: combinedUkuran,
       merk,
       warna,
       tipe,
       permukaan,
+      tebal: combinedTebal,
+      toleransi: combinedToleransi,
+      informasiTambahan,
       lokasi,
       implementasi,
     });
     setDeskripsiOtomatis(desc);
-  }, [item, ukuran, merk, warna, tipe, permukaan, lokasi, implementasi]);
+  }, [
+    item,
+    combinedUkuran,
+    merk,
+    warna,
+    tipe,
+    permukaan,
+    combinedTebal,
+    combinedToleransi,
+    informasiTambahan,
+    lokasi,
+    implementasi,
+  ]);
 
   const populateForm = (target: PengajuanHargaItem) => {
     setKategori(target.kategori || "Pekerjaan Keramik");
     setItem(target.item || "");
-    setUkuran(target.ukuran || "");
+
+    const parsedUkuran = parseNilaiDanSatuan(target.ukuran, "cm");
+    setUkuranNilai(parsedUkuran.nilai);
+    setUkuranSatuan(parsedUkuran.satuan || "cm");
+
     setMerk(target.merk || "");
     setWarna(target.warna || "");
     setTipe(target.tipe || "");
     setPermukaan(target.permukaan || "");
-    setTebal(target.tebal || "");
-    setToleransi(target.toleransi || "");
-    setImplementasi(target.implementasi ? (Array.isArray(target.implementasi) ? target.implementasi : [target.implementasi]) : ["Dinding Gerai"]);
-    setLokasi(target.lokasi ? (Array.isArray(target.lokasi) ? target.lokasi : [target.lokasi]) : []);
+
+    const parsedTebal = parseNilaiDanSatuan(target.tebal, "mm");
+    setTebalNilai(parsedTebal.nilai);
+    setTebalSatuan(parsedTebal.satuan || "mm");
+
+    const parsedTol = parseNilaiDanSatuan(target.toleransi, "mm");
+    setToleransiNilai(parsedTol.nilai);
+    setToleransiSatuan(parsedTol.satuan || "mm");
+
+    setImplementasi(
+      target.implementasi
+        ? Array.isArray(target.implementasi)
+          ? target.implementasi
+          : target.implementasi.split(",").map((s) => s.trim()).filter(Boolean)
+        : ["Dinding Gerai"]
+    );
+    setLokasi(
+      target.lokasi
+        ? Array.isArray(target.lokasi)
+          ? target.lokasi
+          : target.lokasi.split(",").map((s) => s.trim()).filter(Boolean)
+        : []
+    );
     setJenisPengajuan(target.jenisPengajuan || "Material");
-    setEstimasiHarga(target.estimasiHarga || "");
     setInformasiTambahan(target.informasiTambahan || "");
     setKodeItem(target.kode || "");
     setKodeMaster(target.kodeMaster || "");
   };
 
   const handleReset = () => {
+    setKategori("Pekerjaan Keramik");
     setItem("");
-    setUkuran("");
+    setUkuranNilai("");
+    setUkuranSatuan("cm");
     setMerk("");
     setWarna("");
     setTipe("");
     setPermukaan("");
-    setTebal("");
-    setToleransi("");
+    setTebalNilai("");
+    setTebalSatuan("mm");
+    setToleransiNilai("");
+    setToleransiSatuan("mm");
     setImplementasi(["Dinding Gerai"]);
     setLokasi([]);
     setJenisPengajuan("Material");
-    setEstimasiHarga("");
     setInformasiTambahan("");
   };
 
@@ -323,17 +671,14 @@ export function TambahPengajuanModal({
     if (
       !kategori.trim() ||
       !item.trim() ||
-      !ukuran.trim() ||
+      !ukuranNilai.trim() ||
       !merk.trim() ||
       !tipe.trim() ||
       !warna.trim() ||
       !permukaan.trim() ||
-      !tebal.trim() ||
-      !toleransi.trim() ||
+      !tebalNilai.trim() ||
       implementasi.length === 0 ||
       lokasi.length === 0 ||
-      estimasiHarga === "" ||
-      Number(estimasiHarga) <= 0 ||
       !kodeMaster.trim()
     ) {
       return;
@@ -360,20 +705,20 @@ export function TambahPengajuanModal({
       kode: finalKodeItem,
       kodeMaster: finalKodeMaster,
       item: item.trim(),
-      ukuran: ukuran.trim(),
+      ukuran: combinedUkuran,
       merk: merk.trim(),
       warna: warna.trim(),
       tipe: tipe.trim(),
-      tebal: tebal.trim(),
+      tebal: combinedTebal,
       permukaan: permukaan.trim(),
       kategori: kategori.trim(),
       implementasi: Array.isArray(implementasi) ? implementasi.join(", ") : implementasi,
       lokasi: Array.isArray(lokasi) ? lokasi.join(", ") : lokasi,
-      toleransi: toleransi.trim() || undefined,
+      toleransi: combinedToleransi || undefined,
       informasiTambahan: informasiTambahan.trim(),
-      deskripsiOtomatis,
-      estimasiHarga: Number(estimasiHarga) || 0,
       jenisPengajuan,
+      deskripsiOtomatis,
+      estimasiHarga: itemToEdit?.estimasiHarga || 0,
       satuan: "m2",
       status: "DIAJUKAN",
       tanggalPengajuan: new Date().toISOString().slice(0, 10),
@@ -400,11 +745,13 @@ export function TambahPengajuanModal({
                 : "Isi data spesifikasi material untuk diajukan ke S&B Specialist."}
             </DialogDescription>
           </div>
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shrink-0 self-start sm:self-auto ${
-            itemToEdit
-              ? "bg-amber-50 text-amber-800 border-amber-200"
-              : "bg-emerald-50 text-emerald-800 border-emerald-200"
-          }`}>
+          <div
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shrink-0 self-start sm:self-auto ${
+              itemToEdit
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+            }`}
+          >
             <span className={`w-1.5 h-1.5 rounded-full ${itemToEdit ? "bg-amber-500" : "bg-emerald-500"}`} />
             <span>{itemToEdit ? "Mode Revisi" : "Material Baru"}</span>
           </div>
@@ -427,16 +774,25 @@ export function TambahPengajuanModal({
           {/* Section 1: Alur & Item Utama */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">1</span>
-              <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">Jenis & Item Utama</h3>
+              <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
+                1
+              </span>
+              <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
+                Jenis &amp; Item Utama
+              </h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Jenis Pengajuan <span className="text-red-500">*</span></span>
+                  <span>
+                    Jenis Pengajuan <span className="text-red-500">*</span>
+                  </span>
                 </Label>
-                <Select value={jenisPengajuan} onValueChange={(val) => setJenisPengajuan(val as "Hanya Jasa" | "Material")}>
+                <Select
+                  value={jenisPengajuan}
+                  onValueChange={(val) => setJenisPengajuan(val as "Hanya Jasa" | "Material")}
+                >
                   <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-slate-200">
                     <SelectValue placeholder="Pilih Jenis" />
                   </SelectTrigger>
@@ -445,34 +801,36 @@ export function TambahPengajuanModal({
                     <SelectItem value="Hanya Jasa">Hanya Jasa</SelectItem>
                   </SelectContent>
                 </Select>
-                <span className="text-[10px] text-slate-400">Material fisik atau jasa</span>
+                <span className="text-[10px] text-slate-400">Material fisik atau hanya jasa pengerjaan</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Nama Material / Item <span className="text-red-500">*</span></span>
+                  <span>
+                    Nama Material / Item <span className="text-red-500">*</span>
+                  </span>
                 </Label>
                 <CreatableSelect
                   value={item ? { label: item, value: item } : null}
                   onChange={handleItemSelect}
                   options={materialReactSelectOptions}
                   placeholder="Cari item eksisting atau ketik baru..."
-                  formatCreateLabel={(val: string) => `Buat item baru: "${val}"`}
+                  formatCreateLabel={(val) => `Buat item baru: "${val}"`}
                   styles={{
-                    control: (base: any) => ({
+                    control: (base) => ({
                       ...base,
                       minHeight: "36px",
                       borderRadius: "0.5rem",
                       borderColor: "#e2e8f0",
                       fontSize: "12px",
                     }),
-                    menu: (base: any) => ({
+                    menu: (base) => ({
                       ...base,
                       width: "100%",
                       minWidth: "200px",
                       zIndex: 50,
                     }),
-                    option: (base: any) => ({
+                    option: (base) => ({
                       ...base,
                       whiteSpace: "normal",
                       wordWrap: "break-word",
@@ -481,86 +839,94 @@ export function TambahPengajuanModal({
                   }}
                   maxMenuHeight={250}
                 />
-                <span className="text-[10px] text-slate-400">Cari item atau ketik baru</span>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Harga Estimasi / Satuan <span className="text-red-500">*</span></span>
-                </Label>
-                <CurrencyInput
-                  value={estimasiHarga}
-                  onChange={setEstimasiHarga}
-                  placeholder="Rp 0"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                  required
-                />
-                <span className="text-[10px] text-slate-400">Format pemisah ribuan otomatis</span>
+                <span className="text-[10px] text-slate-400">Pilih dari master atau ketik nama baru</span>
               </div>
             </div>
 
-            
             {jenisPengajuan === "Hanya Jasa" && (
               <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs p-3 rounded-lg flex gap-2 mt-2">
-                <p>Pengajuan <strong>Hanya Jasa</strong>. Pilih item yang sudah ada.</p>
+                <p>
+                  Pengajuan <strong>Hanya Jasa</strong>. Pilih item yang sudah ada
+                </p>
               </div>
             )}
-            {jenisPengajuan === "Material" && item && existingItems.some(i => i.item === item) && (
+            {jenisPengajuan === "Material" && item && existingItems.some((i) => i.item === item) && (
               <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3 rounded-lg flex gap-2 mt-2">
-                <p>Item <strong>sudah terdaftar</strong> di sistem. Pengajuan ini akan diteruskan sebagai form <strong>Review/Update Master</strong>.</p>
+                <p>
+                  Item <strong>sudah terdaftar</strong> di sistem. Pengajuan ini akan diteruskan sebagai form <strong>Review/Update Master</strong>.
+                </p>
               </div>
             )}
-            {jenisPengajuan === "Material" && item && !existingItems.some(i => i.item === item) && (
+            {jenisPengajuan === "Material" && item && !existingItems.some((i) => i.item === item) && (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded-lg flex gap-2 mt-2">
-                <p>Item <strong>baru</strong>. Pengajuan ini akan dilanjutkan sebagai <strong>Pengajuan Master Harga Baru</strong>.</p>
+                <p>
+                  Item <strong>baru</strong>. Pengajuan akan dilanjutkan sebagai <strong>Pengajuan Master Harga Baru</strong>.
+                </p>
               </div>
             )}
           </div>
-          
+
           {/* Section 2: Data Pokok Material */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
-                1
+                2
               </span>
               <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
                 Data Pokok Material
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
                   Kategori Pekerjaan <span className="text-red-500">*</span>
                 </Label>
-                <Select value={kategori} onValueChange={setKategori} required disabled={jenisPengajuan === "Hanya Jasa"}>
-                  <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-slate-200">
-                    <SelectValue placeholder="Pilih Kategori" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pekerjaan Keramik">Pekerjaan Keramik</SelectItem>
-                    <SelectItem value="Area Terbuka">Area Terbuka</SelectItem>
-                    <SelectItem value="Pekerjaan Finishing">Pekerjaan Finishing</SelectItem>
-                    <SelectItem value="Pekerjaan Pasangan">Pekerjaan Pasangan</SelectItem>
-                    <SelectItem value="Pekerjaan Sanitair">Pekerjaan Sanitair</SelectItem>
-                  </SelectContent>
-                </Select>
+                <CreatableSelect
+                  value={kategori ? { label: kategori, value: kategori } : null}
+                  onChange={(opt: any) => setKategori(opt ? opt.value : "")}
+                  options={kategoriOptions.map((opt) => ({ label: opt, value: opt }))}
+                  isDisabled={jenisPengajuan === "Hanya Jasa"}
+                  placeholder="Pilih / ketik kategori..."
+                  formatCreateLabel={(val) => `Tambah "${val}"`}
+                  styles={comboboxStyles}
+                  maxMenuHeight={200}
+                  isClearable
+                />
+                <span className="text-[10px] text-slate-400">Kategori lingkup pekerjaan</span>
               </div>
-
-              
 
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Ukuran <span className="text-red-500">*</span>
+                  Ukuran / Dimensi <span className="text-red-500">*</span>
                 </Label>
-                <CreatableCombobox
-                  value={ukuran}
-                  onChange={setUkuran}
-                  options={ukuranOptions}
-                  required
-                  disabled={jenisPengajuan === "Hanya Jasa"}
-                  placeholder="Pilih / ketik ukuran"
-                />
+                <div className="flex items-center gap-1.5">
+                  <div className="flex-1 min-w-0">
+                    <CreatableSelect
+                      value={ukuranNilai ? { label: ukuranNilai, value: ukuranNilai } : null}
+                      onChange={(opt: any) => setUkuranNilai(opt ? opt.value : "")}
+                      options={ukuranOptions.map((opt) => ({ label: opt, value: opt }))}
+                      isDisabled={jenisPengajuan === "Hanya Jasa"}
+                      placeholder="Pilih / ketik ukuran..."
+                      formatCreateLabel={(val) => `Tambah "${val}"`}
+                      styles={comboboxStyles}
+                      maxMenuHeight={200}
+                      isClearable
+                    />
+                  </div>
+                  <div className="w-24 shrink-0">
+                    <CreatableSelect
+                      value={ukuranSatuan ? { label: ukuranSatuan, value: ukuranSatuan } : null}
+                      onChange={(opt: any) => setUkuranSatuan(opt ? opt.value : "")}
+                      options={SATUAN_UKURAN_OPTIONS}
+                      isDisabled={jenisPengajuan === "Hanya Jasa"}
+                      styles={unitSelectStyles}
+                      placeholder="Satuan"
+                      formatCreateLabel={(val) => `"${val}"`}
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400">Nilai &amp; satuan terpisah</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -575,6 +941,7 @@ export function TambahPengajuanModal({
                   disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Pilih / ketik merk"
                 />
+                <span className="text-[10px] text-slate-400">Contoh: Roman</span>
               </div>
             </div>
           </div>
@@ -583,7 +950,7 @@ export function TambahPengajuanModal({
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
-                2
+                3
               </span>
               <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
                 Fisik &amp; Karakteristik
@@ -595,13 +962,16 @@ export function TambahPengajuanModal({
                 <Label className="text-xs font-semibold text-slate-700">
                   Warna <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  value={warna}
-                  onChange={(e) => setWarna(e.target.value)}
-                  disabled={jenisPengajuan === "Hanya Jasa"}
-                  placeholder="Contoh: Cream, Putih"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                  required
+                <CreatableSelect
+                  value={warna ? { label: warna, value: warna } : null}
+                  onChange={(opt: any) => setWarna(opt ? opt.value : "")}
+                  options={warnaOptions.map((opt) => ({ label: opt, value: opt }))}
+                  isDisabled={jenisPengajuan === "Hanya Jasa"}
+                  placeholder="Pilih / ketik warna..."
+                  formatCreateLabel={(val) => `Tambah "${val}"`}
+                  styles={comboboxStyles}
+                  maxMenuHeight={200}
+                  isClearable
                 />
               </div>
 
@@ -609,13 +979,16 @@ export function TambahPengajuanModal({
                 <Label className="text-xs font-semibold text-slate-700">
                   Tipe / Motif <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  value={tipe}
-                  onChange={(e) => setTipe(e.target.value)}
-                  disabled={jenisPengajuan === "Hanya Jasa"}
-                  placeholder="Contoh: Polos, Wood"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                  required
+                <CreatableSelect
+                  value={tipe ? { label: tipe, value: tipe } : null}
+                  onChange={(opt: any) => setTipe(opt ? opt.value : "")}
+                  options={tipeOptions.map((opt) => ({ label: opt, value: opt }))}
+                  isDisabled={jenisPengajuan === "Hanya Jasa"}
+                  placeholder="Pilih / ketik tipe..."
+                  formatCreateLabel={(val) => `Tambah "${val}"`}
+                  styles={comboboxStyles}
+                  maxMenuHeight={200}
+                  isClearable
                 />
               </div>
 
@@ -623,13 +996,16 @@ export function TambahPengajuanModal({
                 <Label className="text-xs font-semibold text-slate-700">
                   Permukaan <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  value={permukaan}
-                  onChange={(e) => setPermukaan(e.target.value)}
-                  disabled={jenisPengajuan === "Hanya Jasa"}
-                  placeholder="Contoh: Glossy, Matte"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                  required
+                <CreatableSelect
+                  value={permukaan ? { label: permukaan, value: permukaan } : null}
+                  onChange={(opt: any) => setPermukaan(opt ? opt.value : "")}
+                  options={permukaanOptions.map((opt) => ({ label: opt, value: opt }))}
+                  isDisabled={jenisPengajuan === "Hanya Jasa"}
+                  placeholder="Pilih / ketik permukaan..."
+                  formatCreateLabel={(val) => `Tambah "${val}"`}
+                  styles={comboboxStyles}
+                  maxMenuHeight={200}
+                  isClearable
                 />
               </div>
 
@@ -637,28 +1013,55 @@ export function TambahPengajuanModal({
                 <Label className="text-xs font-semibold text-slate-700">
                   Ketebalan <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  value={tebal}
-                  onChange={(e) => setTebal(e.target.value)}
-                  disabled={jenisPengajuan === "Hanya Jasa"}
-                  placeholder="Contoh: 9 mm"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                  required
-                />
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={tebalNilai}
+                    onChange={(e) => setTebalNilai(e.target.value)}
+                    disabled={jenisPengajuan === "Hanya Jasa"}
+                    placeholder="Contoh: 9"
+                    className="h-9 rounded-lg text-xs bg-white border-slate-200 flex-1 min-w-0"
+                    required
+                  />
+                  <div className="w-24 shrink-0">
+                    <CreatableSelect
+                      value={tebalSatuan ? { label: tebalSatuan, value: tebalSatuan } : null}
+                      onChange={(opt: any) => setTebalSatuan(opt ? opt.value : "")}
+                      options={SATUAN_TEBAL_OPTIONS}
+                      isDisabled={jenisPengajuan === "Hanya Jasa"}
+                      styles={unitSelectStyles}
+                      placeholder="Satuan"
+                      formatCreateLabel={(val) => `"${val}"`}
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400">Contoh: 9 mm</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Toleransi Presisi <span className="text-red-500">*</span>
+                  Toleransi Presisi
                 </Label>
-                <Input
-                  value={toleransi}
-                  onChange={(e) => setToleransi(e.target.value)}
-                  disabled={jenisPengajuan === "Hanya Jasa"}
-                  placeholder="Contoh: ± 0.5 mm"
-                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                  required
-                />
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={toleransiNilai}
+                    onChange={(e) => setToleransiNilai(e.target.value)}
+                    disabled={jenisPengajuan === "Hanya Jasa"}
+                    placeholder="Contoh: 0.5"
+                    className="h-9 rounded-lg text-xs bg-white border-slate-200 flex-1 min-w-0"
+                  />
+                  <div className="w-24 shrink-0">
+                    <CreatableSelect
+                      value={toleransiSatuan ? { label: toleransiSatuan, value: toleransiSatuan } : null}
+                      onChange={(opt: any) => setToleransiSatuan(opt ? opt.value : "")}
+                      options={SATUAN_TOLERANSI_OPTIONS}
+                      isDisabled={jenisPengajuan === "Hanya Jasa"}
+                      styles={unitSelectStyles}
+                      placeholder="Satuan"
+                      formatCreateLabel={(val) => `"${val}"`}
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400">Contoh: ± 0.5 mm</span>
               </div>
             </div>
           </div>
@@ -667,7 +1070,7 @@ export function TambahPengajuanModal({
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
-                3
+                4
               </span>
               <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
                 Penempatan &amp; Catatan
@@ -677,7 +1080,9 @@ export function TambahPengajuanModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Implementasi <span className="text-red-500">*</span></span>
+                  <span>
+                    Implementasi <span className="text-red-500">*</span>
+                  </span>
                   <span className="text-[10px] text-slate-400 font-normal">Multi-select</span>
                 </Label>
                 <CreatableSelect
@@ -688,26 +1093,26 @@ export function TambahPengajuanModal({
                   }
                   options={posisiOptions.map((opt) => ({ label: opt, value: opt }))}
                   placeholder="Pilih implementasi..."
-                  formatCreateLabel={(val: string) => `Tambah "${val}"`}
+                  formatCreateLabel={(val) => `Tambah "${val}"`}
                   styles={{
-                    control: (base: any) => ({
+                    control: (base) => ({
                       ...base,
                       minHeight: "36px",
                       borderRadius: "0.5rem",
                       borderColor: "#e2e8f0",
                       fontSize: "12px",
                     }),
-                    menu: (base: any) => ({
+                    menu: (base) => ({
                       ...base,
                       fontSize: "12px",
                       zIndex: 50,
                     }),
-                    multiValue: (base: any) => ({
+                    multiValue: (base) => ({
                       ...base,
                       backgroundColor: "#f1f5f9",
                       borderRadius: "0.375rem",
                     }),
-                    multiValueLabel: (base: any) => ({
+                    multiValueLabel: (base) => ({
                       ...base,
                       fontSize: "11px",
                       color: "#1e293b",
@@ -720,7 +1125,9 @@ export function TambahPengajuanModal({
 
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Lokasi / Area Gerai <span className="text-red-500">*</span></span>
+                  <span>
+                    Lokasi / Area Gerai <span className="text-red-500">*</span>
+                  </span>
                   <span className="text-[10px] text-slate-400 font-normal">Multi-select</span>
                 </Label>
                 <CreatableSelect
@@ -731,26 +1138,26 @@ export function TambahPengajuanModal({
                   }
                   options={areaOptions.map((opt) => ({ label: opt, value: opt }))}
                   placeholder="Pilih area lokasi..."
-                  formatCreateLabel={(val: string) => `Tambah "${val}"`}
+                  formatCreateLabel={(val) => `Tambah "${val}"`}
                   styles={{
-                    control: (base: any) => ({
+                    control: (base) => ({
                       ...base,
                       minHeight: "36px",
                       borderRadius: "0.5rem",
                       borderColor: "#e2e8f0",
                       fontSize: "12px",
                     }),
-                    menu: (base: any) => ({
+                    menu: (base) => ({
                       ...base,
                       fontSize: "12px",
                       zIndex: 50,
                     }),
-                    multiValue: (base: any) => ({
+                    multiValue: (base) => ({
                       ...base,
                       backgroundColor: "#f1f5f9",
                       borderRadius: "0.375rem",
                     }),
-                    multiValueLabel: (base: any) => ({
+                    multiValueLabel: (base) => ({
                       ...base,
                       fontSize: "11px",
                       color: "#1e293b",
@@ -780,7 +1187,7 @@ export function TambahPengajuanModal({
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
-                4
+                5
               </span>
               <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
                 Kode Master &amp; Deskripsi

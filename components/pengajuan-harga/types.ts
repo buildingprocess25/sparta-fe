@@ -249,16 +249,18 @@ export function generateDeskripsiOtomatis(data: {
     const cleanTol = data.toleransi.trim();
     parts.push(cleanTol.toLowerCase().startsWith('toleransi') ? cleanTol : `Toleransi ${cleanTol}`);
   }
-  // TEPAT SEBELUM IMPLEMENTASI
-  if (data.informasiTambahan?.trim()) {
-    parts.push(`(${data.informasiTambahan.trim()})`);
+  if (data.lokasi && data.lokasi.length > 0) {
+    const locs = Array.isArray(data.lokasi) ? data.lokasi.join(', ') : data.lokasi; 
+    const cleanLoc = locs.trim();
+    parts.push(cleanLoc.toLowerCase().startsWith('lokasi') ? cleanLoc : `Lokasi ${cleanLoc}`);
   }
   if (data.implementasi && data.implementasi.length > 0) {
-    const impls = Array.isArray(data.implementasi) ? data.implementasi.join(', ') : data.implementasi; parts.push(`(${impls})`);
+    const impls = Array.isArray(data.implementasi) ? data.implementasi.join(', ') : data.implementasi; 
+    const cleanImpls = impls.trim();
+    parts.push(cleanImpls.toLowerCase().startsWith('implementasi') ? cleanImpls : `Implementasi ${cleanImpls}`);
   }
-  if (data.lokasi && data.lokasi.length > 0) {
-    const locs = Array.isArray(data.lokasi) ? data.lokasi.join(', ') : data.lokasi; const cleanLoc = locs.trim();
-    parts.push(cleanLoc.toLowerCase().startsWith('area') ? cleanLoc : `Area ${cleanLoc}`);
+  if (data.informasiTambahan?.trim()) {
+    parts.push(`(${data.informasiTambahan.trim()})`);
   }
 
   return parts.join(' ').trim();
@@ -275,7 +277,7 @@ export function generateDeskripsiOtomatis(data: {
  *    - Jika barang fisik sama (Kode Item sama) dan lokasi sama persis -> DUPLIKAT.
  *    - Jika barang fisik sama (Kode Item sama) tapi lokasi berbeda -> Varian baru (A, B, C, dst.).
  * 3. Kode Master:
- *    Format: [Kode Item]-[Kode Varian]-[Nama Material]
+ *    Format: [Kode Item]-[Kode Varian]-[Kategori Pekerjaan]
  */
 export function getKodeData(data: {
   kategori?: string;
@@ -302,6 +304,7 @@ export function getKodeData(data: {
   const normUkuran = (s?: string) => (s || '').trim().replace(/\s*cm$/i, '').replace(/\s+/g, '').toLowerCase();
   const normTebal = (s?: string) => (s || '').trim().replace(/\s*mm$/i, '').replace(/\s+/g, '').toLowerCase();
 
+  const cleanKategori = (data.kategori || data.item || 'Kategori').trim().replace(/\s+/g, '');
   const cleanItem = (data.item || 'Item').trim().replace(/\s+/g, '');
   const cleanUkuran = (data.ukuran || '').trim().replace(/\s*cm$/i, '').replace(/\s+/g, '');
   const existingItems = data.existingItems || [];
@@ -390,7 +393,7 @@ export function getKodeData(data: {
     kodeVarian = 'A';
   }
 
-  const kodeMaster = `${kodeItem}-${kodeVarian}-${cleanItem}`;
+  const kodeMaster = `${kodeItem}-${kodeVarian}-${cleanKategori}`;
 
   return {
     kodeItem,

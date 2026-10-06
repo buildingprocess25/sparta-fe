@@ -4,7 +4,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-1',
     kode: 'SIP-001',
-    kodeMaster: 'SIP-001-A-Keramik-60x60',
+    kodeMaster: 'SIP-001-A-PekerjaanKeramik',
     item: 'Keramik',
     ukuran: '60x60',
     merk: 'Sandimas',
@@ -25,7 +25,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-2',
     kode: 'SIP-002',
-    kodeMaster: 'SIP-002-A-Keramik-60x60',
+    kodeMaster: 'SIP-002-A-PekerjaanKeramik',
     item: 'Keramik',
     ukuran: '60x60',
     merk: 'Luxury',
@@ -46,7 +46,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-3',
     kode: 'SIP-003',
-    kodeMaster: 'SIP-003-A-Keramik-60x60',
+    kodeMaster: 'SIP-003-A-PekerjaanKeramik',
     item: 'Keramik',
     ukuran: '60x60',
     merk: 'Mahesa',
@@ -67,7 +67,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-4',
     kode: 'SIP-004',
-    kodeMaster: 'SIP-004-A-Keramik-60x60',
+    kodeMaster: 'SIP-004-A-AreaTerbuka',
     item: 'Keramik',
     ukuran: '60x60',
     merk: 'Roman',
@@ -88,7 +88,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-5',
     kode: 'SIP-005',
-    kodeMaster: 'SIP-005-A-Keramik-60x60',
+    kodeMaster: 'SIP-005-A-PekerjaanKeramik',
     item: 'Keramik',
     ukuran: '60x60',
     merk: 'Roman',
@@ -109,7 +109,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-6',
     kode: 'SIP-006',
-    kodeMaster: 'SIP-006-A-Keramik-60x60',
+    kodeMaster: 'SIP-006-A-AreaTerbuka',
     item: 'Keramik',
     ukuran: '60x60',
     merk: 'Indogress',
@@ -141,7 +141,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-master-1',
     kode: 'SIP-007',
-    kodeMaster: 'SIP-007-A-Granit-60x60',
+    kodeMaster: 'SIP-007-A-PekerjaanLantai',
     item: 'Granit Tile',
     ukuran: '60x60',
     merk: 'Granito',
@@ -164,7 +164,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-trial-1',
     kode: 'SIP-008',
-    kodeMaster: 'SIP-008-A-WPC-Wallpanel-20x290',
+    kodeMaster: 'SIP-008-A-PekerjaanDinding',
     item: 'WPC Wallpanel Fluted',
     ukuran: '20x290',
     merk: 'Duma',
@@ -189,7 +189,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-trial-2',
     kode: 'SIP-009',
-    kodeMaster: 'SIP-009-A-Cat-Epoxy-2-Komponen',
+    kodeMaster: 'SIP-009-A-PekerjaanLantai',
     item: 'Cat Lantai Epoxy Self-Leveling',
     ukuran: '20 Kg / Pail',
     merk: 'Propan',
@@ -216,7 +216,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-trial-3',
     kode: 'SIP-010',
-    kodeMaster: 'SIP-010-A-Plafon-PVC-Wood-20x400',
+    kodeMaster: 'SIP-010-A-PekerjaanPlafon',
     item: 'Plafon PVC Acoustic Water-Resistant',
     ukuran: '20x400',
     merk: 'Shunda Plafon',
@@ -243,7 +243,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-trial-4',
     kode: 'SIP-011',
-    kodeMaster: 'SIP-011-A-Lampu-LED-Batten-18W',
+    kodeMaster: 'SIP-011-A-PekerjaanElektrikal',
     item: 'Lampu LED Batten T8 Energy Saver',
     ukuran: '120 cm',
     merk: 'Philips',
@@ -271,7 +271,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-trial-5',
     kode: 'SIP-016',
-    kodeMaster: 'SIP-016-A-Cat-Silver-Ion-20L',
+    kodeMaster: 'SIP-016-A-PekerjaanPengecatan',
     item: 'Cat Dinding Antibakteri Silver Ion',
     ukuran: '20 Liter',
     merk: 'Mowilex',
@@ -297,7 +297,7 @@ export const INITIAL_PENGAJUAN_HARGA_ITEMS: PengajuanHargaItem[] = [
   {
     id: 'item-trial-6',
     kode: 'SIP-019',
-    kodeMaster: 'SIP-019-A-Vinyl-HeavyDuty-3mm',
+    kodeMaster: 'SIP-019-A-PekerjaanLantai',
     item: 'Vinyl Flooring Plank Heavy Duty 3mm',
     ukuran: '15x90 cm',
     merk: 'Tarkett',
