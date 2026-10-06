@@ -248,6 +248,22 @@ export function generateDeskripsiOtomatis(data: {
   if (data.toleransi?.trim()) {
     const cleanTol = data.toleransi.trim();
     parts.push(cleanTol.toLowerCase().startsWith('toleransi') ? cleanTol : `Toleransi ${cleanTol}`);
+    
+    if (data.tebal?.trim()) {
+      const tebal = parseFloat(data.tebal);
+      const tol = parseFloat(data.toleransi);
+      if (!isNaN(tebal) && !isNaN(tol)) {
+        const unitMatch = data.tebal.match(/[a-zA-Z]+/);
+        const unit = unitMatch ? unitMatch[0] : "";
+        let min = 0;
+        if (data.toleransi.includes("%")) {
+          min = tebal - (tebal * tol / 100);
+        } else {
+          min = tebal - tol;
+        }
+        parts.push(`(Toleransi Terukur Minimal: ${Number.isInteger(min) ? min : min.toFixed(2)} ${unit})`);
+      }
+    }
   }
   if (data.lokasi && data.lokasi.length > 0) {
     const locs = Array.isArray(data.lokasi) ? data.lokasi.join(', ') : data.lokasi; 
