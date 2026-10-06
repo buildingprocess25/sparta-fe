@@ -6,10 +6,65 @@ import {
   PengajuanHargaItem,
   KoefisienDetailItem,
 } from "@/components/pengajuan-harga/types";
-
-// =============================================================================
+import CreatableSelect from "react-select/creatable";
 // Standar Pilihan Combo Box
 // =============================================================================
+export const UPAH_UNIT_OPTIONS = [
+  { label: "Oh", value: "Oh" },
+  { label: "Hari", value: "Hari" },
+  { label: "Bulan", value: "Bulan" },
+  { label: "Ls", value: "Ls" },
+];
+
+export const MATERIAL_UNIT_OPTIONS = [
+  { label: "Kg", value: "Kg" },
+  { label: "M2", value: "M2" },
+  { label: "M3", value: "M3" },
+  { label: "M1", value: "M1" },
+  { label: "Pcs", value: "Pcs" },
+  { label: "Btg", value: "Btg" },
+  { label: "Zak", value: "Zak" },
+  { label: "Ltr", value: "Ltr" },
+  { label: "Unit", value: "Unit" },
+  { label: "Ls", value: "Ls" },
+];
+
+export const unitSelectStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    minHeight: "28px",
+    height: "28px",
+    borderRadius: "0.25rem",
+    borderColor: state.isFocused ? "#3b82f6" : "#cbd5e1",
+    fontSize: "12px",
+    boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
+    "&:hover": {
+      borderColor: "#94a3b8",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    fontSize: "12px",
+    zIndex: 50,
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: "0 6px",
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    padding: "2px",
+  }),
+  clearIndicator: (base: any) => ({
+    ...base,
+    padding: "2px",
+  }),
+  input: (base: any) => ({
+    ...base,
+    margin: "0",
+    padding: "0",
+  }),
+};
 interface ComboBoxOption {
   label: string;
   unit: string;
@@ -316,11 +371,36 @@ export function RincianKalkulasiKoefisien({
   return (
     <div className="bg-gray-50/50 border border-gray-200 rounded-lg p-5 shadow-sm space-y-5">
       {/* Header Rincian */}
-      <div className="flex items-center gap-2">
-        <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
-        <h2 className="text-gray-700 font-bold text-[13px] tracking-wide">
-          RINCIAN KOEFISIEN
-        </h2>
+      <div className="flex flex-col gap-1.5 mb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 bg-red-600 rounded-full"></div>
+          <h2 className="text-gray-700 font-bold text-[13px] tracking-wide">
+            RINCIAN KOEFISIEN
+          </h2>
+        </div>
+        {item && (
+          <div className="text-xs text-gray-500 pl-4">
+            <p>Item: <span className="font-semibold text-gray-800">{item.kode} - {item.item}</span> ({item.ukuran} • {item.merk})</p>
+            {item.tebal && item.toleransi && (
+              <span className="text-[11px] bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded w-fit inline-block mt-1">
+                Toleransi Terukur Minimal: <strong>{(() => {
+                  const tebal = parseFloat(item.tebal!);
+                  const tol = parseFloat(item.toleransi!);
+                  if (isNaN(tebal) || isNaN(tol)) return "-";
+                  const unitMatch = item.tebal!.match(/[a-zA-Z]+/);
+                  const unit = unitMatch ? unitMatch[0] : "";
+                  let min = 0;
+                  if (item.toleransi!.includes("%")) {
+                    min = tebal - (tebal * tol / 100);
+                  } else {
+                    min = tebal - tol;
+                  }
+                  return `${Number.isInteger(min) ? min : min.toFixed(2)} ${unit}`;
+                })()}</strong>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* =========================================================================
@@ -400,16 +480,22 @@ export function RincianKalkulasiKoefisien({
                   autoFocus
                 />
               </div>
-              <div className="w-20">
+              <div className="w-24">
                 <label className="block text-[10px] font-semibold text-slate-700 mb-1">
                   Satuan
                 </label>
-                <input
-                  type="text"
+                <CreatableSelect
+                  styles={unitSelectStyles}
+                  options={UPAH_UNIT_OPTIONS}
+                  value={
+                    newUpahUnit
+                      ? { label: newUpahUnit, value: newUpahUnit }
+                      : null
+                  }
+                  onChange={(selected: any) =>
+                    setNewUpahUnit(selected ? selected.value : "Oh")
+                  }
                   placeholder="Oh"
-                  value={newUpahUnit}
-                  onChange={(e) => setNewUpahUnit(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-1.5 w-full text-xs bg-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div className="w-32">
@@ -662,16 +748,22 @@ export function RincianKalkulasiKoefisien({
                   autoFocus
                 />
               </div>
-              <div className="w-20">
+              <div className="w-24">
                 <label className="block text-[10px] font-semibold text-slate-700 mb-1">
                   Satuan
                 </label>
-                <input
-                  type="text"
-                  placeholder="Kg / m2"
-                  value={newMaterialUnit}
-                  onChange={(e) => setNewMaterialUnit(e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-1.5 w-full text-xs bg-white text-center focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                <CreatableSelect
+                  styles={unitSelectStyles}
+                  options={MATERIAL_UNIT_OPTIONS}
+                  value={
+                    newMaterialUnit
+                      ? { label: newMaterialUnit, value: newMaterialUnit }
+                      : null
+                  }
+                  onChange={(selected: any) =>
+                    setNewMaterialUnit(selected ? selected.value : "Kg")
+                  }
+                  placeholder="Kg"
                 />
               </div>
               <div className="w-28">

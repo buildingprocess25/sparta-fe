@@ -7,8 +7,66 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import CreatableSelect from "react-select/creatable";
 import { PengajuanHargaItem } from "./types";
 import { Trash2, Plus, Check, X } from "lucide-react";
+
+export const UPAH_UNIT_OPTIONS = [
+  { label: "Oh", value: "Oh" },
+  { label: "Hari", value: "Hari" },
+  { label: "Bulan", value: "Bulan" },
+  { label: "Ls", value: "Ls" },
+];
+
+export const MATERIAL_UNIT_OPTIONS = [
+  { label: "Kg", value: "Kg" },
+  { label: "M2", value: "M2" },
+  { label: "M3", value: "M3" },
+  { label: "M1", value: "M1" },
+  { label: "Pcs", value: "Pcs" },
+  { label: "Btg", value: "Btg" },
+  { label: "Zak", value: "Zak" },
+  { label: "Ltr", value: "Ltr" },
+  { label: "Unit", value: "Unit" },
+  { label: "Ls", value: "Ls" },
+];
+
+export const unitSelectStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    minHeight: "30px",
+    height: "30px",
+    borderRadius: "0.375rem",
+    borderColor: state.isFocused ? "#3b82f6" : "#d1d5db",
+    fontSize: "12px",
+    boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
+    "&:hover": {
+      borderColor: "#9ca3af",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    fontSize: "12px",
+    zIndex: 50,
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: "0 8px",
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    padding: "2px 4px",
+  }),
+  clearIndicator: (base: any) => ({
+    ...base,
+    padding: "2px 4px",
+  }),
+  input: (base: any) => ({
+    ...base,
+    margin: "0",
+    padding: "0",
+  }),
+};
 
 export interface KoefisienDetailItem {
   id: string;
@@ -171,18 +229,40 @@ export function ModalRincianKoefisien({
               <DialogTitle className="text-gray-700 font-bold text-sm tracking-wide">
                 RINCIAN INPUT KOEFISIEN PEKERJAAN
               </DialogTitle>
-              <DialogDescription className="text-xs text-gray-500 font-normal mt-0.5">
-                {item ? (
-                  <>
-                    Item:{" "}
-                    <span className="font-semibold text-gray-800">
-                      {item.kode} - {item.item}
-                    </span>{" "}
-                    ({item.ukuran} • {item.merk})
-                  </>
-                ) : (
-                  "Input rincian koefisien pekerjaan"
-                )}
+              <DialogDescription asChild className="text-xs text-gray-500 font-normal mt-0.5">
+                <div className="flex flex-col gap-1">
+                  {item ? (
+                    <>
+                      <span>
+                        Item:{" "}
+                        <span className="font-semibold text-gray-800">
+                          {item.kode} - {item.item}
+                        </span>{" "}
+                        ({item.ukuran} • {item.merk})
+                      </span>
+                      {item.tebal && item.toleransi && (
+                        <span className="text-[11px] bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded w-fit inline-block">
+                          Toleransi Terukur Minimal: <strong>{(() => {
+                            const tebal = parseFloat(item.tebal!);
+                            const tol = parseFloat(item.toleransi!);
+                            if (isNaN(tebal) || isNaN(tol)) return "-";
+                            const unitMatch = item.tebal!.match(/[a-zA-Z]+/);
+                            const unit = unitMatch ? unitMatch[0] : "";
+                            let min = 0;
+                            if (item.toleransi!.includes("%")) {
+                              min = tebal - (tebal * tol / 100);
+                            } else {
+                              min = tebal - tol;
+                            }
+                            return `${Number.isInteger(min) ? min : min.toFixed(2)} ${unit}`;
+                          })()}</strong>
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span>Input rincian koefisien pekerjaan</span>
+                  )}
+                </div>
               </DialogDescription>
             </div>
           </div>
@@ -225,16 +305,22 @@ export function ModalRincianKoefisien({
                     autoFocus
                   />
                 </div>
-                <div className="w-24">
+                <div className="w-28">
                   <label className="block text-[11px] font-semibold text-gray-700 mb-1">
                     Satuan
                   </label>
-                  <input
-                    type="text"
+                  <CreatableSelect
+                    styles={unitSelectStyles}
+                    options={UPAH_UNIT_OPTIONS}
+                    value={
+                      newUpahUnit
+                        ? { label: newUpahUnit, value: newUpahUnit }
+                        : null
+                    }
+                    onChange={(selected: any) =>
+                      setNewUpahUnit(selected ? selected.value : "Oh")
+                    }
                     placeholder="Oh"
-                    value={newUpahUnit}
-                    onChange={(e) => setNewUpahUnit(e.target.value)}
-                    className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
                 <div className="w-28">
@@ -347,16 +433,22 @@ export function ModalRincianKoefisien({
                     autoFocus
                   />
                 </div>
-                <div className="w-24">
+                <div className="w-28">
                   <label className="block text-[11px] font-semibold text-gray-700 mb-1">
                     Satuan
                   </label>
-                  <input
-                    type="text"
+                  <CreatableSelect
+                    styles={unitSelectStyles}
+                    options={MATERIAL_UNIT_OPTIONS}
+                    value={
+                      newMaterialUnit
+                        ? { label: newMaterialUnit, value: newMaterialUnit }
+                        : null
+                    }
+                    onChange={(selected: any) =>
+                      setNewMaterialUnit(selected ? selected.value : "Kg")
+                    }
                     placeholder="Kg"
-                    value={newMaterialUnit}
-                    onChange={(e) => setNewMaterialUnit(e.target.value)}
-                    className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white text-center focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
                 <div className="w-28">
