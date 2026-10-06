@@ -315,11 +315,17 @@ export default function SPKPage() {
                         const status = latestSpk.status;
                         
                         if (status === "SPK_REJECTED") {
-                            // Parse nomor PAR lama
+                            // Parse nomor PAR lama dan baru
                             let pNo = '', pB = '', pT = '';
                             if (latestSpk.par) {
                                 const parPartsSlash = latestSpk.par.split("/");
-                                if (parPartsSlash.length >= 2) {
+                                if (parPartsSlash.length >= 4) {
+                                    // Format Baru: 0091/PROPNDEV-1AZ1/IV/2026
+                                    pNo = parPartsSlash[0];
+                                    pB = parPartsSlash[2];
+                                    pT = parPartsSlash[3];
+                                } else if (parPartsSlash.length >= 2) {
+                                    // Format Lama: 0091/PROPNDEV-1AZ1-IV-2026
                                     pNo = parPartsSlash[0];
                                     const sParts = parPartsSlash[1].split("-");
                                     if (sParts.length >= 3) {
@@ -392,7 +398,7 @@ export default function SPKPage() {
             return;
         }
 
-        const fullPAR = `${form.par_no}/PROPNDEV-${form.kode_cabang}-${form.par_bulan}-${form.par_tahun}`;
+        const fullPAR = `${form.par_no}/PROPNDEV-${form.kode_cabang}/${form.par_bulan}/${form.par_tahun}`;
 
         const payload = {
             id_toko: parseInt(selectedRabObj["id_toko"], 10),
@@ -642,9 +648,9 @@ export default function SPKPage() {
                                             <input type="text" required readOnly={isReadOnly} placeholder="No" className="w-16 p-1.5 text-center border rounded font-bold outline-none uppercase" value={form.par_no} onChange={e => setForm({...form, par_no: e.target.value.toUpperCase()})} />
                                             <span className="font-bold text-slate-400">/</span>
                                             <span className="font-bold text-slate-600 whitespace-nowrap">PROPNDEV-{form.kode_cabang || '...'}</span>
-                                            <span className="font-bold text-slate-400">-</span>
+                                            <span className="font-bold text-slate-400">/</span>
                                             <input type="text" required readOnly={isReadOnly} placeholder="Bulan (X)" className="w-16 p-1.5 text-center border rounded font-bold outline-none uppercase" value={form.par_bulan} onChange={e => setForm({...form, par_bulan: e.target.value.toUpperCase()})} />
-                                            <span className="font-bold text-slate-400">-</span>
+                                            <span className="font-bold text-slate-400">/</span>
                                             <input type="text" required readOnly={isReadOnly} placeholder="Thn" maxLength={4} className="w-16 p-1.5 text-center border rounded font-bold outline-none" value={form.par_tahun} onChange={e => setForm({...form, par_tahun: e.target.value})} />
                                         </div>
                                     </div>
