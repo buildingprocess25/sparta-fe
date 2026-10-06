@@ -47,6 +47,7 @@ import {
   PengajuanHargaItem,
   PengajuanHargaFilterState,
   getKodeData,
+  DAFTAR_CABANG_ALFAMART,
 } from '@/components/pengajuan-harga/types';
 import {
   getStoredPengajuan,
@@ -61,6 +62,7 @@ import {
   exportToPDF,
 } from '@/components/pengajuan-harga/export-utils';
 import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
+import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
 export default function BMManagerPage() {
@@ -85,6 +87,7 @@ export default function BMManagerPage() {
   const [catatanAction, setCatatanAction] = useState('');
 
   // Filter & Search State
+  const [selectedCabang, setSelectedCabang] = useState<string>('Cikokol');
   const [filters, setFilters] = useState<PengajuanHargaFilterState>({
     search: '',
     kategori: 'all',
@@ -110,6 +113,11 @@ export default function BMManagerPage() {
   // Filtered Items untuk Tab "Daftar Spesifikasi Material"
   const filteredMaterials = useMemo(() => {
     return items.filter(item => {
+      // Filter Cabang Pengaju: B&M Manager beroperasi per cabang
+      if (selectedCabang !== 'all' && item.cabang && item.cabang !== selectedCabang) {
+        return false;
+      }
+
       if (filters.search.trim()) {
         const q = filters.search.toLowerCase();
         const match =
@@ -121,6 +129,7 @@ export default function BMManagerPage() {
           item.warna.toLowerCase().includes(q) ||
           item.lokasi.toLowerCase().includes(q) ||
           item.kategori.toLowerCase().includes(q) ||
+          (item.cabang && item.cabang.toLowerCase().includes(q)) ||
           item.deskripsiOtomatis.toLowerCase().includes(q);
         if (!match) return false;
       }
@@ -129,12 +138,16 @@ export default function BMManagerPage() {
       if (filters.implementasi !== 'all' && item.implementasi !== filters.implementasi) return false;
       return true;
     });
-  }, [items, filters]);
+  }, [items, filters, selectedCabang]);
 
   // Items Pending Approval Layer 1 (Survei Harga dari Building Coordinator)
   const pendingApprovals = useMemo(() => {
-    return items.filter(i => i.status === 'PENDING_BM_MGR');
-  }, [items]);
+    return items.filter(i => {
+      if (i.status !== 'PENDING_BM_MGR') return false;
+      if (selectedCabang !== 'all' && i.cabang && i.cabang !== selectedCabang) return false;
+      return true;
+    });
+  }, [items, selectedCabang]);
 
   const filteredPendingApprovals = useMemo(() => {
     if (!filters.search.trim()) return pendingApprovals;
@@ -144,7 +157,8 @@ export default function BMManagerPage() {
       (i.kodeMaster && i.kodeMaster.toLowerCase().includes(q)) ||
       i.item.toLowerCase().includes(q) ||
       i.merk.toLowerCase().includes(q) ||
-      i.lokasi.toLowerCase().includes(q)
+      i.lokasi.toLowerCase().includes(q) ||
+      (i.cabang && i.cabang.toLowerCase().includes(q))
     );
   }, [pendingApprovals, filters.search]);
 
@@ -211,10 +225,11 @@ export default function BMManagerPage() {
     // Tetapkan status awal untuk alur kerja dan pastikan kode tersinkron
     const itemWithStatus: PengajuanHargaItem = {
       ...newItem,
+      cabang: newItem.cabang || (selectedCabang !== 'all' ? selectedCabang : 'Cikokol'),
       kode: newItem.kode || check.kodeItem,
       kodeMaster: newItem.kodeMaster || check.kodeMaster,
       status: 'DIAJUKAN',
-      tanggalPengajuan: new Date().toISOString().slice(0, 10),
+      tanggalPengajuan: newItem.tanggalPengajuan || new Date().toISOString().slice(0, 10),
     };
     const updated = [itemWithStatus, ...items];
     setItems(updated);
@@ -334,26 +349,40 @@ export default function BMManagerPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <AppNavbar title="Ruang Kerja B&M Manager" showBackButton backHref="/pengajuan-harga" />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 space-y-5">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 md:p-6 space-y-5">
         {/* Banner Header Role B&M Manager */}
-        <div className="bg-gradient-to-r from-red-700 via-red-600 to-rose-700 p-5 md:p-6 rounded-2xl text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-red-600 p-5 md:p-6 rounded-xl text-white shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-red-700/20">
           <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl shrink-0 border border-white/20">
-              <Building2 className="w-7 h-7 text-white" />
+            <div className="p-2.5 bg-white/10 rounded-xl shrink-0 border border-white/20">
+              <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl md:text-2xl font-black tracking-tight">
-                  Branch Building &amp; Maintenance (B&amp;M) Manager
-                </h1>
-              
-              </div>
-              <p className="text-xs md:text-sm text-red-100 mt-1 max-w-2xl leading-relaxed">
-                Kelola daftar spesifikasi material, inisiasi request pengajuan baru, dan tinjau persetujuan.
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+                Building &amp; Maintenance (B&amp;M) Manager
+              </h1>
+              <p className="text-xs md:text-sm text-red-100 mt-0.5 max-w-2xl font-normal">
+                Kelola pengajuan spesifikasi material dan persetujuan harga gerai per unit cabang operasional.
               </p>
             </div>
           </div>
 
+          {/* Selector Cabang Operasional B&M */}
+          <div className="bg-white/15 backdrop-blur-xs border border-white/25 rounded-xl p-2 px-3.5 flex items-center gap-2.5 shrink-0 self-stretch md:self-auto justify-between md:justify-start">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-red-200 tracking-wider">Filter Cabang</span>
+            </div>
+            <Select value={selectedCabang} onValueChange={setSelectedCabang}>
+              <SelectTrigger className="h-8.5 w-40 bg-white text-slate-900 font-bold text-xs border-0 rounded-lg shadow-xs">
+                <SelectValue placeholder="Pilih Cabang" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Cabang</SelectItem>
+                {DAFTAR_CABANG_ALFAMART.map(c => (
+                  <SelectItem key={c} value={c}>Cabang {c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Tab Switcher Navigation */}
@@ -367,7 +396,7 @@ export default function BMManagerPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Pengajuan Spesifikasi (ke S&amp;B)</span>
+            <span>Pengajuan Spesifikasi</span>
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
               activeTab === 'materials' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-600'
             }`}>
@@ -384,10 +413,10 @@ export default function BMManagerPage() {
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>Approval Harga Survei (dari BC)</span>
+            <span>Persetujuan Harga</span>
             {pendingApprovals.length > 0 && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-500 text-white animate-pulse">
-                {pendingApprovals.length} Pending
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-600 text-white">
+                {pendingApprovals.length} Menunggu
               </span>
             )}
           </button>
@@ -402,8 +431,8 @@ export default function BMManagerPage() {
               <Input
                 value={filters.search}
                 onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                placeholder="Cari kode, kode master, material, merk, lokasi..."
-                className="pl-9 h-9 rounded-4xl text-xs border-slate-200 focus-visible:ring-red-500/20 focus-visible:border-red-500"
+                placeholder="Cari kode, material, merk, kategori..."
+                className="pl-9 h-9 rounded-lg text-xs border-slate-200 focus-visible:ring-red-500/20 focus-visible:border-red-500"
               />
             </div>
 
@@ -415,7 +444,7 @@ export default function BMManagerPage() {
                     value={filters.kategori}
                     onValueChange={val => setFilters(prev => ({ ...prev, kategori: val }))}
                   >
-                    <SelectTrigger className="h-9 rounded-4xl text-xs border-slate-200">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-slate-200">
                       <SelectValue placeholder="Semua Kategori" />
                     </SelectTrigger>
                     <SelectContent>
@@ -433,7 +462,7 @@ export default function BMManagerPage() {
                     value={filters.merk}
                     onValueChange={val => setFilters(prev => ({ ...prev, merk: val }))}
                   >
-                    <SelectTrigger className="h-9 rounded-4xl text-xs border-slate-200">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-slate-200">
                       <SelectValue placeholder="Semua Merk" />
                     </SelectTrigger>
                     <SelectContent>
@@ -451,7 +480,7 @@ export default function BMManagerPage() {
                     value={filters.implementasi}
                     onValueChange={val => setFilters(prev => ({ ...prev, implementasi: val }))}
                   >
-                    <SelectTrigger className="h-9 rounded-4xl text-xs border-slate-200">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-slate-200">
                       <SelectValue placeholder="Semua Posisi" />
                     </SelectTrigger>
                     <SelectContent>
@@ -470,7 +499,7 @@ export default function BMManagerPage() {
                 variant="ghost"
                 size="sm"
                 onClick={handleResetFilters}
-                className="h-9 rounded-4xl text-xs text-slate-500 hover:text-slate-800 gap-1 px-3 shrink-0"
+                className="h-9 rounded-lg text-xs text-slate-500 hover:text-slate-800 gap-1 px-3 shrink-0"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset</span>
@@ -485,7 +514,7 @@ export default function BMManagerPage() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="rounded-4xl h-9 text-xs gap-1.5 border-slate-200 hover:bg-slate-100 flex-1 sm:flex-initial"
+                  className="rounded-lg h-9 text-xs gap-1.5 border-slate-200 hover:bg-slate-100 flex-1 sm:flex-initial"
                   disabled={isExporting}
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -512,7 +541,7 @@ export default function BMManagerPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  className="rounded-4xl h-9 text-xs gap-1.5 bg-red-600 hover:bg-red-700 text-white font-semibold shadow-xs flex-1 sm:flex-initial cursor-pointer"
+                  className="rounded-lg h-9 text-xs gap-1.5 bg-red-600 hover:bg-red-700 text-white font-semibold shadow-xs flex-1 sm:flex-initial cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Tambah Pengajuan</span>
@@ -559,50 +588,10 @@ export default function BMManagerPage() {
           <PengajuanHargaTable
             items={filteredMaterials}
             showStatus={true}
-            showCatatanReview={true}
-            onViewCatatan={handleOpenCatatanModal}
-            showHarga={true}
-            title="Daftar Spesifikasi Material"
-            renderAction={(item) => {
-              if (item.status === 'REVISI' || item.status === 'PERLU_REVISI') {
-                return (
-                  <Button
-                    size="sm"
-                    onClick={() => handleOpenEditModal(item)}
-                    className="h-7 text-[11px] px-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 font-semibold cursor-pointer shadow-2xs"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Edit Revisi
-                  </Button>
-                );
-              }
-              if (item.status === 'DITOLAK' || item.status === 'DITOLAK_SB' || item.status === 'RETURNED_TO_BC') {
-                return (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                    Terkunci (Ditolak)
-                  </span>
-                );
-              }
-              if (item.status === 'SIAP_SURVEI') {
-                return (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
-                    Siap Survei (BC)
-                  </span>
-                );
-              }
-              if (item.status === 'DISETUJUI' || item.status === 'DISETUJUI_MASTERING' || item.status === 'APPROVED_ACTIVE' || item.status === 'RELEASED') {
-                return (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                    Disetujui
-                  </span>
-                );
-              }
-              return (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-                  Menunggu S&amp;B
-                </span>
-              );
-            }}
+            showHarga={false}
+            title={selectedCabang === 'all' ? "Daftar Spesifikasi Material (Semua Cabang)" : `Daftar Spesifikasi Material - Cabang ${selectedCabang}`}
+            onEditItem={handleOpenEditModal}
+            onResetFilter={handleResetFilters}
           />
         )}
 
@@ -610,11 +599,10 @@ export default function BMManagerPage() {
         {activeTab === 'approvals' && (
           <PengajuanHargaTable
             items={filteredPendingApprovals}
-            onApprove={(item) => handleOpenApprovalModal(item, 'APPROVE')}
-            onReject={(item) => handleOpenApprovalModal(item, 'REJECT')}
             showStatus={true}
             showHarga={true}
-            title="Daftar Pengajuan Harga Pending Layer 1 (Alur 2A)"
+            title={selectedCabang === 'all' ? "Daftar Pengajuan Harga (Semua Cabang)" : `Daftar Pengajuan Harga - Cabang ${selectedCabang}`}
+            onResetFilter={handleResetFilters}
           />
         )}
       </main>
@@ -657,6 +645,13 @@ export default function BMManagerPage() {
               Item: <strong>{selectedPengajuan?.kode} - {selectedPengajuan?.item} ({selectedPengajuan?.merk})</strong>
             </DialogDescription>
           </DialogHeader>
+
+          {/* Bar Timeline Pengajuan */}
+          {selectedPengajuan && (
+            <div className="my-2">
+              <PengajuanTimelineBar item={selectedPengajuan} />
+            </div>
+          )}
 
           {/* Rincian Survei 3 Toko (Reusable Component) */}
           {selectedPengajuan?.surveyToko && selectedPengajuan.surveyToko.length > 0 && (

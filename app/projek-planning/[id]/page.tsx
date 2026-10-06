@@ -484,7 +484,7 @@ function RabRejectEditor({
       </div>
 
       <div className="p-4 space-y-4">
-        <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-1.5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <Label className="text-xs font-semibold text-slate-700">Catatan General</Label>

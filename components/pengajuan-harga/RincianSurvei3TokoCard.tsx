@@ -25,6 +25,7 @@ export interface RincianSurvei3TokoCardProps {
   satuan?: string;
   materialCode?: string;
   materialName?: string;
+  hideHeader?: boolean;
   onChangeToko?: (index: number, updated: SurveyTokoItem) => void;
 }
 
@@ -34,6 +35,7 @@ export function RincianSurvei3TokoCard({
   satuan = 'm2',
   materialCode,
   materialName,
+  hideHeader = false,
   onChangeToko,
 }: RincianSurvei3TokoCardProps) {
   // Modal Preview Image State
@@ -121,20 +123,22 @@ export function RincianSurvei3TokoCard({
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
       {/* Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/80 border-b border-slate-200 gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-slate-800">
-            {materialName ? `Material: ${materialName}` : 'Rincian Survei 3 Toko'}
-            <span className="text-slate-400 font-normal ml-1">(Satuan: {satuan})</span>
-          </h2>
+      {!hideHeader && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/80 border-b border-slate-200 gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">
+              {materialName ? `Material: ${materialName}` : 'Rincian Survei 3 Toko'}
+              <span className="text-slate-400 font-normal ml-1">(Satuan: {satuan})</span>
+            </h2>
+          </div>
+          <div className="text-xs sm:text-sm text-slate-500">
+            Rata-Rata:{' '}
+            <span className="font-bold text-slate-900 ml-2 font-mono text-sm sm:text-base">
+              {formatRupiah(hargaRataRata)} / {satuan}
+            </span>
+          </div>
         </div>
-        <div className="text-xs sm:text-sm text-slate-500">
-          Rata-rata Survei:{' '}
-          <span className="font-bold text-slate-900 ml-2 font-mono text-sm sm:text-base">
-            {formatRupiah(hargaRataRata)} / {satuan}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Table Survei 3 Toko */}
       <div className="overflow-x-auto">

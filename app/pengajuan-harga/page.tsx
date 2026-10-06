@@ -32,8 +32,12 @@ const ROLES: RoleOption[] = [
     href: '/pengajuan-harga/kontraktor',
   },
   {
-    name: 'Katalog Master Harga',
+    name: 'Master Harga',
     href: '/pengajuan-harga/master-catalog',
+  },
+  {
+    name: 'Master Survei',
+    href: '/pengajuan-harga/master-survei',
   },
 ];
 

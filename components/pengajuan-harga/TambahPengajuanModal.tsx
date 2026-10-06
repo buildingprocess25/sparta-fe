@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CreatableCombobox } from "@/components/ui/creatable-combobox";
+import CreatableSelect from "react-select/creatable";
+import SelectMulti from "react-select";
 import {
   PengajuanHargaItem,
   generateDeskripsiOtomatis,
@@ -108,8 +111,10 @@ export function TambahPengajuanModal({
   const [permukaan, setPermukaan] = useState("");
   const [tebal, setTebal] = useState("");
   const [toleransi, setToleransi] = useState("");
-  const [implementasi, setImplementasi] = useState("Dinding Gerai");
-  const [lokasi, setLokasi] = useState("");
+  const [implementasi, setImplementasi] = useState<string[]>(["Dinding Gerai"]);
+  const [lokasi, setLokasi] = useState<string[]>([]);
+  const [jenisPengajuan, setJenisPengajuan] = useState<"Hanya Jasa" | "Material">("Material");
+  const [estimasiHarga, setEstimasiHarga] = useState<number | "">("");
   const [informasiTambahan, setInformasiTambahan] = useState("");
 
   const [kodeItem, setKodeItem] = useState(
@@ -134,10 +139,48 @@ export function TambahPengajuanModal({
     return revLog?.catatan || null;
   }, [itemToEdit]);
 
-  const materialOptions = useMemo(() => {
-    const fromExisting = existingItems.map((i) => i.item).filter(Boolean);
-    return Array.from(new Set([...INITIAL_MATERIAL_OPTIONS, ...fromExisting]));
+  const materialReactSelectOptions = useMemo(() => {
+    const existingOptions = existingItems.map(i => {
+      const parts = [i.ukuran, i.merk].filter(Boolean).join(" ");
+      return {
+        label: parts ? `${i.item} - ${parts}` : i.item,
+        value: i.item,
+        data: i
+      };
+    });
+    
+    const usedNames = new Set(existingItems.map(i => i.item));
+    const initialOpts = INITIAL_MATERIAL_OPTIONS.filter(name => !usedNames.has(name)).map(name => ({
+      label: name,
+      value: name,
+      data: null
+    }));
+
+    return [...existingOptions, ...initialOpts];
   }, [existingItems]);
+
+  const handleItemSelect = (selectedOption: any) => {
+    if (!selectedOption) {
+      setItem("");
+      return;
+    }
+    
+    setItem(selectedOption.value);
+    
+    if (selectedOption.data) {
+       const target = selectedOption.data;
+       setKategori(target.kategori || "Pekerjaan Keramik");
+       setUkuran(target.ukuran || "");
+       setMerk(target.merk || "");
+       setWarna(target.warna || "");
+       setTipe(target.tipe || "");
+       setPermukaan(target.permukaan || "");
+       setTebal(target.tebal || "");
+       setToleransi(target.toleransi || "");
+       setImplementasi(target.implementasi ? (Array.isArray(target.implementasi) ? target.implementasi : [target.implementasi]) : []);
+       setLokasi(target.lokasi ? (Array.isArray(target.lokasi) ? target.lokasi : [target.lokasi]) : []);
+    }
+  };
 
   const ukuranOptions = useMemo(() => {
     const fromExisting = existingItems.map((i) => i.ukuran).filter(Boolean);
@@ -150,12 +193,12 @@ export function TambahPengajuanModal({
   }, [existingItems]);
 
   const posisiOptions = useMemo(() => {
-    const fromExisting = existingItems.map((i) => i.implementasi).filter(Boolean);
+    const fromExisting = existingItems.flatMap((i) => Array.isArray(i.implementasi) ? i.implementasi : [i.implementasi]).filter(Boolean) as string[];
     return Array.from(new Set([...INITIAL_POSISI_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
   const areaOptions = useMemo(() => {
-    const fromExisting = existingItems.map((i) => i.lokasi).filter(Boolean);
+    const fromExisting = existingItems.flatMap((i) => Array.isArray(i.lokasi) ? i.lokasi : [i.lokasi]).filter(Boolean) as string[];
     return Array.from(new Set([...INITIAL_AREA_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
@@ -224,8 +267,10 @@ export function TambahPengajuanModal({
     setPermukaan(target.permukaan || "");
     setTebal(target.tebal || "");
     setToleransi(target.toleransi || "");
-    setImplementasi(target.implementasi || "Dinding Gerai");
-    setLokasi(target.lokasi || "");
+    setImplementasi(target.implementasi ? (Array.isArray(target.implementasi) ? target.implementasi : [target.implementasi]) : ["Dinding Gerai"]);
+    setLokasi(target.lokasi ? (Array.isArray(target.lokasi) ? target.lokasi : [target.lokasi]) : []);
+    setJenisPengajuan(target.jenisPengajuan || "Material");
+    setEstimasiHarga(target.estimasiHarga || "");
     setInformasiTambahan(target.informasiTambahan || "");
     setKodeItem(target.kode || "");
     setKodeMaster(target.kodeMaster || "");
@@ -240,8 +285,10 @@ export function TambahPengajuanModal({
     setPermukaan("");
     setTebal("");
     setToleransi("");
-    setImplementasi("Dinding Gerai");
-    setLokasi("");
+    setImplementasi(["Dinding Gerai"]);
+    setLokasi([]);
+    setJenisPengajuan("Material");
+    setEstimasiHarga("");
     setInformasiTambahan("");
   };
 
@@ -283,8 +330,10 @@ export function TambahPengajuanModal({
       !permukaan.trim() ||
       !tebal.trim() ||
       !toleransi.trim() ||
-      !implementasi.trim() ||
-      !lokasi.trim() ||
+      implementasi.length === 0 ||
+      lokasi.length === 0 ||
+      estimasiHarga === "" ||
+      Number(estimasiHarga) <= 0 ||
       !kodeMaster.trim()
     ) {
       return;
@@ -318,12 +367,13 @@ export function TambahPengajuanModal({
       tebal: tebal.trim(),
       permukaan: permukaan.trim(),
       kategori: kategori.trim(),
-      implementasi,
-      lokasi: lokasi.trim(),
+      implementasi: Array.isArray(implementasi) ? implementasi.join(", ") : implementasi,
+      lokasi: Array.isArray(lokasi) ? lokasi.join(", ") : lokasi,
       toleransi: toleransi.trim() || undefined,
       informasiTambahan: informasiTambahan.trim(),
       deskripsiOtomatis,
-      estimasiHarga: itemToEdit?.estimasiHarga || 0,
+      estimasiHarga: Number(estimasiHarga) || 0,
+      jenisPengajuan,
       satuan: "m2",
       status: "DIAJUKAN",
       tanggalPengajuan: new Date().toISOString().slice(0, 10),
@@ -374,7 +424,100 @@ export function TambahPengajuanModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          {/* Section 1: Data Pokok Material */}
+          {/* Section 1: Alur & Item Utama */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">1</span>
+              <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">Jenis & Item Utama</h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Jenis Pengajuan <span className="text-red-500">*</span></span>
+                </Label>
+                <Select value={jenisPengajuan} onValueChange={(val) => setJenisPengajuan(val as "Hanya Jasa" | "Material")}>
+                  <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-slate-200">
+                    <SelectValue placeholder="Pilih Jenis" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Material">Material</SelectItem>
+                    <SelectItem value="Hanya Jasa">Hanya Jasa</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-[10px] text-slate-400">Material fisik atau jasa</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Nama Material / Item <span className="text-red-500">*</span></span>
+                </Label>
+                <CreatableSelect
+                  value={item ? { label: item, value: item } : null}
+                  onChange={handleItemSelect}
+                  options={materialReactSelectOptions}
+                  placeholder="Cari item eksisting atau ketik baru..."
+                  formatCreateLabel={(val: string) => `Buat item baru: "${val}"`}
+                  styles={{
+                    control: (base: any) => ({
+                      ...base,
+                      minHeight: "36px",
+                      borderRadius: "0.5rem",
+                      borderColor: "#e2e8f0",
+                      fontSize: "12px",
+                    }),
+                    menu: (base: any) => ({
+                      ...base,
+                      width: "100%",
+                      minWidth: "200px",
+                      zIndex: 50,
+                    }),
+                    option: (base: any) => ({
+                      ...base,
+                      whiteSpace: "normal",
+                      wordWrap: "break-word",
+                      fontSize: "12px",
+                    }),
+                  }}
+                  maxMenuHeight={250}
+                />
+                <span className="text-[10px] text-slate-400">Cari item atau ketik baru</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Harga Estimasi / Satuan <span className="text-red-500">*</span></span>
+                </Label>
+                <CurrencyInput
+                  value={estimasiHarga}
+                  onChange={setEstimasiHarga}
+                  placeholder="Rp 0"
+                  className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                  required
+                />
+                <span className="text-[10px] text-slate-400">Format pemisah ribuan otomatis</span>
+              </div>
+            </div>
+
+            
+            {jenisPengajuan === "Hanya Jasa" && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs p-3 rounded-lg flex gap-2 mt-2">
+                <p>Pengajuan <strong>Hanya Jasa</strong>. Pilih item yang sudah ada.</p>
+              </div>
+            )}
+            {jenisPengajuan === "Material" && item && existingItems.some(i => i.item === item) && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3 rounded-lg flex gap-2 mt-2">
+                <p>Item <strong>sudah terdaftar</strong> di sistem. Pengajuan ini akan diteruskan sebagai form <strong>Review/Update Master</strong>.</p>
+              </div>
+            )}
+            {jenisPengajuan === "Material" && item && !existingItems.some(i => i.item === item) && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded-lg flex gap-2 mt-2">
+                <p>Item <strong>baru</strong>. Pengajuan ini akan dilanjutkan sebagai <strong>Pengajuan Master Harga Baru</strong>.</p>
+              </div>
+            )}
+          </div>
+          
+          {/* Section 2: Data Pokok Material */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
@@ -390,7 +533,7 @@ export function TambahPengajuanModal({
                 <Label className="text-xs font-semibold text-slate-700">
                   Kategori Pekerjaan <span className="text-red-500">*</span>
                 </Label>
-                <Select value={kategori} onValueChange={setKategori} required>
+                <Select value={kategori} onValueChange={setKategori} required disabled={jenisPengajuan === "Hanya Jasa"}>
                   <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-slate-200">
                     <SelectValue placeholder="Pilih Kategori" />
                   </SelectTrigger>
@@ -404,18 +547,7 @@ export function TambahPengajuanModal({
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Nama Material <span className="text-red-500">*</span>
-                </Label>
-                <CreatableCombobox
-                  value={item}
-                  onChange={setItem}
-                  options={materialOptions}
-                  required
-                  placeholder="Pilih / ketik nama material"
-                />
-              </div>
+              
 
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
@@ -426,6 +558,7 @@ export function TambahPengajuanModal({
                   onChange={setUkuran}
                   options={ukuranOptions}
                   required
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Pilih / ketik ukuran"
                 />
               </div>
@@ -439,13 +572,14 @@ export function TambahPengajuanModal({
                   onChange={setMerk}
                   options={merkOptions}
                   required
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Pilih / ketik merk"
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 2: Fisik & Karakteristik */}
+          {/* Section 3: Fisik & Karakteristik */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
@@ -464,6 +598,7 @@ export function TambahPengajuanModal({
                 <Input
                   value={warna}
                   onChange={(e) => setWarna(e.target.value)}
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Contoh: Cream, Putih"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                   required
@@ -477,6 +612,7 @@ export function TambahPengajuanModal({
                 <Input
                   value={tipe}
                   onChange={(e) => setTipe(e.target.value)}
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Contoh: Polos, Wood"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                   required
@@ -490,6 +626,7 @@ export function TambahPengajuanModal({
                 <Input
                   value={permukaan}
                   onChange={(e) => setPermukaan(e.target.value)}
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Contoh: Glossy, Matte"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                   required
@@ -503,6 +640,7 @@ export function TambahPengajuanModal({
                 <Input
                   value={tebal}
                   onChange={(e) => setTebal(e.target.value)}
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Contoh: 9 mm"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                   required
@@ -516,6 +654,7 @@ export function TambahPengajuanModal({
                 <Input
                   value={toleransi}
                   onChange={(e) => setToleransi(e.target.value)}
+                  disabled={jenisPengajuan === "Hanya Jasa"}
                   placeholder="Contoh: ± 0.5 mm"
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                   required
@@ -524,7 +663,7 @@ export function TambahPengajuanModal({
             </div>
           </div>
 
-          {/* Section 3: Penempatan & Catatan */}
+          {/* Section 4: Penempatan & Catatan */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
@@ -537,29 +676,89 @@ export function TambahPengajuanModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Implementasi <span className="text-red-500">*</span>
+                <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Implementasi <span className="text-red-500">*</span></span>
+                  <span className="text-[10px] text-slate-400 font-normal">Multi-select</span>
                 </Label>
-                <CreatableCombobox
-                  value={implementasi}
-                  onChange={setImplementasi}
-                  options={posisiOptions}
-                  required
-                  placeholder="Pilih / ketik implementasi"
+                <CreatableSelect
+                  isMulti
+                  value={implementasi.map((val) => ({ label: val, value: val }))}
+                  onChange={(selected: any) =>
+                    setImplementasi(selected ? selected.map((s: any) => s.value) : [])
+                  }
+                  options={posisiOptions.map((opt) => ({ label: opt, value: opt }))}
+                  placeholder="Pilih implementasi..."
+                  formatCreateLabel={(val: string) => `Tambah "${val}"`}
+                  styles={{
+                    control: (base: any) => ({
+                      ...base,
+                      minHeight: "36px",
+                      borderRadius: "0.5rem",
+                      borderColor: "#e2e8f0",
+                      fontSize: "12px",
+                    }),
+                    menu: (base: any) => ({
+                      ...base,
+                      fontSize: "12px",
+                      zIndex: 50,
+                    }),
+                    multiValue: (base: any) => ({
+                      ...base,
+                      backgroundColor: "#f1f5f9",
+                      borderRadius: "0.375rem",
+                    }),
+                    multiValueLabel: (base: any) => ({
+                      ...base,
+                      fontSize: "11px",
+                      color: "#1e293b",
+                      fontWeight: 500,
+                    }),
+                  }}
                 />
+                <span className="text-[10px] text-slate-400">Pilih satu atau lebih implementasi</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-slate-700">
-                  Lokasi / Posisi <span className="text-red-500">*</span>
+                <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Lokasi / Area Gerai <span className="text-red-500">*</span></span>
+                  <span className="text-[10px] text-slate-400 font-normal">Multi-select</span>
                 </Label>
-                <CreatableCombobox
-                  value={lokasi}
-                  onChange={setLokasi}
-                  options={areaOptions}
-                  required
-                  placeholder="Pilih / ketik lokasi"
+                <CreatableSelect
+                  isMulti
+                  value={lokasi.map((val) => ({ label: val, value: val }))}
+                  onChange={(selected: any) =>
+                    setLokasi(selected ? selected.map((s: any) => s.value) : [])
+                  }
+                  options={areaOptions.map((opt) => ({ label: opt, value: opt }))}
+                  placeholder="Pilih area lokasi..."
+                  formatCreateLabel={(val: string) => `Tambah "${val}"`}
+                  styles={{
+                    control: (base: any) => ({
+                      ...base,
+                      minHeight: "36px",
+                      borderRadius: "0.5rem",
+                      borderColor: "#e2e8f0",
+                      fontSize: "12px",
+                    }),
+                    menu: (base: any) => ({
+                      ...base,
+                      fontSize: "12px",
+                      zIndex: 50,
+                    }),
+                    multiValue: (base: any) => ({
+                      ...base,
+                      backgroundColor: "#f1f5f9",
+                      borderRadius: "0.375rem",
+                    }),
+                    multiValueLabel: (base: any) => ({
+                      ...base,
+                      fontSize: "11px",
+                      color: "#1e293b",
+                      fontWeight: 500,
+                    }),
+                  }}
                 />
+                <span className="text-[10px] text-slate-400">Pilih satu atau lebih lokasi</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -572,11 +771,12 @@ export function TambahPengajuanModal({
                   placeholder="Catatan penyesuaian..."
                   className="h-9 rounded-lg text-xs bg-white border-slate-200"
                 />
+                <span className="text-[10px] text-slate-400">Otomatis dimasukkan dalam tanda kurung</span>
               </div>
             </div>
           </div>
 
-          {/* Section 4: Kode & Deskripsi */}
+          {/* Section 5: Kode & Deskripsi */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-md bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">

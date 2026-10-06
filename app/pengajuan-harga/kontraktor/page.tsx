@@ -15,6 +15,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Hammer,
   CheckCircle2,
   XCircle,
@@ -24,13 +31,20 @@ import {
   ArrowRight,
   FileText,
   BadgeCheck,
+  Building2,
 } from 'lucide-react';
-import { PengajuanHargaItem } from '@/components/pengajuan-harga/types';
+import {
+  PengajuanHargaItem,
+  DAFTAR_CABANG_ALFAMART,
+} from '@/components/pengajuan-harga/types';
 import {
   getStoredPengajuan,
   saveStoredPengajuan,
 } from '@/components/pengajuan-harga/store';
 import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
+import { RingkasanBiayaMaterial } from '@/components/pengajuan-harga/RingkasanBiayaMaterial';
+import { PengajuanHargaTable } from '@/components/pengajuan-harga/PengajuanHargaTable';
+import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
 export default function KontraktorPage() {
@@ -38,6 +52,7 @@ export default function KontraktorPage() {
 
   const [items, setItems] = useState<PengajuanHargaItem[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'disepakati'>('pending');
+  const [selectedCabang, setSelectedCabang] = useState<string>('Cikokol');
   const [search, setSearch] = useState('');
 
   // Modal Kesepakatan Harga Layer 4 State
@@ -60,11 +75,16 @@ export default function KontraktorPage() {
     return () => window.removeEventListener('focus', loadData);
   }, []);
 
-  // Filter Items Pending Konfirmasi Kontraktor
+  // Filter Items Pending Konfirmasi Kontraktor (hanya cabang aktif kontraktor)
   const pendingItems = useMemo(() => {
     return items.filter((item) => {
       const isPending = item.status === 'PENDING_KONTRAKTOR';
       if (!isPending) return false;
+
+      // Scoping Cabang: Kontraktor hanya menangani pengajuan cabang terkait
+      if (selectedCabang !== 'all' && item.cabang && item.cabang !== selectedCabang) {
+        return false;
+      }
 
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -74,12 +94,13 @@ export default function KontraktorPage() {
           item.item.toLowerCase().includes(q) ||
           item.merk.toLowerCase().includes(q) ||
           item.kategori.toLowerCase().includes(q) ||
-          item.lokasi.toLowerCase().includes(q)
+          item.lokasi.toLowerCase().includes(q) ||
+          (item.cabang && item.cabang.toLowerCase().includes(q))
         );
       }
       return true;
     });
-  }, [items, search]);
+  }, [items, search, selectedCabang]);
 
   // Filter Items Harga Telah Disepakati (Released)
   const disepakatiItems = useMemo(() => {
@@ -91,6 +112,11 @@ export default function KontraktorPage() {
 
       if (!isReleased) return false;
 
+      // Scoping Cabang: Kontraktor hanya menangani pengajuan cabang terkait
+      if (selectedCabang !== 'all' && item.cabang && item.cabang !== selectedCabang) {
+        return false;
+      }
+
       if (search.trim()) {
         const q = search.toLowerCase();
         return (
@@ -99,12 +125,13 @@ export default function KontraktorPage() {
           item.item.toLowerCase().includes(q) ||
           item.merk.toLowerCase().includes(q) ||
           item.kategori.toLowerCase().includes(q) ||
-          item.lokasi.toLowerCase().includes(q)
+          item.lokasi.toLowerCase().includes(q) ||
+          (item.cabang && item.cabang.toLowerCase().includes(q))
         );
       }
       return true;
     });
-  }, [items, search]);
+  }, [items, search, selectedCabang]);
 
   const formatRupiah = (val?: number) => {
     if (val === undefined || val === null || isNaN(val) || val <= 0) return '-';
@@ -202,7 +229,7 @@ export default function KontraktorPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <AppNavbar title="Portal Kontraktor" showBackButton backHref="/pengajuan-harga" />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         {/* Hero Card */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -219,7 +246,26 @@ export default function KontraktorPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Branch Selector Kontraktor */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 px-3 flex items-center gap-2.5">
+              <div className="flex flex-col text-left">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Cabang Kontraktor</span>
+                <span className="text-xs font-semibold text-slate-800">Wilayah Kerja</span>
+              </div>
+              <Select value={selectedCabang} onValueChange={setSelectedCabang}>
+                <SelectTrigger className="h-8.5 w-36 bg-white text-slate-900 font-bold text-xs border border-slate-200 rounded-lg shadow-xs">
+                  <SelectValue placeholder="Pilih Cabang" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Cabang</SelectItem>
+                  {DAFTAR_CABANG_ALFAMART.map(c => (
+                    <SelectItem key={c} value={c}>Cabang {c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-center min-w-[100px]">
               <span className="text-[11px] text-slate-500 font-medium block">Perlu Konfirmasi</span>
               <span className="text-lg font-bold text-amber-700">{pendingItems.length}</span>
@@ -291,134 +337,28 @@ export default function KontraktorPage() {
           </div>
         </div>
 
-        {/* Tabel Data */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-900">
-              {activeTab === 'pending'
-                ? 'Daftar Pengajuan Menunggu Konfirmasi Kontraktor'
-                : 'Daftar Harga Satuan Telah Disepakati (Rilis)'}
-            </h2>
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 text-xs">
-              {(activeTab === 'pending' ? pendingItems : disepakatiItems).length} Material
-            </Badge>
-          </div>
+        {/* Tab 1: Perlu Konfirmasi */}
+        {activeTab === 'pending' && (
+          <PengajuanHargaTable
+            items={pendingItems}
+            showStatus={true}
+            showHarga={true}
+            title={selectedCabang === 'all' ? "Daftar Pengajuan Menunggu Konfirmasi Kontraktor (Semua Cabang)" : `Daftar Pengajuan Menunggu Konfirmasi Kontraktor - Cabang ${selectedCabang}`}
+            onResetFilter={() => setSearch('')}
+            onReviewSurvei={handleOpenReview}
+          />
+        )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600">
-                  <th className="text-center px-3 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    No
-                  </th>
-                  <th className="text-center px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Kode Item
-                  </th>
-                  <th className="px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Material
-                  </th>
-                  <th className="px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Merk &amp; Ukuran
-                  </th>
-                  <th className="text-right px-4 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Harga Satuan Disepakati
-                  </th>
-                  <th className="text-center px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Status
-                  </th>
-                  <th className="text-center px-3 py-3 font-bold whitespace-nowrap text-[11px]">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {(activeTab === 'pending' ? pendingItems : disepakatiItems).length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-10 text-center text-slate-400">
-                      <p className="font-semibold text-xs text-slate-500">
-                        {activeTab === 'pending'
-                          ? 'Tidak ada harga yang menunggu konfirmasi kontraktor'
-                          : 'Belum ada harga yang disepakati'}
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  (activeTab === 'pending' ? pendingItems : disepakatiItems).map((item, idx) => {
-                    const avgPrice = item.hargaRataRata || item.estimasiHarga || 0;
-
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="text-center px-3 py-3.5 font-semibold text-slate-500 border-r border-slate-100">
-                          {idx + 1}
-                        </td>
-                        <td className="text-center px-3.5 py-3 border-r border-slate-100 whitespace-nowrap">
-                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
-                            {item.kode}
-                          </span>
-                        </td>
-                        <td className="px-3.5 py-3.5 font-semibold text-slate-900 border-r border-slate-100">
-                          <div>{item.item}</div>
-                          <div className="text-[11px] text-slate-400 font-normal">
-                            {item.kategori} &bull; {item.lokasi}
-                          </div>
-                        </td>
-                        <td className="px-3.5 py-3.5 border-r border-slate-100 whitespace-nowrap">
-                          {item.merk} ({item.ukuran})
-                        </td>
-                        <td className="text-right px-4 py-3.5 font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
-                          <span className="font-mono text-emerald-700 text-xs bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                            {formatRupiah(avgPrice)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block font-normal mt-0.5">
-                            / {item.satuan || 'm2'}
-                          </span>
-                        </td>
-                        <td className="text-center px-3.5 py-3.5 border-r border-slate-100 whitespace-nowrap">
-                          {item.status === 'RELEASED' || item.status === 'APPROVED_ACTIVE' ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                              <BadgeCheck className="w-3.5 h-3.5" />
-                              Disepakati (Rilis)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                              <Clock className="w-3 h-3 text-amber-600" />
-                              Perlu Konfirmasi
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-center px-3 py-3.5 whitespace-nowrap">
-                          {activeTab === 'pending' ? (
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenReview(item)}
-                              className="h-7 text-[11px] px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1 font-semibold cursor-pointer shadow-2xs"
-                            >
-                              <span>Konfirmasi Harga</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setCatatanModalItem(item);
-                                setIsCatatanModalOpen(true);
-                              }}
-                              className="h-7 text-[11px] px-2.5 rounded-lg gap-1 cursor-pointer"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Catatan</span>
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Tab 2: Harga Disepakati */}
+        {activeTab === 'disepakati' && (
+          <PengajuanHargaTable
+            items={disepakatiItems}
+            showStatus={true}
+            showHarga={true}
+            title={selectedCabang === 'all' ? "Daftar Harga Satuan Telah Disepakati (Semua Cabang)" : `Daftar Harga Satuan Telah Disepakati - Cabang ${selectedCabang}`}
+            onResetFilter={() => setSearch('')}
+          />
+        )}
       </main>
 
       {/* Modal Review Kesepakatan Harga (Menggunakan Reusable RincianSurvei3TokoCard) */}
@@ -436,8 +376,37 @@ export default function KontraktorPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Rincian Survei 3 Toko (Mode Readonly) */}
-          {selectedItem?.surveyToko && selectedItem.surveyToko.length > 0 && (
+          {/* Bar Timeline Pengajuan */}
+          {selectedItem && (
+            <div className="my-2">
+              <PengajuanTimelineBar item={selectedItem} />
+            </div>
+          )}
+
+          {/* Rincian Komponen & Survei 3 Toko (Mode Readonly) */}
+          {selectedItem?.koefisienMaterialItems && selectedItem.koefisienMaterialItems.length > 0 ? (
+            <div className="py-2 border-y border-slate-100 my-2 space-y-4">
+              <RingkasanBiayaMaterial
+                materialItems={selectedItem.koefisienMaterialItems}
+                totalBiayaMaterial={selectedItem.hargaRataRata || selectedItem.estimasiHarga || 0}
+                marginMaterial={selectedItem?.marginMaterial}
+                formatRupiah={formatRupiah}
+              />
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-800">Detail Survei Toko per Komponen:</h4>
+                {selectedItem.koefisienMaterialItems.map((mat) => (
+                  <RincianSurvei3TokoCard
+                    key={mat.id}
+                    mode="readonly"
+                    surveyToko={mat.surveyToko || []}
+                    satuan={mat.unit || 'm2'}
+                    materialCode={mat.id}
+                    materialName={mat.label}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : selectedItem?.surveyToko && selectedItem.surveyToko.length > 0 ? (
             <div className="py-2 border-y border-slate-100 my-2">
               <RincianSurvei3TokoCard
                 mode="readonly"
@@ -447,7 +416,7 @@ export default function KontraktorPage() {
                 materialName={`${selectedItem.item} ${selectedItem.ukuran} ${selectedItem.merk}`}
               />
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-3 mt-2">
             <div className="space-y-1.5">
@@ -457,7 +426,7 @@ export default function KontraktorPage() {
               <Textarea
                 value={catatan}
                 onChange={(e) => setCatatan(e.target.value)}
-                placeholder="Tuliskan catatan konfirmasi kesepakatan atau poin jika negosiasi ulang..."
+                placeholder="Tuliskan catatan konfirmasi kesepakatan atau poin revisi jika negosiasi ulang..."
                 className="text-xs rounded-xl border-slate-200 min-h-[70px]"
               />
             </div>
@@ -475,15 +444,17 @@ export default function KontraktorPage() {
             <Button
               type="button"
               onClick={handleReject}
-              className="rounded-xl h-8 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer gap-1"
+              className="rounded-xl h-8 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer gap-1.5"
+              title="Kembalikan ke Building Coordinator untuk revisi survei"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Kembalikan ke BC</span>
+              <span>Revisi</span>
             </Button>
             <Button
               type="button"
               onClick={handleSepakati}
-              className="rounded-xl h-8 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer gap-1"
+              className="rounded-xl h-8 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer gap-1.5"
+              title="Sepakati harga satuan material dan rilis resmi"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Sepakati Harga</span>

@@ -7,6 +7,8 @@ export function exportToCSV(items: PengajuanHargaItem[], filename = 'Pengajuan_H
   const headers = [
     'No',
     'Kode',
+    'Tanggal Pengajuan',
+    'Cabang',
     'Item',
     'Ukuran',
     'Merk',
@@ -20,7 +22,6 @@ export function exportToCSV(items: PengajuanHargaItem[], filename = 'Pengajuan_H
     'Informasi Tambahan',
     'Deskripsi Lengkap (Otomatis)',
     'Status',
-    'Tanggal Pengajuan',
   ];
 
   const escapeCSV = (val: string | number | undefined | null) => {
@@ -34,6 +35,8 @@ export function exportToCSV(items: PengajuanHargaItem[], filename = 'Pengajuan_H
   const rows = items.map((item, idx) => [
     idx + 1,
     escapeCSV(item.kode),
+    escapeCSV(item.tanggalPengajuan || '-'),
+    escapeCSV(item.cabang || '-'),
     escapeCSV(item.item),
     escapeCSV(item.ukuran),
     escapeCSV(item.merk),
@@ -47,7 +50,6 @@ export function exportToCSV(items: PengajuanHargaItem[], filename = 'Pengajuan_H
     escapeCSV(item.informasiTambahan),
     escapeCSV(item.deskripsiOtomatis),
     escapeCSV(item.status || 'DIAJUKAN'),
-    escapeCSV(item.tanggalPengajuan || '-'),
   ]);
 
   const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
@@ -69,6 +71,8 @@ export function exportToExcel(items: PengajuanHargaItem[], filename = 'Pengajuan
   const headers = [
     'No',
     'Kode',
+    'Tanggal Pengajuan',
+    'Cabang',
     'Item',
     'Ukuran',
     'Merk',
@@ -82,13 +86,14 @@ export function exportToExcel(items: PengajuanHargaItem[], filename = 'Pengajuan
     'Informasi Tambahan',
     'Deskripsi Lengkap (Otomatis)',
     'Status',
-    'Tanggal Pengajuan',
   ];
 
   const tableRows = items.map((item, idx) => `
     <tr>
       <td style="text-align: center;">${idx + 1}</td>
       <td style="text-align: center; font-weight: bold; background-color: #eff6ff;">${item.kode}</td>
+      <td style="text-align: center;">${item.tanggalPengajuan || '-'}</td>
+      <td style="text-align: center; font-weight: bold;">${item.cabang || '-'}</td>
       <td style="font-weight: bold;">${item.item}</td>
       <td>${item.ukuran}</td>
       <td style="font-weight: bold;">${item.merk}</td>
@@ -102,7 +107,6 @@ export function exportToExcel(items: PengajuanHargaItem[], filename = 'Pengajuan
       <td style="font-style: italic;">${item.informasiTambahan || '-'}</td>
       <td>${item.deskripsiOtomatis}</td>
       <td style="text-align: center;">${item.status || 'DIAJUKAN'}</td>
-      <td style="text-align: center;">${item.tanggalPengajuan || '-'}</td>
     </tr>
   `).join('');
 
@@ -189,6 +193,8 @@ export async function exportToPDF(items: PengajuanHargaItem[], filename = 'Penga
   const head = [[
     'No',
     'Kode',
+    'Tanggal',
+    'Cabang',
     'Item',
     'Ukuran',
     'Merk',
@@ -205,6 +211,8 @@ export async function exportToPDF(items: PengajuanHargaItem[], filename = 'Penga
   const body = items.map((item, idx) => [
     idx + 1,
     item.kode,
+    item.tanggalPengajuan || '-',
+    item.cabang || '-',
     item.item,
     item.ukuran,
     item.merk,

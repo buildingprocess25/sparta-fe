@@ -450,7 +450,7 @@ export function ModalRincianKoefisien({
               onClick={handleSave}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold shadow-sm transition cursor-pointer"
             >
-              Simpan Koefisien
+              Simpan
             </button>
           </div>
         </div>

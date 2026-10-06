@@ -1,32 +1,34 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import AppNavbar from '@/components/AppNavbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
-  Database,
+  RotateCcw,
   Search,
-  BadgeCheck,
-  Eye,
-  FileText,
 } from 'lucide-react';
-import { PengajuanHargaItem } from '@/components/pengajuan-harga/types';
+import { PengajuanHargaItem, DAFTAR_CABANG_ALFAMART } from '@/components/pengajuan-harga/types';
 import { getStoredPengajuan } from '@/components/pengajuan-harga/store';
-import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
+import { KatalogMasterTable } from '@/components/pengajuan-harga/KatalogMasterTable';
+import { DetailMasterCatalogModal } from '@/components/pengajuan-harga/DetailMasterCatalogModal';
+import { getTrialBadgeInfo } from '@/components/pengajuan-harga/trial-utils';
 
 export default function MasterCatalogPage() {
   const [items, setItems] = useState<PengajuanHargaItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'official' | 'trial'>('official');
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCabang, setSelectedCabang] = useState<string>('all');
+  const [onlyActionRequired, setOnlyActionRequired] = useState(false);
 
   // Modal Detail Rincian State
   const [selectedItem, setSelectedItem] = useState<PengajuanHargaItem | null>(null);
@@ -44,15 +46,96 @@ export default function MasterCatalogPage() {
   }, []);
 
   // Filter Items Released / Active in Master Catalog
-  const catalogItems = useMemo(() => {
+  const allMasterItems = useMemo(() => {
     return items.filter((item) => {
-      const isReleased =
+      const isOfficial =
         item.status === 'RELEASED' ||
         item.status === 'APPROVED_ACTIVE' ||
         item.status === 'DISETUJUI_MASTERING';
 
-      if (!isReleased) return false;
+      const isTrial =
+        item.status === 'TRIAL_RELEASED' ||
+        item.status === 'TRIAL_PROMOSI_BM_MGR' ||
+        item.status === 'TRIAL_PROMOSI_REGIONAL_MGR' ||
+        item.status === 'TRIAL_PROMOSI_KONTRAKTOR';
 
+      return isOfficial || isTrial;
+    });
+  }, [items]);
+
+  // Unique Categories
+  const categories = useMemo(() => {
+    const setCat = new Set<string>();
+    allMasterItems.forEach((i) => {
+      if (i.kategori) setCat.add(i.kategori);
+    });
+    return Array.from(setCat).sort();
+  }, [allMasterItems]);
+
+  // Counts for Stats & Tabs
+  const officialCount = useMemo(() => {
+    return allMasterItems.filter(
+      (i) =>
+        !i.isTrial &&
+        (i.status === 'RELEASED' ||
+          i.status === 'APPROVED_ACTIVE' ||
+          i.status === 'DISETUJUI_MASTERING')
+    ).length;
+  }, [allMasterItems]);
+
+  const trialCount = useMemo(() => {
+    return allMasterItems.filter(
+      (i) =>
+        i.isTrial ||
+        i.status === 'TRIAL_RELEASED' ||
+        i.status.startsWith('TRIAL_PROMOSI_')
+    ).length;
+  }, [allMasterItems]);
+
+  const urgentTrialCount = useMemo(() => {
+    return allMasterItems.filter((i) => {
+      const isTrial =
+        i.isTrial ||
+        i.status === 'TRIAL_RELEASED' ||
+        i.status.startsWith('TRIAL_PROMOSI_');
+      if (!isTrial) return false;
+      return getTrialBadgeInfo(i).isActionRequired;
+    }).length;
+  }, [allMasterItems]);
+
+  // Filter Berdasarkan Tab, Kategori, Search, & Urgent Toggle
+  const filteredItems = useMemo(() => {
+    return allMasterItems.filter((item) => {
+      const isTrial =
+        Boolean(item.isTrial) ||
+        item.status === 'TRIAL_RELEASED' ||
+        item.status.startsWith('TRIAL_PROMOSI_');
+
+      // 1. Filter Tab
+      if (activeTab === 'official' && isTrial) return false;
+      if (activeTab === 'trial' && !isTrial) return false;
+
+      // 2. Filter Kategori
+      if (selectedCategory !== 'all' && item.kategori !== selectedCategory) {
+        return false;
+      }
+
+      // 3. Filter Cabang (Menampilkan material yang aktif di cabang tersebut)
+      if (selectedCabang !== 'all') {
+        const isBranchActive = (item.hargaPerCabang || []).some(
+          (c) => c.cabang.toLowerCase() === selectedCabang.toLowerCase() && c.status === 'AKTIF'
+        );
+        if (!isBranchActive) return false;
+      }
+
+      // 4. Filter Hanya Perlu Tindakan
+      if (onlyActionRequired) {
+        if (!isTrial) return false;
+        const badgeInfo = getTrialBadgeInfo(item);
+        if (!badgeInfo.isActionRequired) return false;
+      }
+
+      // 5. Filter Search Keyword
       if (search.trim()) {
         const q = search.toLowerCase();
         return (
@@ -61,236 +144,216 @@ export default function MasterCatalogPage() {
           item.item.toLowerCase().includes(q) ||
           item.merk.toLowerCase().includes(q) ||
           item.kategori.toLowerCase().includes(q) ||
-          item.lokasi.toLowerCase().includes(q)
+          item.lokasi.toLowerCase().includes(q) ||
+          (item.deskripsiOtomatis && item.deskripsiOtomatis.toLowerCase().includes(q))
         );
       }
+
       return true;
     });
-  }, [items, search]);
-
-  const formatRupiah = (val?: number) => {
-    if (val === undefined || val === null || isNaN(val) || val <= 0) return '-';
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
+  }, [allMasterItems, activeTab, selectedCategory, selectedCabang, onlyActionRequired, search]);
 
   const handleOpenDetail = (item: PengajuanHargaItem) => {
     setSelectedItem(item);
     setIsDetailModalOpen(true);
   };
 
+  const handleResetFilter = () => {
+    setSearch('');
+    setSelectedCategory('all');
+    setSelectedCabang('all');
+    setOnlyActionRequired(false);
+  };
+
+  const tableTitle = useMemo(() => {
+    if (activeTab === 'official') return 'Daftar Master Harga Resmi & Permanen';
+    return 'Daftar Master Harga Uji Coba Lapangan (Trial 3 Bulan)';
+  }, [activeTab]);
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <AppNavbar title="Katalog Master Harga" showBackButton backHref="/pengajuan-harga" />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        {/* Hero Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-300 text-slate-700 flex items-center justify-center shrink-0">
-              <Database className="w-5 h-5 text-slate-700" />
-            </div>
-            <div>
-              <h1 className="text-lg md:text-xl font-bold text-slate-900">
-                Katalog Master Harga Aktif
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Daftar harga satuan material yang telah melalui 4 layer approval dan resmi dirilis
-              </p>
-            </div>
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 md:p-6 lg:p-8 space-y-5">
+        {/* Header & Statistik Rilis */}
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Katalog Master Harga
+            </h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Daftar spesifikasi material resmi nasional &amp; uji coba lapangan standar Alfamart
+            </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-center min-w-[120px]">
-              <span className="text-[11px] text-slate-500 font-medium block">Total Item Rilis</span>
-              <span className="text-lg font-bold text-emerald-700">{catalogItems.length}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="bg-white border border-slate-200 rounded-lg px-3.5 py-1.5 text-center min-w-[85px]">
+              <span className="text-[11px] text-slate-500 font-medium block">Total Rilis</span>
+              <span className="text-base font-bold text-slate-800">{allMasterItems.length}</span>
             </div>
+            <div className="bg-white border border-slate-200 rounded-lg px-3.5 py-1.5 text-center min-w-[85px]">
+              <span className="text-[11px] text-slate-500 font-medium block">Master Resmi</span>
+              <span className="text-base font-bold text-emerald-600">{officialCount}</span>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg px-3.5 py-1.5 text-center min-w-[85px]">
+              <span className="text-[11px] text-slate-500 font-medium block">Master Trial</span>
+              <span className="text-base font-bold text-purple-600">{trialCount}</span>
+            </div>
+            {urgentTrialCount > 0 && (
+              <div
+                onClick={() => {
+                  setActiveTab('trial');
+                  setOnlyActionRequired(true);
+                }}
+                className="bg-white border border-amber-300 rounded-lg px-3.5 py-1.5 text-center min-w-[85px] cursor-pointer hover:bg-amber-50 transition-colors"
+                title="Klik untuk memfilter item trial yang perlu evaluasi"
+              >
+                <span className="text-[11px] text-amber-700 font-semibold block">
+                  Perlu Evaluasi
+                </span>
+                <span className="text-base font-bold text-amber-600">{urgentTrialCount}</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Toolbar Filter */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
-              type="text"
-              placeholder="Cari kode, material, merk..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 text-xs h-9 bg-white rounded-xl border-slate-200"
-            />
-          </div>
+        {/* Tab Filter Utama (Solid Badge Tanpa Ikon Status) */}
+        <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
+
+          {/* Tab 2: Master Resmi */}
+          <button
+            onClick={() => {
+              setActiveTab('official');
+              setOnlyActionRequired(false);
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-xs border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'official'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>Master Harga</span>
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full font-semibold select-none ${
+                activeTab === 'official'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {officialCount}
+            </span>
+          </button>
+
+          {/* Tab 3: Master Trial */}
+          <button
+            onClick={() => setActiveTab('trial')}
+            className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-xs border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'trial'
+                ? 'border-purple-600 text-purple-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>Master Trial</span>
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full font-semibold select-none ${
+                activeTab === 'trial'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {trialCount}
+            </span>
+          </button>
         </div>
 
-        {/* Tabel Katalog */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-900">
-              Daftar Harga Satuan Material Resmi
-            </h2>
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 text-xs">
-              {catalogItems.length} Material
-            </Badge>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600">
-                  <th className="text-center px-3 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    No
-                  </th>
-                  <th className="text-center px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Kode Master
-                  </th>
-                  <th className="px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Material
-                  </th>
-                  <th className="px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Merk &amp; Ukuran
-                  </th>
-                  <th className="px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Kategori &amp; Lokasi
-                  </th>
-                  <th className="text-right px-4 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Harga Satuan Rilis
-                  </th>
-                  <th className="text-center px-3.5 py-3 font-bold border-r border-slate-200 whitespace-nowrap text-[11px]">
-                    Status
-                  </th>
-                  <th className="text-center px-3 py-3 font-bold whitespace-nowrap text-[11px]">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {catalogItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
-                      <Database className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                      <p className="font-semibold text-xs text-slate-500">
-                        Belum ada data material dalam katalog.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  catalogItems.map((item, idx) => {
-                    const finalPrice = item.hargaRataRata || item.estimasiHarga || 0;
-
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="text-center px-3 py-3.5 font-semibold text-slate-500 border-r border-slate-100">
-                          {idx + 1}
-                        </td>
-                        <td className="text-center px-3.5 py-3 border-r border-slate-100 whitespace-nowrap">
-                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
-                            {item.kodeMaster || item.kode}
-                          </span>
-                        </td>
-                        <td className="px-3.5 py-3.5 font-semibold text-slate-900 border-r border-slate-100">
-                          {item.item}
-                        </td>
-                        <td className="px-3.5 py-3.5 border-r border-slate-100 whitespace-nowrap">
-                          {item.merk} ({item.ukuran})
-                        </td>
-                        <td className="px-3.5 py-3.5 border-r border-slate-100 whitespace-nowrap text-slate-600">
-                          {item.kategori} &bull; {item.lokasi}
-                        </td>
-                        <td className="text-right px-4 py-3.5 font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
-                          <span className="font-mono text-emerald-700 text-xs bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                            {formatRupiah(finalPrice)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block font-normal mt-0.5">
-                            / {item.satuan || 'm2'}
-                          </span>
-                        </td>
-                        <td className="text-center px-3.5 py-3.5 border-r border-slate-100 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                            <BadgeCheck className="w-3.5 h-3.5" />
-                            Aktif (Rilis)
-                          </span>
-                        </td>
-                        <td className="text-center px-3 py-3.5 whitespace-nowrap">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenDetail(item)}
-                            className="h-7 text-[11px] px-2.5 rounded-lg gap-1 cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Rincian</span>
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
-
-      {/* Modal Detail Rincian Master Harga (Termasuk Rincian 3 Toko) */}
-      <Dialog open={isDetailModalOpen} onOpenChange={(open) => !open && setIsDetailModalOpen(false)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl p-5">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Database className="w-4 h-4 text-emerald-600" />
-              <span>Rincian Master Harga Material</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 mt-1">
-              Kode Master: <strong>{selectedItem?.kodeMaster || selectedItem?.kode}</strong> &bull; {selectedItem?.item} ({selectedItem?.merk})
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Rincian 3 Toko jika ada */}
-          {selectedItem?.surveyToko && selectedItem.surveyToko.length > 0 && (
-            <div className="py-2 border-y border-slate-100 my-2">
-              <RincianSurvei3TokoCard
-                mode="readonly"
-                surveyToko={selectedItem.surveyToko}
-                satuan={selectedItem.satuan || 'm2'}
-                materialCode={selectedItem.kodeMaster || selectedItem.kode}
-                materialName={`${selectedItem.item} ${selectedItem.ukuran} ${selectedItem.merk}`}
+        {/* Toolbar: Search, Filter Kategori, Filter Cabang & Reset (Standar Enterprise rounded-lg) */}
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cari kode item, nama material, merk..."
+                className="pl-9 h-9 rounded-lg text-xs border-slate-200 focus-visible:ring-blue-500/20 focus-visible:border-blue-500"
               />
             </div>
-          )}
 
-          {/* Log Persetujuan */}
-          <div className="space-y-2 mt-2">
-            <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-slate-500" />
-              <span>Riwayat Persetujuan 4 Layer</span>
-            </h4>
-            <div className="space-y-1.5">
-              {(selectedItem?.historyLog || []).map((log, i) => (
-                <div key={i} className="text-xs p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-start justify-between gap-3">
-                  <div>
-                    <span className="font-semibold text-slate-800">{log.role}</span>
-                    <p className="text-slate-600 mt-0.5">{log.catatan || '-'}</p>
-                  </div>
-                  <span className="text-[11px] text-slate-400 shrink-0">{log.tanggal}</span>
-                </div>
-              ))}
+            {/* Filter Kategori */}
+            <div className="w-full sm:w-52">
+              <Select
+                value={selectedCategory}
+                onValueChange={(val) => setSelectedCategory(val)}
+              >
+                <SelectTrigger className="h-9 rounded-lg text-xs border-slate-200 bg-white">
+                  <SelectValue placeholder="Semua Kategori" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kategori</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <DialogFooter className="pt-3 border-t border-slate-100 mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDetailModalOpen(false)}
-              className="rounded-xl h-8 text-xs cursor-pointer"
-            >
-              Tutup
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            {/* Filter Cabang */}
+            <div className="w-full sm:w-48">
+              <Select
+                value={selectedCabang}
+                onValueChange={(val) => setSelectedCabang(val)}
+              >
+                <SelectTrigger className="h-9 rounded-lg text-xs border-slate-200 bg-white">
+                  <SelectValue placeholder="Semua Cabang" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Cabang</SelectItem>
+                  {DAFTAR_CABANG_ALFAMART.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      Cabang {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Reset Filter Button */}
+            {(search || selectedCategory !== 'all' || selectedCabang !== 'all' || onlyActionRequired) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResetFilter}
+                className="h-9 rounded-lg text-xs text-slate-500 hover:text-slate-800 gap-1 px-3 shrink-0 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Tabel Katalog Hierarki via KatalogMasterTable */}
+        <KatalogMasterTable
+          items={filteredItems}
+          activeTab={activeTab}
+          onOpenDetail={handleOpenDetail}
+          selectedCabangFilter={selectedCabang}
+        />
+      </main>
+
+      {/* Modal Detail Rincian Master Harga */}
+      <DetailMasterCatalogModal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        item={selectedItem}
+        onItemUpdated={(updated) => {
+          setSelectedItem(updated);
+          loadData();
+        }}
+      />
     </div>
   );
 }

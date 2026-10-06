@@ -1,19 +1,28 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AppNavbar from '@/components/AppNavbar';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Store, Clock, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Search,
+  Store,
+  Clock,
+  CheckCircle2,
+} from 'lucide-react';
 import { PengajuanHargaItem } from '@/components/pengajuan-harga/types';
 import { getStoredPengajuan } from '@/components/pengajuan-harga/store';
 import { BuildingCoordHero } from '@/components/pengajuan-harga/building-coord/BuildingCoordHero';
-import { TableSiapSurvei } from '@/components/pengajuan-harga/building-coord/TableSiapSurvei';
-import { TablePengajuanBerjalan } from '@/components/pengajuan-harga/building-coord/TablePengajuanBerjalan';
+import { ReusableSpecTable } from '@/components/pengajuan-harga/table/organisms/ReusableSpecTable';
 import { ModalRincianToko } from '@/components/pengajuan-harga/building-coord/ModalRincianToko';
 import { ModalCatatanApprover } from '@/components/pengajuan-harga/building-coord/ModalCatatanApprover';
 
 export default function BuildingCoordPage() {
+  const router = useRouter();
+
   // Data State
   const [items, setItems] = useState<PengajuanHargaItem[]>([]);
   const [activeTab, setActiveTab] = useState<'siap_survei' | 'diproses' | 'selesai'>('siap_survei');
@@ -27,10 +36,15 @@ export default function BuildingCoordPage() {
   const [selectedItemCatatan, setSelectedItemCatatan] = useState<PengajuanHargaItem | null>(null);
   const [isCatatanModalOpen, setIsCatatanModalOpen] = useState(false);
 
-  // Load Initial Data
+  // Load Data Item dari LocalStorage (Sync on focus)
+  const loadData = () => {
+    setItems(getStoredPengajuan());
+  };
+
   useEffect(() => {
-    const stored = getStoredPengajuan();
-    setItems(stored);
+    loadData();
+    window.addEventListener('focus', loadData);
+    return () => window.removeEventListener('focus', loadData);
   }, []);
 
   // Filter Items Siap Survei
@@ -38,9 +52,9 @@ export default function BuildingCoordPage() {
     return items.filter((item) => {
       const isSiap =
         item.status === 'SIAP_SURVEI' ||
-        (item.status === 'DISETUJUI' ||
+        ((item.status === 'DISETUJUI' ||
           item.status === 'DISETUJUI_MASTERING') &&
-        (!item.surveyToko || item.surveyToko.length < 3);
+          (!item.surveyToko || item.surveyToko.length < 3));
 
       if (!isSiap) return false;
 
@@ -125,7 +139,7 @@ export default function BuildingCoordPage() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <AppNavbar />
 
-      <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+      <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-400 w-full mx-auto space-y-6">
         {/* Hero Section */}
         <BuildingCoordHero
           countSiapSurvei={itemsSiapSurvei.length}
@@ -208,7 +222,7 @@ export default function BuildingCoordPage() {
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               type="text"
-              placeholder="Cari material..."
+              placeholder="Cari kode, material, merk..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 text-xs h-9 bg-white rounded-xl border-slate-200"
@@ -216,26 +230,46 @@ export default function BuildingCoordPage() {
           </div>
         </div>
 
-        {/* Content Section: Render active table */}
+        {/* Content Section: Render ReusableSpecTable */}
         {activeTab === 'siap_survei' && (
-          <TableSiapSurvei items={itemsSiapSurvei} />
-        )}
-        {activeTab === 'diproses' && (
-          <TablePengajuanBerjalan
-            items={itemsDiproses}
-            title="Pengajuan Diproses"
-            emptyMessage="Belum ada pengajuan harga yang sedang diproses."
-            onOpenDetailModal={handleOpenDetailModal}
-            onOpenCatatanModal={handleOpenCatatanModal}
+          <ReusableSpecTable
+            items={itemsSiapSurvei}
+            title="Daftar Material Siap Survei"
+            showStatus={true}
+            showHarga={false}
+            showCatatanReview={false}
+            emptyTitle="Tidak Ada Material Menunggu Survei"
+            emptyDescription="Semua material yang diajukan sudah disurvei atau belum diverifikasi oleh S&B Specialist."
+            onResetFilter={() => setSearch('')}
+            onIsiSurvei={(item) => router.push(`/pengajuan-harga/building-coord/${item.id}`)}
           />
         )}
+
+        {activeTab === 'diproses' && (
+          <ReusableSpecTable
+            items={itemsDiproses}
+            title="Daftar Pengajuan Harga Sedang Diproses (4-Layer Approval)"
+            showStatus={true}
+            showHarga={true}
+            showCatatanReview={true}
+            onViewCatatan={(item) => handleOpenCatatanModal(item)}
+            emptyTitle="Belum Ada Pengajuan Diproses"
+            emptyDescription="Tidak ada data survei harga yang sedang dalam proses verifikasi approver."
+            onResetFilter={() => setSearch('')}
+            onIsiSurvei={(item) => router.push(`/pengajuan-harga/building-coord/${item.id}`)}
+          />
+        )}
+
         {activeTab === 'selesai' && (
-          <TablePengajuanBerjalan
+          <ReusableSpecTable
             items={itemsSelesai}
-            title="Pengajuan Selesai"
-            emptyMessage="Belum ada pengajuan harga yang selesai."
-            onOpenDetailModal={handleOpenDetailModal}
-            onOpenCatatanModal={handleOpenCatatanModal}
+            title="Daftar Pengajuan Harga Selesai & Disetujui (Rilis Master Harga)"
+            showStatus={true}
+            showHarga={true}
+            showCatatanReview={false}
+            emptyTitle="Belum Ada Pengajuan Selesai"
+            emptyDescription="Belum ada material yang telah menyelesaikan seluruh tahapan approval dan rilis."
+            onResetFilter={() => setSearch('')}
           />
         )}
       </main>
