@@ -203,11 +203,13 @@ function ComboBoxInput({
 export interface RincianKalkulasiKoefisienProps {
   item: PengajuanHargaItem;
   initialUpahItems?: KoefisienDetailItem[];
+  initialUpahBongkaranItems?: KoefisienDetailItem[];
   initialMaterialItems?: KoefisienDetailItem[];
   initialMarginUpah?: number;
   initialMarginMaterial?: number;
   onSave: (data: {
     upahItems: KoefisienDetailItem[];
+    koefisienUpahBongkaranItems?: KoefisienDetailItem[];
     materialItems: KoefisienDetailItem[];
     marginUpah: number;
     marginMaterial: number;
@@ -218,15 +220,22 @@ export interface RincianKalkulasiKoefisienProps {
 export function RincianKalkulasiKoefisien({
   item,
   initialUpahItems,
+  initialUpahBongkaranItems,
   initialMaterialItems,
   initialMarginUpah,
   initialMarginMaterial,
   onSave,
   onBack,
 }: RincianKalkulasiKoefisienProps) {
+  // Tab state untuk item bongkaran
+  const [activeTab, setActiveTab] = useState<"pasangan" | "bongkaran">("pasangan");
+
   // State Komponen Upah & Material
   const [upahItems, setUpahItems] = useState<KoefisienDetailItem[]>(
     initialUpahItems || item.koefisienUpahItems || [],
+  );
+  const [upahBongkaranItems, setUpahBongkaranItems] = useState<KoefisienDetailItem[]>(
+    initialUpahBongkaranItems || item.koefisienUpahBongkaranItems || [],
   );
   const [materialItems, setMaterialItems] = useState<KoefisienDetailItem[]>(
     initialMaterialItems || item.koefisienMaterialItems || [],
@@ -246,6 +255,12 @@ export function RincianKalkulasiKoefisien({
   const [newUpahUnit, setNewUpahUnit] = useState("Oh");
   const [newUpahHargaAcuan, setNewUpahHargaAcuan] = useState<number | "">("");
   const [newUpahVal, setNewUpahVal] = useState("");
+
+  const [isAddingUpahBongkaran, setIsAddingUpahBongkaran] = useState(false);
+  const [newUpahBongkaranName, setNewUpahBongkaranName] = useState("");
+  const [newUpahBongkaranUnit, setNewUpahBongkaranUnit] = useState("Oh");
+  const [newUpahBongkaranHargaAcuan, setNewUpahBongkaranHargaAcuan] = useState<number | "">("");
+  const [newUpahBongkaranVal, setNewUpahBongkaranVal] = useState("");
 
   // State Form Tambah Material Inline
   const [isAddingMaterial, setIsAddingMaterial] = useState(false);
@@ -290,6 +305,21 @@ export function RincianKalkulasiKoefisien({
     return totalUpahDasar + nominalMarginUpah;
   }, [totalUpahDasar, nominalMarginUpah]);
 
+  // Kalkulasi Bongkaran
+  const totalUpahBongkaranDasar = useMemo(() => {
+    return upahBongkaranItems.reduce((acc, curr) => {
+      return acc + calculateWorkerSubtotal(curr.value, curr.hargaAcuan);
+    }, 0);
+  }, [upahBongkaranItems]);
+
+  const nominalMarginUpahBongkaran = useMemo(() => {
+    return Math.round((totalUpahBongkaranDasar * (marginUpah || 0)) / 100);
+  }, [totalUpahBongkaranDasar, marginUpah]);
+
+  const totalUpahBongkaranAkhir = useMemo(() => {
+    return totalUpahBongkaranDasar + nominalMarginUpahBongkaran;
+  }, [totalUpahBongkaranDasar, nominalMarginUpahBongkaran]);
+
   // Handlers Upah
   const handleUpahChange = (id: string, value: string) => {
     setUpahItems((prev) =>
@@ -301,6 +331,44 @@ export function RincianKalkulasiKoefisien({
     setUpahItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, hargaAcuan } : it)),
     );
+  };
+
+  const handleUpahBongkaranChange = (id: string, value: string) => {
+    setUpahBongkaranItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, value } : it)),
+    );
+  };
+
+  const handleUpahBongkaranHargaChange = (id: string, hargaAcuan: number) => {
+    setUpahBongkaranItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, hargaAcuan } : it)),
+    );
+  };
+
+  const handleConfirmAddUpahBongkaran = () => {
+    if (!newUpahBongkaranName.trim()) return;
+    const newId = `u-b-${Date.now()}`;
+    const harga = typeof newUpahBongkaranHargaAcuan === "number" ? newUpahBongkaranHargaAcuan : 0;
+    setUpahBongkaranItems((prev) => [
+      ...prev,
+      {
+        id: newId,
+        label: newUpahBongkaranName.trim(),
+        value: newUpahBongkaranVal || "0.0000",
+        unit: newUpahBongkaranUnit.trim() || "Oh",
+        hargaAcuan: harga,
+        isCustom: true,
+      },
+    ]);
+    setNewUpahBongkaranName("");
+    setNewUpahBongkaranUnit("Oh");
+    setNewUpahBongkaranHargaAcuan("");
+    setNewUpahBongkaranVal("");
+    setIsAddingUpahBongkaran(false);
+  };
+
+  const handleDeleteUpahBongkaran = (id: string) => {
+    setUpahBongkaranItems((prev) => prev.filter((it) => it.id !== id));
   };
 
   const handleConfirmAddUpah = () => {
@@ -362,6 +430,7 @@ export function RincianKalkulasiKoefisien({
   const handleSaveClick = () => {
     onSave({
       upahItems,
+      koefisienUpahBongkaranItems: upahBongkaranItems,
       materialItems,
       marginUpah,
       marginMaterial,
@@ -378,34 +447,43 @@ export function RincianKalkulasiKoefisien({
             RINCIAN KOEFISIEN
           </h2>
         </div>
-        {item && (
-          <div className="text-xs text-gray-500 pl-4">
-            <p>Item: <span className="font-semibold text-gray-800">{item.kode} - {item.item}</span> ({item.ukuran} • {item.merk})</p>
-            {item.tebal && item.toleransi && (
-              <span className="text-[11px] bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded w-fit inline-block mt-1">
-                Toleransi Terukur Minimal: <strong>{(() => {
-                  const tebal = parseFloat(item.tebal!);
-                  const tol = parseFloat(item.toleransi!);
-                  if (isNaN(tebal) || isNaN(tol)) return "-";
-                  const unitMatch = item.tebal!.match(/[a-zA-Z]+/);
-                  const unit = unitMatch ? unitMatch[0] : "";
-                  let min = 0;
-                  if (item.toleransi!.includes("%")) {
-                    min = tebal - (tebal * tol / 100);
-                  } else {
-                    min = tebal - tol;
-                  }
-                  return `${Number.isInteger(min) ? min : min.toFixed(2)} ${unit}`;
-                })()}</strong>
-              </span>
-            )}
-          </div>
-        )}
+        
       </div>
 
       {/* =========================================================================
-          A. KOMPONEN UPAH / TENAGA KERJA
+          TABS (If Bongkaran)
           ========================================================================= */}
+      {item?.isTermasukBongkaran && (
+        <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mt-4">
+          <button
+            type="button"
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === "pasangan"
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+            onClick={() => setActiveTab("pasangan")}
+          >
+            Koefisien Pasangan
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === "bongkaran"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+            onClick={() => setActiveTab("bongkaran")}
+          >
+            Koefisien Bongkaran
+          </button>
+        </div>
+      )}
+
+      <div className={activeTab === "pasangan" ? "block space-y-5" : "hidden"}>
+        {/* =========================================================================
+            A. KOMPONEN UPAH / TENAGA KERJA
+            ========================================================================= */}
       <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-xs">
         {/* Header Upah & Margin Terpusat */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
@@ -871,6 +949,240 @@ export function RincianKalkulasiKoefisien({
         )}
       </div>
 
+
+      </div>
+
+      <div className={activeTab === "bongkaran" ? "block space-y-5" : "hidden"}>
+        <div className="border border-gray-200 rounded-lg bg-white p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1.5 h-4 bg-amber-500 rounded-xs"></div>
+              <h3 className="text-gray-800 font-bold text-xs tracking-wider">
+                C. KOMPONEN UPAH BONGKARAN
+              </h3>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsAddingUpahBongkaran(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Komponen Bongkaran
+              </button>
+            </div>
+          </div>
+
+          {isAddingUpahBongkaran && (
+            <div className="mb-4 p-3.5 bg-amber-50/80 border border-amber-200 rounded-lg space-y-3">
+              <div className="flex flex-wrap items-end gap-2.5">
+                <div className="flex-1 min-w-[170px]">
+                  <label className="block text-[10px] font-semibold text-slate-700 mb-1">
+                    Nama Komponen Bongkaran <span className="text-red-500">*</span>
+                  </label>
+                  <ComboBoxInput
+                    value={newUpahBongkaranName}
+                    onChange={setNewUpahBongkaranName}
+                    onSelectOption={(opt) => {
+                      setNewUpahBongkaranName(opt.label);
+                      setNewUpahBongkaranUnit(opt.unit);
+                      setNewUpahBongkaranHargaAcuan(opt.defaultPrice || "");
+                    }}
+                    options={STANDAR_UPAH_OPTIONS}
+                    placeholder="Pilih atau ketik komponen..."
+                    autoFocus
+                  />
+                </div>
+                <div className="w-24">
+                  <label className="block text-[10px] font-semibold text-slate-700 mb-1">
+                    Satuan
+                  </label>
+                  <CreatableSelect
+                    styles={unitSelectStyles}
+                    options={UPAH_UNIT_OPTIONS}
+                    value={
+                      newUpahBongkaranUnit
+                        ? { label: newUpahBongkaranUnit, value: newUpahBongkaranUnit }
+                        : null
+                    }
+                    onChange={(selected: any) =>
+                      setNewUpahBongkaranUnit(selected ? selected.value : "Oh")
+                    }
+                    placeholder="Oh"
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="block text-[10px] font-semibold text-slate-700 mb-1">
+                    Harga Acuan (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={newUpahBongkaranHargaAcuan}
+                    onChange={(e) =>
+                      setNewUpahBongkaranHargaAcuan(
+                        e.target.value === "" ? "" : Number(e.target.value),
+                      )
+                    }
+                    className="border border-slate-300 rounded px-2 py-1.5 w-full text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+                <div className="w-28">
+                  <label className="block text-[10px] font-semibold text-slate-700 mb-1">
+                    Koefisien <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    placeholder="0.0000"
+                    value={newUpahBongkaranVal}
+                    onChange={(e) => setNewUpahBongkaranVal(e.target.value)}
+                    className="border border-slate-300 rounded px-2 py-1.5 w-full text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleConfirmAddUpahBongkaran}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingUpahBongkaran(false);
+                      setNewUpahBongkaranName("");
+                      setNewUpahBongkaranHargaAcuan("");
+                      setNewUpahBongkaranVal("");
+                    }}
+                    className="border border-slate-300 hover:bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded text-xs cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {upahBongkaranItems.length === 0 && !isAddingUpahBongkaran ? (
+            <div className="text-center py-6 border border-dashed border-gray-300 rounded-lg bg-gray-50/50">
+              <p className="text-xs text-gray-500 mb-2">
+                Belum ada komponen upah bongkaran yang ditambahkan.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsAddingUpahBongkaran(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Komponen Upah Bongkaran
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {upahBongkaranItems.map((u) => {
+                const workerSubtotal = calculateWorkerSubtotal(
+                  u.value,
+                  u.hargaAcuan,
+                );
+                return (
+                  <div
+                    key={u.id}
+                    className="border border-gray-200 rounded-lg p-3 bg-white shadow-2xs hover:border-amber-200 transition-all flex flex-col justify-between group"
+                  >
+                    <div>
+                      <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-100">
+                        <span
+                          className="text-xs font-bold text-gray-800 truncate"
+                          title={u.label}
+                        >
+                          {u.label}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUpahBongkaran(u.id)}
+                          className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] font-medium text-slate-500 mb-0.5">
+                            Koefisien ({u.unit})
+                          </label>
+                          <input
+                            type="number"
+                            step="0.0001"
+                            value={u.value}
+                            onChange={(e) =>
+                              handleUpahBongkaranChange(u.id, e.target.value)
+                            }
+                            className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-amber-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-medium text-slate-500 mb-0.5">
+                            Harga Acuan
+                          </label>
+                          <input
+                            type="number"
+                            value={u.hargaAcuan || ""}
+                            onChange={(e) =>
+                              handleUpahBongkaranHargaChange(
+                                u.id,
+                                Number(e.target.value),
+                              )
+                            }
+                            placeholder="0"
+                            className="border border-gray-200 rounded px-2 py-1 w-full text-xs text-slate-800 font-mono focus:border-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 mt-2.5 border-t border-slate-100 flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Subtotal</span>
+                      <strong className="text-gray-700 font-mono">
+                        {formatRupiah(workerSubtotal)}
+                      </strong>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {upahBongkaranItems.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-xs bg-gray-50/80 px-4 py-2.5 rounded-md border border-gray-100 flex-1 w-full md:w-auto overflow-x-auto">
+                <div className="flex flex-col min-w-max">
+                  <span className="text-slate-500 mb-1">Total Upah Bongkaran Dasar</span>
+                  <strong className="text-gray-700 font-mono">
+                    {formatRupiah(totalUpahBongkaranDasar)}
+                  </strong>
+                </div>
+                <div className="text-gray-300 font-light text-lg px-2">+</div>
+                <div className="flex flex-col min-w-max">
+                  <span className="text-slate-500 mb-1">Nilai Margin Upah (Rp)</span>
+                  <strong className="text-amber-700">
+                    {formatRupiah(nominalMarginUpahBongkaran)}
+                  </strong>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-500 text-[11px] mr-1.5">
+                  Total Upah Bongkaran (dengan Margin):
+                </span>
+                <strong className="text-amber-700 font-mono font-bold text-sm">
+                  {formatRupiah(totalUpahBongkaranAkhir)}
+                </strong>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* =========================================================================
           D. FOOTER / TOMBOL SIMPAN PERUBAHAN

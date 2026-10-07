@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -326,6 +327,17 @@ function parseNilaiDanSatuan(
   return { nilai: trimmed, satuan: defaultSatuan };
 }
 
+function formatTitleCase(text: string): string {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function TambahPengajuanModal({
   isOpen,
   onClose,
@@ -358,6 +370,7 @@ export function TambahPengajuanModal({
   const [implementasi, setImplementasi] = useState<string[]>(["Dinding Gerai"]);
   const [lokasi, setLokasi] = useState<string[]>([]);
   const [jenisPengajuan, setJenisPengajuan] = useState<"Hanya Jasa" | "Material">("Material");
+  const [isTermasukBongkaran, setIsTermasukBongkaran] = useState(false);
   const [informasiTambahan, setInformasiTambahan] = useState("");
 
   const [kodeItem, setKodeItem] = useState(
@@ -399,23 +412,33 @@ export function TambahPengajuanModal({
   }, [itemToEdit]);
 
   const materialReactSelectOptions = useMemo(() => {
-    const existingOptions = existingItems.map((i) => {
-      const parts = [i.ukuran, i.merk].filter(Boolean).join(" ");
-      return {
-        label: parts ? `${i.item} - ${parts}` : i.item,
-        value: i.item,
-        data: i,
-      };
+    const uniqueMap = new Map();
+
+    // 1. Existing items from store
+    existingItems.forEach((i) => {
+      const formattedName = formatTitleCase(i.item);
+      if (!uniqueMap.has(formattedName.toLowerCase())) {
+        uniqueMap.set(formattedName.toLowerCase(), {
+          label: formattedName,
+          value: formattedName,
+          data: i,
+        });
+      }
     });
 
-    const usedNames = new Set(existingItems.map((i) => i.item));
-    const initialOpts = INITIAL_MATERIAL_OPTIONS.filter((name) => !usedNames.has(name)).map((name) => ({
-      label: name,
-      value: name,
-      data: null,
-    }));
+    // 2. Initial static options
+    INITIAL_MATERIAL_OPTIONS.forEach((name) => {
+      const formattedName = formatTitleCase(name);
+      if (!uniqueMap.has(formattedName.toLowerCase())) {
+        uniqueMap.set(formattedName.toLowerCase(), {
+          label: formattedName,
+          value: formattedName,
+          data: null,
+        });
+      }
+    });
 
-    return [...existingOptions, ...initialOpts];
+    return Array.from(uniqueMap.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [existingItems]);
 
   const handleItemSelect = (selectedOption: any) => {
@@ -424,7 +447,7 @@ export function TambahPengajuanModal({
       return;
     }
 
-    setItem(selectedOption.value);
+    setItem(formatTitleCase(selectedOption.value));
 
     if (selectedOption.data) {
       const target = selectedOption.data;
@@ -616,6 +639,7 @@ export function TambahPengajuanModal({
         : []
     );
     setJenisPengajuan(target.jenisPengajuan || "Material");
+    setIsTermasukBongkaran(target.isTermasukBongkaran || false);
     setInformasiTambahan(target.informasiTambahan || "");
     setKodeItem(target.kode || "");
     setKodeMaster(target.kodeMaster || "");
@@ -637,6 +661,7 @@ export function TambahPengajuanModal({
     setImplementasi(["Dinding Gerai"]);
     setLokasi([]);
     setJenisPengajuan("Material");
+    setIsTermasukBongkaran(false);
     setInformasiTambahan("");
   };
 
@@ -717,6 +742,7 @@ export function TambahPengajuanModal({
       toleransi: combinedToleransi || undefined,
       informasiTambahan: informasiTambahan.trim(),
       jenisPengajuan,
+      isTermasukBongkaran,
       deskripsiOtomatis,
       estimasiHarga: itemToEdit?.estimasiHarga || 0,
       satuan: "m2",
@@ -801,7 +827,16 @@ export function TambahPengajuanModal({
                     <SelectItem value="Hanya Jasa">Hanya Jasa</SelectItem>
                   </SelectContent>
                 </Select>
-                <span className="text-[10px] text-slate-400">Material fisik atau hanya jasa pengerjaan</span>
+                <div className="flex flex-col gap-2 mt-1">
+                  <span className="text-[10px] text-slate-400">Material fisik atau hanya jasa pengerjaan</span>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                    <span className="text-[11px] font-semibold text-slate-700">Termasuk Pekerjaan Bongkaran?</span>
+                    <Switch
+                      checked={isTermasukBongkaran}
+                      onCheckedChange={setIsTermasukBongkaran}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-1.5">

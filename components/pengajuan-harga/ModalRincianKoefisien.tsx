@@ -82,6 +82,7 @@ export interface ModalRincianKoefisienProps {
   item: PengajuanHargaItem | null;
   onSave: (data: {
     upahItems: KoefisienDetailItem[];
+    koefisienUpahBongkaranItems?: KoefisienDetailItem[];
     materialItems: KoefisienDetailItem[];
   }) => void;
 }
@@ -104,8 +105,14 @@ export function ModalRincianKoefisien({
   item,
   onSave,
 }: ModalRincianKoefisienProps) {
+  const [activeTab, setActiveTab] = useState<"pasangan" | "bongkaran">("pasangan");
+
   const [upahItems, setUpahItems] =
     useState<KoefisienDetailItem[]>(DEFAULT_UPAH_ITEMS);
+  const [upahBongkaranItems, setUpahBongkaranItems] =
+    useState<KoefisienDetailItem[]>([
+      { id: "bongkaran-1", label: "Pekerja", value: "0", unit: "Oh" }
+    ]);
   const [materialItems, setMaterialItems] = useState<KoefisienDetailItem[]>(
     DEFAULT_MATERIAL_ITEMS,
   );
@@ -116,6 +123,11 @@ export function ModalRincianKoefisien({
   const [newUpahUnit, setNewUpahUnit] = useState("Oh");
   const [newUpahVal, setNewUpahVal] = useState("0.0000");
 
+  const [isAddingUpahBongkaran, setIsAddingUpahBongkaran] = useState(false);
+  const [newUpahBongkaranName, setNewUpahBongkaranName] = useState("");
+  const [newUpahBongkaranUnit, setNewUpahBongkaranUnit] = useState("Oh");
+  const [newUpahBongkaranVal, setNewUpahBongkaranVal] = useState("0.0000");
+
   const [isAddingMaterial, setIsAddingMaterial] = useState(false);
   const [newMaterialName, setNewMaterialName] = useState("");
   const [newMaterialUnit, setNewMaterialUnit] = useState("Kg");
@@ -124,10 +136,20 @@ export function ModalRincianKoefisien({
   // Sync state saat modal dibuka
   useEffect(() => {
     if (isOpen) {
+      setActiveTab("pasangan");
+      
       if (item?.koefisienUpahItems && item.koefisienUpahItems.length > 0) {
         setUpahItems(item.koefisienUpahItems);
       } else {
         setUpahItems([...DEFAULT_UPAH_ITEMS]);
+      }
+
+      if (item?.koefisienUpahBongkaranItems && item.koefisienUpahBongkaranItems.length > 0) {
+        setUpahBongkaranItems(item.koefisienUpahBongkaranItems);
+      } else {
+        setUpahBongkaranItems([
+          { id: "bongkaran-1", label: "Pekerja", value: "0", unit: "Oh" }
+        ]);
       }
 
       if (item?.koefisienMaterialItems && item.koefisienMaterialItems.length > 0) {
@@ -143,8 +165,10 @@ export function ModalRincianKoefisien({
         setMaterialItems(initialMaterials);
       }
       setIsAddingUpah(false);
+      setIsAddingUpahBongkaran(false);
       setIsAddingMaterial(false);
       setNewUpahName("");
+      setNewUpahBongkaranName("");
       setNewMaterialName("");
     }
   }, [isOpen, item]);
@@ -152,6 +176,12 @@ export function ModalRincianKoefisien({
   // Handler Edit Nilai
   const handleUpahChange = (id: string, value: string) => {
     setUpahItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, value } : it)),
+    );
+  };
+  
+  const handleUpahBongkaranChange = (id: string, value: string) => {
+    setUpahBongkaranItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, value } : it)),
     );
   };
@@ -185,6 +215,29 @@ export function ModalRincianKoefisien({
   const handleDeleteUpah = (id: string) => {
     setUpahItems((prev) => prev.filter((it) => it.id !== id));
   };
+  
+  const handleConfirmAddUpahBongkaran = () => {
+    if (!newUpahBongkaranName.trim()) return;
+    const newId = `u-b-${Date.now()}`;
+    setUpahBongkaranItems((prev) => [
+      ...prev,
+      {
+        id: newId,
+        label: newUpahBongkaranName.trim(),
+        value: newUpahBongkaranVal || "0.0000",
+        unit: newUpahBongkaranUnit.trim() || "Oh",
+        isCustom: true,
+      },
+    ]);
+    setNewUpahBongkaranName("");
+    setNewUpahBongkaranUnit("Oh");
+    setNewUpahBongkaranVal("0.0000");
+    setIsAddingUpahBongkaran(false);
+  };
+
+  const handleDeleteUpahBongkaran = (id: string) => {
+    setUpahBongkaranItems((prev) => prev.filter((it) => it.id !== id));
+  };
 
   // Handler Tambah Material Inline
   const handleConfirmAddMaterial = () => {
@@ -214,6 +267,7 @@ export function ModalRincianKoefisien({
   const handleSave = () => {
     onSave({
       upahItems,
+      koefisienUpahBongkaranItems: upahBongkaranItems,
       materialItems,
     });
   };
@@ -240,24 +294,6 @@ export function ModalRincianKoefisien({
                         </span>{" "}
                         ({item.ukuran} • {item.merk})
                       </span>
-                      {item.tebal && item.toleransi && (
-                        <span className="text-[11px] bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded w-fit inline-block">
-                          Toleransi Terukur Minimal: <strong>{(() => {
-                            const tebal = parseFloat(item.tebal!);
-                            const tol = parseFloat(item.toleransi!);
-                            if (isNaN(tebal) || isNaN(tol)) return "-";
-                            const unitMatch = item.tebal!.match(/[a-zA-Z]+/);
-                            const unit = unitMatch ? unitMatch[0] : "";
-                            let min = 0;
-                            if (item.toleransi!.includes("%")) {
-                              min = tebal - (tebal * tol / 100);
-                            } else {
-                              min = tebal - tol;
-                            }
-                            return `${Number.isInteger(min) ? min : min.toFixed(2)} ${unit}`;
-                          })()}</strong>
-                        </span>
-                      )}
                     </>
                   ) : (
                     <span>Input rincian koefisien pekerjaan</span>
@@ -270,263 +306,421 @@ export function ModalRincianKoefisien({
 
         {/* Content Body */}
         <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Section A: Komponen Upah */}
-          <div className="border border-gray-200 rounded-lg bg-white p-4">
-            {/* Section Header */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-5 bg-blue-700 rounded-sm"></div>
-                <h2 className="text-gray-700 font-bold text-sm tracking-wide">
-                  A. KOMPONEN UPAH / TENAGA KERJA
-                </h2>
-              </div>
+          {item?.isTermasukBongkaran && (
+            <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
               <button
                 type="button"
-                onClick={() => setIsAddingUpah(true)}
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === "pasangan"
+                    ? "border-blue-600 text-blue-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setActiveTab("pasangan")}
               >
-                <span>+</span> Tambah
+                Koefisien Pasangan
+              </button>
+              <button
+                type="button"
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === "bongkaran"
+                    ? "border-amber-600 text-amber-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setActiveTab("bongkaran")}
+              >
+                Koefisien Bongkaran
               </button>
             </div>
+          )}
 
-            {/* Inline Add Form Section A (Tanpa prompt) */}
-            {isAddingUpah && (
-              <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200 rounded-lg flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-[150px]">
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Nama Komponen Tenaga Kerja <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Kepala Tukang"
-                    value={newUpahName}
-                    onChange={(e) => setNewUpahName(e.target.value)}
-                    className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    autoFocus
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Satuan
-                  </label>
-                  <CreatableSelect
-                    styles={unitSelectStyles}
-                    options={UPAH_UNIT_OPTIONS}
-                    value={
-                      newUpahUnit
-                        ? { label: newUpahUnit, value: newUpahUnit }
-                        : null
-                    }
-                    onChange={(selected: any) =>
-                      setNewUpahUnit(selected ? selected.value : "Oh")
-                    }
-                    placeholder="Oh"
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Koefisien
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="0.0000"
-                    value={newUpahVal}
-                    onChange={(e) => setNewUpahVal(e.target.value)}
-                    className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
+          {activeTab === "pasangan" ? (
+            <>
+              {/* Section A: Komponen Upah */}
+              <div className="border border-gray-200 rounded-lg bg-white p-4">
+                {/* Section Header */}
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-5 bg-blue-700 rounded-sm"></div>
+                    <h2 className="text-gray-700 font-bold text-sm tracking-wide">
+                      A. KOMPONEN UPAH / TENAGA KERJA
+                    </h2>
+                  </div>
                   <button
                     type="button"
-                    onClick={handleConfirmAddUpah}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer"
+                    onClick={() => setIsAddingUpah(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                   >
-                    Simpan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingUpah(false);
-                      setNewUpahName("");
-                    }}
-                    className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded text-xs cursor-pointer"
-                  >
-                    Batal
+                    <span>+</span> Tambah
                   </button>
                 </div>
-              </div>
-            )}
 
-            {/* Grid Data A */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {upahItems.map((u) => (
-                <div
-                  key={u.id}
-                  className="border border-gray-200 rounded p-3 bg-gray-50/50 relative group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-semibold text-gray-700 truncate" title={u.label}>
-                      {u.label}
-                    </label>
-                    {u.isCustom && (
+                {/* Inline Add Form Section A */}
+                {isAddingUpah && (
+                  <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200 rounded-lg flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        Nama Komponen Tenaga Kerja <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Kepala Tukang"
+                        value={newUpahName}
+                        onChange={(e) => setNewUpahName(e.target.value)}
+                        className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        Satuan
+                      </label>
+                      <CreatableSelect
+                        styles={unitSelectStyles}
+                        options={UPAH_UNIT_OPTIONS}
+                        value={
+                          newUpahUnit
+                            ? { label: newUpahUnit, value: newUpahUnit }
+                            : null
+                        }
+                        onChange={(selected: any) =>
+                          setNewUpahUnit(selected ? selected.value : "Oh")
+                        }
+                        placeholder="Oh"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        Koefisien
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="0.0000"
+                        value={newUpahVal}
+                        onChange={(e) => setNewUpahVal(e.target.value)}
+                        className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleDeleteUpah(u.id)}
-                        className="text-gray-400 hover:text-red-600 transition cursor-pointer p-0.5"
-                        title="Hapus komponen"
+                        onClick={handleConfirmAddUpah}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        Simpan
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingUpah(false);
+                          setNewUpahName("");
+                        }}
+                        className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded text-xs cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                )}
+
+                {/* Grid Data A */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {upahItems.map((u) => (
+                    <div
+                      key={u.id}
+                      className="border border-gray-200 rounded p-3 bg-gray-50/50 relative group"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-semibold text-gray-700 truncate" title={u.label}>
+                          {u.label}
+                        </label>
+                        {u.isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUpah(u.id)}
+                            className="text-gray-400 hover:text-red-600 transition cursor-pointer p-0.5"
+                            title="Hapus komponen"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="0.0000"
+                          value={u.value}
+                          onChange={(e) => handleUpahChange(u.id, e.target.value)}
+                          className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition"
+                        />
+                        <span className="bg-gray-100 border border-gray-200 text-gray-600 px-3 py-1.5 rounded text-xs font-medium shrink-0">
+                          {u.unit}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section B: Komponen Material */}
+              <div className="border border-gray-200 rounded-lg bg-white p-4">
+                {/* Section Header */}
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-5 bg-green-500 rounded-sm"></div>
+                    <h2 className="text-gray-700 font-bold text-sm tracking-wide">
+                      B. KOMPONEN MATERIAL &amp; ALAT
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingMaterial(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>+</span> Tambah
+                  </button>
+                </div>
+
+                {/* Inline Add Form Section B */}
+                {isAddingMaterial && (
+                  <div className="mb-4 p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        Nama Material / Alat <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Air Kerja, Paku, Lem"
+                        value={newMaterialName}
+                        onChange={(e) => setNewMaterialName(e.target.value)}
+                        className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        Satuan
+                      </label>
+                      <CreatableSelect
+                        styles={unitSelectStyles}
+                        options={MATERIAL_UNIT_OPTIONS}
+                        value={
+                          newMaterialUnit
+                            ? { label: newMaterialUnit, value: newMaterialUnit }
+                            : null
+                        }
+                        onChange={(selected: any) =>
+                          setNewMaterialUnit(selected ? selected.value : "Kg")
+                        }
+                        placeholder="Kg"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                        Koefisien
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="0.0000"
+                        value={newMaterialVal}
+                        onChange={(e) => setNewMaterialVal(e.target.value)}
+                        className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleConfirmAddMaterial}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer"
+                      >
+                        Simpan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingMaterial(false);
+                          setNewMaterialName("");
+                        }}
+                        className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded text-xs cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Grid Data B */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {materialItems.map((m) => (
+                    <div
+                      key={m.id}
+                      className="border border-gray-200 rounded p-3 bg-gray-50/50 relative group"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-semibold text-gray-700 truncate" title={m.label}>
+                          {m.label}
+                        </label>
+                        {m.isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMaterial(m.id)}
+                            className="text-gray-400 hover:text-red-600 transition cursor-pointer p-0.5"
+                            title="Hapus material"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="0.0000"
+                          value={m.value}
+                          onChange={(e) =>
+                            handleMaterialChange(m.id, e.target.value)
+                          }
+                          className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition"
+                        />
+                        <span className="bg-gray-100 border border-gray-200 text-gray-600 px-3 py-1.5 rounded text-xs font-medium shrink-0">
+                          {m.unit}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="border border-amber-200 rounded-lg bg-white p-4">
+              {/* Section Header */}
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-5 bg-amber-500 rounded-sm"></div>
+                  <h2 className="text-gray-700 font-bold text-sm tracking-wide">
+                    C. KOMPONEN UPAH BONGKARAN
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingUpahBongkaran(true)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <span>+</span> Tambah
+                </button>
+              </div>
+
+              {/* Inline Add Form Section Bongkaran */}
+              {isAddingUpahBongkaran && (
+                <div className="mb-4 p-3 bg-amber-50/70 border border-amber-200 rounded-lg flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                      Nama Komponen Tenaga Kerja <span className="text-red-500">*</span>
+                    </label>
                     <input
-                      type="number"
-                      step="any"
-                      placeholder="0.0000"
-                      value={u.value}
-                      onChange={(e) => handleUpahChange(u.id, e.target.value)}
-                      className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition"
+                      type="text"
+                      placeholder="Contoh: Pekerja"
+                      value={newUpahBongkaranName}
+                      onChange={(e) => setNewUpahBongkaranName(e.target.value)}
+                      className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      autoFocus
                     />
-                    <span className="bg-gray-100 border border-gray-200 text-gray-600 px-3 py-1.5 rounded text-xs font-medium shrink-0">
-                      {u.unit}
-                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Section B: Komponen Material */}
-          <div className="border border-gray-200 rounded-lg bg-white p-4">
-            {/* Section Header */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-5 bg-green-500 rounded-sm"></div>
-                <h2 className="text-gray-700 font-bold text-sm tracking-wide">
-                  B. KOMPONEN MATERIAL &amp; ALAT
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddingMaterial(true)}
-                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                <span>+</span> Tambah
-              </button>
-            </div>
-
-            {/* Inline Add Form Section B (Tanpa prompt) */}
-            {isAddingMaterial && (
-              <div className="mb-4 p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-[150px]">
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Nama Material / Alat <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Air Kerja, Paku, Lem"
-                    value={newMaterialName}
-                    onChange={(e) => setNewMaterialName(e.target.value)}
-                    className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    autoFocus
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Satuan
-                  </label>
-                  <CreatableSelect
-                    styles={unitSelectStyles}
-                    options={MATERIAL_UNIT_OPTIONS}
-                    value={
-                      newMaterialUnit
-                        ? { label: newMaterialUnit, value: newMaterialUnit }
-                        : null
-                    }
-                    onChange={(selected: any) =>
-                      setNewMaterialUnit(selected ? selected.value : "Kg")
-                    }
-                    placeholder="Kg"
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                    Koefisien
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="0.0000"
-                    value={newMaterialVal}
-                    onChange={(e) => setNewMaterialVal(e.target.value)}
-                    className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleConfirmAddMaterial}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer"
-                  >
-                    Simpan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingMaterial(false);
-                      setNewMaterialName("");
-                    }}
-                    className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded text-xs cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Grid Data B */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {materialItems.map((m) => (
-                <div
-                  key={m.id}
-                  className="border border-gray-200 rounded p-3 bg-gray-50/50 relative group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-semibold text-gray-700 truncate" title={m.label}>
-                      {m.label}
+                  <div className="w-28">
+                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                      Satuan
                     </label>
-                    {m.isCustom && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteMaterial(m.id)}
-                        className="text-gray-400 hover:text-red-600 transition cursor-pointer p-0.5"
-                        title="Hapus material"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="any"
-                      placeholder="0.0000"
-                      value={m.value}
-                      onChange={(e) =>
-                        handleMaterialChange(m.id, e.target.value)
+                    <CreatableSelect
+                      styles={unitSelectStyles}
+                      options={UPAH_UNIT_OPTIONS}
+                      value={
+                        newUpahBongkaranUnit
+                          ? { label: newUpahBongkaranUnit, value: newUpahBongkaranUnit }
+                          : null
                       }
-                      className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition"
+                      onChange={(selected: any) =>
+                        setNewUpahBongkaranUnit(selected ? selected.value : "Oh")
+                      }
+                      placeholder="Oh"
                     />
-                    <span className="bg-gray-100 border border-gray-200 text-gray-600 px-3 py-1.5 rounded text-xs font-medium shrink-0">
-                      {m.unit}
-                    </span>
+                  </div>
+                  <div className="w-28">
+                    <label className="block text-[11px] font-semibold text-gray-700 mb-1">
+                      Koefisien
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.0000"
+                      value={newUpahBongkaranVal}
+                      onChange={(e) => setNewUpahBongkaranVal(e.target.value)}
+                      className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleConfirmAddUpahBongkaran}
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer"
+                    >
+                      Simpan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingUpahBongkaran(false);
+                        setNewUpahBongkaranName("");
+                      }}
+                      className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded text-xs cursor-pointer"
+                    >
+                      Batal
+                    </button>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Grid Data Bongkaran */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {upahBongkaranItems.map((u) => (
+                  <div
+                    key={u.id}
+                    className="border border-gray-200 rounded p-3 bg-gray-50/50 relative group"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-gray-700 truncate" title={u.label}>
+                        {u.label}
+                      </label>
+                      {u.isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUpahBongkaran(u.id)}
+                          className="text-gray-400 hover:text-red-600 transition cursor-pointer p-0.5"
+                          title="Hapus komponen"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="0.0000"
+                        value={u.value}
+                        onChange={(e) => handleUpahBongkaranChange(u.id, e.target.value)}
+                        className="border border-gray-300 rounded px-2.5 py-1.5 w-full text-gray-800 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 transition"
+                      />
+                      <span className="bg-gray-100 border border-gray-200 text-gray-600 px-3 py-1.5 rounded text-xs font-medium shrink-0">
+                        {u.unit}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Footer / Tombol Simpan */}
           <div className="flex justify-end gap-3 pt-2">

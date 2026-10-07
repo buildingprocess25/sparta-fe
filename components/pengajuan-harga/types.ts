@@ -134,6 +134,8 @@ export interface PengajuanHargaItem {
   rincianAHSP?: AHSPKomponen[];
   koefisienUpahItems?: KoefisienDetailItem[];
   koefisienMaterialItems?: KoefisienDetailItem[];
+  isTermasukBongkaran?: boolean;
+  koefisienUpahBongkaranItems?: KoefisienDetailItem[];
   marginUpah?: number; // Margin persentase internal S&B untuk komponen upah (%) - default 8%
   marginMaterial?: number; // Margin persentase internal S&B untuk komponen material (%) - default 8%
   historyLog?: ApprovalLog[];

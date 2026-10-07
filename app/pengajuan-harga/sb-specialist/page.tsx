@@ -14,16 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+// Removed Dialog, Textarea, Label imports
 import {
   Search,
   SlidersHorizontal,
@@ -70,13 +61,6 @@ export default function SBSpecialistPage() {
     "all" | "DIAJUKAN" | "REVISI" | "DISETUJUI" | "DITOLAK"
   >("all");
 
-  // Modal State untuk Validasi, Revisi, dan Approval
-  const [selectedItem, setSelectedItem] = useState<PengajuanHargaItem | null>(
-    null,
-  );
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-
   // Modal State untuk Jalur Trial
   const [isTambahTrialModalOpen, setIsTambahTrialModalOpen] = useState(false);
   const [trialItemToEdit, setTrialItemToEdit] =
@@ -87,8 +71,6 @@ export default function SBSpecialistPage() {
   const [evaluasiItem, setEvaluasiItem] = useState<PengajuanHargaItem | null>(
     null,
   );
-
-  const [catatanReject, setCatatanReject] = useState("");
 
   // Load Data from LocalStorage (Sync on Focus)
   const loadData = () => {
@@ -386,229 +368,6 @@ export default function SBSpecialistPage() {
     });
   };
 
-  // Modal Open Handlers
-  const handleOpenApprove = (item: PengajuanHargaItem) => {
-    setSelectedItem(item);
-    setIsApproveModalOpen(true);
-  };
-
-  const handleOpenReject = (item: PengajuanHargaItem) => {
-    setSelectedItem(item);
-    setCatatanReject("");
-    setIsRejectModalOpen(true);
-  };
-
-  // Submit Approval
-  const handleConfirmApprove = () => {
-    if (!selectedItem) return;
-
-    const isPriceApproval = selectedItem.status === "PENDING_SB_SPECIALIST";
-    const nextStatus = isPriceApproval ? "PENDING_REGIONAL_MGR" : "DISETUJUI";
-
-    const updated = items.map((i) => {
-      if (i.id === selectedItem.id) {
-        return {
-          ...i,
-          status: nextStatus as any,
-          historyLog: [
-            ...(i.historyLog || []),
-            {
-              role: "S&B Specialist" as const,
-              action: "APPROVE" as const,
-              tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan: isPriceApproval
-                ? "Disetujui S&B Specialist (Layer 2) dan diteruskan ke Regional Manager."
-                : "Permohonan penetapan spesifikasi disetujui oleh S&B Specialist.",
-            },
-          ],
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    saveStoredPengajuan(updated);
-    setIsApproveModalOpen(false);
-
-    if (isPriceApproval) {
-      showAlert({
-        title: "Berhasil",
-        message: "Pengajuan harga disetujui.",
-        type: "success",
-      });
-    } else {
-      showAlert({
-        title: "Berhasil",
-        message: "Spesifikasi disetujui.",
-        type: "success",
-      });
-      router.push(`/pengajuan-harga/sb-specialist/${selectedItem.id}`);
-    }
-  };
-
-  // Submit Revisi Spesifikasi langsung dari Detail Spesifikasi (ke B&M)
-  const handleConfirmRevisi = (
-    item: PengajuanHargaItem,
-    catatan: string,
-    revisiFields: string[],
-  ) => {
-    const updated = items.map((i) => {
-      if (i.id === item.id) {
-        return {
-          ...i,
-          status: "REVISI" as const,
-          catatanReview: catatan.trim(),
-          revisiFields: revisiFields,
-          historyLog: [
-            ...(i.historyLog || []),
-            {
-              role: "S&B Specialist" as const,
-              action: "REVISE" as const,
-              tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan: catatan.trim(),
-              revisiFields: revisiFields,
-            },
-          ],
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    saveStoredPengajuan(updated);
-
-    showAlert({
-      title: "Berhasil",
-      message: "Catatan revisi telah dikirim ke B&M Manager.",
-      type: "info",
-    });
-  };
-
-  // Submit Approval Spesifikasi langsung dari Detail Spesifikasi
-  const handleConfirmApproveSpec = (
-    item: PengajuanHargaItem,
-    catatan?: string,
-  ) => {
-    const updated = items.map((i) => {
-      if (i.id === item.id) {
-        return {
-          ...i,
-          status: "DISETUJUI" as const,
-          historyLog: [
-            ...(i.historyLog || []),
-            {
-              role: "S&B Specialist" as const,
-              action: "APPROVE" as const,
-              tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan:
-                catatan?.trim() ||
-                "Permohonan penetapan spesifikasi disetujui oleh S&B Specialist.",
-            },
-          ],
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    saveStoredPengajuan(updated);
-
-    showAlert({
-      title: "Berhasil",
-      message: "Spesifikasi disetujui.",
-      type: "success",
-    });
-    router.push(`/pengajuan-harga/sb-specialist/${item.id}`);
-  };
-
-  // Submit Tolak Spesifikasi langsung dari Detail Spesifikasi
-  const handleConfirmRejectSpec = (
-    item: PengajuanHargaItem,
-    alasan: string,
-  ) => {
-    const updated = items.map((i) => {
-      if (i.id === item.id) {
-        return {
-          ...i,
-          status: "DITOLAK" as const,
-          catatanReview: alasan.trim(),
-          historyLog: [
-            ...(i.historyLog || []),
-            {
-              role: "S&B Specialist" as const,
-              action: "REJECT" as const,
-              tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan: alasan.trim(),
-            },
-          ],
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    saveStoredPengajuan(updated);
-
-    showAlert({
-      title: "Berhasil",
-      message: "Pengajuan spesifikasi ditolak.",
-      type: "warning",
-    });
-  };
-
-  // Submit Tolak / Kembalikan ke BC (Harga Survei) atau Tolak Spek Permanen
-  const handleSubmitReject = () => {
-    if (!selectedItem) return;
-    if (!catatanReject.trim()) {
-      showAlert({
-        title: "Perhatian",
-        message: "Catatan wajib diisi.",
-        type: "warning",
-      });
-      return;
-    }
-
-    const isPriceApproval = selectedItem.status === "PENDING_SB_SPECIALIST";
-    const nextStatus = isPriceApproval ? "RETURNED_TO_BC" : "DITOLAK";
-
-    const updated = items.map((i) => {
-      if (i.id === selectedItem.id) {
-        return {
-          ...i,
-          status: nextStatus as any,
-          historyLog: [
-            ...(i.historyLog || []),
-            {
-              role: "S&B Specialist" as const,
-              action: "REJECT" as const,
-              tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
-              catatan: catatanReject.trim(),
-            },
-          ],
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    saveStoredPengajuan(updated);
-    setIsRejectModalOpen(false);
-
-    if (isPriceApproval) {
-      showAlert({
-        title: "Berhasil",
-        message: "Pengajuan dikembalikan ke BC.",
-        type: "warning",
-      });
-    } else {
-      showAlert({
-        title: "Berhasil",
-        message: "Pengajuan ditolak.",
-        type: "warning",
-      });
-    }
-  };
-
   const handleResetFilter = () => {
     setSearch("");
     setStatusFilter("all");
@@ -791,12 +550,6 @@ export default function SBSpecialistPage() {
               showStatus={true}
               showHarga={false}
               title="Daftar Permohonan Spesifikasi Material dari B&amp;M Manager"
-              onApprove={handleConfirmApproveSpec}
-              onRevisi={handleConfirmRevisi}
-              onReject={handleConfirmRejectSpec}
-              onManageKoefisien={(item) =>
-                router.push(`/pengajuan-harga/sb-specialist/${item.id}`)
-              }
               onResetFilter={handleResetFilter}
             />
           </div>
@@ -810,7 +563,6 @@ export default function SBSpecialistPage() {
             showHarga={true}
             title="Daftar Pengajuan Harga Survei Menunggu Persetujuan Layer 2"
             onResetFilter={handleResetFilter}
-            onReviewSurvei={handleOpenApprove}
           />
         )}
 
@@ -859,7 +611,6 @@ export default function SBSpecialistPage() {
               title="Daftar Pengajuan Item Trial"
               showStatus={true}
               showHarga={true}
-              onViewDetail={handleOpenEditTrial}
               renderAction={(item) => (
                 <div className="flex items-center gap-1.5">
                   {item.status === "TRIAL_REVISI" && (
@@ -891,188 +642,6 @@ export default function SBSpecialistPage() {
           </div>
         )}
       </main>
-
-      {/* Modal Dialog: Konfirmasi Setujui Permohonan / Approval Layer 2 */}
-      <Dialog
-        open={isApproveModalOpen}
-        onOpenChange={(open) => !open && setIsApproveModalOpen(false)}
-      >
-        <DialogContent
-          className={`${(selectedItem?.surveyToko && selectedItem.surveyToko.length > 0) || (selectedItem?.koefisienMaterialItems && selectedItem.koefisienMaterialItems.length > 0) ? "max-w-4xl max-h-[90vh] overflow-y-auto" : "max-w-md"} rounded-2xl p-6`}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
-                <CheckCircle2 className="w-4 h-4" />
-              </span>
-              <span>
-                {selectedItem?.status === "PENDING_SB_SPECIALIST"
-                  ? "Review & Persetujuan Harga Survei (Layer 2)"
-                  : "Setujui Permohonan Penetapan Spesifikasi"}
-              </span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 mt-1">
-              Item:{" "}
-              <strong>
-                {selectedItem?.kode} - {selectedItem?.item} (
-                {selectedItem?.merk})
-              </strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Bar Timeline Pengajuan */}
-          {selectedItem && (
-            <div className="my-2">
-              <PengajuanTimelineBar item={selectedItem} />
-            </div>
-          )}
-
-          {/* Rincian Komponen & Survei 3 Toko jika ada */}
-          {selectedItem?.koefisienMaterialItems &&
-          selectedItem.koefisienMaterialItems.length > 0 ? (
-            <div className="py-2 border-y border-slate-100 my-2 space-y-4">
-              <RingkasanBiayaMaterial
-                materialItems={selectedItem.koefisienMaterialItems}
-                totalBiayaMaterial={
-                  selectedItem.hargaRataRata || selectedItem.estimasiHarga || 0
-                }
-                marginMaterial={selectedItem?.marginMaterial}
-                formatRupiah={formatRupiah}
-              />
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-800">
-                  Detail Survei Toko per Komponen:
-                </h4>
-                {selectedItem.koefisienMaterialItems.map((mat) => (
-                  <RincianSurvei3TokoCard
-                    key={mat.id}
-                    mode="readonly"
-                    surveyToko={mat.surveyToko || []}
-                    satuan={mat.unit || "m2"}
-                    materialCode={mat.id}
-                    materialName={mat.label}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : selectedItem?.surveyToko && selectedItem.surveyToko.length > 0 ? (
-            <div className="py-2 border-y border-slate-100 my-2">
-              <RincianSurvei3TokoCard
-                mode="readonly"
-                surveyToko={selectedItem.surveyToko}
-                satuan={selectedItem.satuan || "m2"}
-                materialCode={selectedItem.kodeMaster || selectedItem.kode}
-                materialName={`${selectedItem.item} ${selectedItem.ukuran} ${selectedItem.merk}`}
-              />
-            </div>
-          ) : null}
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsApproveModalOpen(false)}
-              className="rounded-xl h-8 text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            {selectedItem?.status === "PENDING_SB_SPECIALIST" && (
-              <Button
-                type="button"
-                onClick={() => {
-                  setIsApproveModalOpen(false);
-                  handleOpenReject(selectedItem);
-                }}
-                className="rounded-xl h-8 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer gap-1.5"
-                title="Kembalikan ke Building Coordinator untuk revisi survei"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Revisi</span>
-              </Button>
-            )}
-            <Button
-              type="button"
-              onClick={handleConfirmApprove}
-              className="rounded-xl h-8 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer gap-1.5"
-              title="Setujui dan teruskan ke Regional Manager"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>
-                {selectedItem?.status === "PENDING_SB_SPECIALIST"
-                  ? "Setujui"
-                  : "Konfirmasi & Input Koefisien"}
-              </span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Dialog: Tolak Spesifikasi / Kembalikan Harga Survei ke BC */}
-      <Dialog
-        open={isRejectModalOpen}
-        onOpenChange={(open) => !open && setIsRejectModalOpen(false)}
-      >
-        <DialogContent className="max-w-md rounded-2xl p-6">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span className="p-1.5 bg-rose-100 text-rose-700 rounded-lg">
-                <XCircle className="w-4 h-4" />
-              </span>
-              <span>
-                {selectedItem?.status === "PENDING_SB_SPECIALIST"
-                  ? "Kembalikan Harga Survei ke BC"
-                  : "Tolak Permohonan Spesifikasi"}
-              </span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 mt-1">
-              Item:{" "}
-              <strong>
-                {selectedItem?.kode} - {selectedItem?.item} (
-                {selectedItem?.merk})
-              </strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 my-2 text-xs">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold text-slate-700">
-                Alasan Pengembalian / Penolakan{" "}
-                <span className="text-red-500">*</span>
-              </Label>
-              <Textarea
-                value={catatanReject}
-                onChange={(e) => setCatatanReject(e.target.value)}
-                placeholder="Tuliskan alasan..."
-                className="text-xs rounded-xl border-slate-200 min-h-[85px]"
-                required
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsRejectModalOpen(false)}
-              className="rounded-xl h-8 text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSubmitReject}
-              className="rounded-xl h-8 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer gap-1.5"
-            >
-              <XCircle className="w-3.5 h-3.5" />
-              <span>
-                {selectedItem?.status === "PENDING_SB_SPECIALIST"
-                  ? "Konfirmasi Kembalikan ke BC"
-                  : "Konfirmasi Tolak"}
-              </span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal Tambah / Edit Item Trial */}
       <TambahItemTrialModal

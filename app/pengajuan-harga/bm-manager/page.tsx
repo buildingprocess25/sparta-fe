@@ -80,12 +80,6 @@ export default function BMManagerPage() {
   const [isCatatanModalOpen, setIsCatatanModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Approval Modal State (Alur 2A)
-  const [selectedPengajuan, setSelectedPengajuan] = useState<PengajuanHargaItem | null>(null);
-  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
-  const [approvalAction, setApprovalAction] = useState<'APPROVE' | 'REJECT'>('APPROVE');
-  const [catatanAction, setCatatanAction] = useState('');
-
   // Filter & Search State
   const [selectedCabang, setSelectedCabang] = useState<string>('Cikokol');
   const [filters, setFilters] = useState<PengajuanHargaFilterState>({
@@ -286,62 +280,6 @@ export default function BMManagerPage() {
       showAlert({ title: 'Gagal Mengunduh', message: e?.message || 'Terjadi kesalahan saat membuat file PDF.', type: 'error' });
     } finally {
       setIsExporting(false);
-    }
-  };
-
-  // Approval Handlers (Alur 2A Layer 1)
-  const handleOpenApprovalModal = (item: PengajuanHargaItem, action: 'APPROVE' | 'REJECT') => {
-    setSelectedPengajuan(item);
-    setApprovalAction(action);
-    setCatatanAction(action === 'APPROVE' ? 'Disetujui oleh B&M Manager.' : '');
-    setIsApprovalModalOpen(true);
-  };
-
-  const handleExecuteApproval = () => {
-    if (!selectedPengajuan) return;
-
-    const isApprove = approvalAction === 'APPROVE';
-    const isSurveyApproval = selectedPengajuan.status === 'PENDING_BM_MGR';
-    const nextStatus = isApprove
-      ? (isSurveyApproval ? 'PENDING_SB_SPECIALIST' : 'DISETUJUI')
-      : (isSurveyApproval ? 'RETURNED_TO_BC' : 'DITOLAK');
-
-    const updated = items.map(i => {
-      if (i.id === selectedPengajuan.id) {
-        const newLog = [
-          ...(i.historyLog || []),
-          {
-            role: 'B&M Manager' as const,
-            action: isApprove ? ('APPROVE' as const) : ('REJECT' as const),
-            tanggal: new Date().toISOString().slice(0, 16).replace('T', ' '),
-            catatan: catatanAction.trim() || (isApprove ? 'Disetujui B&M Manager' : 'Ditolak dan dikembalikan ke BC'),
-          },
-        ];
-        return {
-          ...i,
-          status: nextStatus as any,
-          historyLog: newLog,
-        };
-      }
-      return i;
-    });
-
-    setItems(updated);
-    saveStoredPengajuan(updated);
-    setIsApprovalModalOpen(false);
-
-    if (isApprove) {
-      showAlert({
-        title: 'Berhasil',
-        message: 'Pengajuan harga disetujui.',
-        type: 'success',
-      });
-    } else {
-      showAlert({
-        title: 'Berhasil',
-        message: 'Pengajuan dikembalikan.',
-        type: 'warning',
-      });
     }
   };
 
@@ -624,81 +562,6 @@ export default function BMManagerPage() {
         onSubmit={handleAddItem}
         existingItems={items}
       />
-
-      {/* Modal Konfirmasi Approval Layer 1 */}
-      <Dialog open={isApprovalModalOpen} onOpenChange={open => !open && setIsApprovalModalOpen(false)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-5">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              {approvalAction === 'APPROVE' ? (
-                <span className="p-1 bg-emerald-100 text-emerald-700 rounded-lg">
-                  <CheckCircle2 className="w-4 h-4" />
-                </span>
-              ) : (
-                <span className="p-1 bg-rose-100 text-rose-700 rounded-lg">
-                  <XCircle className="w-4 h-4" />
-                </span>
-              )}
-              {approvalAction === 'APPROVE' ? 'Setujui Pengajuan (Layer 1)' : 'Tolak & Kembalikan ke BC'}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 mt-1">
-              Item: <strong>{selectedPengajuan?.kode} - {selectedPengajuan?.item} ({selectedPengajuan?.merk})</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Bar Timeline Pengajuan */}
-          {selectedPengajuan && (
-            <div className="my-2">
-              <PengajuanTimelineBar item={selectedPengajuan} />
-            </div>
-          )}
-
-          {/* Rincian Survei 3 Toko (Reusable Component) */}
-          {selectedPengajuan?.surveyToko && selectedPengajuan.surveyToko.length > 0 && (
-            <div className="py-2 border-y border-slate-100 my-2">
-              <RincianSurvei3TokoCard
-                mode="readonly"
-                surveyToko={selectedPengajuan.surveyToko}
-                satuan={selectedPengajuan.satuan || 'm2'}
-                materialCode={selectedPengajuan.kodeMaster || selectedPengajuan.kode}
-                materialName={`${selectedPengajuan.item} ${selectedPengajuan.ukuran} ${selectedPengajuan.merk}`}
-              />
-            </div>
-          )}
-
-          <div className="space-y-3 mt-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-700">Catatan B&amp;M Manager</label>
-              <Textarea
-                value={catatanAction}
-                onChange={e => setCatatanAction(e.target.value)}
-                placeholder="Tuliskan catatan alasan persetujuan atau poin revisi penolakan..."
-                className="text-xs rounded-xl border-slate-200 min-h-[70px]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-100 mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsApprovalModalOpen(false)}
-              className="rounded-xl h-8 text-xs cursor-pointer"
-            >
-              Batal
-            </Button>
-            <Button
-              type="button"
-              onClick={handleExecuteApproval}
-              className={`rounded-xl h-8 text-xs font-semibold text-white cursor-pointer ${
-                approvalAction === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
-              }`}
-            >
-              {approvalAction === 'APPROVE' ? 'Konfirmasi Setujui' : 'Konfirmasi Kembalikan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal Catatan S&B (Ringkas) */}
       <Dialog

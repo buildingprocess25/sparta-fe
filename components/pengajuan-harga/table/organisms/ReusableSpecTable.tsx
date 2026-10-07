@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { PengajuanHargaItem } from '@/components/pengajuan-harga/types';
 import { TableEmptyState } from '../atoms/TableEmptyState';
 import { TableLoadingSkeleton } from '../atoms/TableLoadingSkeleton';
@@ -11,9 +11,10 @@ import { MaterialSpecCell } from '../molecules/MaterialSpecCell';
 import { CategoryAreaCell } from '../molecules/CategoryAreaCell';
 import { DescriptionCell } from '../molecules/DescriptionCell';
 import { TableActionButtons } from '../molecules/TableActionButtons';
-import { DetailSpesifikasiModal } from './DetailSpesifikasiModal';
 import { FileText, Calendar, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 
 export interface ReusableSpecTableProps {
   items: PengajuanHargaItem[];
@@ -25,14 +26,6 @@ export interface ReusableSpecTableProps {
   showHarga?: boolean;
   showCatatanReview?: boolean;
   onViewCatatan?: (item: PengajuanHargaItem) => void;
-  onEditItem?: (item: PengajuanHargaItem) => void;
-  onApprove?: (item: PengajuanHargaItem, catatan?: string) => void;
-  onReject?: (item: PengajuanHargaItem, catatan: string) => void;
-  onRevisi?: (item: PengajuanHargaItem, catatan: string, revisiFields: string[]) => void;
-  onManageKoefisien?: (item: PengajuanHargaItem) => void;
-  onIsiSurvei?: (item: PengajuanHargaItem) => void;
-  onViewDetail?: (item: PengajuanHargaItem) => void;
-  onReviewSurvei?: (item: PengajuanHargaItem) => void;
   renderAction?: (item: PengajuanHargaItem) => React.ReactNode;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -50,37 +43,13 @@ export function ReusableSpecTable({
   showHarga = false,
   showCatatanReview = false,
   onViewCatatan,
-  onEditItem,
-  onApprove,
-  onReject,
-  onRevisi,
-  onManageKoefisien,
-  onIsiSurvei,
-  onViewDetail,
-  onReviewSurvei,
   renderAction,
   emptyTitle,
   emptyDescription,
   onResetFilter,
   className = "",
 }: ReusableSpecTableProps) {
-  // Internal state for Option A (Detail Modal)
-  const [selectedItemForDetail, setSelectedItemForDetail] = useState<PengajuanHargaItem | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-
-  const handleOpenDetail = (item: PengajuanHargaItem) => {
-    if (onViewDetail) {
-      onViewDetail(item);
-    } else {
-      setSelectedItemForDetail(item);
-      setIsDetailModalOpen(true);
-    }
-  };
-
-  const handleCloseDetail = () => {
-    setIsDetailModalOpen(false);
-    setSelectedItemForDetail(null);
-  };
+  const pathname = usePathname();
 
   // Base Column Count calculation:
   // No (1) + Kode (1) + (showTanggal ? 1 : 0) + (showCabang ? 1 : 0) + Material & Spesifikasi (1) + Deskripsi Lengkap (1) + Kategori & Area (1)
@@ -226,7 +195,7 @@ export function ReusableSpecTable({
                   <td className="px-3.5 py-3 border-r border-slate-100">
                     <DescriptionCell
                       description={item.deskripsiOtomatis}
-                      onClickDetail={() => handleOpenDetail(item)}
+                      detailHref={`${pathname}/${item.id}`}
                     />
                   </td>
 
@@ -270,8 +239,6 @@ export function ReusableSpecTable({
                           onClick={() => {
                             if (onViewCatatan) {
                               onViewCatatan(item);
-                            } else {
-                              handleOpenDetail(item);
                             }
                           }}
                           className="h-7 text-[11px] px-2.5 border-amber-300 bg-amber-50/70 hover:bg-amber-100 text-amber-900 rounded-lg gap-1.5 font-medium cursor-pointer shadow-2xs"
@@ -289,7 +256,6 @@ export function ReusableSpecTable({
                   <td className="text-center px-3.5 py-3 whitespace-nowrap">
                     <TableActionButtons
                       item={item}
-                      onViewDetail={handleOpenDetail}
                       renderCustomAction={() => {
                         if (renderAction) {
                           return renderAction(item);
@@ -304,20 +270,6 @@ export function ReusableSpecTable({
           </tbody>
         </table>
       </div>
-
-      {/* Option A: Modal Dialog Detail Spesifikasi */}
-      <DetailSpesifikasiModal
-        item={selectedItemForDetail}
-        isOpen={isDetailModalOpen}
-        onClose={handleCloseDetail}
-        onEditItem={onEditItem}
-        onApprove={onApprove}
-        onRevisi={onRevisi}
-        onReject={onReject}
-        onManageKoefisien={onManageKoefisien}
-        onIsiSurvei={onIsiSurvei}
-        onReviewSurvei={onReviewSurvei}
-      />
     </div>
   );
 }

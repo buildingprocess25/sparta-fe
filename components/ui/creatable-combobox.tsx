@@ -68,12 +68,25 @@ export function CreatableCombobox({
     setOpen(false);
   };
 
+  const toTitleCase = (str: string) => {
+    return str
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   const handleCreate = () => {
     if (!searchTrimmed) return;
-    if (!options.includes(searchTrimmed)) {
-      setOptions(prev => [searchTrimmed, ...prev]);
+    const formattedVal = toTitleCase(searchTrimmed);
+    if (!options.some(opt => opt.toLowerCase() === formattedVal.toLowerCase())) {
+      setOptions(prev => [formattedVal, ...prev]);
     }
-    onChange(searchTrimmed);
+    // Try to find the exact case match if it exists, otherwise use formatted
+    const existing = options.find(opt => opt.toLowerCase() === formattedVal.toLowerCase());
+    onChange(existing || formattedVal);
     setOpen(false);
   };
 

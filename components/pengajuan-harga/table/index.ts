@@ -14,5 +14,3 @@ export { TableActionButtons } from './molecules/TableActionButtons';
 // Export all Organisms
 export { ReusableSpecTable } from './organisms/ReusableSpecTable';
 export type { ReusableSpecTableProps } from './organisms/ReusableSpecTable';
-export { DetailSpesifikasiModal } from './organisms/DetailSpesifikasiModal';
-export type { DetailSpesifikasiModalProps } from './organisms/DetailSpesifikasiModal';

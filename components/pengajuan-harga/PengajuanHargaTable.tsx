@@ -8,10 +8,6 @@ export interface PengajuanHargaTableProps {
   items: PengajuanHargaItem[];
   loading?: boolean;
   onDeleteItem?: (id: string) => void;
-  onApprove?: (item: PengajuanHargaItem, catatan?: string) => void;
-  onReject?: (item: PengajuanHargaItem, catatan: string) => void;
-  onRevisi?: (item: PengajuanHargaItem, catatan: string, revisiFields: string[]) => void;
-  onManageKoefisien?: (item: PengajuanHargaItem) => void;
   onViewCatatan?: (item: PengajuanHargaItem) => void;
   showCatatanReview?: boolean;
   renderAction?: (item: PengajuanHargaItem) => React.ReactNode;
@@ -21,21 +17,12 @@ export interface PengajuanHargaTableProps {
   showHarga?: boolean;
   title?: string;
   className?: string;
-  onEditItem?: (item: PengajuanHargaItem) => void;
-  onViewDetail?: (item: PengajuanHargaItem) => void;
   onResetFilter?: () => void;
-  onReviewSurvei?: (item: PengajuanHargaItem) => void;
-  onIsiSurvei?: (item: PengajuanHargaItem) => void;
 }
 
 export function PengajuanHargaTable({
   items,
   loading = false,
-  onDeleteItem,
-  onApprove,
-  onReject,
-  onRevisi,
-  onManageKoefisien,
   onViewCatatan,
   showCatatanReview = false,
   renderAction,
@@ -45,11 +32,7 @@ export function PengajuanHargaTable({
   showHarga = false,
   title = "Daftar Spesifikasi Material",
   className = "",
-  onEditItem,
-  onViewDetail,
   onResetFilter,
-  onReviewSurvei,
-  onIsiSurvei,
 }: PengajuanHargaTableProps) {
   return (
     <ReusableSpecTable
@@ -62,14 +45,6 @@ export function PengajuanHargaTable({
       showHarga={showHarga}
       showCatatanReview={showCatatanReview}
       onViewCatatan={onViewCatatan}
-      onEditItem={onEditItem}
-      onApprove={onApprove}
-      onReject={onReject}
-      onRevisi={onRevisi}
-      onManageKoefisien={onManageKoefisien}
-      onIsiSurvei={onIsiSurvei}
-      onViewDetail={onViewDetail}
-      onReviewSurvei={onReviewSurvei}
       renderAction={renderAction}
       onResetFilter={onResetFilter}
       className={className}
