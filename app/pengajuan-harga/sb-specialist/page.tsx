@@ -605,6 +605,25 @@ export default function SBSpecialistPage() {
               showHarga={true}
               getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`}
               onResetFilter={() => setSearch("")}
+              renderAction={(item) => {
+                if (item.status === "TRIAL_RELEASED") {
+                  return (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setEvaluasiItem(item);
+                        setIsEvaluasiModalOpen(true);
+                      }}
+                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm"
+                    >
+                      Evaluasi Trial
+                    </Button>
+                  );
+                }
+                return null;
+              }}
             />
           </div>
         )}

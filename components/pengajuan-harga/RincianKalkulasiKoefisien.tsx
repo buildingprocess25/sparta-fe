@@ -231,6 +231,17 @@ export function RincianKalkulasiKoefisien({
   userRole = "S&B Specialist",
   isReadOnly = false,
 }: RincianKalkulasiKoefisienProps) {
+  const formatCurrencyInput = (val?: string | number) => {
+    if (val === "" || val === null || val === undefined) return "";
+    const numericValue = val.toString().replace(/[^0-9]/g, "");
+    if (!numericValue) return "";
+    return new Intl.NumberFormat("id-ID").format(parseInt(numericValue, 10));
+  };
+
+  const parseCurrencyInput = (val: string) => {
+    if (!val) return "";
+    return parseInt(val.replace(/[^0-9]/g, ""), 10) || "";
+  };
   // Tab state untuk item bongkaran
   const [activeTab, setActiveTab] = useState<"pasangan" | "bongkaran">("pasangan");
 
@@ -589,12 +600,12 @@ export function RincianKalkulasiKoefisien({
                   Harga Acuan (Rp)
                 </label>
                 <input
-                  type="number"
-                  placeholder="245000"
-                  value={newUpahHargaAcuan}
+                  type="text"
+                  placeholder="245.000"
+                  value={formatCurrencyInput(newUpahHargaAcuan)}
                   onChange={(e) =>
                     setNewUpahHargaAcuan(
-                      e.target.value === "" ? "" : Number(e.target.value),
+                      e.target.value === "" ? "" : parseCurrencyInput(e.target.value),
                     )
                   }
                   className="border border-slate-300 rounded px-2.5 py-1.5 w-full text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
@@ -693,12 +704,12 @@ export function RincianKalkulasiKoefisien({
                           Harga Acuan (Rp)
                         </label>
                         <input
-                          type="number"
-                          value={u.hargaAcuan ?? ""}
+                          type="text"
+                          value={formatCurrencyInput(u.hargaAcuan)}
                           onChange={(e) =>
                             handleUpahHargaChange(
                               u.id,
-                              Number(e.target.value) || 0,
+                              parseCurrencyInput(e.target.value) || 0,
                             )
                           }
                           placeholder="0"
@@ -1042,12 +1053,12 @@ export function RincianKalkulasiKoefisien({
                     Harga Acuan (Rp)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     placeholder="0"
-                    value={newUpahBongkaranHargaAcuan}
+                    value={formatCurrencyInput(newUpahBongkaranHargaAcuan)}
                     onChange={(e) =>
                       setNewUpahBongkaranHargaAcuan(
-                        e.target.value === "" ? "" : Number(e.target.value),
+                        e.target.value === "" ? "" : parseCurrencyInput(e.target.value),
                       )
                     }
                     className="border border-slate-300 rounded px-2 py-1.5 w-full text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
@@ -1158,12 +1169,12 @@ export function RincianKalkulasiKoefisien({
                             Harga Acuan
                           </label>
                           <input
-                            type="number"
-                            value={u.hargaAcuan || ""}
+                            type="text"
+                            value={formatCurrencyInput(u.hargaAcuan)}
                             onChange={(e) =>
                               handleUpahBongkaranHargaChange(
                                 u.id,
-                                Number(e.target.value),
+                                parseCurrencyInput(e.target.value) || 0,
                               )
                             }
                             placeholder="0"

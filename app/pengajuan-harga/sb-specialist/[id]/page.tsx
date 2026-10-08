@@ -48,6 +48,15 @@ export default function SBSpecialistDetailPage() {
 
   const [item, setItem] = useState<PengajuanHargaItem | null>(null);
   const [catatan, setCatatan] = useState("");
+
+  const formatRupiah = (val?: number) => {
+    if (val === undefined || val === null || isNaN(val)) return "Rp 0";
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
   const [revisiList, setRevisiList] = useState<{ field: string; note: string }[]>([{ field: "", note: "" }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

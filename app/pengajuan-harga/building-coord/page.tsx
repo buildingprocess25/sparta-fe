@@ -241,7 +241,7 @@ export default function BuildingCoordPage() {
             emptyTitle="Tidak Ada Material Menunggu Survei"
             emptyDescription="Semua material yang diajukan sudah disurvei atau belum diverifikasi oleh S&B Specialist."
             onResetFilter={() => setSearch('')}
-            onIsiSurvei={(item) => router.push(`/pengajuan-harga/building-coord/${item.id}`)}
+            getDetailHref={(item) => `/pengajuan-harga/building-coord/${item.id}`}
           />
         )}
 
@@ -256,7 +256,7 @@ export default function BuildingCoordPage() {
             emptyTitle="Belum Ada Pengajuan Diproses"
             emptyDescription="Tidak ada data survei harga yang sedang dalam proses verifikasi approver."
             onResetFilter={() => setSearch('')}
-            onIsiSurvei={(item) => router.push(`/pengajuan-harga/building-coord/${item.id}`)}
+            getDetailHref={(item) => `/pengajuan-harga/building-coord/${item.id}`}
           />
         )}
 

@@ -24,9 +24,18 @@ import {
   PengajuanHargaItem,
   generateDeskripsiOtomatis,
   getKodeData,
+  SurveyTokoItem,
+  KoefisienDetailItem,
 } from "./types";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Sparkles, Copy, Check, RotateCcw } from "lucide-react";
 import { PengajuanTimelineBar } from "./PengajuanTimelineBar";
+import { RincianSurvei3TokoCard } from "./RincianSurvei3TokoCard";
 
 export interface ReviewUlangSpesifikasiModalProps {
   isOpen: boolean;
@@ -125,6 +134,10 @@ export function ReviewUlangSpesifikasiModal({
   const [kodeMaster, setKodeMaster] = useState("");
   const [deskripsiOtomatis, setDeskripsiOtomatis] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // State Survei Material
+  const [materialItems, setMaterialItems] = useState<KoefisienDetailItem[]>([]);
+  const [openAccordionValues, setOpenAccordionValues] = useState<string[]>([]);
 
   // Filter items excluding selected item for duplicate detection
   const otherItems = useMemo(() => {
@@ -226,6 +239,37 @@ export function ReviewUlangSpesifikasiModal({
     setInformasiTambahan(target.informasiTambahan || "");
     setKodeItem(target.kode || "");
     setKodeMaster(target.kodeMaster || "");
+
+    // Load material items and populate empty surveyToko
+    let rawMaterials = target.koefisienMaterialItems || [];
+    const makeInitialStores = (existingStores?: SurveyTokoItem[]): SurveyTokoItem[] => {
+      const arr = existingStores || [];
+      const out: SurveyTokoItem[] = [];
+      for (let j = 0; j < 3; j++) {
+        if (arr[j]) {
+          out.push({ ...arr[j] });
+        } else {
+          out.push({
+            namaToko: "",
+            alamatToko: "",
+            hargaSatuan: 0,
+            tanggalSurvei: new Date().toISOString().slice(0, 10),
+          });
+        }
+      }
+      return out;
+    };
+    rawMaterials = rawMaterials.map((m) => ({
+      ...m,
+      surveyToko: makeInitialStores(m.surveyToko),
+    }));
+
+    setMaterialItems(rawMaterials);
+    if (rawMaterials.length > 0) {
+      setOpenAccordionValues([rawMaterials[0].id]);
+    } else {
+      setOpenAccordionValues([]);
+    }
   };
 
   const handleResetForm = () => {
@@ -243,6 +287,35 @@ export function ReviewUlangSpesifikasiModal({
     setInformasiTambahan("");
     setKodeItem("");
     setKodeMaster("");
+    setMaterialItems([]);
+    setOpenAccordionValues([]);
+  };
+
+  const handleChangeTokoForMaterial = (
+    materialIndex: number,
+    storeIndex: number,
+    updatedStore: SurveyTokoItem
+  ) => {
+    setMaterialItems((prev) => {
+      const next = [...prev];
+      const target = { ...next[materialIndex] };
+      const nextStores = [...(target.surveyToko || [])];
+      nextStores[storeIndex] = updatedStore;
+
+      const h1 = Number(nextStores[0]?.hargaSatuan) || 0;
+      const h2 = Number(nextStores[1]?.hargaSatuan) || 0;
+      const h3 = Number(nextStores[2]?.hargaSatuan) || 0;
+      const validCount = [h1, h2, h3].filter((h) => h > 0).length;
+      const avg = validCount === 3 ? Math.round((h1 + h2 + h3) / 3) : 0;
+      const subtotal = avg > 0 ? Math.round(Number(target.value) * avg) : 0;
+
+      target.surveyToko = nextStores;
+      target.hargaSurveiRataRata = avg;
+      target.hargaAcuan = avg;
+      target.subtotal = subtotal;
+      next[materialIndex] = target;
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -260,6 +333,48 @@ export function ReviewUlangSpesifikasiModal({
     } catch {
       // Fallback
     }
+  };
+
+  const handleSaveDraft = () => {
+    if (!selectedItem) return;
+
+    const finalKodeItem = kodeItem.trim() || kodeData.kodeItem;
+    const finalKodeMaster = kodeMaster.trim() || kodeData.kodeMaster;
+
+    const updatedItem: PengajuanHargaItem = {
+      ...selectedItem,
+      kode: finalKodeItem,
+      kodeMaster: finalKodeMaster,
+      item: item.trim(),
+      ukuran: ukuran.trim(),
+      merk: merk.trim(),
+      warna: warna.trim(),
+      tipe: tipe.trim(),
+      tebal: tebal.trim(),
+      permukaan: permukaan.trim(),
+      kategori: kategori.trim(),
+      implementasi,
+      lokasi: lokasi.trim(),
+      toleransi: toleransi.trim() || undefined,
+      informasiTambahan: informasiTambahan.trim(),
+      deskripsiOtomatis,
+      status: "DRAFT",
+      tanggalPengajuan: new Date().toISOString().slice(0, 10),
+      koefisienMaterialItems: materialItems,
+      historyLog: [
+        ...(selectedItem.historyLog || []),
+        {
+          role: "S&B Specialist" as const,
+          action: "SUBMIT" as const,
+          tanggal: new Date().toISOString().slice(0, 16).replace("T", " "),
+          catatan: "Menyimpan draft pengajuan review ulang spesifikasi.",
+        },
+      ],
+    };
+
+    onSubmit(updatedItem);
+    handleResetForm();
+    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -283,6 +398,31 @@ export function ReviewUlangSpesifikasiModal({
       return;
     }
 
+    // Validasi Survei 3 Toko untuk semua komponen material
+    for (let i = 0; i < materialItems.length; i++) {
+      const mat = materialItems[i];
+      const stores = mat.surveyToko || [];
+      const [t1, t2, t3] = stores;
+
+      if (!t1?.namaToko?.trim() || !t2?.namaToko?.trim() || !t3?.namaToko?.trim() ||
+          !t1?.alamatToko?.trim() || !t2?.alamatToko?.trim() || !t3?.alamatToko?.trim()) {
+        setOpenAccordionValues((prev) => Array.from(new Set([...prev, mat.id])));
+        // Ideally we should use showAlert here, but we can just return or use standard alert
+        alert("Semua nama & alamat toko pada komponen material wajib diisi untuk mengajukan review ulang.");
+        return;
+      }
+
+      const h1 = Number(t1.hargaSatuan) || 0;
+      const h2 = Number(t2.hargaSatuan) || 0;
+      const h3 = Number(t3.hargaSatuan) || 0;
+
+      if (h1 <= 0 || h2 <= 0 || h3 <= 0) {
+        setOpenAccordionValues((prev) => Array.from(new Set([...prev, mat.id])));
+        alert("Semua harga survei pada komponen material wajib diisi (lebih dari 0).");
+        return;
+      }
+    }
+
     const finalKodeItem = kodeItem.trim() || kodeData.kodeItem;
     const finalKodeMaster = kodeMaster.trim() || kodeData.kodeMaster;
 
@@ -303,8 +443,9 @@ export function ReviewUlangSpesifikasiModal({
       toleransi: toleransi.trim() || undefined,
       informasiTambahan: informasiTambahan.trim(),
       deskripsiOtomatis,
-      status: "DIAJUKAN", // Mengajukan ulang ke S&B Specialist
+      status: "DIAJUKAN",
       tanggalPengajuan: new Date().toISOString().slice(0, 10),
+      koefisienMaterialItems: materialItems,
       historyLog: [
         ...(selectedItem.historyLog || []),
         {
@@ -323,7 +464,7 @@ export function ReviewUlangSpesifikasiModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl p-5 sm:p-6">
+      <DialogContent className="max-w-7xl max-h-[92vh] overflow-y-auto rounded-2xl p-5 sm:p-6">
         <DialogHeader className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <DialogTitle className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -577,11 +718,66 @@ export function ReviewUlangSpesifikasiModal({
                 </div>
               </div>
 
-              {/* Section 4: Kode & Deskripsi */}
+              {/* Section 4: Survei Harga Komponen Material */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-md bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
                     4
+                  </span>
+                  <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
+                    Survei Harga Komponen Material
+                  </h3>
+                </div>
+                
+                {materialItems.length === 0 ? (
+                  <div className="text-xs text-slate-500 py-3 text-center bg-white rounded-lg border border-slate-200">
+                    Tidak ada komponen material untuk disurvei.
+                  </div>
+                ) : (
+                  <Accordion
+                    type="multiple"
+                    value={openAccordionValues}
+                    onValueChange={setOpenAccordionValues}
+                    className="space-y-3"
+                  >
+                    {materialItems.map((mat, matIndex) => (
+                      <AccordionItem
+                        key={mat.id}
+                        value={mat.id}
+                        className="border border-slate-200 rounded-xl bg-white overflow-hidden shadow-xs"
+                      >
+                        <AccordionTrigger className="px-4 py-3 hover:bg-slate-50 hover:no-underline">
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="text-[13px] font-bold text-slate-800">
+                              {mat.label}
+                            </span>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
+                              <span className="px-1.5 py-0.5 bg-slate-100 rounded">
+                                Koef: {mat.value} {mat.unit}
+                              </span>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="p-4 bg-slate-50/50 border-t border-slate-100">
+                          <RincianSurvei3TokoCard
+                            mode="edit"
+                            surveyToko={mat.surveyToko || []}
+                            onChangeToko={(storeIdx, updatedStore) =>
+                              handleChangeTokoForMaterial(matIndex, storeIdx, updatedStore)
+                            }
+                          />
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
+              </div>
+
+              {/* Section 5: Kode & Deskripsi */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-md bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                    5
                   </span>
                   <h3 className="text-xs font-bold text-slate-800 tracking-wide uppercase">
                     Kode Master &amp; Deskripsi
@@ -646,7 +842,7 @@ export function ReviewUlangSpesifikasiModal({
             </>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-slate-100">
+          <DialogFooter className="gap-2 sm:gap-2 pt-3 border-t border-slate-100 sm:justify-end">
             <Button
               type="button"
               variant="outline"
@@ -656,12 +852,21 @@ export function ReviewUlangSpesifikasiModal({
               Batal
             </Button>
             <Button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={!selectedItemId || catalogItems.length === 0}
+              variant="secondary"
+              className="rounded-xl h-9 text-xs cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 font-semibold"
+            >
+              Simpan Draft
+            </Button>
+            <Button
               type="submit"
               disabled={!selectedItemId || catalogItems.length === 0}
               className="rounded-xl h-9 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-xs gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Ajukan</span>
+              <span>Ajukan Review Ulang</span>
             </Button>
           </DialogFooter>
         </form>

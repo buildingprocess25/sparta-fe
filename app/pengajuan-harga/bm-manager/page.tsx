@@ -175,8 +175,8 @@ export default function BMManagerPage() {
   const handleAddItem = (newItem: PengajuanHargaItem) => {
     // Validasi 2-tier: Scope Pekerjaan (SIP) & Varian (A, B, C...)
     const itemsToCheck = editingItem
-      ? items.filter(i => i.id !== editingItem.id)
-      : items;
+      ? items.filter(i => i.id !== editingItem.id && i.id !== newItem.id)
+      : items.filter(i => i.id !== newItem.id);
 
     const check = getKodeData({
       kategori: newItem.kategori,
@@ -528,7 +528,7 @@ export default function BMManagerPage() {
             showStatus={true}
             showHarga={false}
             title={selectedCabang === 'all' ? "Daftar Spesifikasi Material (Semua Cabang)" : `Daftar Spesifikasi Material - Cabang ${selectedCabang}`}
-            onEditItem={handleOpenEditModal}
+            getDetailHref={(item) => `/pengajuan-harga/bm-manager/${item.id}`}
             onResetFilter={handleResetFilters}
           />
         )}
@@ -541,7 +541,7 @@ export default function BMManagerPage() {
             showHarga={true}
             title={selectedCabang === 'all' ? "Daftar Pengajuan Harga (Semua Cabang)" : `Daftar Pengajuan Harga - Cabang ${selectedCabang}`}
             onResetFilter={handleResetFilters}
-            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=bm-manager`}
+            getDetailHref={(item) => `/pengajuan-harga/bm-manager/${item.id}`}
           />
         )}
       </main>

@@ -36,6 +36,9 @@ import { RingkasanBiayaMaterial } from '@/components/pengajuan-harga/RingkasanBi
 import { RincianKalkulasiKoefisien } from '@/components/pengajuan-harga/RincianKalkulasiKoefisien';
 import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
+import { FormPengajuanSpesifikasi } from '@/components/pengajuan-harga/TambahPengajuanModal';
+import { FormItemTrial } from '@/components/pengajuan-harga/TambahItemTrialModal';
+import { Pencil } from 'lucide-react';
 import { Suspense } from 'react';
 
 function ReviewSurveiContent() {
@@ -58,6 +61,9 @@ function ReviewSurveiContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeAction, setActiveAction] = useState<"approve" | "revise" | null>(null);
   const [usulanHarga, setUsulanHarga] = useState<number | undefined>(undefined);
+
+  // Edit Specification
+  const [isEditing, setIsEditing] = useState(false);
 
   const formatRupiah = (val?: number) => {
     if (!val || isNaN(val)) return 'Rp 0';
@@ -280,9 +286,9 @@ function ReviewSurveiContent() {
             const bongkaranItems = i.koefisienUpahBongkaranItems || [];
             const materialItems = i.koefisienMaterialItems || [];
 
-            const totalUpahDasar = upahItems.reduce((acc, curr) => acc + (Number(curr.value) * curr.hargaAcuan), 0);
+            const totalUpahDasar = upahItems.reduce((acc, curr) => acc + (Number(curr.value) * (curr.hargaAcuan || 0)), 0);
             const totalUpahBongkaranDasar = i.isTermasukBongkaran
-              ? bongkaranItems.reduce((acc, curr) => acc + (Number(curr.value) * curr.hargaAcuan), 0)
+              ? bongkaranItems.reduce((acc, curr) => acc + (Number(curr.value) * (curr.hargaAcuan || 0)), 0)
               : 0;
             const totalMaterialDasar = materialItems.reduce((acc, curr) => acc + (curr.subtotal || 0), 0);
             const totalHargaDasar = totalUpahDasar + totalUpahBongkaranDasar + totalMaterialDasar;
@@ -405,6 +411,23 @@ function ReviewSurveiContent() {
     });
   };
 
+  const handleUpdateSpesifikasi = (updatedItem: PengajuanHargaItem) => {
+    // get all items
+    const allItems = getStoredPengajuan();
+    const updatedAll = allItems.map(i => i.id === updatedItem.id ? updatedItem : i);
+    saveStoredPengajuan(updatedAll);
+
+    setItem(updatedItem);
+    setMaterialItems(updatedItem.koefisienMaterialItems || []);
+    setIsEditModalOpen(false);
+    
+    showAlert({
+      title: 'Berhasil',
+      message: 'Spesifikasi berhasil diperbarui.',
+      type: 'success',
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -437,7 +460,7 @@ function ReviewSurveiContent() {
       />
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-5">
-        <PengajuanTimelineBar status={item.status} />
+        <PengajuanTimelineBar item={item} />
 
         {/* Jika S&B Specialist melihat usulan harga dari Kontraktor */}
         {roleConfig.role === "S&B Specialist" && item.usulanHargaKontraktor && (
@@ -461,11 +484,26 @@ function ReviewSurveiContent() {
           </div>
         )}
 
-        {/* Rincian Spesifikasi Material */}
-        <DetailSpesifikasi
-          item={item}
-          showDeskripsi={true}
-        />
+        <div className="flex flex-col gap-3">
+          {((!item.isTrial && roleConfig.role === 'B&M Manager' && (item.status === 'DRAFT' || item.status === 'DIAJUKAN' || item.status === 'REVISI')) ||
+            (item.isTrial && roleConfig.role === 'S&B Specialist' && (item.status === 'TRIAL_PENDING_REGIONAL_MGR' || item.status === 'TRIAL_REVISI' || item.status === 'DIAJUKAN' || item.status === 'DRAFT'))) && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="h-8 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer gap-1.5 shadow-xs"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit Spesifikasi
+              </Button>
+            </div>
+          )}
+          <DetailSpesifikasi
+            item={item}
+            showDeskripsi={true}
+          />
+        </div>
 
         {/* Hasil Survei Komponen Material (Read-only) */}
         <div className="space-y-3">
@@ -725,6 +763,27 @@ function ReviewSurveiContent() {
           </div>
         </div>
       </main>
+
+      {/* Edit Modal */}
+      {item && !item.isTrial && (
+        <TambahPengajuanModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={handleUpdateSpesifikasi}
+          existingItems={getStoredPengajuan()}
+          itemToEdit={item}
+        />
+      )}
+
+      {item && item.isTrial && (
+        <TambahItemTrialModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={handleUpdateSpesifikasi}
+          existingItems={getStoredPengajuan()}
+          itemToEdit={item}
+        />
+      )}
     </div>
   );
 }

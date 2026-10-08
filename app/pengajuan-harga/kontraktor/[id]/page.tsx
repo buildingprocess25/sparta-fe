@@ -13,14 +13,13 @@ import {
 } from 'lucide-react';
 import {
   PengajuanHargaItem,
+  ApprovalLog,
 } from '@/components/pengajuan-harga/types';
 import {
   getStoredPengajuan,
   saveStoredPengajuan,
 } from '@/components/pengajuan-harga/store';
 import { DetailSpesifikasi } from '@/components/pengajuan-harga/DetailSpesifikasi';
-import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
-import { RingkasanBiayaMaterial } from '@/components/pengajuan-harga/RingkasanBiayaMaterial';
 import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 
@@ -79,6 +78,35 @@ export default function KontraktorReviewPage() {
     return Math.round(upah + bongkaran + material);
   }, [item]);
 
+  // Hitung Harga Penawaran Akhir (Dengan Margin)
+  const hargaPenawaranAkhir = React.useMemo(() => {
+    if (!item) return 0;
+
+    if (!item.koefisienUpahItems?.length && !item.koefisienMaterialItems?.length) {
+      const marginMaterial = item.marginMaterial || 0;
+      const base = item.estimasiHarga || item.hargaRataRata || 0;
+      return Math.round(base + (base * marginMaterial / 100));
+    }
+
+    const marginUpah = item.marginUpah || 0;
+    const marginMaterial = item.marginMaterial || 0;
+
+    const upah = (item.koefisienUpahItems || []).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)), 0);
+    const bongkaran = item.isTermasukBongkaran 
+      ? (item.koefisienUpahBongkaranItems || []).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * (Number(curr.hargaAcuan) || 0)), 0)
+      : 0;
+    const material = (item.koefisienMaterialItems || []).reduce((acc, curr) => {
+      const avg = curr.hargaSurveiRataRata || (curr.hargaAcuan || 0);
+      return acc + ((Number(curr.value) || 0) * avg);
+    }, 0);
+
+    const upahAkhir = upah + (upah * marginUpah / 100);
+    const bongkaranAkhir = bongkaran + (bongkaran * marginUpah / 100);
+    const materialAkhir = material + (material * marginMaterial / 100);
+
+    return Math.round(upahAkhir + bongkaranAkhir + materialAkhir);
+  }, [item]);
+
   const usulanMargin = React.useMemo(() => {
     if (!usulanHarga || !totalHargaDasar) return 0;
     const usulan = Number(usulanHarga);
@@ -109,8 +137,8 @@ export default function KontraktorReviewPage() {
       if (i.id === item.id) {
         const isReject = activeAction === 'TOLAK';
         // Saat kontraktor menolak/nego, kembalikan ke S&B Specialist (bukan BC) karena urusan margin
-        const finalStatus = isReject ? 'PENDING_SB_SPECIALIST' : 'RELEASED';
-        const logAction = isReject ? 'REJECT' : 'APPROVE';
+        const finalStatus = (isReject ? 'PENDING_SB_SPECIALIST' : 'RELEASED') as PengajuanHargaItem['status'];
+        const logAction = (isReject ? 'REJECT' : 'APPROVE') as ApprovalLog['action'];
         const finalCatatan = isReject 
           ? catatan.trim() 
           : (catatan.trim() || 'Harga disepakati oleh Kontraktor (Layer 4). Harga resmi dirilis.');
@@ -155,44 +183,25 @@ export default function KontraktorReviewPage() {
       <AppNavbar title="Review Kesepakatan Kontraktor" showBackButton backHref="/pengajuan-harga/kontraktor" />
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-5">
+        <PengajuanTimelineBar item={item} />
         <DetailSpesifikasi item={item} showDeskripsi={true} />
         
-        <PengajuanTimelineBar item={item} />
 
-        {item.koefisienMaterialItems && item.koefisienMaterialItems.length > 0 ? (
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-4">
-            <RingkasanBiayaMaterial
-              materialItems={item.koefisienMaterialItems}
-              totalBiayaMaterial={item.hargaRataRata || item.estimasiHarga || 0}
-              marginMaterial={item.marginMaterial}
-              formatRupiah={formatRupiah}
-              userRole="Kontraktor"
-            />
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-800">Detail Survei Toko per Komponen:</h4>
-              {item.koefisienMaterialItems.map((mat) => (
-                <RincianSurvei3TokoCard
-                  key={mat.id}
-                  mode="readonly"
-                  surveyToko={mat.surveyToko || []}
-                  satuan={mat.unit || 'm2'}
-                  materialCode={mat.id}
-                  materialName={mat.label}
-                />
-              ))}
+        {/* Ringkasan Harga Akhir untuk Kontraktor */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-2">
+         
+          <div className="pt-3 pb-1">
+            <div className="inline-flex flex-col sm:flex-row sm:items-center justify-center gap-2 sm:gap-3 bg-blue-50/50 border border-blue-100 rounded-xl px-5 py-4 w-full sm:w-auto">
+              <span className="text-slate-500 font-semibold text-sm">Harga:</span>
+              <div className="flex items-end gap-1.5">
+                <span className="text-2xl font-black font-mono text-blue-700 tracking-tight">
+                  {formatRupiah(hargaPenawaranAkhir)}
+                </span>
+                <span className="text-sm font-bold text-slate-400 pb-1">/ {item.satuan}</span>
+              </div>
             </div>
           </div>
-        ) : item.surveyToko && item.surveyToko.length > 0 ? (
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs">
-            <RincianSurvei3TokoCard
-              mode="readonly"
-              surveyToko={item.surveyToko}
-              satuan={item.satuan || 'm2'}
-              materialCode={item.kodeMaster || item.kode}
-              materialName={`${item.item} ${item.ukuran} ${item.merk}`}
-            />
-          </div>
-        ) : null}
+        </div>
 
         {isPending && (
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-5">
@@ -214,7 +223,7 @@ export default function KontraktorReviewPage() {
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${activeAction === 'SEPAKATI' ? 'border-emerald-600' : 'border-slate-300'}`}>
                     {activeAction === 'SEPAKATI' && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
                   </div>
-                  Sepakati Harga Standar
+                  Sepakati Harga  
                 </Button>
 
                 <Button
@@ -242,9 +251,14 @@ export default function KontraktorReviewPage() {
                     Usulan Harga Akhir (Rp) <span className="text-rose-600">*</span>
                   </label>
                   <input
-                    type="number"
-                    value={usulanHarga}
-                    onChange={(e) => { setUsulanHarga(e.target.value); setUsulanHargaError(''); }}
+                    type="text"
+                    inputMode="numeric"
+                    value={usulanHarga ? formatRupiah(Number(usulanHarga)) : ''}
+                    onChange={(e) => {
+                      const rawValue = e.target.value.replace(/\D/g, '');
+                      setUsulanHarga(rawValue);
+                      setUsulanHargaError('');
+                    }}
                     placeholder="Masukkan nominal usulan..."
                     className="w-full text-xs rounded-lg border-slate-300 p-2.5 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
                   />
@@ -252,7 +266,7 @@ export default function KontraktorReviewPage() {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-800 mb-1.5 block">
-                    Alasan Penolakan / Negosiasi <span className="text-rose-600">*</span>
+                    Alasan <span className="text-rose-600">*</span>
                   </label>
                   <Textarea
                     value={catatan}
@@ -293,7 +307,7 @@ export default function KontraktorReviewPage() {
                   }`}
                 >
                   {activeAction === 'TOLAK' ? <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-                  {activeAction === 'TOLAK' ? 'Kirim Usulan Revisi' : 'Konfirmasi Sepakati'}
+                  {activeAction === 'TOLAK' ? 'Kirim Usulan' : 'Konfirmasi'}
                 </Button>
               )}
             </div>

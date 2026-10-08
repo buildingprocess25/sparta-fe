@@ -29,7 +29,7 @@ import {
   DAFTAR_FIELD_SPESIFIKASI,
   DAFTAR_CABANG_ALFAMART,
 } from "./types";
-import { RincianKalkulasiKoefisien } from "./RincianKalkulasiKoefisien";
+import { RincianKalkulasiKoefisienTrial } from "./RincianKalkulasiKoefisienTrial";
 import {
   FileText,
   Copy,
@@ -50,6 +50,9 @@ export interface TambahItemTrialModalProps {
   existingItems?: PengajuanHargaItem[];
   itemToEdit?: PengajuanHargaItem | null;
 }
+
+const INITIAL_SATUAN_TEBAL = ["mm", "cm", "m"];
+const INITIAL_SATUAN_TOLERANSI = ["mm", "cm", "%"];
 
 const INITIAL_KATEGORI_OPTIONS = [
   "Pekerjaan Keramik",
@@ -968,7 +971,7 @@ export function TambahItemTrialModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl p-5 sm:p-6 border-slate-200">
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl p-5 sm:p-6 border-slate-200">
         {/* Header Modal */}
         <DialogHeader className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -1093,15 +1096,12 @@ export function TambahItemTrialModal({
                   <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
                     <span>Kategori Pekerjaan <span className="text-red-500">*</span></span>
                   </Label>
-                  <CreatableSelect
-                    value={kategori ? { label: kategori, value: kategori } : null}
-                    onChange={(opt: any) => setKategori(opt ? opt.value : "")}
-                    options={kategoriOptions.map((opt) => ({ label: opt, value: opt }))}
-                    placeholder="Pilih / ketik kategori..."
-                    formatCreateLabel={(val) => `Tambah "${val}"`}
-                    styles={comboboxStyles}
-                    maxMenuHeight={200}
-                    isClearable
+                  <CreatableCombobox
+                    value={kategori}
+                    onChange={setKategori}
+                    options={kategoriOptions}
+                    required
+                    placeholder="Pilih atau cari pekerjaan"
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Pekerjaan Keramik
@@ -1132,15 +1132,12 @@ export function TambahItemTrialModal({
                   </Label>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <CreatableSelect
-                        value={ukuranNilai ? { label: ukuranNilai, value: ukuranNilai } : null}
-                        onChange={(opt: any) => setUkuranNilai(opt ? opt.value : "")}
-                        options={ukuranOptions.map((opt) => ({ label: opt, value: opt }))}
+                      <CreatableCombobox
+                        value={ukuranNilai}
+                        onChange={setUkuranNilai}
+                        options={ukuranOptions}
                         placeholder="Contoh: 60x60"
-                        formatCreateLabel={(val) => `Tambah "${val}"`}
-                        styles={comboboxStyles}
-                        maxMenuHeight={200}
-                        isClearable
+                        required
                       />
                     </div>
                     <div className="w-[85px] shrink-0">
@@ -1189,57 +1186,48 @@ export function TambahItemTrialModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <Label className="text-xs font-semibold text-slate-700">
                     Warna <span className="text-red-500">*</span>
                   </Label>
-                  <CreatableSelect
-                    value={warna ? { label: warna, value: warna } : null}
-                    onChange={(opt: any) => setWarna(opt ? opt.value : "")}
-                    options={warnaOptions.map((opt) => ({ label: opt, value: opt }))}
-                    placeholder="Pilih / ketik warna..."
-                    formatCreateLabel={(val) => `Tambah "${val}"`}
-                    styles={comboboxStyles}
-                    maxMenuHeight={200}
-                    isClearable
+                  <Input
+                    value={warna}
+                    onChange={(e) => setWarna(e.target.value)}
+                    placeholder=""
+                    className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                    required
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Putih
                   </span>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <Label className="text-xs font-semibold text-slate-700">
                     Tipe / Motif <span className="text-red-500">*</span>
                   </Label>
-                  <CreatableSelect
-                    value={tipe ? { label: tipe, value: tipe } : null}
-                    onChange={(opt: any) => setTipe(opt ? opt.value : "")}
-                    options={tipeOptions.map((opt) => ({ label: opt, value: opt }))}
-                    placeholder="Pilih / ketik tipe..."
-                    formatCreateLabel={(val) => `Tambah "${val}"`}
-                    styles={comboboxStyles}
-                    maxMenuHeight={200}
-                    isClearable
+                  <Input
+                    value={tipe}
+                    onChange={(e) => setTipe(e.target.value)}
+                    placeholder=""
+                    className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                    required
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Polos
                   </span>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <Label className="text-xs font-semibold text-slate-700">
                     Permukaan <span className="text-red-500">*</span>
                   </Label>
-                  <CreatableSelect
-                    value={permukaan ? { label: permukaan, value: permukaan } : null}
-                    onChange={(opt: any) => setPermukaan(opt ? opt.value : "")}
-                    options={permukaanOptions.map((opt) => ({ label: opt, value: opt }))}
-                    placeholder="Pilih / ketik permukaan..."
-                    formatCreateLabel={(val) => `Tambah "${val}"`}
-                    styles={comboboxStyles}
-                    maxMenuHeight={200}
-                    isClearable
+                  <Input
+                    value={permukaan}
+                    onChange={(e) => setPermukaan(e.target.value)}
+                    placeholder=""
+                    className="h-9 rounded-lg text-xs bg-white border-slate-200"
+                    required
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Glossy
@@ -1247,7 +1235,7 @@ export function TambahItemTrialModal({
                 </div>
 
                 {/* Ketebalan dengan input angka & combobox satuan */}
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <Label className="text-xs font-semibold text-slate-700">
                     Ketebalan <span className="text-red-500">*</span>
                   </Label>
@@ -1255,18 +1243,16 @@ export function TambahItemTrialModal({
                     <Input
                       value={tebalNilai}
                       onChange={(e) => setTebalNilai(e.target.value)}
-                      placeholder="Contoh: 9"
+                      placeholder=""
                       className="h-9 rounded-lg text-xs bg-white border-slate-200 flex-1 min-w-0"
                       required
                     />
                     <div className="w-24 shrink-0">
-                      <CreatableSelect
-                        value={tebalSatuan ? { label: tebalSatuan, value: tebalSatuan } : null}
-                        onChange={(opt: any) => setTebalSatuan(opt ? opt.value : "")}
-                        options={SATUAN_TEBAL_OPTIONS}
-                        styles={unitSelectStyles}
+                      <CreatableCombobox
+                        value={tebalSatuan}
+                        onChange={setTebalSatuan}
+                        options={INITIAL_SATUAN_TEBAL}
                         placeholder="Satuan"
-                        formatCreateLabel={(val) => `"${val}"`}
                       />
                     </div>
                   </div>
@@ -1276,7 +1262,7 @@ export function TambahItemTrialModal({
                 </div>
 
                 {/* Toleransi dengan input angka & combobox satuan */}
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <Label className="text-xs font-semibold text-slate-700">
                     Toleransi
                   </Label>
@@ -1284,17 +1270,15 @@ export function TambahItemTrialModal({
                     <Input
                       value={toleransiNilai}
                       onChange={(e) => setToleransiNilai(e.target.value)}
-                      placeholder="Contoh: 0.5"
+                      placeholder=""
                       className="h-9 rounded-lg text-xs bg-white border-slate-200 flex-1 min-w-0"
                     />
                     <div className="w-24 shrink-0">
-                      <CreatableSelect
-                        value={toleransiSatuan ? { label: toleransiSatuan, value: toleransiSatuan } : null}
-                        onChange={(opt: any) => setToleransiSatuan(opt ? opt.value : "")}
-                        options={SATUAN_TOLERANSI_OPTIONS}
-                        styles={unitSelectStyles}
+                      <CreatableCombobox
+                        value={toleransiSatuan}
+                        onChange={setToleransiSatuan}
+                        options={INITIAL_SATUAN_TOLERANSI}
                         placeholder="Satuan"
-                        formatCreateLabel={(val) => `"${val}"`}
                       />
                     </div>
                   </div>
@@ -1578,7 +1562,7 @@ export function TambahItemTrialModal({
             </div>
 
             {/* Komponen Utuh Rincian Kalkulasi Koefisien */}
-            <RincianKalkulasiKoefisien
+            <RincianKalkulasiKoefisienTrial
               item={draftItem}
               initialUpahItems={upahItems}
               initialMaterialItems={materialItems}

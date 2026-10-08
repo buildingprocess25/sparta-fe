@@ -34,6 +34,8 @@ import { DetailSpesifikasi } from '@/components/pengajuan-harga/DetailSpesifikas
 import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
 import { RingkasanBiayaMaterial } from '@/components/pengajuan-harga/RingkasanBiayaMaterial';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
+import { TambahPengajuanModal } from '@/components/pengajuan-harga/TambahPengajuanModal';
+import { Pencil } from 'lucide-react';
 
 export default function BMManagerReviewPage() {
   const params = useParams();
@@ -51,6 +53,9 @@ export default function BMManagerReviewPage() {
   const [catatan, setCatatan] = useState('');
   const [catatanError, setCatatanError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // State Edit
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const formatRupiah = (val?: number) => {
     if (!val || isNaN(val)) return 'Rp 0';
@@ -258,6 +263,22 @@ export default function BMManagerReviewPage() {
     router.push('/pengajuan-harga/bm-manager');
   };
 
+  const handleUpdateSpesifikasi = (updatedItem: PengajuanHargaItem) => {
+    const allItems = getStoredPengajuan();
+    const updatedAll = allItems.map(i => i.id === updatedItem.id ? updatedItem : i);
+    saveStoredPengajuan(updatedAll);
+
+    setItem(updatedItem);
+    setMaterialItems(updatedItem.koefisienMaterialItems || []);
+    setIsEditModalOpen(false);
+    
+    showAlert({
+      title: 'Berhasil',
+      message: 'Spesifikasi berhasil diperbarui.',
+      type: 'success',
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -291,10 +312,25 @@ export default function BMManagerReviewPage() {
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-5">
         {/* Rincian Spesifikasi Material */}
-        <DetailSpesifikasi
-          item={item}
-          showDeskripsi={true}
-        />
+        <div className="flex flex-col gap-3">
+          {(item.status === 'DRAFT' || item.status === 'DIAJUKAN' || item.status === 'REVISI') && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="h-8 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer gap-1.5 shadow-xs"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit Spesifikasi
+              </Button>
+            </div>
+          )}
+          <DetailSpesifikasi
+            item={item}
+            showDeskripsi={true}
+          />
+        </div>
 
         {/* Hasil Survei Komponen Material (Read-only) */}
         <div className="space-y-3">
@@ -473,6 +509,17 @@ export default function BMManagerReviewPage() {
           </div>
         </div>
       </main>
+
+      {/* Edit Modal */}
+      {item && (
+        <TambahPengajuanModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={handleUpdateSpesifikasi}
+          existingItems={getStoredPengajuan()}
+          itemToEdit={item}
+        />
+      )}
     </div>
   );
 }

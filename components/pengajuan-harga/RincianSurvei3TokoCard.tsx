@@ -16,6 +16,7 @@ import {
   FileText,
   ExternalLink,
   X,
+  Info,
 } from 'lucide-react';
 import { SurveyTokoItem } from '@/components/pengajuan-harga/types';
 
@@ -326,6 +327,15 @@ export function RincianSurvei3TokoCard({
           </tbody>
         </table>
       </div>
+      
+      {mode === 'edit' && (
+        <div className="flex items-start gap-2 p-3 text-xs text-amber-700 bg-amber-50/50 rounded-b-2xl border-t border-slate-100">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <p>
+            <strong>Catatan:</strong> Foto bukti survei yang harus mencakup <em>Geo Tag</em> dan <em>Time Stamp</em>
+          </p>
+        </div>
+      )}
 
       {/* Modal Preview Bukti Foto Zoom */}
       <Dialog
