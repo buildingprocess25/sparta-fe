@@ -205,7 +205,7 @@ export function ApprovalTrialModal({
                 <span className="font-semibold text-slate-800">{item.tebal || '-'}</span>
               </div>
               <div className="space-y-0.5">
-                <span className="text-xs text-slate-500 block">Toleransi Presisi:</span>
+                <span className="text-xs text-slate-500 block">Toleransi:</span>
                 <span className="font-semibold text-slate-800">{item.toleransi || '-'}</span>
               </div>
               <div className="space-y-0.5">

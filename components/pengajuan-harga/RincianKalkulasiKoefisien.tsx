@@ -215,6 +215,8 @@ export interface RincianKalkulasiKoefisienProps {
     marginMaterial: number;
   }) => void;
   onBack?: () => void;
+  userRole?: string;
+  isReadOnly?: boolean;
 }
 
 export function RincianKalkulasiKoefisien({
@@ -226,6 +228,8 @@ export function RincianKalkulasiKoefisien({
   initialMarginMaterial,
   onSave,
   onBack,
+  userRole = "S&B Specialist",
+  isReadOnly = false,
 }: RincianKalkulasiKoefisienProps) {
   // Tab state untuk item bongkaran
   const [activeTab, setActiveTab] = useState<"pasangan" | "bongkaran">("pasangan");
@@ -495,27 +499,29 @@ export function RincianKalkulasiKoefisien({
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Input 1 Margin Terpusat Upah */}
-            <div className="flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded">
-              <span className="text-[11px] font-semibold text-amber-900">
-                Margin Upah:
-              </span>
-              <div className="relative w-14">
-                <input
-                  type="number"
-                  value={marginUpah}
-                  onChange={(e) =>
-                    setMarginUpah(
-                      e.target.value === "" ? 0 : Number(e.target.value),
-                    )
-                  }
-                  className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                />
-                <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
-                  %
+            {/* Input 1 Margin Terpusat Upah (Hanya S&B Specialist) */}
+            {userRole === "S&B Specialist" && (
+              <div className="flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded">
+                <span className="text-[11px] font-semibold text-amber-900">
+                  Margin Upah:
                 </span>
+                <div className="relative w-14">
+                  <input
+                    type="number"
+                    value={marginUpah}
+                    onChange={(e) =>
+                      setMarginUpah(
+                        e.target.value === "" ? 0 : Number(e.target.value),
+                      )
+                    }
+                    className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                  <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
+                    %
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Total Upah Akhir */}
             <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
@@ -523,14 +529,16 @@ export function RincianKalkulasiKoefisien({
             </span>
 
             {/* Tombol Tambah */}
-            <button
-              type="button"
-              onClick={() => setIsAddingUpah(true)}
-              className="text-xs bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setIsAddingUpah(true)}
+                className="text-xs bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah
+              </button>
+            )}
           </div>
         </div>
 
@@ -636,17 +644,19 @@ export function RincianKalkulasiKoefisien({
             <p className="text-xs text-gray-500 mb-2">
               Belum ada komponen upah / tenaga kerja yang ditambahkan.
             </p>
-            <button
-              type="button"
-              onClick={() => setIsAddingUpah(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-medium hover:underline cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah Komponen Upah
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setIsAddingUpah(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-medium hover:underline cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Komponen Upah
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${isReadOnly ? "pointer-events-none opacity-90" : ""}`}>
             {upahItems.map((u) => {
               const subtotalWorker = calculateWorkerSubtotal(
                 u.value,
@@ -665,14 +675,16 @@ export function RincianKalkulasiKoefisien({
                       >
                         {u.label}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteUpah(u.id)}
-                        className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
-                        title="Hapus"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUpah(u.id)}
+                          className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -732,13 +744,17 @@ export function RincianKalkulasiKoefisien({
               <span>
                 Dasar: <strong>{formatRupiah(totalUpahDasar)}</strong>
               </span>
-              <span>+</span>
-              <span>
-                Margin Upah ({marginUpah}%):{" "}
-                <strong className="text-amber-700">
-                  {formatRupiah(nominalMarginUpah)}
-                </strong>
-              </span>
+              {userRole === "S&B Specialist" && (
+                <>
+                  <span>+</span>
+                  <span>
+                    Margin Upah ({marginUpah}%):{" "}
+                    <strong className="text-amber-700">
+                      {formatRupiah(nominalMarginUpah)}
+                    </strong>
+                  </span>
+                </>
+              )}
             </div>
             <div className="text-right">
               <span className="text-slate-500 text-[11px] mr-1.5">
@@ -766,27 +782,29 @@ export function RincianKalkulasiKoefisien({
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Input 1 Margin Terpusat Material */}
-            <div className="flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded">
-              <span className="text-[11px] font-semibold text-amber-900">
-                Margin Material:
-              </span>
-              <div className="relative w-14">
-                <input
-                  type="number"
-                  value={marginMaterial}
-                  onChange={(e) =>
-                    setMarginMaterial(
-                      e.target.value === "" ? 0 : Number(e.target.value),
-                    )
-                  }
-                  className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                />
-                <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
-                  %
+            {/* Input 1 Margin Terpusat Material (Hanya S&B Specialist) */}
+            {userRole === "S&B Specialist" && (
+              <div className="flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded">
+                <span className="text-[11px] font-semibold text-amber-900">
+                  Margin Material:
                 </span>
+                <div className="relative w-14">
+                  <input
+                    type="number"
+                    value={marginMaterial}
+                    onChange={(e) =>
+                      setMarginMaterial(
+                        e.target.value === "" ? 0 : Number(e.target.value),
+                      )
+                    }
+                    className="w-full bg-white border border-amber-300 rounded px-1.5 py-0.5 text-xs font-bold text-amber-900 text-center pr-4 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                  <span className="absolute right-1 top-0.5 text-[10px] text-amber-600 font-bold">
+                    %
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Badge Jumlah Komponen */}
             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
@@ -794,14 +812,16 @@ export function RincianKalkulasiKoefisien({
             </span>
 
             {/* Tombol Tambah */}
-            <button
-              type="button"
-              onClick={() => setIsAddingMaterial(true)}
-              className="text-xs bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setIsAddingMaterial(true)}
+                className="text-xs bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah
+              </button>
+            )}
           </div>
         </div>
 
@@ -887,17 +907,19 @@ export function RincianKalkulasiKoefisien({
             <p className="text-xs text-gray-500 mb-2">
               Belum ada komponen bahan / material &amp; alat yang ditambahkan.
             </p>
-            <button
-              type="button"
-              onClick={() => setIsAddingMaterial(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium hover:underline cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah Komponen Material
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => setIsAddingMaterial(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-medium hover:underline cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Komponen Material
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${isReadOnly ? "pointer-events-none opacity-90" : ""}`}>
             {materialItems.map((m) => (
               <div
                 key={m.id}
@@ -911,14 +933,16 @@ export function RincianKalkulasiKoefisien({
                     >
                       {m.label}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteMaterial(m.id)}
-                      className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
-                      title="Hapus"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMaterial(m.id)}
+                        className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[9px] font-medium text-slate-500 mb-0.5">
@@ -962,14 +986,16 @@ export function RincianKalkulasiKoefisien({
               </h3>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setIsAddingUpahBongkaran(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Komponen Bongkaran
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingUpahBongkaran(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Komponen Bongkaran
+                </button>
+              )}
             </div>
           </div>
 
@@ -1070,17 +1096,19 @@ export function RincianKalkulasiKoefisien({
               <p className="text-xs text-gray-500 mb-2">
                 Belum ada komponen upah bongkaran yang ditambahkan.
               </p>
-              <button
-                type="button"
-                onClick={() => setIsAddingUpahBongkaran(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Komponen Upah Bongkaran
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingUpahBongkaran(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-medium hover:underline cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Komponen Upah Bongkaran
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${isReadOnly ? "pointer-events-none opacity-90" : ""}`}>
               {upahBongkaranItems.map((u) => {
                 const workerSubtotal = calculateWorkerSubtotal(
                   u.value,
@@ -1099,14 +1127,16 @@ export function RincianKalkulasiKoefisien({
                         >
                           {u.label}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteUpahBongkaran(u.id)}
-                          className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUpahBongkaran(u.id)}
+                            className="text-gray-400 hover:text-red-600 transition cursor-pointer p-1 rounded hover:bg-red-50"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -1163,13 +1193,17 @@ export function RincianKalkulasiKoefisien({
                     {formatRupiah(totalUpahBongkaranDasar)}
                   </strong>
                 </div>
-                <div className="text-gray-300 font-light text-lg px-2">+</div>
-                <div className="flex flex-col min-w-max">
-                  <span className="text-slate-500 mb-1">Nilai Margin Upah (Rp)</span>
-                  <strong className="text-amber-700">
-                    {formatRupiah(nominalMarginUpahBongkaran)}
-                  </strong>
-                </div>
+                {userRole === "S&B Specialist" && (
+                  <>
+                    <div className="text-gray-300 font-light text-lg px-2">+</div>
+                    <div className="flex flex-col min-w-max">
+                      <span className="text-slate-500 mb-1">Nilai Margin Upah (Rp)</span>
+                      <strong className="text-amber-700">
+                        {formatRupiah(nominalMarginUpahBongkaran)}
+                      </strong>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="text-right">
                 <span className="text-slate-500 text-[11px] mr-1.5">

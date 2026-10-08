@@ -541,6 +541,7 @@ export default function BMManagerPage() {
             showHarga={true}
             title={selectedCabang === 'all' ? "Daftar Pengajuan Harga (Semua Cabang)" : `Daftar Pengajuan Harga - Cabang ${selectedCabang}`}
             onResetFilter={handleResetFilters}
+            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=bm-manager`}
           />
         )}
       </main>

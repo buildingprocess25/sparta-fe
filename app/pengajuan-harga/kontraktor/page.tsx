@@ -221,6 +221,7 @@ export default function KontraktorPage() {
             showHarga={true}
             title={selectedCabang === 'all' ? "Daftar Pengajuan Menunggu Konfirmasi Kontraktor (Semua Cabang)" : `Daftar Pengajuan Menunggu Konfirmasi Kontraktor - Cabang ${selectedCabang}`}
             onResetFilter={() => setSearch('')}
+            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=kontraktor`}
           />
         )}
 
@@ -232,6 +233,7 @@ export default function KontraktorPage() {
             showHarga={true}
             title={selectedCabang === 'all' ? "Daftar Harga Satuan Telah Disepakati (Semua Cabang)" : `Daftar Harga Satuan Telah Disepakati - Cabang ${selectedCabang}`}
             onResetFilter={() => setSearch('')}
+            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=kontraktor`}
           />
         )}
       </main>

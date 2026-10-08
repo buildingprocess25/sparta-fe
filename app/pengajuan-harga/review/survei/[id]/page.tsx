@@ -33,6 +33,8 @@ import {
 import { DetailSpesifikasi } from '@/components/pengajuan-harga/DetailSpesifikasi';
 import { RincianSurvei3TokoCard } from '@/components/pengajuan-harga/RincianSurvei3TokoCard';
 import { RingkasanBiayaMaterial } from '@/components/pengajuan-harga/RingkasanBiayaMaterial';
+import { RincianKalkulasiKoefisien } from '@/components/pengajuan-harga/RincianKalkulasiKoefisien';
+import { PengajuanTimelineBar } from '@/components/pengajuan-harga/PengajuanTimelineBar';
 import { useGlobalAlert } from '@/context/GlobalAlertContext';
 import { Suspense } from 'react';
 
@@ -54,6 +56,8 @@ function ReviewSurveiContent() {
   const [catatan, setCatatan] = useState('');
   const [catatanError, setCatatanError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeAction, setActiveAction] = useState<"approve" | "revise" | null>(null);
+  const [usulanHarga, setUsulanHarga] = useState<number | undefined>(undefined);
 
   const formatRupiah = (val?: number) => {
     if (!val || isNaN(val)) return 'Rp 0';
@@ -267,6 +271,35 @@ function ReviewSurveiContent() {
     const all = getStoredPengajuan();
     const updated = all.map((i) => {
       if (i.id === item.id) {
+        // Jika yang merevisi adalah kontraktor, kembalikan ke S&B Specialist dan simpan usulan harga
+        if (roleConfig.role === 'Kontraktor') {
+          // Hitung margin usulan
+          let calculatedMargin = 0;
+          if (usulanHarga) {
+            const upahItems = i.koefisienUpahItems || [];
+            const bongkaranItems = i.koefisienUpahBongkaranItems || [];
+            const materialItems = i.koefisienMaterialItems || [];
+
+            const totalUpahDasar = upahItems.reduce((acc, curr) => acc + (Number(curr.value) * curr.hargaAcuan), 0);
+            const totalUpahBongkaranDasar = i.isTermasukBongkaran
+              ? bongkaranItems.reduce((acc, curr) => acc + (Number(curr.value) * curr.hargaAcuan), 0)
+              : 0;
+            const totalMaterialDasar = materialItems.reduce((acc, curr) => acc + (curr.subtotal || 0), 0);
+            const totalHargaDasar = totalUpahDasar + totalUpahBongkaranDasar + totalMaterialDasar;
+            
+            calculatedMargin = totalHargaDasar > 0 ? ((usulanHarga - totalHargaDasar) / totalHargaDasar) * 100 : 0;
+          }
+
+          return {
+            ...i,
+            status: 'PENDING_SB_SPECIALIST' as const,
+            catatanReview: catatan.trim(),
+            usulanHargaKontraktor: usulanHarga,
+            usulanMarginKontraktor: usulanHarga ? calculatedMargin : undefined,
+            historyLog: [...(i.historyLog || []), newLog],
+          };
+        }
+
         return {
           ...i,
           status: 'RETURNED_TO_BC' as const,
@@ -307,6 +340,8 @@ function ReviewSurveiContent() {
         return {
           ...i,
           status: roleConfig.nextStatus,
+          usulanHargaKontraktor: roleConfig.role === 'S&B Specialist' ? undefined : i.usulanHargaKontraktor,
+          usulanMarginKontraktor: roleConfig.role === 'S&B Specialist' ? undefined : i.usulanMarginKontraktor,
           historyLog: [...(i.historyLog || []), newLog],
         };
       }
@@ -322,6 +357,52 @@ function ReviewSurveiContent() {
     });
 
     router.push(roleConfig.backHref);
+  };
+
+  const handleSaveKoefisien = (updatedData: {
+    upahItems: KoefisienDetailItem[];
+    koefisienUpahBongkaranItems?: KoefisienDetailItem[];
+    materialItems: KoefisienDetailItem[];
+    marginUpah?: number;
+    marginMaterial?: number;
+  }) => {
+    if (!item) return;
+
+    const all = getStoredPengajuan();
+    const updated = all.map((i) => {
+      if (i.id === item.id) {
+        return {
+          ...i,
+          koefisienUpahItems: updatedData.upahItems,
+          koefisienUpahBongkaranItems: updatedData.koefisienUpahBongkaranItems,
+          koefisienMaterialItems: updatedData.materialItems,
+          marginUpah: updatedData.marginUpah,
+          marginMaterial: updatedData.marginMaterial,
+        };
+      }
+      return i;
+    });
+
+    saveStoredPengajuan(updated);
+    
+    // Perbarui state lokal
+    setItem((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        koefisienUpahItems: updatedData.upahItems,
+        koefisienUpahBongkaranItems: updatedData.koefisienUpahBongkaranItems,
+        koefisienMaterialItems: updatedData.materialItems,
+        marginUpah: updatedData.marginUpah,
+        marginMaterial: updatedData.marginMaterial,
+      };
+    });
+
+    showAlert({
+      title: "Berhasil",
+      message: "Data koefisien berhasil disimpan",
+      type: "success",
+    });
   };
 
   if (loading) {
@@ -356,6 +437,30 @@ function ReviewSurveiContent() {
       />
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-5">
+        <PengajuanTimelineBar status={item.status} />
+
+        {/* Jika S&B Specialist melihat usulan harga dari Kontraktor */}
+        {roleConfig.role === "S&B Specialist" && item.usulanHargaKontraktor && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 shadow-xs">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold text-red-800 mb-1">
+                Kontraktor Mengusulkan Revisi Harga
+              </h3>
+              <p className="text-xs text-red-700 leading-relaxed mb-3">
+                Kontraktor menolak harga sebelumnya dan mengusulkan harga baru sebesar{" "}
+                <strong className="font-mono text-[13px]">{formatRupiah(item.usulanHargaKontraktor)}</strong>.
+                Silakan sesuaikan margin di bawah untuk menyepakati harga usulan ini, atau tolak.
+              </p>
+              {item.usulanMarginKontraktor !== undefined && (
+                <div className="inline-flex bg-white/60 px-3 py-1.5 rounded-lg border border-red-100 text-xs text-red-800 font-medium">
+                  Ekuivalen Margin: {item.usulanMarginKontraktor.toFixed(2)}%
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Rincian Spesifikasi Material */}
         <DetailSpesifikasi
           item={item}
@@ -475,11 +580,13 @@ function ReviewSurveiContent() {
           </Accordion>
         </div>
 
-        {/* Ringkasan Biaya Material */}
-        <RingkasanBiayaMaterial
-          materialItems={materialItems}
-          totalBiayaMaterial={totalBiayaMaterial}
-          marginMaterial={item?.marginMaterial}
+        {/* Rincian Kalkulasi (Upah, Material, Bongkaran & Margin) */}
+        <RincianKalkulasiKoefisien
+          item={item}
+          onSave={handleSaveKoefisien}
+          onBack={() => {}} // Not used here, back is handled by the page's own button
+          isReadOnly={true}
+          userRole={roleConfig.role}
         />
 
         {/* Form Catatan & Aksi Keputusan */}
@@ -516,26 +623,104 @@ function ReviewSurveiContent() {
               </Button>
             </Link>
 
-            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-              <Button
-                type="button"
-                onClick={handleRevisi}
-                disabled={isSubmitting}
-                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Revisi</span>
-              </Button>
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto justify-end">
+              {roleConfig.role === "Kontraktor" ? (
+                <>
+                  {!activeAction ? (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={() => setActiveAction("revise")}
+                        disabled={isSubmitting}
+                        variant="outline"
+                        className="w-full sm:w-auto border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 rounded-xl text-xs h-9 px-5 font-semibold cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                        Tolak & Ajukan Harga Baru
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => setActiveAction("approve")}
+                        disabled={isSubmitting}
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Sepakati Harga Standar
+                      </Button>
+                    </>
+                  ) : activeAction === "revise" ? (
+                    <div className="flex items-center gap-2 w-full sm:w-auto bg-red-50 p-1.5 rounded-xl border border-red-100">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-medium">Rp</span>
+                        <input
+                          type="number"
+                          value={usulanHarga || ""}
+                          onChange={(e) => setUsulanHarga(Number(e.target.value))}
+                          placeholder="Masukkan usulan harga total..."
+                          className="w-[220px] pl-8 pr-3 py-1.5 text-xs rounded-lg border-slate-200 focus:ring-red-500/20"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => setActiveAction(null)}
+                        variant="ghost"
+                        className="h-8 px-3 text-xs text-slate-500 hover:text-slate-700 rounded-lg cursor-pointer"
+                      >
+                        Batal
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleRevisi}
+                        disabled={isSubmitting || !usulanHarga}
+                        className="h-8 px-4 text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-2xs gap-1.5 cursor-pointer"
+                      >
+                        Kirim Penolakan
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Button
+                        type="button"
+                        onClick={() => setActiveAction(null)}
+                        variant="ghost"
+                        className="h-9 px-4 text-xs text-slate-500 hover:text-slate-700 rounded-xl cursor-pointer"
+                      >
+                        Batal
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleSetujui}
+                        disabled={isSubmitting}
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                      >
+                        Konfirmasi Sepakat
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    onClick={handleRevisi}
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Revisi</span>
+                  </Button>
 
-              <Button
-                type="button"
-                onClick={handleSetujui}
-                disabled={isSubmitting}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{roleConfig.approveLabel}</span>
-              </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSetujui}
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-5 font-semibold shadow-2xs gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{roleConfig.approveLabel}</span>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

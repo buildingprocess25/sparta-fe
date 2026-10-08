@@ -46,7 +46,7 @@ export function DetailSpesifikasi({
     { label: "Tipe / Motif", value: item.tipe },
     { label: "Ketebalan", value: item.tebal },
     { label: "Finishing Permukaan", value: item.permukaan },
-    { label: "Toleransi Presisi", value: item.toleransi },
+    { label: "Toleransi", value: item.toleransi },
     { label: "Implementasi / Posisi", value: item.implementasi },
     { label: "Lokasi / Area Gerai", value: item.lokasi },
     { label: "Informasi Tambahan", value: item.informasiTambahan },

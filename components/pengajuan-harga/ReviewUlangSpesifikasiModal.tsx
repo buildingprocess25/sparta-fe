@@ -512,7 +512,7 @@ export function ReviewUlangSpesifikasiModal({
 
                   <div className="flex flex-col gap-1.5">
                     <Label className="text-xs font-semibold text-slate-700">
-                      Toleransi Presisi <span className="text-red-500">*</span>
+                      Toleransi <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       value={toleransi}

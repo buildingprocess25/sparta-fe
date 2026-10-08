@@ -63,7 +63,7 @@ export default function SBSpecialistDetailPage() {
     "Tipe / Motif",
     "Ketebalan",
     "Finishing Permukaan",
-    "Toleransi Presisi",
+    "Toleransi",
     "Implementasi / Posisi",
     "Lokasi / Area Gerai",
     "Informasi Tambahan",
@@ -196,6 +196,8 @@ export default function SBSpecialistDetailPage() {
         return {
           ...i,
           status: "PENDING_REGIONAL_MGR" as const,
+          usulanHargaKontraktor: undefined,
+          usulanMarginKontraktor: undefined,
           historyLog: [
             ...(i.historyLog || []),
             {
@@ -278,11 +280,13 @@ export default function SBSpecialistDetailPage() {
                 .join(", ")
             : "Tidak ada";
 
-        const nextStatus = i.isTrial
-          ? i.status === "TRIAL_REVISI"
-            ? "TRIAL_PENDING_REGIONAL_MGR"
-            : i.status
-          : ("SIAP_SURVEI" as const);
+        let nextStatus = i.status;
+        if (i.isTrial) {
+          if (i.status === "TRIAL_REVISI") nextStatus = "TRIAL_PENDING_REGIONAL_MGR";
+        } else {
+          // Hanya ubah ke SIAP_SURVEI jika statusnya baru disetujui spesifikasinya
+          if (i.status === "DISETUJUI") nextStatus = "SIAP_SURVEI";
+        }
 
         return {
           ...i,
@@ -339,7 +343,7 @@ export default function SBSpecialistDetailPage() {
           backHref="/pengajuan-harga/sb-specialist"
         />
         <main className="flex-1 max-w-4xl mx-auto p-8 text-center flex flex-col items-center justify-center">
-          <p className="text-slate-500 mb-4">
+          <p className="text-slate-500 mb-4">e
             Item tidak ditemukan atau sedang dimuat...
           </p>
           <Link href="/pengajuan-harga/sb-specialist">
@@ -361,7 +365,7 @@ export default function SBSpecialistDetailPage() {
         backHref="/pengajuan-harga/sb-specialist"
       />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         {/* Navigation Breadcrumb & Back */}
         <div className="flex items-center justify-between">
           <Link
@@ -425,6 +429,26 @@ export default function SBSpecialistDetailPage() {
 
         {/* Timeline Bar Pengajuan */}
         <PengajuanTimelineBar item={item} />
+
+        {/* Notifikasi Usulan Kontraktor (Bila ada negosiasi / penolakan harga dari Kontraktor) */}
+        {item.usulanHargaKontraktor !== undefined && (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
+            <div className="mt-0.5">
+              <RotateCcw className="w-5 h-5 text-rose-600" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-rose-900">Kontraktor Mengusulkan Revisi Harga</h3>
+              <p className="text-xs text-rose-700 leading-relaxed max-w-3xl">
+                Kontraktor (Layer 4) menolak kesepakatan harga standar dan mengusulkan harga akhir sebesar <strong className="font-mono text-rose-900 text-[13px]">{formatRupiah(item.usulanHargaKontraktor)}</strong>. 
+                {item.usulanMarginKontraktor !== undefined && (
+                  <span> Ekuivalen dengan total <strong>Margin Keseluruhan {item.usulanMarginKontraktor}%</strong> (termasuk Upah & Material).</span>
+                )}
+                <br className="mt-1" />
+                Silakan sesuaikan konfigurasi <strong>Margin Upah (%)</strong> dan <strong>Margin Material (%)</strong> di bagian bawah untuk menyepakati atau mendekati harga usulan kontraktor, lalu <strong>Simpan dan Teruskan</strong> kembali ke persetujuan.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Card Ringkasan Spesifikasi Item */}
         <DetailSpesifikasi
@@ -722,7 +746,7 @@ export default function SBSpecialistDetailPage() {
                       className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs h-9 px-4 font-semibold shadow-2xs gap-1.5 cursor-pointer"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Kembalikan ke BC</span>
+                      <span>Revisi</span>
                     </Button>
                     <Button
                       type="button"
@@ -792,12 +816,13 @@ export default function SBSpecialistDetailPage() {
           </div>
         )}
 
-        {/* RINCIAN KALKULASI KOEFISIEN (KOMPONEN INDEPENDEN) - Hanya tampil jika spek sudah disetujui (belum sampai PENDING_SB_SPECIALIST dll) */}
-        {(item.status === "DISETUJUI" || item.status === "SIAP_SURVEI" || item.status === "APPROVED_ACTIVE" || item.status === "RELEASED") && (
+        {/* RINCIAN KALKULASI KOEFISIEN (KOMPONEN INDEPENDEN) */}
+        {(item.status === "DISETUJUI" || item.status === "SIAP_SURVEI" || item.status === "PENDING_SB_SPECIALIST" || item.status === "APPROVED_ACTIVE" || item.status === "RELEASED") && (
           <RincianKalkulasiKoefisien
             item={item}
             onSave={handleSaveKoefisien}
             onBack={() => router.push("/pengajuan-harga/sb-specialist")}
+            isReadOnly={item.status === "PENDING_SB_SPECIALIST"}
           />
         )}
       </main>

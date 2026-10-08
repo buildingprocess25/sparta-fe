@@ -12,6 +12,7 @@ export interface RingkasanBiayaMaterialProps {
   className?: string;
   title?: string;
   formatRupiah?: (val?: number) => string;
+  userRole?: string;
 }
 
 export function RingkasanBiayaMaterial({
@@ -22,6 +23,7 @@ export function RingkasanBiayaMaterial({
   className = "",
   title = "Ringkasan Biaya Material",
   formatRupiah: customFormatRupiah,
+  userRole = "S&B Specialist",
 }: RingkasanBiayaMaterialProps) {
   const defaultFormatRupiah = (val?: number) => {
     if (!val || isNaN(val)) return "Rp 0";
@@ -148,27 +150,41 @@ export function RingkasanBiayaMaterial({
             })}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-slate-200 bg-slate-50/90 font-bold">
-              <td colSpan={4} className="py-3 px-3 text-right text-slate-800 text-xs">
-                Total Biaya:
-              </td>
-              <td className="py-3 px-3 text-right font-mono text-xs text-slate-700 whitespace-nowrap">
-                {formatRupiah(calculatedTotal)}
-              </td>
-              
-              <td></td>
-              <td></td>
-            </tr>
-            <tr className="border-t-2 border-slate-200 bg-slate-50/90 font-bold">
-              <td colSpan={4} className="py-3 px-3 text-right text-slate-800 text-xs">
-               +Margin:
-              </td>
-              <td className="py-3 px-3 text-right font-mono text-sm text-red-600 whitespace-nowrap">
-                {formatRupiah(calculatedTotalWithMargin)}
-              </td>
-              <td></td>
-              <td></td>
-            </tr>
+            {userRole === "S&B Specialist" ? (
+              <>
+                <tr className="border-t-2 border-slate-200 bg-slate-50/90 font-bold">
+                  <td colSpan={4} className="py-3 px-3 text-right text-slate-800 text-xs">
+                    Total Biaya (Dasar):
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-xs text-slate-700 whitespace-nowrap">
+                    {formatRupiah(calculatedTotal)}
+                  </td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr className="border-t-2 border-slate-200 bg-slate-50/90 font-bold">
+                  <td colSpan={4} className="py-3 px-3 text-right text-slate-800 text-xs">
+                   Total dengan Margin:
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-sm text-red-600 whitespace-nowrap">
+                    {formatRupiah(calculatedTotalWithMargin)}
+                  </td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </>
+            ) : (
+              <tr className="border-t-2 border-slate-200 bg-slate-50/90 font-bold">
+                <td colSpan={4} className="py-3 px-3 text-right text-slate-800 text-xs">
+                 Total Harga Material Akhir:
+                </td>
+                <td className="py-3 px-3 text-right font-mono text-sm text-red-600 whitespace-nowrap">
+                  {formatRupiah(calculatedTotalWithMargin)}
+                </td>
+                <td></td>
+                <td></td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>

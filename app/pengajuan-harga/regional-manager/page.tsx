@@ -203,6 +203,7 @@ export default function RegionalManagerPage() {
             showHarga={true}
             title="Daftar Survei Toko Menunggu Persetujuan Layer 3"
             onResetFilter={() => setSearch('')}
+            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=regional-manager`}
           />
         )}
 

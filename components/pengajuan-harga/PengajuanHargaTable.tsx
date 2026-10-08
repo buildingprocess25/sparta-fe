@@ -18,6 +18,7 @@ export interface PengajuanHargaTableProps {
   title?: string;
   className?: string;
   onResetFilter?: () => void;
+  getDetailHref?: (item: PengajuanHargaItem) => string;
 }
 
 export function PengajuanHargaTable({
@@ -33,6 +34,7 @@ export function PengajuanHargaTable({
   title = "Daftar Spesifikasi Material",
   className = "",
   onResetFilter,
+  getDetailHref,
 }: PengajuanHargaTableProps) {
   return (
     <ReusableSpecTable
@@ -48,6 +50,7 @@ export function PengajuanHargaTable({
       renderAction={renderAction}
       onResetFilter={onResetFilter}
       className={className}
+      getDetailHref={getDetailHref}
     />
   );
 }

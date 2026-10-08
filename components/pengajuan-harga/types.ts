@@ -138,6 +138,11 @@ export interface PengajuanHargaItem {
   koefisienUpahBongkaranItems?: KoefisienDetailItem[];
   marginUpah?: number; // Margin persentase internal S&B untuk komponen upah (%) - default 8%
   marginMaterial?: number; // Margin persentase internal S&B untuk komponen material (%) - default 8%
+  
+  // Usulan Kontraktor
+  usulanHargaKontraktor?: number;
+  usulanMarginKontraktor?: number;
+
   historyLog?: ApprovalLog[];
 
   tanggalPengajuan?: string;
@@ -175,7 +180,7 @@ export const DAFTAR_FIELD_SPESIFIKASI: { id: string; label: string }[] = [
   { id: 'tipe', label: 'Tipe / Motif' },
   { id: 'permukaan', label: 'Permukaan' },
   { id: 'tebal', label: 'Ketebalan' },
-  { id: 'toleransi', label: 'Toleransi Presisi' },
+  { id: 'toleransi', label: 'Toleransi' },
   { id: 'implementasi', label: 'Implementasi / Posisi' },
   { id: 'lokasi', label: 'Lokasi / Area Gerai' },
   { id: 'informasiTambahan', label: 'Informasi Tambahan' },

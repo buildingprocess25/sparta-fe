@@ -1074,7 +1074,7 @@ export function TambahPengajuanModal({
 
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-slate-700">
-                  Toleransi Presisi
+                  Toleransi
                 </Label>
                 <div className="flex items-center gap-1.5">
                   <Input

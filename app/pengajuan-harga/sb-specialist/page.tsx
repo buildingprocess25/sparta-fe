@@ -267,11 +267,6 @@ export default function SBSpecialistPage() {
     setIsTambahTrialModalOpen(true);
   };
 
-  const handleOpenEditTrial = (item: PengajuanHargaItem) => {
-    setTrialItemToEdit(item);
-    setIsTambahTrialModalOpen(true);
-  };
-
   const handleSubmitTrialItem = (newItem: PengajuanHargaItem) => {
     let updated: PengajuanHargaItem[];
     if (trialItemToEdit || items.some((i) => i.id === newItem.id)) {
@@ -296,10 +291,6 @@ export default function SBSpecialistPage() {
   };
 
   // Handlers Evaluasi Akhir Trial (Phase 5)
-  const handleOpenEvaluasiTrial = (item: PengajuanHargaItem) => {
-    setEvaluasiItem(item);
-    setIsEvaluasiModalOpen(true);
-  };
 
   const handleSubmitPromosiTrial = (
     item: PengajuanHargaItem,
@@ -563,6 +554,7 @@ export default function SBSpecialistPage() {
             showHarga={true}
             title="Daftar Pengajuan Harga Survei Menunggu Persetujuan Layer 2"
             onResetFilter={handleResetFilter}
+            getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`}
           />
         )}
 
@@ -611,32 +603,7 @@ export default function SBSpecialistPage() {
               title="Daftar Pengajuan Item Trial"
               showStatus={true}
               showHarga={true}
-              renderAction={(item) => (
-                <div className="flex items-center gap-1.5">
-                  {item.status === "TRIAL_REVISI" && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleOpenEditTrial(item)}
-                      className="h-7 text-[11px] px-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg gap-1 font-semibold cursor-pointer shadow-2xs"
-                      title="Perbaiki usulan yang diminta revisi"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      <span>Perbaiki</span>
-                    </Button>
-                  )}
-                  {item.status === "TRIAL_RELEASED" && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleOpenEvaluasiTrial(item)}
-                      className="h-7 text-[11px] px-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg gap-1 font-semibold cursor-pointer shadow-2xs"
-                      title="Evaluasi hasil uji coba lapangan 3 bulan"
-                    >
-                      <FileCheck className="w-3 h-3" />
-                      <span>Evaluasi</span>
-                    </Button>
-                  )}
-                </div>
-              )}
+              getDetailHref={(item) => `/pengajuan-harga/review/survei/${item.id}?from=sb-specialist`}
               onResetFilter={() => setSearch("")}
             />
           </div>

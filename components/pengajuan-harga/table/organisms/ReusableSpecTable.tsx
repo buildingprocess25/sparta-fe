@@ -31,6 +31,7 @@ export interface ReusableSpecTableProps {
   emptyDescription?: string;
   onResetFilter?: () => void;
   className?: string;
+  getDetailHref?: (item: PengajuanHargaItem) => string;
 }
 
 export function ReusableSpecTable({
@@ -48,6 +49,7 @@ export function ReusableSpecTable({
   emptyDescription,
   onResetFilter,
   className = "",
+  getDetailHref,
 }: ReusableSpecTableProps) {
   const pathname = usePathname();
 
@@ -195,7 +197,7 @@ export function ReusableSpecTable({
                   <td className="px-3.5 py-3 border-r border-slate-100">
                     <DescriptionCell
                       description={item.deskripsiOtomatis}
-                      detailHref={`${pathname}/${item.id}`}
+                      detailHref={getDetailHref ? getDetailHref(item) : `${pathname}/${item.id}`}
                     />
                   </td>
 

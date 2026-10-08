@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CreatableCombobox } from "@/components/ui/creatable-combobox";
+import CreatableSelect from "react-select/creatable";
 import {
   PengajuanHargaItem,
   KoefisienDetailItem,
@@ -78,17 +79,17 @@ const INITIAL_MATERIAL_OPTIONS = [
 ];
 
 const INITIAL_UKURAN_OPTIONS = [
-  "60x60 cm",
-  "30x30 cm",
-  "40x40 cm",
-  "60x120 cm",
-  "80x80 cm",
-  "20x290 cm",
-  "20x400 cm",
-  "20 Kg / Pail",
-  "120 cm",
-  "20x20 cm",
-  "30x60 cm",
+  "60x60",
+  "30x30",
+  "40x40",
+  "60x120",
+  "80x80",
+  "20x290",
+  "20x400",
+  "20",
+  "120",
+  "20x20",
+  "30x60",
 ];
 
 const INITIAL_MERK_OPTIONS = [
@@ -103,6 +104,78 @@ const INITIAL_MERK_OPTIONS = [
   "KIA",
   "Inax",
   "Indogress",
+];
+
+const INITIAL_WARNA_OPTIONS = [
+  "Grey",
+  "White",
+  "Cream",
+  "Black",
+  "Green",
+  "Ivory",
+  "Dark Grey",
+  "Clear",
+  "Oak Wood",
+  "Teak Wood",
+  "Signal Red",
+  "Cool Daylight (6500K)",
+  "Light Grey",
+  "White Lily",
+  "Natural Oak",
+  "Hitam Anodized",
+];
+
+const INITIAL_TIPE_OPTIONS = [
+  "Sicily Grey Matte",
+  "Antique White",
+  "Cream Carolina",
+  "Green Moss",
+  "Polish White",
+  "Nero Portoro",
+  "Travertine Cream Polish",
+  "Pentalite Ultra Matt",
+  "Rustic Stone Unpolished",
+  "Moisture Shield 9mm",
+  "Weatherbond Extreme",
+  "Tempered Glass Frameless",
+  "Plank Click Series",
+  "One Sheet Solid",
+  "dPorto Ivory Polished",
+  "dPorto Ivory Matte Unpolished",
+  "Shopfront 4\" Anodized",
+  "Meson 59464 17W/18W",
+  "Linear Fluted",
+  "Linear Fluted 4-Groove",
+  "Epogreen Multi-layer",
+  "Hollow Anti-Sagging",
+  "Essential SmartBright",
+  "Silver Ion Shield",
+  "Commercial Wear Layer 0.5mm",
+  "Polos",
+  "Wood",
+];
+
+const INITIAL_PERMUKAAN_OPTIONS = [
+  "Matte",
+  "Polish",
+  "Glossy",
+  "Unpolished",
+  "Double Loading",
+  "Nano Polish",
+  "Embossed Wood",
+  "Embossed Woodgrain",
+  "Gloss Anti-Slip",
+  "Matte Flat",
+  "Diffuser Polycarbonate",
+  "Satin Eggshell",
+  "Deep Embossed Anti-Slip",
+  "Semi Gloss",
+  "Matt",
+  "Halus",
+  "Polished Edge",
+  "Zincalume Coating",
+  "Anodized",
+  "Frosted Diffuser",
 ];
 
 const INITIAL_POSISI_OPTIONS = [
@@ -127,8 +200,47 @@ const INITIAL_AREA_OPTIONS = [
   "Back Office",
 ];
 
-const INITIAL_SATUAN_TEBAL = ["mm", "cm", "m"];
-const INITIAL_SATUAN_TOLERANSI = ["mm", "%", "cm"];
+const SATUAN_TEBAL_OPTIONS = [
+  { label: "mm", value: "mm" },
+  { label: "cm", value: "cm" },
+  { label: "m", value: "m" },
+];
+
+const SATUAN_TOLERANSI_OPTIONS = [
+  { label: "mm", value: "mm" },
+  { label: "%", value: "%" },
+  { label: "cm", value: "cm" },
+];
+
+const unitSelectStyles = {
+  control: (base: any) => ({
+    ...base,
+    minHeight: "36px",
+    height: "36px",
+    borderRadius: "0.5rem",
+    borderColor: "#e2e8f0",
+    fontSize: "12px",
+    boxShadow: "none",
+  }),
+  menu: (base: any) => ({
+    ...base,
+    minWidth: "90px",
+    fontSize: "12px",
+    zIndex: 50,
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: "0 6px",
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    padding: "0",
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    padding: "2px",
+  }),
+};
 
 const DEFAULT_UPAH_ITEMS: KoefisienDetailItem[] = [
   { id: "u-1", label: "Mandor", value: "0.0188", unit: "Oh", hargaAcuan: 245000 },
@@ -141,6 +253,93 @@ const DEFAULT_MATERIAL_ITEMS: KoefisienDetailItem[] = [
   { id: "m-2", label: "Pasir Pasang", value: "0.0436", unit: "m3" },
   { id: "m-3", label: "Semen Pengisi Nat (Grouting)", value: "1.5000", unit: "Kg" },
 ];
+
+const SATUAN_UKURAN_OPTIONS = [
+  { label: "cm", value: "cm" },
+  { label: "mm", value: "mm" },
+  { label: "m", value: "m" },
+  { label: "inch", value: "inch" },
+];
+
+const comboboxStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    minHeight: "36px",
+    height: "36px",
+    borderRadius: "0.5rem",
+    borderColor: state.isFocused ? "#94a3b8" : "#e2e8f0",
+    fontSize: "12px",
+    backgroundColor: state.isDisabled ? "#f8fafc" : "#ffffff",
+    boxShadow: "none",
+    "&:hover": {
+      borderColor: "#cbd5e1",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    fontSize: "12px",
+    zIndex: 50,
+    borderRadius: "0.5rem",
+    overflow: "hidden",
+    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    fontSize: "12px",
+    backgroundColor: state.isSelected
+      ? "#ef4444"
+      : state.isFocused
+      ? "#fee2e2"
+      : undefined,
+    color: state.isSelected ? "#ffffff" : "#1e293b",
+    cursor: "pointer",
+    "&:active": {
+      backgroundColor: "#dc2626",
+    },
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: "0 8px",
+    overflow: "hidden",
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: "#94a3b8",
+    fontSize: "12px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: "#1e293b",
+    fontSize: "12px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }),
+  input: (base: any) => ({
+    ...base,
+    margin: "0",
+    padding: "0",
+    fontSize: "12px",
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    padding: "0 2px",
+  }),
+  dropdownIndicator: (base: any) => ({
+    ...base,
+    padding: "2px 4px",
+    color: "#64748b",
+  }),
+  clearIndicator: (base: any) => ({
+    ...base,
+    padding: "2px 4px",
+    color: "#64748b",
+  }),
+};
+
 
 function parseNilaiDanSatuan(
   val?: string,
@@ -169,7 +368,10 @@ export function TambahItemTrialModal({
   // Form State Spesifikasi (Konsisten dengan TambahPengajuanModal)
   const [kategori, setKategori] = useState("Pekerjaan Keramik");
   const [item, setItem] = useState("");
-  const [ukuran, setUkuran] = useState("");
+  
+  // Ukuran dipisah nilai & satuan
+  const [ukuranNilai, setUkuranNilai] = useState("");
+  const [ukuranSatuan, setUkuranSatuan] = useState("cm");
   const [merk, setMerk] = useState("");
   const [warna, setWarna] = useState("");
   const [tipe, setTipe] = useState("");
@@ -213,7 +415,19 @@ export function TambahItemTrialModal({
     return trialDurationUnit === "bulan" ? val * 30 : val;
   }, [trialDurationValue, trialDurationUnit]);
 
-  // Nilai gabungan untuk ketebalan & toleransi
+  const formatTitleCase = (str: string) => {
+    return str.replace(
+      /\w\S*/g,
+      (text) => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
+    );
+  };
+
+  // Nilai gabungan untuk ukuran, ketebalan & toleransi
+  const combinedUkuran = useMemo(() => {
+    if (!ukuranNilai.trim()) return "";
+    return [ukuranNilai.trim(), ukuranSatuan.trim()].filter(Boolean).join(" ");
+  }, [ukuranNilai, ukuranSatuan]);
+
   const combinedTebal = useMemo(() => {
     if (!tebalNilai.trim()) return "";
     return [tebalNilai.trim(), tebalSatuan.trim()].filter(Boolean).join(" ");
@@ -250,19 +464,95 @@ export function TambahItemTrialModal({
     return Array.from(new Set([...INITIAL_KATEGORI_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
-  const materialOptions = useMemo(() => {
-    const fromExisting = existingItems.map((i) => i.item).filter(Boolean);
-    return Array.from(new Set([...INITIAL_MATERIAL_OPTIONS, ...fromExisting]));
+  const materialReactSelectOptions = useMemo(() => {
+    const uniqueMap = new Map();
+
+    // 1. Existing items from store
+    existingItems.forEach((i) => {
+      const formattedName = formatTitleCase(i.item);
+      if (!uniqueMap.has(formattedName.toLowerCase())) {
+        uniqueMap.set(formattedName.toLowerCase(), {
+          label: formattedName,
+          value: formattedName,
+          data: i,
+        });
+      }
+    });
+
+    // 2. Initial static options
+    INITIAL_MATERIAL_OPTIONS.forEach((name) => {
+      const formattedName = formatTitleCase(name);
+      if (!uniqueMap.has(formattedName.toLowerCase())) {
+        uniqueMap.set(formattedName.toLowerCase(), {
+          label: formattedName,
+          value: formattedName,
+          data: null,
+        });
+      }
+    });
+
+    return Array.from(uniqueMap.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [existingItems]);
 
+  const handleItemSelect = (selectedOption: any) => {
+    if (!selectedOption) {
+      setItem("");
+      return;
+    }
+
+    setItem(formatTitleCase(selectedOption.value));
+
+    if (selectedOption.data) {
+      const target = selectedOption.data;
+      setKategori(target.kategori || "Pekerjaan Keramik");
+
+      const parsedUkuran = parseNilaiDanSatuan(target.ukuran, "cm");
+      setUkuranNilai(parsedUkuran.nilai);
+      setUkuranSatuan(parsedUkuran.satuan || "cm");
+
+      setMerk(target.merk || "");
+      setWarna(target.warna || "");
+      setTipe(target.tipe || "");
+      setPermukaan(target.permukaan || "");
+
+      const parsedTebal = parseNilaiDanSatuan(target.tebal, "mm");
+      setTebalNilai(parsedTebal.nilai);
+      setTebalSatuan(parsedTebal.satuan || "mm");
+
+      const parsedTol = parseNilaiDanSatuan(target.toleransi, "mm");
+      setToleransiNilai(parsedTol.nilai);
+      setToleransiSatuan(parsedTol.satuan || "mm");
+
+      if (target.implementasi) setImplementasi(target.implementasi);
+      if (target.lokasi) setLokasi(target.lokasi);
+    }
+  };
+
   const ukuranOptions = useMemo(() => {
-    const fromExisting = existingItems.map((i) => i.ukuran).filter(Boolean);
+    const fromExisting = existingItems
+      .map((i) => parseNilaiDanSatuan(i.ukuran, "cm").nilai)
+      .filter(Boolean);
     return Array.from(new Set([...INITIAL_UKURAN_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
   const merkOptions = useMemo(() => {
     const fromExisting = existingItems.map((i) => i.merk).filter(Boolean);
     return Array.from(new Set([...INITIAL_MERK_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const warnaOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.warna).filter(Boolean);
+    return Array.from(new Set([...INITIAL_WARNA_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const tipeOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.tipe).filter(Boolean);
+    return Array.from(new Set([...INITIAL_TIPE_OPTIONS, ...fromExisting]));
+  }, [existingItems]);
+
+  const permukaanOptions = useMemo(() => {
+    const fromExisting = existingItems.map((i) => i.permukaan).filter(Boolean);
+    return Array.from(new Set([...INITIAL_PERMUKAAN_OPTIONS, ...fromExisting]));
   }, [existingItems]);
 
   const posisiOptions = useMemo(() => {
@@ -282,7 +572,7 @@ export function TambahItemTrialModal({
       item,
       implementasi,
       lokasi,
-      ukuran,
+      ukuran: combinedUkuran,
       merk,
       warna,
       tipe,
@@ -297,7 +587,7 @@ export function TambahItemTrialModal({
     item,
     implementasi,
     lokasi,
-    ukuran,
+    combinedUkuran,
     merk,
     warna,
     tipe,
@@ -321,7 +611,7 @@ export function TambahItemTrialModal({
   useEffect(() => {
     const desc = generateDeskripsiOtomatis({
       item,
-      ukuran,
+      ukuran: combinedUkuran,
       merk,
       warna,
       tipe,
@@ -335,7 +625,7 @@ export function TambahItemTrialModal({
     setDeskripsiOtomatis(desc);
   }, [
     item,
-    ukuran,
+    combinedUkuran,
     merk,
     warna,
     tipe,
@@ -350,7 +640,11 @@ export function TambahItemTrialModal({
   const populateForm = (target: PengajuanHargaItem) => {
     setKategori(target.kategori || "Pekerjaan Keramik");
     setItem(target.item || "");
-    setUkuran(target.ukuran || "");
+    
+    const parsedUkuran = parseNilaiDanSatuan(target.ukuran, "cm");
+    setUkuranNilai(parsedUkuran.nilai);
+    setUkuranSatuan(parsedUkuran.satuan || "cm");
+
     setMerk(target.merk || "");
     setWarna(target.warna || "");
     setTipe(target.tipe || "");
@@ -407,7 +701,8 @@ export function TambahItemTrialModal({
     setActiveTab("spesifikasi");
     setKategori("Pekerjaan Keramik");
     setItem("");
-    setUkuran("");
+    setUkuranNilai("");
+    setUkuranSatuan("cm");
     setMerk("");
     setWarna("");
     setTipe("");
@@ -465,7 +760,7 @@ export function TambahItemTrialModal({
     return Boolean(
       kategori.trim() &&
       item.trim() &&
-      ukuran.trim() &&
+      ukuranNilai.trim() &&
       merk.trim() &&
       warna.trim() &&
       tipe.trim() &&
@@ -480,7 +775,7 @@ export function TambahItemTrialModal({
   }, [
     kategori,
     item,
-    ukuran,
+    ukuranNilai,
     merk,
     warna,
     tipe,
@@ -499,7 +794,7 @@ export function TambahItemTrialModal({
       setValidationError("Spesifikasi material untuk lokasi ini sudah pernah diajukan (duplikat).");
       return;
     }
-    if (!item.trim() || !ukuran.trim() || !merk.trim()) {
+    if (!item.trim() || !ukuranNilai.trim() || !merk.trim()) {
       setValidationError("Mohon lengkapi Data Pokok Material (Nama Material, Ukuran, dan Merk).");
       return;
     }
@@ -532,7 +827,7 @@ export function TambahItemTrialModal({
       kode: kodeItem.trim() || kodeData.kodeItem,
       kodeMaster: kodeMaster.trim() || kodeData.kodeMaster,
       item: item.trim() || "Item Baru (Trial)",
-      ukuran: ukuran.trim(),
+      ukuran: combinedUkuran.trim(),
       merk: merk.trim(),
       warna: warna.trim(),
       tipe: tipe.trim(),
@@ -563,7 +858,7 @@ export function TambahItemTrialModal({
     kodeData,
     kodeMaster,
     item,
-    ukuran,
+    combinedUkuran,
     merk,
     warna,
     tipe,
@@ -638,7 +933,7 @@ export function TambahItemTrialModal({
       kode: finalKodeItem,
       kodeMaster: finalKodeMaster,
       item: item.trim(),
-      ukuran: ukuran.trim(),
+      ukuran: combinedUkuran.trim(),
       merk: merk.trim(),
       warna: warna.trim(),
       tipe: tipe.trim(),
@@ -684,7 +979,7 @@ export function TambahItemTrialModal({
             <DialogDescription className="text-xs text-slate-500 mt-0.5">
               {itemToEdit
                 ? "Perbaiki data material trial dan sesuaikan koefisien acuan harga."
-                : "Isi data spesifikasi material dan susun koefisien AHSP untuk masa uji coba lapangan."}
+                : "Isi data spesifikasi material dan susun koefisien untuk masa uji coba lapangan."}
             </DialogDescription>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -720,7 +1015,7 @@ export function TambahItemTrialModal({
             }`}>
               {isTab1Valid ? "✓" : "1"}
             </span>
-            <span>1. Spesifikasi Material &amp; Kebutuhan Trial</span>
+            <span>1. Spesifikasi Material</span>
           </button>
 
           <button
@@ -735,7 +1030,7 @@ export function TambahItemTrialModal({
             <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
               2
             </span>
-            <span>2. Kalkulasi Koefisien (AHSP)</span>
+            <span>2. Koefisien</span>
           </button>
         </div>
 
@@ -798,12 +1093,15 @@ export function TambahItemTrialModal({
                   <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
                     <span>Kategori Pekerjaan <span className="text-red-500">*</span></span>
                   </Label>
-                  <CreatableCombobox
-                    value={kategori}
-                    onChange={setKategori}
-                    options={kategoriOptions}
-                    required
-                    placeholder="Pilih atau cari pekerjaan"
+                  <CreatableSelect
+                    value={kategori ? { label: kategori, value: kategori } : null}
+                    onChange={(opt: any) => setKategori(opt ? opt.value : "")}
+                    options={kategoriOptions.map((opt) => ({ label: opt, value: opt }))}
+                    placeholder="Pilih / ketik kategori..."
+                    formatCreateLabel={(val) => `Tambah "${val}"`}
+                    styles={comboboxStyles}
+                    maxMenuHeight={200}
+                    isClearable
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Pekerjaan Keramik
@@ -814,12 +1112,14 @@ export function TambahItemTrialModal({
                   <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
                     <span>Nama Material <span className="text-red-500">*</span></span>
                   </Label>
-                  <CreatableCombobox
-                    value={item}
-                    onChange={setItem}
-                    options={materialOptions}
-                    required
-                    placeholder="Pilih atau cari material"
+                  <CreatableSelect
+                    value={item ? { label: item, value: item } : null}
+                    onChange={handleItemSelect}
+                    options={materialReactSelectOptions}
+                    styles={comboboxStyles}
+                    placeholder="Pilih atau ketik material..."
+                    formatCreateLabel={(inputValue) => `Buat "${inputValue}"`}
+                    noOptionsMessage={() => "Tidak ada data material"}
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Keramik
@@ -830,15 +1130,32 @@ export function TambahItemTrialModal({
                   <Label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
                     <span>Ukuran / Dimensi <span className="text-red-500">*</span></span>
                   </Label>
-                  <CreatableCombobox
-                    value={ukuran}
-                    onChange={setUkuran}
-                    options={ukuranOptions}
-                    required
-                    placeholder="Pilih atau cari ukuran"
-                  />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <CreatableSelect
+                        value={ukuranNilai ? { label: ukuranNilai, value: ukuranNilai } : null}
+                        onChange={(opt: any) => setUkuranNilai(opt ? opt.value : "")}
+                        options={ukuranOptions.map((opt) => ({ label: opt, value: opt }))}
+                        placeholder="Contoh: 60x60"
+                        formatCreateLabel={(val) => `Tambah "${val}"`}
+                        styles={comboboxStyles}
+                        maxMenuHeight={200}
+                        isClearable
+                      />
+                    </div>
+                    <div className="w-[85px] shrink-0">
+                      <CreatableSelect
+                        value={ukuranSatuan ? { label: ukuranSatuan, value: ukuranSatuan } : null}
+                        onChange={(opt: any) => setUkuranSatuan(opt ? opt.value : "")}
+                        options={SATUAN_UKURAN_OPTIONS}
+                        styles={unitSelectStyles}
+                        placeholder="Satuan"
+                        formatCreateLabel={(val) => `"${val}"`}
+                      />
+                    </div>
+                  </div>
                   <span className="text-[10px] text-slate-400 leading-tight">
-                    Contoh: 60x60 cm
+                    Contoh: 60x60, 40x40
                   </span>
                 </div>
 
@@ -872,48 +1189,57 @@ export function TambahItemTrialModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <Label className="text-xs font-semibold text-slate-700">
                     Warna <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    value={warna}
-                    onChange={(e) => setWarna(e.target.value)}
-                    placeholder=""
-                    className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                    required
+                  <CreatableSelect
+                    value={warna ? { label: warna, value: warna } : null}
+                    onChange={(opt: any) => setWarna(opt ? opt.value : "")}
+                    options={warnaOptions.map((opt) => ({ label: opt, value: opt }))}
+                    placeholder="Pilih / ketik warna..."
+                    formatCreateLabel={(val) => `Tambah "${val}"`}
+                    styles={comboboxStyles}
+                    maxMenuHeight={200}
+                    isClearable
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Putih
                   </span>
                 </div>
 
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <Label className="text-xs font-semibold text-slate-700">
                     Tipe / Motif <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    value={tipe}
-                    onChange={(e) => setTipe(e.target.value)}
-                    placeholder=""
-                    className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                    required
+                  <CreatableSelect
+                    value={tipe ? { label: tipe, value: tipe } : null}
+                    onChange={(opt: any) => setTipe(opt ? opt.value : "")}
+                    options={tipeOptions.map((opt) => ({ label: opt, value: opt }))}
+                    placeholder="Pilih / ketik tipe..."
+                    formatCreateLabel={(val) => `Tambah "${val}"`}
+                    styles={comboboxStyles}
+                    maxMenuHeight={200}
+                    isClearable
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Polos
                   </span>
                 </div>
 
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <Label className="text-xs font-semibold text-slate-700">
                     Permukaan <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    value={permukaan}
-                    onChange={(e) => setPermukaan(e.target.value)}
-                    placeholder=""
-                    className="h-9 rounded-lg text-xs bg-white border-slate-200"
-                    required
+                  <CreatableSelect
+                    value={permukaan ? { label: permukaan, value: permukaan } : null}
+                    onChange={(opt: any) => setPermukaan(opt ? opt.value : "")}
+                    options={permukaanOptions.map((opt) => ({ label: opt, value: opt }))}
+                    placeholder="Pilih / ketik permukaan..."
+                    formatCreateLabel={(val) => `Tambah "${val}"`}
+                    styles={comboboxStyles}
+                    maxMenuHeight={200}
+                    isClearable
                   />
                   <span className="text-[10px] text-slate-400 leading-tight">
                     Contoh: Glossy
@@ -921,7 +1247,7 @@ export function TambahItemTrialModal({
                 </div>
 
                 {/* Ketebalan dengan input angka & combobox satuan */}
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <Label className="text-xs font-semibold text-slate-700">
                     Ketebalan <span className="text-red-500">*</span>
                   </Label>
@@ -929,16 +1255,18 @@ export function TambahItemTrialModal({
                     <Input
                       value={tebalNilai}
                       onChange={(e) => setTebalNilai(e.target.value)}
-                      placeholder=""
+                      placeholder="Contoh: 9"
                       className="h-9 rounded-lg text-xs bg-white border-slate-200 flex-1 min-w-0"
                       required
                     />
                     <div className="w-24 shrink-0">
-                      <CreatableCombobox
-                        value={tebalSatuan}
-                        onChange={setTebalSatuan}
-                        options={INITIAL_SATUAN_TEBAL}
+                      <CreatableSelect
+                        value={tebalSatuan ? { label: tebalSatuan, value: tebalSatuan } : null}
+                        onChange={(opt: any) => setTebalSatuan(opt ? opt.value : "")}
+                        options={SATUAN_TEBAL_OPTIONS}
+                        styles={unitSelectStyles}
                         placeholder="Satuan"
+                        formatCreateLabel={(val) => `"${val}"`}
                       />
                     </div>
                   </div>
@@ -948,23 +1276,25 @@ export function TambahItemTrialModal({
                 </div>
 
                 {/* Toleransi dengan input angka & combobox satuan */}
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <Label className="text-xs font-semibold text-slate-700">
-                    Toleransi Presisi
+                    Toleransi
                   </Label>
                   <div className="flex items-center gap-1.5">
                     <Input
                       value={toleransiNilai}
                       onChange={(e) => setToleransiNilai(e.target.value)}
-                      placeholder=""
+                      placeholder="Contoh: 0.5"
                       className="h-9 rounded-lg text-xs bg-white border-slate-200 flex-1 min-w-0"
                     />
                     <div className="w-24 shrink-0">
-                      <CreatableCombobox
-                        value={toleransiSatuan}
-                        onChange={setToleransiSatuan}
-                        options={INITIAL_SATUAN_TOLERANSI}
+                      <CreatableSelect
+                        value={toleransiSatuan ? { label: toleransiSatuan, value: toleransiSatuan } : null}
+                        onChange={(opt: any) => setToleransiSatuan(opt ? opt.value : "")}
+                        options={SATUAN_TOLERANSI_OPTIONS}
+                        styles={unitSelectStyles}
                         placeholder="Satuan"
+                        formatCreateLabel={(val) => `"${val}"`}
                       />
                     </div>
                   </div>
@@ -1209,7 +1539,7 @@ export function TambahItemTrialModal({
                   isDuplicate ? "bg-slate-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
                 }`}
               >
-                <span>Lanjut ke Kalkulasi Koefisien (AHSP)</span>
+                <span>Lanjut ke Koefisien</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             </DialogFooter>
