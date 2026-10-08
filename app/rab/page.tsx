@@ -454,43 +454,34 @@ function RABPageContent() {
   
   const [activeWarnings, setActiveWarnings] = useState<DendaAction[]>([]);
 
-  // Pastikan scroll body selalu terbuka di mode Project Planning (Pembersih Sisa Radix UI Lock)
+  // Pembersih Sisa Radix UI Lock Global (Universal Anti-Freeze)
   useEffect(() => {
-    if (hasProjectPlanningRequest) {
-      const nukeScrollLocks = () => {
-        document.documentElement.style.pointerEvents = '';
-        document.documentElement.style.overflow = '';
-        document.documentElement.removeAttribute('data-scroll-locked');
-        
-        document.body.style.pointerEvents = '';
-        document.body.style.overflow = '';
-        document.body.removeAttribute('data-scroll-locked');
-        
-        document.querySelectorAll('[data-radix-scroll-lock-style]').forEach(el => el.remove());
+    const nukeScrollLocks = () => {
+      document.documentElement.style.pointerEvents = '';
+      document.documentElement.style.overflow = '';
+      document.documentElement.removeAttribute('data-scroll-locked');
+      
+      document.body.style.pointerEvents = '';
+      document.body.style.overflow = '';
+      document.body.removeAttribute('data-scroll-locked');
+      
+      document.querySelectorAll('[data-radix-scroll-lock-style]').forEach(el => el.remove());
+    };
 
-        if (!document.getElementById('nuke-scroll-lock')) {
-          const style = document.createElement('style');
-          style.id = 'nuke-scroll-lock';
-          style.innerHTML = `
-            html, body { 
-              overflow: auto !important; 
-              overflow-y: auto !important; 
-              pointer-events: auto !important; 
-              height: auto !important;
-              position: static !important;
-            }
-          `;
-          document.head.appendChild(style);
-        }
-      };
+    // Jalankan sekali saat mount
+    nukeScrollLocks();
+    
+    // Interval permanen: jika Radix gagal cleanup (misal setelah Alert ditutup), paksa bersihkan!
+    const interval = setInterval(() => {
+      // Cek apakah memang ada Modal/Dialog yang sedang terbuka
+      const isModalOpen = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (!isModalOpen) {
+        nukeScrollLocks();
+      }
+    }, 1000);
 
-      nukeScrollLocks();
-      const t1 = setTimeout(nukeScrollLocks, 100);
-      const t2 = setTimeout(nukeScrollLocks, 500);
-      const t3 = setTimeout(nukeScrollLocks, 1500);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-    }
-  }, [hasProjectPlanningRequest]);
+    return () => clearInterval(interval);
+  }, []);
   // --- STATE FORM DASAR ---
   const [formData, setFormData] = useState({
     namaToko: '', lokasiCabang: '', lokasiTanggal: '', lokasiManual: '', isRenovasi: true, isTakeover: false,
@@ -2376,7 +2367,7 @@ function RABPageContent() {
                                       className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"
                                       onClick={() => {
                                           setRevisionListDialogOpen(false);
-                                          handleLoadRevision(item);
+                                          window.location.href = `/rab?revision_id=${item.id}`;
                                       }}
                                   >
                                       Revisi Sekarang
