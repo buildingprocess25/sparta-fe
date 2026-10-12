@@ -874,7 +874,7 @@ export function ModalTambahTrial({
         </DialogHeader>
 
         <div className="p-5 sm:p-6 space-y-6 bg-slate-50/50">
-          {/* PANEL: KONTEKS PENGAJUAN (SIMULATOR PROTOTYPE) */}
+          {/* PANEL: KONTEKS PENGAJUAN (SIMULATOR PROTOTYPE)
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -935,7 +935,7 @@ export function ModalTambahTrial({
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* SEKSI 1: SPESIFIKASI MATERIAL (DIBAGI MENJADI 3 SUB-BAGIAN TERSTRUKTUR) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-5">
@@ -1290,7 +1290,7 @@ export function ModalTambahTrial({
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
               <Coins className="w-4 h-4 text-emerald-600" />
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                2. Parameter Biaya Awal & Lingkup Pekerjaan
+                2. Biaya & Lingkup Pekerjaan
               </h4>
             </div>
 
