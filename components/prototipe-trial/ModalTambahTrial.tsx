@@ -495,29 +495,6 @@ const SATUAN_TOLERANSI_OPTIONS = [
   { label: "cm", value: "cm" },
 ];
 
-const DEFAULT_SATUAN_OPTIONS = [
-  { label: "m2", value: "m2" },
-  { label: "unit", value: "unit" },
-  { label: "m1", value: "m1" },
-  { label: "m3", value: "m3" },
-  { label: "titik", value: "titik" },
-  { label: "buah", value: "buah" },
-  { label: "kg", value: "kg" },
-  { label: "lot", value: "lot" },
-  { label: "btg", value: "btg" },
-  { label: "lbr", value: "lbr" },
-  { label: "set", value: "set" },
-  { label: "dus", value: "dus" },
-];
-
-const DEFAULT_CATATAN_OPTIONS = [
-  { label: "Standar SNI & Tahan Gesekan", value: "Standar SNI & Tahan Gesekan" },
-  { label: "Waterproof & Anti Rayap", value: "Waterproof & Anti Rayap" },
-  { label: "Hemat Energi Eco-Lumen", value: "Hemat Energi Eco-Lumen" },
-  { label: "Heavy Duty Beban Troli", value: "Heavy Duty Beban Troli" },
-  { label: "Self-Leveling Anti-Chemical", value: "Self-Leveling Anti-Chemical" },
-];
-
 interface UploadedFileItem {
   id: string;
   name: string;
@@ -974,17 +951,12 @@ export function ModalTambahTrial({
               </span>
             </div>
 
-            {/* Sub-bagian 1.A: Identitas & Klasifikasi Pokok */}
+            {/* Sub-bagian: Identitas & Klasifikasi Pokok */}
             <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center justify-center">
-                    A
-                  </span>
-                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    Identitas &amp; Klasifikasi Material
-                  </h5>
-                </div>
+                <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Identitas &amp; Klasifikasi Material
+                </h5>
                 <span className="text-[10px] text-slate-400 font-medium">*Wajib diisi</span>
               </div>
 
@@ -1069,17 +1041,12 @@ export function ModalTambahTrial({
               </div>
             </div>
 
-            {/* Sub-bagian 1.B: Dimensi & Karakteristik Fisik */}
+            {/* Sub-bagian: Dimensi & Karakteristik Fisik */}
             <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">
-                    B
-                  </span>
-                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    Dimensi &amp; Karakteristik Fisik
-                  </h5>
-                </div>
+                <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Dimensi &amp; Karakteristik Fisik
+                </h5>
                 <span className="text-[10px] text-slate-400 font-medium">
                   Ukuran, ketebalan, toleransi &amp; tampilan
                 </span>
@@ -1247,23 +1214,18 @@ export function ModalTambahTrial({
               </div>
             </div>
 
-            {/* Sub-bagian 1.C: Penempatan Lokasi & Satuan Kerja */}
+            {/* Sub-bagian: Penempatan Lokasi & Implementasi */}
             <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-teal-100 text-teal-700 text-[11px] font-bold flex items-center justify-center">
-                    C
-                  </span>
-                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    Penempatan Lokasi &amp; Satuan Kerja
-                  </h5>
-                </div>
+                <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Penempatan Lokasi &amp; Implementasi
+                </h5>
                 <span className="text-[10px] text-slate-400 font-medium">
-                  Implementasi penempatan gerai &amp; unit satuan
+                  Implementasi penempatan di gerai
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 <div>
                   <Label className="text-xs font-bold text-slate-700">
                     Posisi Implementasi
@@ -1310,44 +1272,14 @@ export function ModalTambahTrial({
 
                 <div>
                   <Label className="text-xs font-bold text-slate-700">
-                    Satuan Pekerjaan
-                  </Label>
-                  <div className="mt-1.5">
-                    <CreatableSelect
-                      isClearable
-                      placeholder="m2 / unit / m1..."
-                      options={DEFAULT_SATUAN_OPTIONS}
-                      value={satuan ? { label: satuan, value: satuan } : null}
-                      onChange={(opt) =>
-                        setSatuan(opt ? opt.value.toLowerCase() : "")
-                      }
-                      onCreateOption={(val) => setSatuan(val.toLowerCase())}
-                      styles={comboboxStyles}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-bold text-slate-700">
                     Catatan Spesifikasi (Opsional)
                   </Label>
-                  <div className="mt-1.5">
-                    <CreatableSelect
-                      isClearable
-                      placeholder="Pilih/ketik catatan teknis..."
-                      options={DEFAULT_CATATAN_OPTIONS}
-                      value={
-                        informasiTambahan
-                          ? { label: informasiTambahan, value: informasiTambahan }
-                          : null
-                      }
-                      onChange={(opt) =>
-                        setInformasiTambahan(opt ? opt.value : "")
-                      }
-                      onCreateOption={(val) => setInformasiTambahan(val)}
-                      styles={comboboxStyles}
-                    />
-                  </div>
+                  <Input
+                    placeholder="Contoh: Standar SNI, Anti Rayap..."
+                    value={informasiTambahan}
+                    onChange={(e) => setInformasiTambahan(e.target.value)}
+                    className="mt-1.5 h-9 text-xs bg-white border-slate-200"
+                  />
                 </div>
               </div>
             </div>
@@ -1498,7 +1430,7 @@ export function ModalTambahTrial({
               >
                 <Upload className="w-7 h-7 text-slate-400 mb-1.5" />
                 <span className="text-xs font-bold text-slate-800">
-                  Pilih atau Tarik Berkas Dokumen &amp; Foto ke Sini (Bisa Banyak / Bulk)
+                  Pilih atau Tarik Berkas Dokumen &amp; Foto ke Sini
                 </span>
                 <span className="text-[11px] text-slate-400 mt-0.5">
                   Mendukung unggah banyak berkas sekaligus: PDF, Word, Excel, JPG, PNG, WebP (Maks. 10MB per berkas)
