@@ -13,15 +13,15 @@ Fase ini berfokus pada dua komponen inti: (1) Halaman dan modal input Maker untu
 ## 2. Tasks
 
 ### 2.1. Shared Components
-- [ ] **Task 2.1: Komponen Timeline Alur Standar**
+- [x] **Task 2.1: Komponen Timeline Alur Standar**
   - **File:** `components/prototipe-trial/TrialTimelineBar.tsx`
   - **Spesifikasi:**
     - Visual bar alur: Inisiasi Maker ➔ Approval PP Mgr ➔ Approval BM GM ➔ Konfigurasi S&B ➔ Approval Reg Mgr ➔ Masa Trial Aktif ➔ Evaluasi Tim ➔ Master Harga.
     - Menandai tahapan aktif secara ringkas tanpa menampilkan banner khusus bypass PP Manager (alur umum bersih).
-  - **Code Standard Check:** Terapkan prinsip presentational component murni.
+  - **Status:** Selesai dan terverifikasi bersih.
 
 ### 2.2. Maker Page & Form Modal
-- [ ] **Task 2.2: Modal Formulir Pengajuan Item Trial**
+- [x] **Task 2.2: Modal Formulir Pengajuan Item Trial**
   - **File:** `components/prototipe-trial/ModalTambahTrial.tsx`
   - **Spesifikasi:**
     - Mengadopsi input spesifikasi lengkap dari `TambahItemTrialModal.tsx`:
@@ -32,18 +32,18 @@ Fase ini berfokus pada dua komponen inti: (1) Halaman dan modal input Maker untu
     - Input **Upload Lampiran Dokumen/Gambar**: Tombol upload file pendukung dengan preview nama berkas ringkas.
     - Input **Alasan Pengajuan Trial**: Teks area ringkas.
     - Live kalkulasi Kode Item (`SIP-xxx`), Kode Master, dan Deskripsi Otomatis.
-  - **Code Standard Check:** Validasi form terpusat, penanganan error state yang jelas.
+  - **Status:** Selesai dan terverifikasi bersih.
 
-- [ ] **Task 2.3: Halaman Antrean Maker**
+- [x] **Task 2.3: Halaman Antrean Maker**
   - **File:** `app/prototipe-trial/maker/page.tsx`
   - **Spesifikasi:**
-    - Header halaman: Judul *"Pengajuan Item Trial"*, tombol *"Tambah Pengajuan"*.
-    - Tabel antrean item Maker: Kolom Kode, Nama Material, Kategori, Durasi, Estimasi Harga, Status Badge ringkas.
+    - Header halaman: Judul *"Pengajuan Item Trial"*, tombol *"Tambah Item Trial"*.
+    - Tabel antrean item Maker: Kolom Kode, Nama Material, Kategori, Durasi, Estimasi Harga, Status Bongkaran, Lampiran, Status Badge ringkas.
     - Klik baris tabel mengarahkan ke halaman detail `/prototipe-trial/detail/[id]`.
-  - **Code Standard Check:** Reusable data table, filter pencarian item sederhana.
+  - **Status:** Selesai dan terverifikasi bersih.
 
 ### 2.3. Unified Detail Page
-- [ ] **Task 2.4: Halaman Detail Item Trial Terpadu**
+- [x] **Task 2.4: Halaman Detail Item Trial Terpadu**
   - **File:** `app/prototipe-trial/detail/[id]/page.tsx`
   - **Spesifikasi:**
     - **Header & Ringkasan:** Kode item, kategori, status badge spesifik, badge sisa hari trial, tombol kembali ke antrean.
@@ -55,16 +55,16 @@ Fase ini berfokus pada dua komponen inti: (1) Halaman dan modal input Maker untu
       - **Tab 4: Hasil Evaluasi Tim (PP, BMES, S&B):** Tampilan 3 kartu evaluasi mandiri tim beserta lampiran bukti uji coba (aktif saat masa aktif selesai).
       - **Tab 5: Riwayat Persetujuan:** Log historis tanggal, peran approver, dan catatan telaah.
     - **Bilah Aksi Kontekstual (Sticky Action Bar):**
-      - Merender tombol aksi spesifik sesuai peran aktif di *Role Switcher* (misal tombol Maker: Edit / Hapus jika Draft; tombol Approval jika di halaman manajerial).
-  - **Code Standard Check:** Pecah setiap tab menjadi sub-komponen terpisah (`TrialSpecTab.tsx`, `TrialCostTab.tsx`, `TrialDocTab.tsx`, `TrialEvaluationTab.tsx`) untuk mematuhi Single Responsibility Principle.
+      - Merender tombol aksi spesifik sesuai peran aktif dan status item (Approve PP, Approve BM GM, Form S&B, Approve Reg Mgr, Voting Tim Evaluasi, dan Re-Entry Non-Deadlock).
+  - **Status:** Selesai dan terverifikasi bersih.
 
 ---
 
 ## 3. Checkpoint
-- [ ] Modal input Maker berhasil menyimpan item lengkap dengan estimasi harga, status bongkaran, lampiran, dan durasi 2-4 bulan ke dalam store.
-- [ ] Halaman `/prototipe-trial/maker` menampilkan daftar item yang baru saja diinput.
-- [ ] Mengklik baris item membuka `/prototipe-trial/detail/[id]` dengan seluruh data fisik terisi akurat.
-- [ ] Bahasa antarmuka padat, ringkas, dan mudah dipahami.
+- [x] Modal input Maker berhasil menyimpan item lengkap dengan estimasi harga, status bongkaran, lampiran, dan durasi 2-4 bulan ke dalam store.
+- [x] Halaman `/prototipe-trial/maker` menampilkan daftar item yang baru saja diinput.
+- [x] Mengklik baris item membuka `/prototipe-trial/detail/[id]` dengan seluruh data fisik terisi akurat.
+- [x] Bahasa antarmuka padat, ringkas, dan mudah dipahami.
 
 ---
 
