@@ -39,7 +39,6 @@ import {
   Upload,
   Clock,
   Sparkles,
-  Image as ImageIcon,
   X,
   Building,
   Layers,
@@ -109,7 +108,8 @@ const comboboxStyles: StylesConfig<SelectOption, false> = {
     zIndex: 60,
     borderRadius: "0.5rem",
     overflow: "hidden",
-    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+    boxShadow:
+      "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
   }),
   option: (base, state) => ({
     ...base,
@@ -117,8 +117,8 @@ const comboboxStyles: StylesConfig<SelectOption, false> = {
     backgroundColor: state.isSelected
       ? "#dc2626"
       : state.isFocused
-      ? "#fee2e2"
-      : undefined,
+        ? "#fee2e2"
+        : undefined,
     color: state.isSelected ? "#ffffff" : "#1e293b",
     cursor: "pointer",
     "&:active": {
@@ -169,18 +169,106 @@ const comboboxStyles: StylesConfig<SelectOption, false> = {
   }),
 };
 
+// Styling Khusus Satuan Compact (Ukuran, Tebal, Toleransi)
+const unitComboboxStyles: StylesConfig<SelectOption, false> = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: "36px",
+    height: "36px",
+    borderRadius: "0.5rem",
+    borderColor: state.isFocused ? "#dc2626" : "#cbd5e1",
+    fontSize: "12px",
+    backgroundColor: state.isDisabled ? "#f8fafc" : "#ffffff",
+    boxShadow: state.isFocused ? "0 0 0 1px #dc2626" : "none",
+  }),
+  menu: (base) => ({
+    ...base,
+    fontSize: "12px",
+    zIndex: 70,
+    minWidth: "85px",
+    borderRadius: "0.5rem",
+    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+  }),
+  valueContainer: (base) => ({
+    ...base,
+    padding: "0 6px",
+  }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "12px",
+    backgroundColor: state.isSelected
+      ? "#dc2626"
+      : state.isFocused
+        ? "#fee2e2"
+        : undefined,
+    color: state.isSelected ? "#ffffff" : "#1e293b",
+    cursor: "pointer",
+  }),
+  input: (base) => ({
+    ...base,
+    margin: "0",
+    padding: "0",
+    fontSize: "12px",
+  }),
+  dropdownIndicator: (base) => ({
+    ...base,
+    padding: "2px",
+    color: "#64748b",
+  }),
+};
+
 // Opsi Pilihan Aktor Maker
 const MAKER_OPTIONS = [
-  { label: "Pak Wiwit (Regional Manager - Senior)", value: "Pak Wiwit", role: "MAKER_SENIOR" },
-  { label: "Pak Jhon (Regional Manager - Senior)", value: "Pak Jhon", role: "MAKER_SENIOR" },
-  { label: "Pak Andy (BMES Manager - Senior)", value: "Pak Andy", role: "MAKER_SENIOR" },
-  { label: "Pak Eko Indra (PP Manager - Senior [Bypass PP])", value: "Pak Eko Indra", role: "PP_MANAGER" },
-  { label: "Bima (BMES Specialist - Junior)", value: "Bima", role: "MAKER_JUNIOR" },
-  { label: "Syahid Jaya (BMES Specialist - Junior)", value: "Syahid Jaya", role: "MAKER_JUNIOR" },
-  { label: "Pak Iqbal (BMES Specialist - Junior)", value: "Pak Iqbal", role: "MAKER_JUNIOR" },
-  { label: "Annisa Purnamasari / Mbak Caca (PP Specialist - Junior)", value: "Annisa Purnamasari", role: "MAKER_JUNIOR" },
-  { label: "Pak Dyan (S&B Specialist - Junior)", value: "Pak Dyan", role: "MAKER_JUNIOR" },
-  { label: "Pak Permadi (S&B Specialist - Junior)", value: "Pak Permadi", role: "MAKER_JUNIOR" },
+  {
+    label: "Pak Wiwit (Regional Manager - Senior)",
+    value: "Pak Wiwit",
+    role: "MAKER_SENIOR",
+  },
+  {
+    label: "Pak Jhon (Regional Manager - Senior)",
+    value: "Pak Jhon",
+    role: "MAKER_SENIOR",
+  },
+  {
+    label: "Pak Andy (BMES Manager - Senior)",
+    value: "Pak Andy",
+    role: "MAKER_SENIOR",
+  },
+  {
+    label: "Pak Eko Indra (PP Manager - Senior [Bypass PP])",
+    value: "Pak Eko Indra",
+    role: "PP_MANAGER",
+  },
+  {
+    label: "Bima (BMES Specialist - Junior)",
+    value: "Bima",
+    role: "MAKER_JUNIOR",
+  },
+  {
+    label: "Syahid Jaya (BMES Specialist - Junior)",
+    value: "Syahid Jaya",
+    role: "MAKER_JUNIOR",
+  },
+  {
+    label: "Pak Iqbal (BMES Specialist - Junior)",
+    value: "Pak Iqbal",
+    role: "MAKER_JUNIOR",
+  },
+  {
+    label: "Annisa Purnamasari / Mbak Caca (PP Specialist - Junior)",
+    value: "Annisa Purnamasari",
+    role: "MAKER_JUNIOR",
+  },
+  {
+    label: "Pak Dyan (S&B Specialist - Junior)",
+    value: "Pak Dyan",
+    role: "MAKER_JUNIOR",
+  },
+  {
+    label: "Pak Permadi (S&B Specialist - Junior)",
+    value: "Pak Permadi",
+    role: "MAKER_JUNIOR",
+  },
 ];
 
 // Opsi Saran Default (Suggestion Bank)
@@ -197,15 +285,78 @@ const DEFAULT_KATEGORI_OPTIONS = [
 ];
 
 const DEFAULT_MATERIAL_OPTIONS = [
-  { label: "Keramik Lantai Matte Heavy Duty", value: "Keramik Lantai Matte Heavy Duty", kategori: "Pekerjaan Keramik", ukuran: "60x60", merk: "Sandimas", satuan: "m2" },
-  { label: "Cat Epoxy Floor Self-Leveling", value: "Cat Epoxy Floor Self-Leveling", kategori: "Pekerjaan Finishing", ukuran: "20", merk: "Propan", satuan: "m2" },
-  { label: "Plafon PVC Waterproof Anti-Rayap", value: "Plafon PVC Waterproof Anti-Rayap", kategori: "Pekerjaan Plafon", ukuran: "20x400", merk: "Shunda Plafon", satuan: "m2" },
-  { label: "Lampu LED Batten High Lumen Eco", value: "Lampu LED Batten High Lumen Eco", kategori: "Pekerjaan Elektrikal", ukuran: "120", merk: "Philips", satuan: "unit" },
-  { label: "Kloset Duduk Eco-Flush Dual Button", value: "Kloset Duduk Eco-Flush Dual Button", kategori: "Pekerjaan Sanitair", ukuran: "36x70x74", merk: "Toto", satuan: "unit" },
-  { label: "Vinyl Plank Rigid Core Click 5mm", value: "Vinyl Plank Rigid Core Click 5mm", kategori: "Pekerjaan Lantai", ukuran: "18x122", merk: "Duma", satuan: "m2" },
-  { label: "Granit Tile Nano Polished", value: "Granit Tile Nano Polished", kategori: "Pekerjaan Keramik", ukuran: "80x80", merk: "Roman", satuan: "m2" },
-  { label: "Bata Ringan AAC Presisi", value: "Bata Ringan AAC Presisi", kategori: "Pekerjaan Pasangan", ukuran: "60x20x10", merk: "Batu Alam", satuan: "m3" },
-  { label: "WPC Wallpanel Wood Texture Fluted", value: "WPC Wallpanel Wood Texture Fluted", kategori: "Pekerjaan Dinding", ukuran: "20x290", merk: "Duma", satuan: "m2" },
+  {
+    label: "Keramik Lantai Matte Heavy Duty",
+    value: "Keramik Lantai Matte Heavy Duty",
+    kategori: "Pekerjaan Keramik",
+    ukuran: "60x60",
+    merk: "Sandimas",
+    satuan: "m2",
+  },
+  {
+    label: "Cat Epoxy Floor Self-Leveling",
+    value: "Cat Epoxy Floor Self-Leveling",
+    kategori: "Pekerjaan Finishing",
+    ukuran: "20",
+    merk: "Propan",
+    satuan: "m2",
+  },
+  {
+    label: "Plafon PVC Waterproof Anti-Rayap",
+    value: "Plafon PVC Waterproof Anti-Rayap",
+    kategori: "Pekerjaan Plafon",
+    ukuran: "20x400",
+    merk: "Shunda Plafon",
+    satuan: "m2",
+  },
+  {
+    label: "Lampu LED Batten High Lumen Eco",
+    value: "Lampu LED Batten High Lumen Eco",
+    kategori: "Pekerjaan Elektrikal",
+    ukuran: "120",
+    merk: "Philips",
+    satuan: "unit",
+  },
+  {
+    label: "Kloset Duduk Eco-Flush Dual Button",
+    value: "Kloset Duduk Eco-Flush Dual Button",
+    kategori: "Pekerjaan Sanitair",
+    ukuran: "36x70x74",
+    merk: "Toto",
+    satuan: "unit",
+  },
+  {
+    label: "Vinyl Plank Rigid Core Click 5mm",
+    value: "Vinyl Plank Rigid Core Click 5mm",
+    kategori: "Pekerjaan Lantai",
+    ukuran: "18x122",
+    merk: "Duma",
+    satuan: "m2",
+  },
+  {
+    label: "Granit Tile Nano Polished",
+    value: "Granit Tile Nano Polished",
+    kategori: "Pekerjaan Keramik",
+    ukuran: "80x80",
+    merk: "Roman",
+    satuan: "m2",
+  },
+  {
+    label: "Bata Ringan AAC Presisi",
+    value: "Bata Ringan AAC Presisi",
+    kategori: "Pekerjaan Pasangan",
+    ukuran: "60x20x10",
+    merk: "Batu Alam",
+    satuan: "m3",
+  },
+  {
+    label: "WPC Wallpanel Wood Texture Fluted",
+    value: "WPC Wallpanel Wood Texture Fluted",
+    kategori: "Pekerjaan Dinding",
+    ukuran: "20x290",
+    merk: "Duma",
+    satuan: "m2",
+  },
 ];
 
 const DEFAULT_MERK_OPTIONS = [
@@ -284,6 +435,89 @@ const CABANG_OPTIONS = [
   "Bekasi",
 ];
 
+const DEFAULT_UKURAN_OPTIONS = [
+  { label: "60x60", value: "60x60" },
+  { label: "40x40", value: "40x40" },
+  { label: "30x30", value: "30x30" },
+  { label: "30x60", value: "30x60" },
+  { label: "80x80", value: "80x80" },
+  { label: "50x50", value: "50x50" },
+  { label: "20x20", value: "20x20" },
+  { label: "15x90", value: "15x90" },
+  { label: "20x290", value: "20x290" },
+  { label: "20x400", value: "20x400" },
+  { label: "120", value: "120" },
+  { label: "120x240", value: "120x240" },
+  { label: "100x210", value: "100x210" },
+  { label: "300x300", value: "300x300" },
+  { label: "4", value: "4" },
+  { label: "6", value: "6" },
+  { label: "20", value: "20" },
+];
+
+const SATUAN_UKURAN_OPTIONS = [
+  { label: "cm", value: "cm" },
+  { label: "mm", value: "mm" },
+  { label: "m", value: "m" },
+  { label: "inch", value: "inch" },
+];
+
+const DEFAULT_TEBAL_OPTIONS = [
+  { label: "9", value: "9" },
+  { label: "10", value: "10" },
+  { label: "12", value: "12" },
+  { label: "8", value: "8" },
+  { label: "5", value: "5" },
+  { label: "15", value: "15" },
+  { label: "20", value: "20" },
+  { label: "2", value: "2" },
+  { label: "3", value: "3" },
+  { label: "0.5", value: "0.5" },
+];
+
+const SATUAN_TEBAL_OPTIONS = [
+  { label: "mm", value: "mm" },
+  { label: "cm", value: "cm" },
+  { label: "m", value: "m" },
+];
+
+const DEFAULT_TOLERANSI_OPTIONS = [
+  { label: "0.5", value: "0.5" },
+  { label: "0.2", value: "0.2" },
+  { label: "1", value: "1" },
+  { label: "2", value: "2" },
+  { label: "5", value: "5" },
+];
+
+const SATUAN_TOLERANSI_OPTIONS = [
+  { label: "mm", value: "mm" },
+  { label: "%", value: "%" },
+  { label: "cm", value: "cm" },
+];
+
+const DEFAULT_SATUAN_OPTIONS = [
+  { label: "m2", value: "m2" },
+  { label: "unit", value: "unit" },
+  { label: "m1", value: "m1" },
+  { label: "m3", value: "m3" },
+  { label: "titik", value: "titik" },
+  { label: "buah", value: "buah" },
+  { label: "kg", value: "kg" },
+  { label: "lot", value: "lot" },
+  { label: "btg", value: "btg" },
+  { label: "lbr", value: "lbr" },
+  { label: "set", value: "set" },
+  { label: "dus", value: "dus" },
+];
+
+const DEFAULT_CATATAN_OPTIONS = [
+  { label: "Standar SNI & Tahan Gesekan", value: "Standar SNI & Tahan Gesekan" },
+  { label: "Waterproof & Anti Rayap", value: "Waterproof & Anti Rayap" },
+  { label: "Hemat Energi Eco-Lumen", value: "Hemat Energi Eco-Lumen" },
+  { label: "Heavy Duty Beban Troli", value: "Heavy Duty Beban Troli" },
+  { label: "Self-Leveling Anti-Chemical", value: "Self-Leveling Anti-Chemical" },
+];
+
 export function ModalTambahTrial({
   isOpen,
   onClose,
@@ -340,7 +574,9 @@ export function ModalTambahTrial({
 
   const combinedToleransi = useMemo(() => {
     if (!toleransiNilai.trim()) return "";
-    return [toleransiNilai.trim(), toleransiSatuan.trim()].filter(Boolean).join(" ");
+    return [toleransiNilai.trim(), toleransiSatuan.trim()]
+      .filter(Boolean)
+      .join(" ");
   }, [toleransiNilai, toleransiSatuan]);
 
   const durasiHari = useMemo(() => durasiBulan * 30, [durasiBulan]);
@@ -378,7 +614,9 @@ export function ModalTambahTrial({
     existingTrialItems,
   ]);
 
-  const [kodeItem, setKodeItem] = useState(`SIP-${String(nextIndex).padStart(3, "0")}`);
+  const [kodeItem, setKodeItem] = useState(
+    `SIP-${String(nextIndex).padStart(3, "0")}`,
+  );
   const [kodeMaster, setKodeMaster] = useState("");
   const [deskripsiOtomatis, setDeskripsiOtomatis] = useState("");
   const [copied, setCopied] = useState(false);
@@ -439,7 +677,7 @@ export function ModalTambahTrial({
 
     // Auto-fill jika item berasal dari default list
     const found = DEFAULT_MATERIAL_OPTIONS.find(
-      (m) => m.value.toLowerCase() === option.value.toLowerCase()
+      (m) => m.value.toLowerCase() === option.value.toLowerCase(),
     );
     if (found) {
       if (found.kategori) setKategori(found.kategori);
@@ -449,27 +687,27 @@ export function ModalTambahTrial({
     }
   };
 
-  // Handler Upload Gambar Nyata
+  // Handler Upload Dokumen & Gambar
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      alert("Mohon pilih file gambar (JPG, PNG, atau WebP).");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Ukuran gambar maksimal adalah 5MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Ukuran berkas maksimal adalah 10MB.");
       return;
     }
 
     setLampiranName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setLampiranPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const isImg = file.type.startsWith("image/");
+    if (isImg) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setLampiranPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setLampiranPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleRemoveImage = () => {
@@ -487,7 +725,9 @@ export function ModalTambahTrial({
     }
 
     if (!isDraft && kodeData.isDuplicate) {
-      alert("Peringatan: Material ini terdeteksi duplikat dengan item yang sudah ada.");
+      alert(
+        "Peringatan: Material ini terdeteksi duplikat dengan item yang sudah ada.",
+      );
       return;
     }
 
@@ -543,8 +783,8 @@ export function ModalTambahTrial({
           catatan: isDraft
             ? "Pengajuan disimpan sebagai draf."
             : makerOption.role === "PP_MANAGER"
-            ? "Diajukan oleh PP Manager (Alur PP Manager otomatis dilewati ke B&M General Manager)."
-            : "Pengajuan trial dikirimkan ke PP Manager untuk verifikasi awal.",
+              ? "Diajukan oleh PP Manager (Alur PP Manager otomatis dilewati ke B&M General Manager)."
+              : "Pengajuan trial dikirimkan ke PP Manager untuk verifikasi awal.",
         },
       ],
     };
@@ -571,8 +811,14 @@ export function ModalTambahTrial({
                 </span>
               </DialogTitle>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kode Item: <span className="font-mono font-bold text-red-600">{kodeItem}</span> &bull; Kode Master:{" "}
-                <span className="font-mono font-bold text-slate-700">{kodeMaster || "Menyesuaikan"}</span>
+                Kode Item:{" "}
+                <span className="font-mono font-bold text-red-600">
+                  {kodeItem}
+                </span>{" "}
+                &bull; Kode Master:{" "}
+                <span className="font-mono font-bold text-slate-700">
+                  {kodeMaster || "Menyesuaikan"}
+                </span>
               </p>
             </div>
           </div>
@@ -597,7 +843,9 @@ export function ModalTambahTrial({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Aktor Pengaju (Maker)</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Aktor Pengaju (Maker)
+                </Label>
                 <Select
                   value={makerOption.value}
                   onValueChange={(val) => {
@@ -610,7 +858,11 @@ export function ModalTambahTrial({
                   </SelectTrigger>
                   <SelectContent className="z-70">
                     {MAKER_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                      <SelectItem
+                        key={opt.value}
+                        value={opt.value}
+                        className="text-xs"
+                      >
                         {opt.label}
                       </SelectItem>
                     ))}
@@ -619,7 +871,9 @@ export function ModalTambahTrial({
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Cabang Uji Coba</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Cabang Uji Coba
+                </Label>
                 <Select value={cabang} onValueChange={setCabang}>
                   <SelectTrigger className="mt-1 h-9 bg-white border-slate-200 text-xs">
                     <SelectValue />
@@ -645,7 +899,7 @@ export function ModalTambahTrial({
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-blue-600" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                  1. Spesifikasi Fisik Material (Auto-Suggestion & Title Case)
+                  1. Spesifikasi Material
                 </h4>
               </div>
               <span className="text-[11px] text-slate-400">
@@ -656,14 +910,20 @@ export function ModalTambahTrial({
             {/* Baris 1: Kategori, Material & Merk */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Kategori Pekerjaan *</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Kategori Pekerjaan *
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Pilih atau ketik kategori..."
                     options={DEFAULT_KATEGORI_OPTIONS}
-                    value={kategori ? { label: kategori, value: kategori } : null}
-                    onChange={(opt) => setKategori(opt ? formatTitleCase(opt.value) : "")}
+                    value={
+                      kategori ? { label: kategori, value: kategori } : null
+                    }
+                    onChange={(opt) =>
+                      setKategori(opt ? formatTitleCase(opt.value) : "")
+                    }
                     onCreateOption={(val) => setKategori(formatTitleCase(val))}
                     styles={comboboxStyles}
                   />
@@ -679,7 +939,9 @@ export function ModalTambahTrial({
                     isClearable
                     placeholder="Contoh: Keramik Lantai..."
                     options={DEFAULT_MATERIAL_OPTIONS}
-                    value={namaItem ? { label: namaItem, value: namaItem } : null}
+                    value={
+                      namaItem ? { label: namaItem, value: namaItem } : null
+                    }
                     onChange={handleMaterialSelect}
                     onCreateOption={(val) => setNamaItem(formatTitleCase(val))}
                     styles={comboboxStyles}
@@ -688,14 +950,18 @@ export function ModalTambahTrial({
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Merk / Brand *</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Merk / Brand *
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Contoh: Sandimas / Roman..."
                     options={DEFAULT_MERK_OPTIONS}
                     value={merk ? { label: merk, value: merk } : null}
-                    onChange={(opt) => setMerk(opt ? formatTitleCase(opt.value) : "")}
+                    onChange={(opt) =>
+                      setMerk(opt ? formatTitleCase(opt.value) : "")
+                    }
                     onCreateOption={(val) => setMerk(formatTitleCase(val))}
                     styles={comboboxStyles}
                   />
@@ -706,37 +972,55 @@ export function ModalTambahTrial({
             {/* Baris 2: Ukuran, Warna, Tipe, Permukaan */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Ukuran / Dimensi</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Ukuran / Dimensi
+                </Label>
                 <div className="flex gap-1.5 mt-1.5">
-                  <Input
-                    className="h-9 text-xs flex-1 bg-slate-50 border-slate-200"
-                    value={ukuranNilai}
-                    onChange={(e) => setUkuranNilai(e.target.value)}
-                    placeholder="60x60"
-                  />
-                  <Select value={ukuranSatuan} onValueChange={setUkuranSatuan}>
-                    <SelectTrigger className="h-9 w-18 text-xs bg-slate-50 border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-70">
-                      <SelectItem value="cm" className="text-xs">cm</SelectItem>
-                      <SelectItem value="mm" className="text-xs">mm</SelectItem>
-                      <SelectItem value="m" className="text-xs">m</SelectItem>
-                      <SelectItem value="inch" className="text-xs">in</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex-1 min-w-0">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="60x60..."
+                      options={DEFAULT_UKURAN_OPTIONS}
+                      value={
+                        ukuranNilai
+                          ? { label: ukuranNilai, value: ukuranNilai }
+                          : null
+                      }
+                      onChange={(opt) => setUkuranNilai(opt ? opt.value : "")}
+                      onCreateOption={(val) => setUkuranNilai(val)}
+                      styles={comboboxStyles}
+                    />
+                  </div>
+                  <div className="w-22 shrink-0">
+                    <CreatableSelect
+                      placeholder="cm"
+                      options={SATUAN_UKURAN_OPTIONS}
+                      value={
+                        ukuranSatuan
+                          ? { label: ukuranSatuan, value: ukuranSatuan }
+                          : null
+                      }
+                      onChange={(opt) => setUkuranSatuan(opt ? opt.value : "cm")}
+                      onCreateOption={(val) => setUkuranSatuan(val)}
+                      styles={unitComboboxStyles}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Warna</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Warna
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Contoh: Grey Rock..."
                     options={DEFAULT_WARNA_OPTIONS}
                     value={warna ? { label: warna, value: warna } : null}
-                    onChange={(opt) => setWarna(opt ? formatTitleCase(opt.value) : "")}
+                    onChange={(opt) =>
+                      setWarna(opt ? formatTitleCase(opt.value) : "")
+                    }
                     onCreateOption={(val) => setWarna(formatTitleCase(val))}
                     styles={comboboxStyles}
                   />
@@ -744,14 +1028,18 @@ export function ModalTambahTrial({
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Tipe / Motif</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Tipe / Motif
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Contoh: Sicily Grey..."
                     options={DEFAULT_TIPE_OPTIONS}
                     value={tipe ? { label: tipe, value: tipe } : null}
-                    onChange={(opt) => setTipe(opt ? formatTitleCase(opt.value) : "")}
+                    onChange={(opt) =>
+                      setTipe(opt ? formatTitleCase(opt.value) : "")
+                    }
                     onCreateOption={(val) => setTipe(formatTitleCase(val))}
                     styles={comboboxStyles}
                   />
@@ -759,14 +1047,20 @@ export function ModalTambahTrial({
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Finishing Permukaan</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Finishing Permukaan
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Contoh: Matte Anti-Slip..."
                     options={DEFAULT_PERMUKAAN_OPTIONS}
-                    value={permukaan ? { label: permukaan, value: permukaan } : null}
-                    onChange={(opt) => setPermukaan(opt ? formatTitleCase(opt.value) : "")}
+                    value={
+                      permukaan ? { label: permukaan, value: permukaan } : null
+                    }
+                    onChange={(opt) =>
+                      setPermukaan(opt ? formatTitleCase(opt.value) : "")
+                    }
                     onCreateOption={(val) => setPermukaan(formatTitleCase(val))}
                     styles={comboboxStyles}
                   />
@@ -777,71 +1071,121 @@ export function ModalTambahTrial({
             {/* Baris 3: Ketebalan, Toleransi, Posisi, Area */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Ketebalan</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Ketebalan
+                </Label>
                 <div className="flex gap-1.5 mt-1.5">
-                  <Input
-                    className="h-9 text-xs flex-1 bg-slate-50 border-slate-200"
-                    value={tebalNilai}
-                    onChange={(e) => setTebalNilai(e.target.value)}
-                    placeholder="9"
-                  />
-                  <Select value={tebalSatuan} onValueChange={setTebalSatuan}>
-                    <SelectTrigger className="h-9 w-18 text-xs bg-slate-50 border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-70">
-                      <SelectItem value="mm" className="text-xs">mm</SelectItem>
-                      <SelectItem value="cm" className="text-xs">cm</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex-1 min-w-0">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="9..."
+                      options={DEFAULT_TEBAL_OPTIONS}
+                      value={
+                        tebalNilai
+                          ? { label: tebalNilai, value: tebalNilai }
+                          : null
+                      }
+                      onChange={(opt) => setTebalNilai(opt ? opt.value : "")}
+                      onCreateOption={(val) => setTebalNilai(val)}
+                      styles={comboboxStyles}
+                    />
+                  </div>
+                  <div className="w-22 shrink-0">
+                    <CreatableSelect
+                      placeholder="mm"
+                      options={SATUAN_TEBAL_OPTIONS}
+                      value={
+                        tebalSatuan
+                          ? { label: tebalSatuan, value: tebalSatuan }
+                          : null
+                      }
+                      onChange={(opt) => setTebalSatuan(opt ? opt.value : "mm")}
+                      onCreateOption={(val) => setTebalSatuan(val)}
+                      styles={unitComboboxStyles}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Toleransi</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Toleransi
+                </Label>
                 <div className="flex gap-1.5 mt-1.5">
-                  <Input
-                    className="h-9 text-xs flex-1 bg-slate-50 border-slate-200"
-                    value={toleransiNilai}
-                    onChange={(e) => setToleransiNilai(e.target.value)}
-                    placeholder="0.5"
-                  />
-                  <Select value={toleransiSatuan} onValueChange={setToleransiSatuan}>
-                    <SelectTrigger className="h-9 w-18 text-xs bg-slate-50 border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-70">
-                      <SelectItem value="mm" className="text-xs">mm</SelectItem>
-                      <SelectItem value="%" className="text-xs">%</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex-1 min-w-0">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="0.5..."
+                      options={DEFAULT_TOLERANSI_OPTIONS}
+                      value={
+                        toleransiNilai
+                          ? { label: toleransiNilai, value: toleransiNilai }
+                          : null
+                      }
+                      onChange={(opt) =>
+                        setToleransiNilai(opt ? opt.value : "")
+                      }
+                      onCreateOption={(val) => setToleransiNilai(val)}
+                      styles={comboboxStyles}
+                    />
+                  </div>
+                  <div className="w-22 shrink-0">
+                    <CreatableSelect
+                      placeholder="mm"
+                      options={SATUAN_TOLERANSI_OPTIONS}
+                      value={
+                        toleransiSatuan
+                          ? { label: toleransiSatuan, value: toleransiSatuan }
+                          : null
+                      }
+                      onChange={(opt) =>
+                        setToleransiSatuan(opt ? opt.value : "mm")
+                      }
+                      onCreateOption={(val) => setToleransiSatuan(val)}
+                      styles={unitComboboxStyles}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Posisi Implementasi</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Posisi Implementasi
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Pilih posisi..."
                     options={DEFAULT_POSISI_OPTIONS}
-                    value={implementasi ? { label: implementasi, value: implementasi } : null}
-                    onChange={(opt) => setImplementasi(opt ? formatTitleCase(opt.value) : "")}
-                    onCreateOption={(val) => setImplementasi(formatTitleCase(val))}
+                    value={
+                      implementasi
+                        ? { label: implementasi, value: implementasi }
+                        : null
+                    }
+                    onChange={(opt) =>
+                      setImplementasi(opt ? formatTitleCase(opt.value) : "")
+                    }
+                    onCreateOption={(val) =>
+                      setImplementasi(formatTitleCase(val))
+                    }
                     styles={comboboxStyles}
                   />
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Lokasi / Area Toko</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Lokasi / Area Toko
+                </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
                     isClearable
                     placeholder="Pilih area..."
                     options={DEFAULT_AREA_OPTIONS}
                     value={lokasi ? { label: lokasi, value: lokasi } : null}
-                    onChange={(opt) => setLokasi(opt ? formatTitleCase(opt.value) : "")}
+                    onChange={(opt) =>
+                      setLokasi(opt ? formatTitleCase(opt.value) : "")
+                    }
                     onCreateOption={(val) => setLokasi(formatTitleCase(val))}
                     styles={comboboxStyles}
                   />
@@ -852,23 +1196,45 @@ export function ModalTambahTrial({
             {/* Baris 4: Satuan dan Catatan Spesifikasi Tambahan */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Satuan Pekerjaan</Label>
-                <Input
-                  className="mt-1.5 h-9 text-xs bg-slate-50 border-slate-200"
-                  value={satuan}
-                  onChange={(e) => setSatuan(e.target.value.toLowerCase())}
-                  placeholder="m2 / unit / m1 / m3"
-                />
+                <Label className="text-xs font-bold text-slate-700">
+                  Satuan Pekerjaan
+                </Label>
+                <div className="mt-1.5">
+                  <CreatableSelect
+                    isClearable
+                    placeholder="m2 / unit / m1 / m3..."
+                    options={DEFAULT_SATUAN_OPTIONS}
+                    value={satuan ? { label: satuan, value: satuan } : null}
+                    onChange={(opt) =>
+                      setSatuan(opt ? opt.value.toLowerCase() : "")
+                    }
+                    onCreateOption={(val) => setSatuan(val.toLowerCase())}
+                    styles={comboboxStyles}
+                  />
+                </div>
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-slate-700">Catatan Spesifikasi (Opsional)</Label>
-                <Input
-                  className="mt-1.5 h-9 text-xs bg-slate-50 border-slate-200"
-                  value={informasiTambahan}
-                  onChange={(e) => setInformasiTambahan(e.target.value)}
-                  placeholder="Keterangan teknis / SNI / petunjuk instalasi..."
-                />
+                <Label className="text-xs font-bold text-slate-700">
+                  Catatan Spesifikasi (Opsional)
+                </Label>
+                <div className="mt-1.5">
+                  <CreatableSelect
+                    isClearable
+                    placeholder="Pilih atau ketik catatan teknis / SNI..."
+                    options={DEFAULT_CATATAN_OPTIONS}
+                    value={
+                      informasiTambahan
+                        ? { label: informasiTambahan, value: informasiTambahan }
+                        : null
+                    }
+                    onChange={(opt) =>
+                      setInformasiTambahan(opt ? opt.value : "")
+                    }
+                    onCreateOption={(val) => setInformasiTambahan(val)}
+                    styles={comboboxStyles}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -885,23 +1251,28 @@ export function ModalTambahTrial({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <Label className="text-xs font-bold text-slate-700">
-                  Estimasi Harga Awal Maker (Rp)
+                  Harga (Rp)
                 </Label>
                 <div className="relative mt-1.5">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                     Rp
                   </span>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     className="pl-9 h-10 text-xs font-semibold bg-slate-50 border-slate-200"
-                    value={estimasiHarga}
-                    onChange={(e) => setEstimasiHarga(Number(e.target.value))}
-                    placeholder="125000"
+                    value={
+                      estimasiHarga ? estimasiHarga.toLocaleString("id-ID") : ""
+                    }
+                    onChange={(e) => {
+                      const cleanNumbers = e.target.value.replace(/\D/g, "");
+                      setEstimasiHarga(
+                        cleanNumbers ? parseInt(cleanNumbers, 10) : 0,
+                      );
+                    }}
+                    placeholder="125.000"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  *Acuan awal dari Maker. Tim S&B tetap memiliki wewenang untuk menetapkan harga & koefisien final.
-                </p>
               </div>
 
               <div className="flex flex-col justify-center">
@@ -909,7 +1280,9 @@ export function ModalTambahTrial({
                   <Checkbox
                     id="bongkaran-checkbox"
                     checked={isTermasukBongkaran}
-                    onCheckedChange={(checked) => setIsTermasukBongkaran(Boolean(checked))}
+                    onCheckedChange={(checked) =>
+                      setIsTermasukBongkaran(Boolean(checked))
+                    }
                   />
                   <label
                     htmlFor="bongkaran-checkbox"
@@ -918,9 +1291,6 @@ export function ModalTambahTrial({
                     Termasuk Pekerjaan Bongkaran?
                   </label>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1 pl-1">
-                  Centang bila instalasi material uji coba memerlukan pembongkaran struktur eksisting di toko.
-                </p>
               </div>
             </div>
           </div>
@@ -939,7 +1309,9 @@ export function ModalTambahTrial({
               <div>
                 <Label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                   <span>Pilihan Durasi Masa Uji Coba *</span>
-                  <span className="text-[11px] text-red-600 font-semibold">{durasiHari} Hari Kalender</span>
+                  <span className="text-[11px] text-red-600 font-semibold">
+                    {durasiHari} Hari Kalender
+                  </span>
                 </Label>
                 <div className="grid grid-cols-3 gap-2 mt-2">
                   {([2, 3, 4] as const).map((m) => (
@@ -954,15 +1326,14 @@ export function ModalTambahTrial({
                       }`}
                     >
                       <span>{m} Bulan</span>
-                      <span className={`text-[10px] ${durasiBulan === m ? "text-red-100" : "text-slate-400"}`}>
+                      <span
+                        className={`text-[10px] ${durasiBulan === m ? "text-red-100" : "text-slate-400"}`}
+                      >
                         ({m * 30} Hari)
                       </span>
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1.5">
-                  *Standar masa trial operasional ritel berkisar antara 2 hingga 4 bulan sebelum evaluasi kuorum 3 tim.
-                </p>
               </div>
 
               {/* Alasan / Urgensi Trial Lapangan */}
@@ -980,51 +1351,62 @@ export function ModalTambahTrial({
             </div>
           </div>
 
-          {/* SEKSI 4: FOTO / LAMPIRAN SPESIFIKASI MATERIAL (BAGIAN MANDIRI) */}
+          {/* SEKSI 4: LAMPIRAN DOKUMEN & FOTO SPESIFIKASI MATERIAL (BAGIAN MANDIRI) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-              <ImageIcon className="w-4 h-4 text-purple-600" />
+              <FileText className="w-4 h-4 text-purple-600" />
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                4. Foto / Lampiran Spesifikasi Material
+                4. Lampiran Dokumen &amp; Foto Spesifikasi Material
               </h4>
             </div>
 
             <div>
               <Label className="text-xs font-bold text-slate-700">
-                Unggah Foto Fisik / Brosur Spesifikasi
+                Unggah Berkas Dokumen / Foto Spesifikasi
               </Label>
               <input
                 type="file"
                 ref={fileInputRef}
-                accept="image/*"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
                 onChange={handleFileChange}
                 className="hidden"
               />
 
-              {lampiranPreview ? (
+              {lampiranName ? (
                 <div className="mt-2 relative p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={lampiranPreview}
-                      alt="Preview Lampiran"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  {lampiranPreview && lampiranPreview.startsWith("data:image/") ? (
+                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={lampiranPreview}
+                        alt="Preview Lampiran"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
+                      <FileText className="w-7 h-7" />
+                      <span className="text-[9px] font-bold uppercase mt-0.5">
+                        {lampiranName.split(".").pop() || "DOC"}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0 text-xs">
-                    <span className="font-bold text-slate-900 block truncate text-sm">{lampiranName}</span>
+                    <span className="font-bold text-slate-900 block truncate text-sm">
+                      {lampiranName}
+                    </span>
                     <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Foto spesifikasi siap diunggah
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Berkas dokumen/foto siap diunggah
                     </span>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      Foto akan tersimpan dan tampil di Tab 1 Detail Item Trial.
+                      Berkas akan tersimpan dan tampil pada detail spesifikasi item trial.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleRemoveImage}
                     className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="Hapus foto"
+                    title="Hapus berkas"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1035,9 +1417,11 @@ export function ModalTambahTrial({
                   className="mt-2 p-6 border-2 border-dashed border-slate-200 hover:border-red-400 bg-slate-50 hover:bg-red-50/20 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
                 >
                   <Upload className="w-7 h-7 text-slate-400 mb-1.5" />
-                  <span className="text-xs font-bold text-slate-800">Pilih atau Tarik Foto Spesifikasi ke Sini</span>
+                  <span className="text-xs font-bold text-slate-800">
+                    Pilih atau Tarik Berkas Dokumen / Foto ke Sini
+                  </span>
                   <span className="text-[11px] text-slate-400 mt-0.5">
-                    Mendukung format gambar JPG, PNG, atau WebP (Maksimal 5MB)
+                    Mendukung berkas PDF, Word, Excel, atau Foto JPG, PNG, WebP (Maksimal 10MB)
                   </span>
                 </div>
               )}
@@ -1058,10 +1442,13 @@ export function ModalTambahTrial({
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold">Peringatan: Item Serupa Terdeteksi!</span>
+                  <span className="font-bold">
+                    Peringatan: Item Serupa Terdeteksi!
+                  </span>
                   <p className="text-[11px] text-amber-800 mt-0.5">
-                    Spesifikasi fisik dan lokasi material ini identik dengan item{" "}
-                    <strong>{kodeData.duplicateItem?.kode}</strong> ({kodeData.duplicateItem?.kodeMaster}).
+                    Spesifikasi fisik dan lokasi material ini identik dengan
+                    item <strong>{kodeData.duplicateItem?.kode}</strong> (
+                    {kodeData.duplicateItem?.kodeMaster}).
                   </p>
                 </div>
               </div>
@@ -1069,7 +1456,9 @@ export function ModalTambahTrial({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Kode Item</Label>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Kode Item
+                </Label>
                 <Input
                   value={kodeItem}
                   disabled
@@ -1079,7 +1468,9 @@ export function ModalTambahTrial({
               </div>
 
               <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <Label className="text-xs font-semibold text-slate-700">Kode Master Item</Label>
+                <Label className="text-xs font-semibold text-slate-700">
+                  Kode Master Item
+                </Label>
                 <Input
                   value={kodeMaster}
                   disabled
@@ -1103,7 +1494,9 @@ export function ModalTambahTrial({
                   {copied ? (
                     <>
                       <Check className="w-3 h-3 text-emerald-600" />
-                      <span className="text-emerald-600 font-semibold">Tersalin</span>
+                      <span className="text-emerald-600 font-semibold">
+                        Tersalin
+                      </span>
                     </>
                   ) : (
                     <>
@@ -1122,7 +1515,12 @@ export function ModalTambahTrial({
 
         {/* Footer Aksi Modal */}
         <DialogFooter className="p-4 sm:p-5 border-t border-slate-200 bg-white sticky bottom-0 z-30 flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={onClose} className="text-xs cursor-pointer">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="text-xs cursor-pointer"
+          >
             Batal
           </Button>
 
