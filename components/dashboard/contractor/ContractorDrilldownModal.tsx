@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ArrowLeft, Loader2, Building2, MapPin, CheckCircle2, AlertTriangle, AlertCircle, TrendingUp, TrendingDown, FileText, Search, Zap, PenTool, Award, FileCheck2, Clock, Activity, Store, Layout } from 'lucide-react';
-import { API_URL } from '@/lib/constants';
+import { API_URL, getParentBranch } from '@/lib/constants';
 import { apiFetch } from '@/lib/api';
 import { formatRupiah, cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ interface HistoryState {
     layer: DrilldownLayer;
     metric?: string;
     kontraktor?: string;
+    cabang?: string | null;
     idToko: string | null;
     lingkup: string | null;
     data: any;
@@ -49,6 +50,7 @@ export function ContractorDrilldownModal({
     // State Selections
     const [metric, setMetric] = useState(initialMetric);
     const [kontraktor, setKontraktor] = useState(initialKontraktor);
+    const [cabang, setCabang] = useState<string | null>(null);
     const [idToko, setIdToko] = useState<string | null>(null);
     const [lingkup, setLingkup] = useState<string | null>(null);
 
@@ -69,6 +71,7 @@ export function ContractorDrilldownModal({
             setLayer(initialLayer);
             setMetric(initialMetric);
             setKontraktor(initialKontraktor);
+            setCabang(null);
             setIdToko(null);
             setLingkup(null);
             setHistory([]);
@@ -76,17 +79,18 @@ export function ContractorDrilldownModal({
                 setData(initialData);
                 setIsLoading(false);
             } else {
-                fetchData(initialLayer, initialMetric, initialKontraktor, null, null);
+                fetchData(initialLayer, initialMetric, initialKontraktor, null, null, null);
             }
         }
     }, [isOpen, initialLayer, initialMetric, initialKontraktor, initialData]);
 
     const goForward = (nextLayer: DrilldownLayer, newParams: any = {}) => {
-        setHistory(prev => [...prev, { layer, metric, kontraktor, idToko, lingkup, data }]);
+        setHistory(prev => [...prev, { layer, metric, kontraktor, cabang, idToko, lingkup, data }]);
         setLayer(nextLayer);
 
         let nextMetric = newParams.metric !== undefined ? newParams.metric : metric;
         let nextKontraktor = newParams.kontraktor !== undefined ? newParams.kontraktor : kontraktor;
+        let nextCabang = newParams.cabang !== undefined ? newParams.cabang : cabang;
         let nextIdToko = newParams.idToko !== undefined ? newParams.idToko : idToko;
         let nextLingkup = newParams.lingkup !== undefined ? newParams.lingkup : lingkup;
 
@@ -95,19 +99,21 @@ export function ContractorDrilldownModal({
             nextLingkup = null;
         } else if (nextLayer === 'RANKING') {
             nextKontraktor = undefined;
+            nextCabang = null;
             nextIdToko = null;
             nextLingkup = null;
         }
 
         setMetric(nextMetric);
         setKontraktor(nextKontraktor);
+        setCabang(nextCabang);
         setIdToko(nextIdToko);
         setLingkup(nextLingkup);
 
         if (newParams._skipFetch) {
             setData(newParams._data);
         } else {
-            fetchData(nextLayer, nextMetric, nextKontraktor, nextIdToko, nextLingkup);
+            fetchData(nextLayer, nextMetric, nextKontraktor, nextCabang, nextIdToko, nextLingkup);
         }
     };
 
@@ -122,6 +128,7 @@ export function ContractorDrilldownModal({
         setLayer(prevState.layer);
         setMetric(prevState.metric);
         setKontraktor(prevState.kontraktor);
+        setCabang(prevState.cabang || null);
         setIdToko(prevState.idToko);
         setLingkup(prevState.lingkup);
         setData(prevState.data);
@@ -132,6 +139,7 @@ export function ContractorDrilldownModal({
         currentLayer: DrilldownLayer,
         currentMetric: string | undefined,
         currentKontraktor: string | undefined,
+        currentCabang: string | null | undefined,
         currentIdToko: string | null,
         currentLingkup: string | null
     ) => {
@@ -158,12 +166,15 @@ export function ContractorDrilldownModal({
             } else if (currentLayer === 'SP_HISTORY') {
                 endpoint = '/api/dashboard/contractor/drilldown-sp-history';
                 params.append('kontraktor', currentKontraktor || '');
+                if (currentCabang) params.set('cabang', currentCabang);
             } else if (currentLayer === 'SP_ACTIVE_ALL') {
                 endpoint = '/api/dashboard/contractor/drilldown-sp-active-all';
                 if (currentKontraktor) params.append('kontraktor', currentKontraktor);
+                if (currentCabang) params.set('cabang', currentCabang);
             } else if (currentLayer === 'ULOK_LIST') {
                 endpoint = '/api/dashboard/contractor/drilldown-ulok';
                 params.append('kontraktor', currentKontraktor || '');
+                if (currentCabang) params.set('cabang', currentCabang);
                 if (currentIdToko) params.append('id_toko', currentIdToko);
                 if (currentMetric) params.append('metric', currentMetric);
             } else if (currentLayer === 'DETAIL') {
@@ -173,6 +184,7 @@ export function ContractorDrilldownModal({
             } else if (currentLayer === 'SCOPE') {
                 endpoint = '/api/dashboard/contractor/drilldown-ulok';
                 params.append('kontraktor', currentKontraktor || '');
+                if (currentCabang) params.set('cabang', currentCabang);
                 if (currentIdToko) params.append('id_toko', currentIdToko);
             }
 
@@ -206,11 +218,16 @@ export function ContractorDrilldownModal({
 
     const renderHeaderTitle = () => {
         switch (layer) {
-            case 'RANKING': return `Ranking ${metric?.replace('_', ' ').toUpperCase()}`;
-            case 'SP_HISTORY': return `Riwayat SP: ${kontraktor}`;
+            case 'RANKING': {
+                if (metric === 'avg_keterlambatan') return 'Ranking Keterlambatan';
+                if (metric === 'kerja_tambah') return 'Ranking Kerja Tambah';
+                if (metric === 'kerja_kurang') return 'Ranking Kerja Kurang';
+                return `Ranking ${metric?.replace('_', ' ').toUpperCase()}`;
+            }
+            case 'SP_HISTORY': return `Riwayat SP: ${kontraktor}${cabang ? ` (${getParentBranch(cabang)})` : ''}`;
             case 'SP_ACTIVE_ALL': return `Semua Kontraktor SP Aktif`;
             case 'SP_SINGLE': return `Detail Surat Peringatan`;
-            case 'ULOK_LIST': return `Daftar ULOK: ${kontraktor}`;
+            case 'ULOK_LIST': return `Daftar ULOK: ${kontraktor}${cabang ? ` (${getParentBranch(cabang)})` : ''}`;
             case 'SCOPE': return `Pilih Lingkup Pekerjaan`;
             case 'DETAIL': return `Detail Evaluasi (Tamat)`;
             case 'SEARCH_RESULTS': return `Hasil Pencarian: ${searchQuery}`;
@@ -255,23 +272,19 @@ export function ContractorDrilldownModal({
                         <div className="flex flex-col items-center justify-center py-20 gap-4">
                             <AlertCircle className="h-10 w-10 text-rose-500" />
                             <p className="text-sm font-medium text-slate-700">Error: {fetchError}</p>
-                            <Button variant="outline" onClick={() => fetchData(layer, metric, kontraktor, idToko, lingkup)}>Coba Lagi</Button>
+                            <Button variant="outline" onClick={() => fetchData(layer, metric, kontraktor, cabang, idToko, lingkup)}>Coba Lagi</Button>
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                             {layer === 'SEARCH_RESULTS' && <LayerSearchResults searchQuery={searchQuery} availableKontraktors={availableKontraktors} onSelect={(k) => goForward('ULOK_LIST', { kontraktor: k, metric: 'search_all' })} />}
-                            {layer === 'RANKING' && <LayerRanking data={data} metric={metric} debugInfo={debugInfo} searchQuery={localSearch} onRowClick={(k) => goForward('ULOK_LIST', { kontraktor: k, metric })} />}
+                            {layer === 'RANKING' && <LayerRanking data={data} metric={metric} debugInfo={debugInfo} searchQuery={localSearch} onRowClick={(k, c) => goForward('ULOK_LIST', { kontraktor: k, cabang: c, metric })} />}
                             {layer === 'SP_HISTORY' && <LayerSpHistory data={data} onRowClick={(id) => goForward('ULOK_LIST', { idToko: id })} />}
                             {layer === 'SP_ACTIVE_ALL' && <LayerSpActiveAll data={data} onRowClick={(id) => goForward('ULOK_LIST', { idToko: id })} />}
                             {layer === 'SP_SINGLE' && <LayerSpActiveAll data={data ? [data] : []} onRowClick={() => { }} />}
                             {layer === 'ULOK_LIST' && <LayerUlokList data={data} metric={metric} searchQuery={localSearch} onRowClick={(item) => {
-                                if (metric === 'avg_denda' || metric === 'total_denda') {
-                                    goForward('DETAIL', { idToko: item.id_toko, lingkup: 'Sipil + ME' });
-                                } else {
-                                    goForward('SCOPE', { idToko: item.id_toko, _skipFetch: true, _data: item });
-                                }
+                                goForward('SCOPE', { idToko: item.id_toko, _skipFetch: true, _data: item });
                             }} />}
-                            {layer === 'SCOPE' && <LayerScope data={data} onScopeSelect={(lingkup, overrideIdToko) => goForward('DETAIL', { lingkup, idToko: overrideIdToko || idToko })} />}
+                            {layer === 'SCOPE' && <LayerScope data={data} metric={metric} onScopeSelect={(lingkup, overrideIdToko) => goForward('DETAIL', { lingkup, idToko: overrideIdToko || idToko })} />}
                             {layer === 'DETAIL' && <LayerDetail data={data} metric={metric} />}
                         </div>
                     )}
@@ -281,7 +294,7 @@ export function ContractorDrilldownModal({
     );
 }
 
-function LayerRanking({ data, metric, onRowClick, debugInfo, searchQuery = "" }: { data: any[], metric?: string, onRowClick: (kontraktor: string) => void, debugInfo?: any, searchQuery?: string }) {
+function LayerRanking({ data, metric, onRowClick, debugInfo, searchQuery = "" }: { data: any[], metric?: string, onRowClick: (kontraktor: string, cabang?: string) => void, debugInfo?: any, searchQuery?: string }) {
     if (!data?.length) return (
         <div className="flex flex-col gap-4">
             <EmptyState />
@@ -292,7 +305,10 @@ function LayerRanking({ data, metric, onRowClick, debugInfo, searchQuery = "" }:
         </div>
     );
 
-    const filteredData = data.filter(r => (r.nama_kontraktor || "").toLowerCase().includes(searchQuery.toLowerCase()));
+    const filteredData = data.filter(r => 
+        (r.nama_kontraktor || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.cabang || "").toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     if (!filteredData.length) return (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -301,15 +317,36 @@ function LayerRanking({ data, metric, onRowClick, debugInfo, searchQuery = "" }:
         </div>
     );
 
+    const getMetricHeader = () => {
+        switch (metric) {
+            case 'avg_keterlambatan':
+                return 'KETERLAMBATAN';
+            case 'kerja_tambah':
+                return 'AVG KERJA TAMBAH';
+            case 'kerja_kurang':
+                return 'AVG KERJA KURANG';
+            case 'avg_denda':
+            case 'total_denda':
+                return 'DENDA';
+            case 'evaluasi_toko':
+                return 'EVALUASI TOKO';
+            case 'sp_aktif':
+                return 'SP AKTIF';
+            default:
+                return 'PENCAPAIAN';
+        }
+    };
+
     return (
         <div className="w-full overflow-x-auto bg-white rounded-xl border border-slate-200 scrollbar-thin scrollbar-thumb-slate-200">
-            <table className="w-full text-left border-collapse min-w-[500px]">
+            <table className="w-full text-left border-collapse min-w-[550px]">
                 <thead>
                     <tr className="border-b border-slate-200 bg-white">
                         <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-center w-16">No</th>
                         <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">Nama Kontraktor</th>
+                        <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">Cabang</th>
                         <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">Toko Terkait</th>
-                        <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Pencapaian</th>
+                        <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">{getMetricHeader()}</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -320,7 +357,7 @@ function LayerRanking({ data, metric, onRowClick, debugInfo, searchQuery = "" }:
                         return (
                             <tr 
                                 key={idx} 
-                                onClick={() => onRowClick(row.nama_kontraktor)} 
+                                onClick={() => onRowClick(row.nama_kontraktor, row.cabang)} 
                                 className="group hover:bg-slate-50 transition-colors cursor-pointer"
                             >
                                 <td className="py-4 px-5 text-center">
@@ -333,6 +370,11 @@ function LayerRanking({ data, metric, onRowClick, debugInfo, searchQuery = "" }:
                                 </td>
                                 <td className="py-4 px-5">
                                     <div className="font-bold text-slate-800 text-[13px] uppercase tracking-tight group-hover:text-emerald-600 transition-colors">{row.nama_kontraktor}</div>
+                                </td>
+                                <td className="py-4 px-5">
+                                    <span className="text-[12px] font-bold text-slate-700 uppercase tracking-tight">
+                                        {row.cabang ? getParentBranch(row.cabang) : '-'}
+                                    </span>
                                 </td>
                                 <td className="py-4 px-5">
                                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-[11px] font-bold text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
@@ -386,9 +428,32 @@ function LayerSpHistory({ data, onRowClick }: { data: any[], onRowClick: (idToko
                     )}
                 >
                     <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                        <Badge variant="outline" className="bg-rose-50 text-rose-600 border-rose-100 font-bold tracking-widest uppercase">
-                            {row.action_type === 'SP' && row.sp_level ? `SP ${row.sp_level}` : row.action_type}
-                        </Badge>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="bg-rose-50 text-rose-600 border-rose-100 font-bold tracking-widest uppercase">
+                                {row.action_type === 'SP' && row.sp_level ? `SP ${row.sp_level}` : row.action_type}
+                            </Badge>
+                            {row.cabang && (
+                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-semibold border-none">
+                                    {getParentBranch(row.cabang)}
+                                </Badge>
+                            )}
+                            {row.is_active ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                    Aktif
+                                </span>
+                            ) : row.has_next_sp ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    {row.next_sp_level ? `Dilanjut ke SP ${row.next_sp_level}` : 'Dilanjut ke SP Selanjutnya'}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                    Selesai
+                                </span>
+                            )}
+                        </div>
                         <span className="text-xs font-semibold text-slate-400">{new Date(row.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                     </div>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -438,8 +503,24 @@ function LayerSpActiveAll({ data, onRowClick }: { data: any[], onRowClick: (idTo
                                 {row.action_type === 'SP' && row.sp_level ? `SP ${row.sp_level}` : row.action_type}
                             </Badge>
                             <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-semibold border-none">
-                                {row.cabang}
+                                {getParentBranch(row.cabang)}
                             </Badge>
+                            {row.is_active ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                    Aktif
+                                </span>
+                            ) : row.has_next_sp ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    {row.next_sp_level ? `Dilanjut ke SP ${row.next_sp_level}` : 'Dilanjut ke SP Selanjutnya'}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                    Selesai
+                                </span>
+                            )}
                         </div>
                         <div className="flex flex-col items-end">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Masa Berlaku</span>
@@ -519,8 +600,11 @@ function LayerUlokList({ data, onRowClick, metric, searchQuery = "" }: { data: a
     }
 
     const isDenda = metric === 'avg_denda' || metric === 'total_denda';
-    const isKerjaTambahKurang = metric === 'kerja_tambah' || metric === 'kerja_kurang';
-    const isEvaluasiOrKeterlambatan = !isDenda && !isKerjaTambahKurang;
+    const isKerjaTambah = metric === 'kerja_tambah';
+    const isKerjaKurang = metric === 'kerja_kurang';
+    const isKeterlambatan = metric === 'avg_keterlambatan' || metric === 'total_keterlambatan';
+    const isEvaluasi = metric === 'evaluasi_toko';
+    const isDefault = !isDenda && !isKerjaTambah && !isKerjaKurang && !isKeterlambatan && !isEvaluasi;
 
     if (!displayData.length) return (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -531,10 +615,13 @@ function LayerUlokList({ data, onRowClick, metric, searchQuery = "" }: { data: a
 
     return (
         <div className="w-full overflow-x-auto bg-white rounded-xl border border-slate-200 scrollbar-thin scrollbar-thumb-slate-200">
-            <table className="w-full text-left border-collapse min-w-[600px]">
+            <table className="w-full text-left border-collapse min-w-[550px]">
                 <thead>
                     <tr className="border-b border-slate-200 bg-white">
-                        <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase w-[35%]">ULOK</th>
+                        <th className={cn(
+                            "py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase",
+                            isDenda ? "w-[30%]" : (isKerjaTambah || isKerjaKurang || isKeterlambatan || isEvaluasi) ? "w-[45%]" : "w-[35%]"
+                        )}>ULOK</th>
                         <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">Cabang</th>
                         {isDenda && (
                             <>
@@ -543,13 +630,19 @@ function LayerUlokList({ data, onRowClick, metric, searchQuery = "" }: { data: a
                                 <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Nilai Denda</th>
                             </>
                         )}
-                        {isKerjaTambahKurang && (
-                            <>
-                                <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Kerja Tambah</th>
-                                <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Kerja Kurang</th>
-                            </>
+                        {isKerjaTambah && (
+                            <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Kerja Tambah</th>
                         )}
-                        {isEvaluasiOrKeterlambatan && (
+                        {isKerjaKurang && (
+                            <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Kerja Kurang</th>
+                        )}
+                        {isKeterlambatan && (
+                            <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Keterlambatan</th>
+                        )}
+                        {isEvaluasi && (
+                            <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Nilai Toko</th>
+                        )}
+                        {isDefault && (
                             <>
                                 <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-center">Nilai Toko</th>
                                 <th className="py-4 px-5 text-[11px] font-bold tracking-wider text-slate-500 uppercase text-right">Keterlambatan</th>
@@ -583,7 +676,7 @@ function LayerUlokList({ data, onRowClick, metric, searchQuery = "" }: { data: a
                             </td>
                             <td className="py-4 px-5">
                                 <span className="text-[12px] font-bold text-slate-700 uppercase">
-                                    {row.cabang}
+                                    {row.cabang ? getParentBranch(row.cabang) : '-'}
                                 </span>
                             </td>
                             
@@ -595,24 +688,73 @@ function LayerUlokList({ data, onRowClick, metric, searchQuery = "" }: { data: a
                                     <td className="py-4 px-5 text-center font-bold text-[12px] text-slate-600">
                                         {row.serah_terima_date ? new Date(row.serah_terima_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                                     </td>
-                                    <td className="py-4 px-5 text-right font-bold text-[13px] text-rose-600">
-                                        {formatRupiah(row.nilai_denda)}
+                                    <td className="py-4 px-5 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <span className="font-bold text-[13px] text-rose-600">
+                                                {formatRupiah(row.nilai_denda)}
+                                            </span>
+                                            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+                                        </div>
                                     </td>
                                 </>
                             )}
 
-                            {isKerjaTambahKurang && (
-                                <>
-                                    <td className="py-4 px-5 text-right font-bold text-[13px] text-emerald-600">
-                                        {Number(row.kerja_tambah) > 0 ? `+${formatRupiah(row.kerja_tambah)}` : '-'}
-                                    </td>
-                                    <td className="py-4 px-5 text-right font-bold text-[13px] text-rose-600">
-                                        {Number(row.kerja_kurang) > 0 ? `-${formatRupiah(row.kerja_kurang)}` : '-'}
-                                    </td>
-                                </>
+                            {isKerjaTambah && (
+                                <td className="py-4 px-5 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <span className="font-bold text-[13px] text-emerald-600">
+                                            {Number(row.kerja_tambah) > 0 ? `+${formatRupiah(row.kerja_tambah)}` : '-'}
+                                        </span>
+                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+                                    </div>
+                                </td>
                             )}
 
-                            {isEvaluasiOrKeterlambatan && (
+                            {isKerjaKurang && (
+                                <td className="py-4 px-5 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <span className="font-bold text-[13px] text-rose-600">
+                                            {Number(row.kerja_kurang) > 0 ? `-${formatRupiah(row.kerja_kurang)}` : '-'}
+                                        </span>
+                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+                                    </div>
+                                </td>
+                            )}
+
+                            {isKeterlambatan && (
+                                <td className="py-4 px-5 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        {Number(row.hari_denda) > 0 ? (
+                                            <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md font-bold text-[12px]">
+                                                {row.hari_denda} Hari
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 font-bold">-</span>
+                                        )}
+                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+                                    </div>
+                                </td>
+                            )}
+
+                            {isEvaluasi && (
+                                <td className="py-4 px-5 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        {row.nilai_toko > 0 ? (
+                                            <span className={cn(
+                                                "font-bold text-[13px]", 
+                                                row.nilai_toko >= 80 ? "text-emerald-600" : row.nilai_toko >= 60 ? "text-amber-500" : "text-rose-500"
+                                            )}>
+                                                {row.nilai_toko}/100
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 font-bold">-</span>
+                                        )}
+                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+                                    </div>
+                                </td>
+                            )}
+
+                            {isDefault && (
                                 <>
                                     <td className="py-4 px-5 text-center">
                                         {row.nilai_toko > 0 ? (
@@ -626,23 +768,19 @@ function LayerUlokList({ data, onRowClick, metric, searchQuery = "" }: { data: a
                                             <span className="text-slate-400 font-bold">-</span>
                                         )}
                                     </td>
-                                    <td className="py-4 px-5 text-right flex justify-end items-center gap-2">
-                                        {Number(row.hari_denda) > 0 ? (
-                                            <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md font-bold text-[12px]">
-                                                {row.hari_denda} Hari
-                                            </span>
-                                        ) : (
-                                            <span className="text-slate-400 font-bold">-</span>
-                                        )}
-                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0 ml-1" />
+                                    <td className="py-4 px-5 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            {Number(row.hari_denda) > 0 ? (
+                                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md font-bold text-[12px]">
+                                                    {row.hari_denda} Hari
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400 font-bold">-</span>
+                                            )}
+                                            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+                                        </div>
                                     </td>
                                 </>
-                            )}
-                            
-                            {(isDenda || isKerjaTambahKurang) && (
-                                <td className="py-4 pl-0 pr-5 w-8">
-                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
-                                </td>
                             )}
                         </tr>
                     ))}
@@ -690,7 +828,7 @@ function LayerSearchResults({ searchQuery, availableKontraktors, onSelect }: { s
     );
 }
 
-function LayerScope({ data, onScopeSelect }: { data: any, onScopeSelect: (lingkup: string, idToko?: string) => void }) {
+function LayerScope({ data, metric, onScopeSelect }: { data: any, metric?: string, onScopeSelect: (lingkup: string, idToko?: string) => void }) {
     if (!data?.scopes?.length) return <EmptyState />;
 
     // Deduplicate scopes
@@ -701,11 +839,37 @@ function LayerScope({ data, onScopeSelect }: { data: any, onScopeSelect: (lingku
         }
     });
 
+    const isDenda = metric === 'avg_denda' || metric === 'total_denda';
+    const isKerjaTambah = metric === 'kerja_tambah';
+    const isKerjaKurang = metric === 'kerja_kurang';
+    const isKeterlambatan = metric === 'avg_keterlambatan' || metric === 'total_keterlambatan';
+    const isEvaluasi = metric === 'evaluasi_toko';
+
+    const ulokCode = data?.nomor_ulok || data?.scopes?.[0]?.nomor_ulok || data?.id_toko || 'ULOK';
+    const tokoName = data?.nama_toko || data?.scopes?.[0]?.nama_toko || 'Data Toko';
+    const cabangName = data?.cabang || data?.scopes?.[0]?.cabang;
+
     return (
         <div className="flex flex-col gap-6 p-2">
             <div className="mb-2">
-                <h2 className="text-xl font-bold text-slate-800">Pilih Lingkup Pekerjaan</h2>
-                <p className="text-sm font-medium text-slate-500 mt-1 uppercase tracking-wide">{data?.scopes[0]?.nomor_ulok || data?.scopes[0]?.id_toko || 'Toko'} - {data?.scopes[0]?.nama_toko || 'Data Toko'}</p>
+                <h2 className="text-xl font-bold text-slate-800 tracking-tight">Pilih Lingkup Pekerjaan</h2>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">
+                        {ulokCode}
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                        {tokoName}
+                    </span>
+                    {cabangName && (
+                        <>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 uppercase">
+                                {cabangName}
+                            </span>
+                        </>
+                    )}
+                </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -747,24 +911,216 @@ function LayerScope({ data, onScopeSelect }: { data: any, onScopeSelect: (lingku
                             key={idx}
                             onClick={() => onScopeSelect(scope, scopeData.id_toko)}
                             className={cn(
-                                "relative flex flex-col p-6 rounded-2xl bg-white border border-slate-200 border-l-[6px] cursor-pointer transition-all duration-300 group",
+                                "relative flex flex-col p-6 rounded-2xl bg-white border border-slate-200 border-l-[6px] cursor-pointer transition-all duration-300 group hover:-translate-y-0.5",
                                 cardTheme.borderAccent,
                                 cardTheme.hoverBorder,
                                 cardTheme.hoverShadow
                             )}
                         >
-                            <div className="flex justify-between items-start mb-10">
-                                <div className="flex items-center gap-4">
-                                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", cardTheme.iconBg)}>
+                            {/* Card Header */}
+                            <div className="flex justify-between items-start mb-5">
+                                <div className="flex items-center gap-3.5">
+                                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", cardTheme.iconBg)}>
                                         <Icon className={cn("w-6 h-6", cardTheme.iconColor)} />
                                     </div>
                                     <div className="flex flex-col">
-                                        <h3 className="font-bold text-lg text-slate-800 uppercase tracking-tight">{scope}</h3>
-                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">REGULER</p>
+                                        <h3 className="font-bold text-lg text-slate-800 uppercase tracking-tight group-hover:text-emerald-700 transition-colors">{scope}</h3>
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{scopeData.project_type || 'REGULER'}</p>
                                     </div>
                                 </div>
-                                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors mt-2" />
+
+                                <div className="flex items-center gap-3">
+                                    {isKerjaTambah && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Kerja Tambah</span>
+                                            <span className={cn("font-bold text-base", Number(scopeData.kerja_tambah) > 0 ? "text-emerald-600" : "text-slate-400")}>
+                                                {Number(scopeData.kerja_tambah) > 0 ? `+${formatRupiah(scopeData.kerja_tambah)}` : '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {isKerjaKurang && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Kerja Kurang</span>
+                                            <span className={cn("font-bold text-base", Number(scopeData.kerja_kurang) > 0 ? "text-rose-600" : "text-slate-400")}>
+                                                {Number(scopeData.kerja_kurang) > 0 ? `-${formatRupiah(scopeData.kerja_kurang)}` : '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {isDenda && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nilai Denda</span>
+                                            <span className={cn("font-bold text-base", Number(scopeData.nilai_denda) > 0 ? "text-rose-600" : "text-slate-400")}>
+                                                {Number(scopeData.nilai_denda) > 0 ? formatRupiah(scopeData.nilai_denda) : 'Rp 0'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {isKeterlambatan && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Keterlambatan</span>
+                                            {Number(scopeData.hari_denda) > 0 ? (
+                                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-600 px-2.5 py-0.5 rounded-md font-bold text-sm">
+                                                    {scopeData.hari_denda} Hari
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-md font-bold text-xs">
+                                                    Tepat Waktu
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {isEvaluasi && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nilai Toko</span>
+                                            <span className={cn(
+                                                "font-bold text-base",
+                                                Number(scopeData.nilai_toko) >= 80 ? "text-emerald-600" : Number(scopeData.nilai_toko) >= 60 ? "text-amber-500" : "text-rose-500"
+                                            )}>
+                                                {Number(scopeData.nilai_toko) > 0 ? `${scopeData.nilai_toko}/100` : '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {!isKerjaTambah && !isKerjaKurang && !isDenda && !isKeterlambatan && !isEvaluasi && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nilai SPK</span>
+                                            <span className="font-bold text-sm text-slate-700">
+                                                {scopeData.spk_total ? formatRupiah(scopeData.spk_total) : '-'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                                </div>
                             </div>
+
+                            {/* Middle Metric Context Summary */}
+                            {(isKerjaTambah || isKerjaKurang) && (
+                                <div className="grid grid-cols-3 gap-2 py-2.5 px-3.5 bg-slate-50/80 rounded-xl border border-slate-100 mb-6 text-xs">
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Nilai SPK</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.spk_total ? formatRupiah(scopeData.spk_total) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Opname Final</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.opname_final_total ? formatRupiah(scopeData.opname_final_total) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                            {isKerjaTambah ? 'Kerja Tambah' : 'Kerja Kurang'}
+                                        </span>
+                                        <span className={cn(
+                                            "font-bold truncate block mt-0.5",
+                                            isKerjaTambah 
+                                                ? (Number(scopeData.kerja_tambah) > 0 ? "text-emerald-600" : "text-slate-400")
+                                                : (Number(scopeData.kerja_kurang) > 0 ? "text-rose-600" : "text-slate-400")
+                                        )}>
+                                            {isKerjaTambah 
+                                                ? (Number(scopeData.kerja_tambah) > 0 ? `+${formatRupiah(scopeData.kerja_tambah)}` : '-')
+                                                : (Number(scopeData.kerja_kurang) > 0 ? `-${formatRupiah(scopeData.kerja_kurang)}` : '-')}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isDenda && (
+                                <div className="grid grid-cols-3 gap-2 py-2.5 px-3.5 bg-slate-50/80 rounded-xl border border-slate-100 mb-6 text-xs">
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Akhir SPK</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.akhir_spk ? new Date(scopeData.akhir_spk).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Serah Terima</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.serah_terima_date ? new Date(scopeData.serah_terima_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Denda</span>
+                                        <span className={cn("font-bold truncate block mt-0.5", Number(scopeData.nilai_denda) > 0 ? "text-rose-600" : "text-slate-400")}>
+                                            {Number(scopeData.nilai_denda) > 0 ? formatRupiah(scopeData.nilai_denda) : 'Rp 0'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isKeterlambatan && (
+                                <div className="grid grid-cols-3 gap-2 py-2.5 px-3.5 bg-slate-50/80 rounded-xl border border-slate-100 mb-6 text-xs">
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Nilai SPK</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.spk_total ? formatRupiah(scopeData.spk_total) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Keterlambatan</span>
+                                        <span className={cn("font-bold truncate block mt-0.5", Number(scopeData.hari_denda) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                                            {Number(scopeData.hari_denda) > 0 ? `${scopeData.hari_denda} Hari` : '0 Hari'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Status</span>
+                                        <span className={cn("font-bold truncate block mt-0.5", Number(scopeData.hari_denda) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                                            {Number(scopeData.hari_denda) > 0 ? 'Terlambat' : 'Tepat Waktu'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isEvaluasi && (
+                                <div className="grid grid-cols-3 gap-2 py-2.5 px-3.5 bg-slate-50/80 rounded-xl border border-slate-100 mb-6 text-xs">
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Nilai Toko</span>
+                                        <span className={cn("font-bold truncate block mt-0.5", Number(scopeData.nilai_toko) >= 80 ? "text-emerald-600" : Number(scopeData.nilai_toko) >= 60 ? "text-amber-500" : "text-rose-500")}>
+                                            {Number(scopeData.nilai_toko) > 0 ? `${scopeData.nilai_toko}/100` : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Nilai SPK</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.spk_total ? formatRupiah(scopeData.spk_total) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Status Opname</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.opname_final_total ? 'Selesai' : 'Berjalan'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isKerjaTambah && !isKerjaKurang && !isDenda && !isKeterlambatan && !isEvaluasi && (
+                                <div className="grid grid-cols-3 gap-2 py-2.5 px-3.5 bg-slate-50/80 rounded-xl border border-slate-100 mb-6 text-xs">
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Nilai SPK</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {scopeData.spk_total ? formatRupiah(scopeData.spk_total) : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Keterlambatan</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {Number(scopeData.hari_denda) > 0 ? `${scopeData.hari_denda} Hari` : '-'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Nilai Toko</span>
+                                        <span className="font-bold text-slate-700 truncate block mt-0.5">
+                                            {Number(scopeData.nilai_toko) > 0 ? `${scopeData.nilai_toko}/100` : '-'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Progress Tracker (Decorative) */}
                             <div className="flex items-center justify-between w-full px-1">
@@ -827,7 +1183,7 @@ function LayerDetail({ data, metric }: { data: any, metric?: string }) {
                 <div className="relative z-10 flex flex-col gap-2">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="px-3 py-1 bg-slate-100 text-slate-700 font-semibold text-[11px] uppercase tracking-wider rounded-lg border border-slate-200/60">
-                            {data.cabang}
+                            {data.cabang ? getParentBranch(data.cabang) : '-'}
                         </span>
                         <span className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider">
                             {(metric === 'avg_denda' || metric === 'total_denda') ? 'SIPIL + ME' : data.lingkup_pekerjaan}

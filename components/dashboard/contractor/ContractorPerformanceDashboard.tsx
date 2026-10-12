@@ -6,11 +6,29 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContai
 import { ContractorDrilldownModal } from '@/components/dashboard/contractor/ContractorDrilldownModal';
 import { Badge } from '@/components/ui/badge';
 import { formatRupiah, cn } from '@/lib/utils';
+import { getParentBranch } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { useContractorDashboard } from '@/hooks/useContractorDashboard';
 import { Card } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSession } from '@/context/SessionContext';
+
+const formatContractorChartLabel = (val: string, maxLen = 32) => {
+    if (!val) return '';
+    if (val.length <= maxLen) return val;
+
+    const lastDashIdx = val.lastIndexOf(' - ');
+    if (lastDashIdx !== -1) {
+        const contractor = val.substring(0, lastDashIdx);
+        const branch = val.substring(lastDashIdx);
+        const allowedContractorLen = maxLen - branch.length - 1;
+        if (allowedContractorLen > 6) {
+            return `${contractor.substring(0, allowedContractorLen)}…${branch}`;
+        }
+    }
+
+    return val.substring(0, maxLen - 1) + '…';
+};
 
 export default function ContractorPerformanceDashboard() {
     const { user } = useSession();
@@ -22,6 +40,7 @@ export default function ContractorPerformanceDashboard() {
 
     // Pagination State for Balance Chart
     const [chartPage, setChartPage] = useState(0);
+    const [itemsPerPage, setItemsPerPage] = useState(15);
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
 
     // Modal State
@@ -391,7 +410,7 @@ export default function ContractorPerformanceDashboard() {
                                                     <div className="text-[13px] text-slate-500 flex items-center gap-1.5 mt-1">
                                                         <span className="font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">{row.action_type === 'SP' && row.sp_level ? `SP ${row.sp_level}` : row.action_type}</span>
                                                         <span>•</span>
-                                                        <span>{row.cabang}</span>
+                                                        <span>{getParentBranch(row.cabang)}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
@@ -399,6 +418,11 @@ export default function ContractorPerformanceDashboard() {
                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                                                             Aktif
+                                                        </span>
+                                                    ) : row.has_next_sp ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200/80">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                            {row.next_sp_level ? `Dilanjut ke SP ${row.next_sp_level}` : 'Dilanjut ke SP Selanjutnya'}
                                                         </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
@@ -431,7 +455,6 @@ export default function ContractorPerformanceDashboard() {
 
                     {/* 4. Chart Section */}
                     {(() => {
-                        const itemsPerPage = 15;
                         const totalPages = Math.ceil(balanceChart.length / itemsPerPage);
                         const paginatedData = balanceChart.slice(chartPage * itemsPerPage, (chartPage + 1) * itemsPerPage);
 
@@ -443,54 +466,81 @@ export default function ContractorPerformanceDashboard() {
                                         <p className="text-sm text-slate-500 font-medium mt-1">Perbandingan nilai nominal Penawaran (RAB) vs Nilai SPK</p>
                                     </div>
                                     {balanceChart.length > 0 && (
-                                        <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-[18px] border border-slate-100">
-                                            <span className="text-xs font-bold text-slate-500 px-3 uppercase tracking-wider">
-                                                {chartPage * itemsPerPage + 1} - {Math.min((chartPage + 1) * itemsPerPage, balanceChart.length)} dari {balanceChart.length}
-                                            </span>
-                                            <div className="flex gap-1">
-                                                <button
-                                                    onClick={() => setChartPage(Math.max(0, chartPage - 1))}
-                                                    disabled={chartPage === 0}
-                                                    className="p-2 rounded-xl bg-white shadow-sm border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors"
-                                                >
-                                                    <ChevronLeft className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setChartPage(Math.min(totalPages - 1, chartPage + 1))}
-                                                    disabled={chartPage === totalPages - 1 || totalPages === 0}
-                                                    className="p-2 rounded-xl bg-white shadow-sm border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors"
-                                                >
-                                                    <ChevronRight className="w-4 h-4" />
-                                                </button>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            {/* Item per page selector */}
+                                            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+                                                <span className="text-[11px] font-bold text-slate-400 px-2 uppercase tracking-wider">Per Hal:</span>
+                                                {[10, 15, 20].map((size) => (
+                                                    <button
+                                                        key={size}
+                                                        onClick={() => {
+                                                            setItemsPerPage(size);
+                                                            setChartPage(0);
+                                                        }}
+                                                        className={cn(
+                                                            "px-2.5 py-1 rounded-lg text-xs font-bold transition-all",
+                                                            itemsPerPage === size
+                                                                ? "bg-white text-emerald-600 shadow-sm border border-slate-200"
+                                                                : "text-slate-500 hover:text-slate-800"
+                                                        )}
+                                                    >
+                                                        {size}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Pagination */}
+                                            <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-[18px] border border-slate-100">
+                                                <span className="text-xs font-bold text-slate-500 px-3 uppercase tracking-wider">
+                                                    {chartPage * itemsPerPage + 1} - {Math.min((chartPage + 1) * itemsPerPage, balanceChart.length)} dari {balanceChart.length}
+                                                </span>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => setChartPage(Math.max(0, chartPage - 1))}
+                                                        disabled={chartPage === 0}
+                                                        className="p-2 rounded-xl bg-white shadow-sm border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors"
+                                                    >
+                                                        <ChevronLeft className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setChartPage(Math.min(totalPages - 1, chartPage + 1))}
+                                                        disabled={chartPage === totalPages - 1 || totalPages === 0}
+                                                        className="p-2 rounded-xl bg-white shadow-sm border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors"
+                                                    >
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="h-[400px] w-full">
+                                <div className="h-[500px] w-full overflow-visible [&_.recharts-surface]:overflow-visible [&_.recharts-wrapper]:overflow-visible">
                                     {isLoading ? (
                                         <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">Memuat grafik...</div>
                                     ) : balanceChart.length === 0 ? (
                                         <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">Tidak ada data keseimbangan SPK</div>
                                     ) : (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={paginatedData} margin={{ top: 20, right: 0, left: 0, bottom: 60 }}>
+                                        <ResponsiveContainer width="100%" height="100%" className="overflow-visible [&_.recharts-surface]:overflow-visible">
+                                            <BarChart data={paginatedData} margin={{ top: 20, right: 20, left: 60, bottom: 120 }}>
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                 <XAxis
                                                     dataKey="nama_kontraktor"
                                                     axisLine={false}
                                                     tickLine={false}
-                                                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
+                                                    height={115}
+                                                    tick={{ fill: '#475569', fontSize: 10, fontWeight: 600 }}
                                                     interval={0}
-                                                    tickFormatter={(val) => val.length > 12 ? val.substring(0, 12) + '...' : val}
-                                                    angle={-45}
+                                                    tickFormatter={(val) => formatContractorChartLabel(val, 32)}
+                                                    angle={-48}
                                                     textAnchor="end"
-                                                    dx={-5}
+                                                    dx={0}
                                                     dy={10}
                                                 />
                                                 <YAxis
                                                     axisLine={false}
                                                     tickLine={false}
+                                                    width={65}
                                                     tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
                                                     tickFormatter={(val) => val >= 1000000000 ? `Rp${(val / 1000000000).toFixed(1)}M` : `Rp${(val / 1000000).toFixed(0)}JT`}
                                                 />
@@ -545,8 +595,8 @@ export default function ContractorPerformanceDashboard() {
                                                     iconType="circle"
                                                     formatter={(value) => <span className="text-[13px] font-bold text-slate-600 ml-1.5">{value}</span>}
                                                 />
-                                                <Bar dataKey="total_penawaran" name="Penawaran RAB" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={24} />
-                                                <Bar dataKey="total_spk" name="Nilai SPK" fill="#34d399" radius={[6, 6, 0, 0]} barSize={24} />
+                                                <Bar dataKey="total_penawaran" name="Penawaran RAB" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={itemsPerPage <= 10 ? 28 : itemsPerPage <= 15 ? 22 : 16} />
+                                                <Bar dataKey="total_spk" name="Nilai SPK" fill="#34d399" radius={[6, 6, 0, 0]} barSize={itemsPerPage <= 10 ? 28 : itemsPerPage <= 15 ? 22 : 16} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     )}

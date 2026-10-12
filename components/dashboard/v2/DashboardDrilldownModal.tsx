@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { formatRupiah } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { viewGeneratedPdfOnline } from '@/lib/api';
-import { API_URL } from '@/lib/constants';
+import { API_URL, getParentBranch } from '@/lib/constants';
 
 const formatDateIndo = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '-';
@@ -2703,7 +2703,7 @@ export const DashboardDrilldownModal: React.FC<DashboardDrilldownModalProps> = (
                                     </div>
                                     <div className="flex items-center gap-4 text-xs font-medium text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex-wrap">
                                         <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {formatDateIndo(sp.created_at)}</div>
-                                        {sp.cabang && <div className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" /> {sp.cabang}</div>}
+                                        {sp.cabang && <div className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5" /> {getParentBranch(sp.cabang)}</div>}
                                     </div>
                                     <p className="text-sm text-slate-600 font-medium">Alasan: {sp.alasan_lainnya || sp.alasan_sp?.replace(/_/g, ' ') || '-'}</p>
                                 </div>
