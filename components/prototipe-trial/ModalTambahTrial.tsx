@@ -672,7 +672,7 @@ export function ModalTambahTrial({
 
               <div>
                 <Label className="text-xs font-bold text-slate-700">
-                  Nama Material / Item * <span className="text-[10px] text-red-600">(Autosuggest)</span>
+                  Nama Material / Item *
                 </Label>
                 <div className="mt-1.5">
                   <CreatableSelect
