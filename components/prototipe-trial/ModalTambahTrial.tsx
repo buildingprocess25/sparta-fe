@@ -1,17 +1,19 @@
 // =============================================================================
 // components/prototipe-trial/ModalTambahTrial.tsx
-// Modal Formulir Pengajuan Item Trial Baru (Maker) - Versi Sempurna
+// Modal Formulir Pengajuan Item Trial Baru (Maker) - Standar SPARTA
 // Fitur:
 // 1. React-Select (CreatableSelect) dengan Auto-Suggestion Cerdas
 // 2. Auto-Formatting Title Case (Kapitalisasi Otomatis Setiap Kata)
-// 3. Upload Gambar Nyata dengan Image Preview Thumbnail & Hapus Foto
-// 4. Durasi 2-4 Bulan, Estimasi Harga Terformat, Toggle Bongkaran
-// 5. Layout Card Sections Lega & Desain Enterprise Bersih
+// 3. Kode Item & Kode Master Item Otomatis Terintegrasi (Logika getKodeData)
+// 4. Durasi & Alasan Pengajuan Trial Terpadu dalam 1 Bagian
+// 5. Bagian Terpisah Khusus Foto / Lampiran Spesifikasi Material
+// 6. Panel Konteks Simulator Prototype (Maker & Cabang Uji Coba)
+// 7. Estimasi Harga Awal, Toggle Bongkaran, dan Deskripsi Otomatis
 // =============================================================================
 
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import CreatableSelect from "react-select/creatable";
 import {
   Dialog,
@@ -43,10 +45,19 @@ import {
   Layers,
   Coins,
   CheckCircle2,
+  Copy,
+  Check,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import type { StylesConfig } from "react-select";
 import { TrialItem, TrialStatus, RoleTrial } from "./types";
-import { addTrialItem } from "./store";
+import { addTrialItem, useTrialStore } from "./store";
+import {
+  getKodeData,
+  generateDeskripsiOtomatis,
+  PengajuanHargaItem,
+} from "@/components/pengajuan-harga/types";
 
 interface ModalTambahTrialProps {
   isOpen: boolean;
@@ -280,10 +291,15 @@ export function ModalTambahTrial({
   onSuccess,
 }: ModalTambahTrialProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { items: existingTrialItems } = useTrialStore();
 
-  // Maker & Durasi
+  // Konteks Prototype (Aktor Maker & Cabang Uji Coba)
   const [makerOption, setMakerOption] = useState(MAKER_OPTIONS[0]);
+  const [cabang, setCabang] = useState("Cikokol");
+
+  // Durasi Masa Uji Coba
   const [durasiBulan, setDurasiBulan] = useState<2 | 3 | 4>(3);
+  const [alasanTrial, setAlasanTrial] = useState("");
 
   // Spesifikasi Fisik (dengan Auto Title Case & React-Select)
   const [kategori, setKategori] = useState("Pekerjaan Keramik");
@@ -300,19 +316,117 @@ export function ModalTambahTrial({
   const [toleransiSatuan, setToleransiSatuan] = useState("mm");
   const [implementasi, setImplementasi] = useState("Lantai Gerai");
   const [lokasi, setLokasi] = useState("Area Sales & Kasir");
-  const [cabang, setCabang] = useState("Cikokol");
   const [satuan, setSatuan] = useState("m2");
   const [informasiTambahan, setInformasiTambahan] = useState("");
 
-  // Parameter Finansial & Lampiran Gambar
+  // Parameter Finansial & Pekerjaan Bongkaran
   const [estimasiHarga, setEstimasiHarga] = useState<number>(125000);
   const [isTermasukBongkaran, setIsTermasukBongkaran] = useState(false);
+
+  // Lampiran Gambar Nyata
   const [lampiranName, setLampiranName] = useState("");
   const [lampiranPreview, setLampiranPreview] = useState<string | null>(null);
-  const [alasanTrial, setAlasanTrial] = useState("");
+
+  // Nilai Gabungan Ukuran, Tebal, dan Toleransi
+  const combinedUkuran = useMemo(() => {
+    if (!ukuranNilai.trim()) return "";
+    return [ukuranNilai.trim(), ukuranSatuan.trim()].filter(Boolean).join(" ");
+  }, [ukuranNilai, ukuranSatuan]);
+
+  const combinedTebal = useMemo(() => {
+    if (!tebalNilai.trim()) return "";
+    return [tebalNilai.trim(), tebalSatuan.trim()].filter(Boolean).join(" ");
+  }, [tebalNilai, tebalSatuan]);
+
+  const combinedToleransi = useMemo(() => {
+    if (!toleransiNilai.trim()) return "";
+    return [toleransiNilai.trim(), toleransiSatuan.trim()].filter(Boolean).join(" ");
+  }, [toleransiNilai, toleransiSatuan]);
 
   const durasiHari = useMemo(() => durasiBulan * 30, [durasiBulan]);
-  const kodeItem = useMemo(() => `SIP-${String(nextIndex).padStart(3, "0")}`, [nextIndex]);
+
+  // Kalkulasi Kode Item & Kode Master Item Standar SPARTA (getKodeData)
+  const kodeData = useMemo(() => {
+    return getKodeData({
+      kategori,
+      item: namaItem,
+      implementasi,
+      lokasi,
+      ukuran: combinedUkuran,
+      merk,
+      warna,
+      tipe,
+      permukaan,
+      tebal: combinedTebal,
+      toleransi: combinedToleransi,
+      nextIndex,
+      existingItems: existingTrialItems as unknown as PengajuanHargaItem[],
+    });
+  }, [
+    kategori,
+    namaItem,
+    implementasi,
+    lokasi,
+    combinedUkuran,
+    merk,
+    warna,
+    tipe,
+    permukaan,
+    combinedTebal,
+    combinedToleransi,
+    nextIndex,
+    existingTrialItems,
+  ]);
+
+  const [kodeItem, setKodeItem] = useState(`SIP-${String(nextIndex).padStart(3, "0")}`);
+  const [kodeMaster, setKodeMaster] = useState("");
+  const [deskripsiOtomatis, setDeskripsiOtomatis] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setKodeItem(kodeData.kodeItem);
+    setKodeMaster(kodeData.kodeMaster);
+  }, [kodeData]);
+
+  useEffect(() => {
+    const desc = generateDeskripsiOtomatis({
+      item: namaItem,
+      ukuran: combinedUkuran,
+      merk,
+      warna,
+      tipe,
+      permukaan,
+      tebal: combinedTebal,
+      toleransi: combinedToleransi,
+      informasiTambahan,
+      lokasi,
+      implementasi,
+    });
+    setDeskripsiOtomatis(desc);
+  }, [
+    namaItem,
+    combinedUkuran,
+    merk,
+    warna,
+    tipe,
+    permukaan,
+    combinedTebal,
+    combinedToleransi,
+    informasiTambahan,
+    lokasi,
+    implementasi,
+  ]);
+
+  const handleCopyDescription = async () => {
+    if (!deskripsiOtomatis) return;
+    try {
+      await navigator.clipboard.writeText(deskripsiOtomatis);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback
+    }
+  };
 
   // Handler Pemilihan Material dari Suggestion (Auto-Fill Pintar)
   const handleMaterialSelect = (option: SelectOption | null) => {
@@ -366,39 +480,14 @@ export function ModalTambahTrial({
     }
   };
 
-  // Live Deskripsi Otomatis (Format Standar)
-  const deskripsiOtomatis = useMemo(() => {
-    const parts = [
-      namaItem || "Item Material",
-      merk ? `Merk ${merk}` : "",
-      ukuranNilai ? `${ukuranNilai} ${ukuranSatuan}` : "",
-      warna,
-      tipe,
-      tebalNilai ? `Tebal ${tebalNilai} ${tebalSatuan}` : "",
-      permukaan,
-      implementasi,
-      lokasi,
-      cabang ? `Cabang ${cabang}` : "",
-    ].filter(Boolean);
-    return parts.join(" - ");
-  }, [
-    namaItem,
-    merk,
-    ukuranNilai,
-    ukuranSatuan,
-    warna,
-    tipe,
-    tebalNilai,
-    tebalSatuan,
-    permukaan,
-    implementasi,
-    lokasi,
-    cabang,
-  ]);
-
   const handleSubmit = (isDraft: boolean) => {
     if (!isDraft && (!namaItem.trim() || !merk.trim() || !alasanTrial.trim())) {
       alert("Mohon lengkapi Nama Item, Merk, dan Alasan Pengajuan Trial.");
+      return;
+    }
+
+    if (!isDraft && kodeData.isDuplicate) {
+      alert("Peringatan: Material ini terdeteksi duplikat dengan item yang sudah ada.");
       return;
     }
 
@@ -412,20 +501,22 @@ export function ModalTambahTrial({
     }
 
     const today = new Date().toISOString().split("T")[0];
+    const finalKodeItem = kodeItem.trim() || kodeData.kodeItem;
+    const finalKodeMaster = kodeMaster.trim() || kodeData.kodeMaster;
 
     const newItem: TrialItem = {
       id: `trial-${Date.now()}`,
-      kode: kodeItem,
-      kodeMaster: `TRL-${kategori.substring(10, 13).toUpperCase() || "ITM"}-${ukuranNilai}`,
+      kode: finalKodeItem,
+      kodeMaster: finalKodeMaster,
       item: namaItem || "Item Uji Coba Trial",
       kategori,
-      ukuran: `${ukuranNilai} ${ukuranSatuan}`,
+      ukuran: combinedUkuran || `${ukuranNilai} ${ukuranSatuan}`,
       merk,
       warna,
       tipe,
       permukaan,
-      tebal: `${tebalNilai} ${tebalSatuan}`,
-      toleransi: `${toleransiNilai} ${toleransiSatuan}`,
+      tebal: combinedTebal || `${tebalNilai} ${tebalSatuan}`,
+      toleransi: combinedToleransi || `${toleransiNilai} ${toleransiSatuan}`,
       implementasi,
       lokasi,
       cabang,
@@ -464,20 +555,24 @@ export function ModalTambahTrial({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border-slate-200 shadow-2xl">
-        {/* Header Modal Bersih & Mewah */}
-        <DialogHeader className="p-5 sm:p-6 border-b border-slate-200 bg-white sticky top-0 z-30 flex flex-row items-center justify-between gap-4">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl bg-white border border-slate-200 shadow-xl">
+        {/* Header Modal */}
+        <DialogHeader className="p-5 sm:p-6 border-b border-slate-200 bg-white sticky top-0 z-30 flex flex-row items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shrink-0">
               <FlaskConical className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900">
-                Formulir Pengajuan Item Trial
+              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span>Pengajuan Item Trial Baru</span>
+                <span className="text-xs px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                  Masa Uji Lapangan
+                </span>
               </DialogTitle>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kode Item: <span className="font-mono font-bold text-red-600">{kodeItem}</span> &bull; Lengkapi spesifikasi terstandarisasi, estimasi harga, dan foto bukti.
+                Kode Item: <span className="font-mono font-bold text-red-600">{kodeItem}</span> &bull; Kode Master:{" "}
+                <span className="font-mono font-bold text-slate-700">{kodeMaster || "Menyesuaikan"}</span>
               </p>
             </div>
           </div>
@@ -489,16 +584,18 @@ export function ModalTambahTrial({
         </DialogHeader>
 
         <div className="p-5 sm:p-6 space-y-6 bg-slate-50/50">
-          {/* SEKSI 1: INISIASI PENGANJU & DURASI UJI COBA */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-              <Building className="w-4 h-4 text-red-600" />
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                1. Data Pengaju & Durasi Masa Uji Coba
-              </h4>
+          {/* PANEL: KONTEKS PENGAJUAN (SIMULATOR PROTOTYPE) */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-slate-600" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Konteks Pengajuan (Simulator Prototype)
+                </h4>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs font-bold text-slate-700">Aktor Pengaju (Maker)</Label>
                 <Select
@@ -508,7 +605,7 @@ export function ModalTambahTrial({
                     if (opt) setMakerOption(opt);
                   }}
                 >
-                  <SelectTrigger className="mt-1.5 h-10 bg-slate-50 border-slate-200 text-xs">
+                  <SelectTrigger className="mt-1 h-9 bg-white border-slate-200 text-xs">
                     <SelectValue placeholder="Pilih Maker" />
                   </SelectTrigger>
                   <SelectContent className="z-70">
@@ -519,48 +616,36 @@ export function ModalTambahTrial({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  *Pilih pejabat penanggung jawab inisiasi pengajuan uji coba.
-                </p>
               </div>
 
-              {/* Selector Durasi 2-4 Bulan (Tombol Kartu Segmented) */}
               <div>
-                <Label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                  <span>Pilihan Durasi Masa Uji Coba</span>
-                  <span className="text-[11px] text-red-600 font-semibold">{durasiHari} Hari Kalender</span>
-                </Label>
-                <div className="grid grid-cols-3 gap-2.5 mt-1.5">
-                  {([2, 3, 4] as const).map((m) => (
-                    <button
-                      type="button"
-                      key={m}
-                      onClick={() => setDurasiBulan(m)}
-                      className={`h-10 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        durasiBulan === m
-                          ? "bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-100"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{m} Bulan</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  *Standar durasi trial lapangan berkisar antara 2 hingga 4 bulan.
+                <Label className="text-xs font-bold text-slate-700">Cabang Uji Coba</Label>
+                <Select value={cabang} onValueChange={setCabang}>
+                  <SelectTrigger className="mt-1 h-9 bg-white border-slate-200 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-70">
+                    {CABANG_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c} className="text-xs">
+                        Cabang {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  *Cabang penempatan pengujian operasional material di lapangan.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* SEKSI 2: SPESIFIKASI FISIK MATERIAL (REACT-SELECT & TITLE CASE) */}
+          {/* SEKSI 1: SPESIFIKASI FISIK MATERIAL (REACT-SELECT & TITLE CASE) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-blue-600" />
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                  2. Spesifikasi Fisik Material (Auto-Suggestion & Title Case)
+                  1. Spesifikasi Fisik Material (Auto-Suggestion & Title Case)
                 </h4>
               </div>
               <span className="text-[11px] text-slate-400">
@@ -764,24 +849,8 @@ export function ModalTambahTrial({
               </div>
             </div>
 
-            {/* Baris 4: Cabang Uji Coba, Satuan, dan Catatan Tambahan */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">Cabang Uji Coba</Label>
-                <Select value={cabang} onValueChange={setCabang}>
-                  <SelectTrigger className="mt-1.5 h-9 bg-slate-50 border-slate-200 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-70">
-                    {CABANG_OPTIONS.map((c) => (
-                      <SelectItem key={c} value={c} className="text-xs">
-                        Cabang {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+            {/* Baris 4: Satuan dan Catatan Spesifikasi Tambahan */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs font-bold text-slate-700">Satuan Pekerjaan</Label>
                 <Input
@@ -798,18 +867,18 @@ export function ModalTambahTrial({
                   className="mt-1.5 h-9 text-xs bg-slate-50 border-slate-200"
                   value={informasiTambahan}
                   onChange={(e) => setInformasiTambahan(e.target.value)}
-                  placeholder="Keterangan teknis / SNI..."
+                  placeholder="Keterangan teknis / SNI / petunjuk instalasi..."
                 />
               </div>
             </div>
           </div>
 
-          {/* SEKSI 3: PARAMETER KOMERSIAL AWAL & BONGKARAN */}
+          {/* SEKSI 2: PARAMETER BIAYA AWAL & LINGKUP PEKERJAAN */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
               <Coins className="w-4 h-4 text-emerald-600" />
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                3. Parameter Biaya Awal & Lingkup Pekerjaan
+                2. Parameter Biaya Awal & Lingkup Pekerjaan
               </h4>
             </div>
 
@@ -831,7 +900,7 @@ export function ModalTambahTrial({
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  *Acuan komersial awal dari Maker. Tim S&B tetap memiliki wewenang untuk menyesuaikan harga final & koefisien.
+                  *Acuan awal dari Maker. Tim S&B tetap memiliki wewenang untuk menetapkan harga & koefisien final.
                 </p>
               </div>
 
@@ -856,69 +925,54 @@ export function ModalTambahTrial({
             </div>
           </div>
 
-          {/* SEKSI 4: UPLOAD GAMBAR LAMPIRAN NYATA & ALASAN TRIAL */}
+          {/* SEKSI 3: DURASI MASA UJI & ALASAN PENGAJUAN TRIAL (1 BAGIAN TERPADU) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-              <ImageIcon className="w-4 h-4 text-purple-600" />
+              <Clock className="w-4 h-4 text-amber-600" />
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                4. Foto Spesifikasi Material & Alasan Uji Coba
+                3. Durasi Masa Uji &amp; Alasan Pengajuan Trial
               </h4>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Komponen Upload Gambar Nyata dengan Preview Thumbnail */}
+              {/* Selector Durasi 2-4 Bulan */}
               <div>
-                <Label className="text-xs font-bold text-slate-700">Foto / Brosur Spesifikasi</Label>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-
-                {lampiranPreview ? (
-                  <div className="mt-2 relative p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={lampiranPreview}
-                        alt="Preview Lampiran"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 text-xs">
-                      <span className="font-bold text-slate-900 block truncate">{lampiranName}</span>
-                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-                        <CheckCircle2 className="w-3 h-3" /> Foto siap diunggah
-                      </span>
-                    </div>
+                <Label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Pilihan Durasi Masa Uji Coba *</span>
+                  <span className="text-[11px] text-red-600 font-semibold">{durasiHari} Hari Kalender</span>
+                </Label>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {([2, 3, 4] as const).map((m) => (
                     <button
                       type="button"
-                      onClick={handleRemoveImage}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                      title="Hapus foto"
+                      key={m}
+                      onClick={() => setDurasiBulan(m)}
+                      className={`h-11 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center ${
+                        durasiBulan === m
+                          ? "bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-100"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
                     >
-                      <X className="w-4 h-4" />
+                      <span>{m} Bulan</span>
+                      <span className={`text-[10px] ${durasiBulan === m ? "text-red-100" : "text-slate-400"}`}>
+                        ({m * 30} Hari)
+                      </span>
                     </button>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-2 p-4 border-2 border-dashed border-slate-200 hover:border-red-400 bg-slate-50 hover:bg-red-50/20 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
-                  >
-                    <Upload className="w-6 h-6 text-slate-400 mb-1" />
-                    <span className="text-xs font-bold text-slate-700">Pilih atau Tarik Foto ke Sini</span>
-                    <span className="text-[11px] text-slate-400 mt-0.5">Mendukung JPG, PNG, atau WebP (Maks. 5MB)</span>
-                  </div>
-                )}
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  *Standar masa trial operasional ritel berkisar antara 2 hingga 4 bulan sebelum evaluasi kuorum 3 tim.
+                </p>
               </div>
 
+              {/* Alasan / Urgensi Trial Lapangan */}
               <div>
-                <Label className="text-xs font-bold text-slate-700">Alasan / Urgensi Uji Coba Lapangan *</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Alasan &amp; Urgensi Uji Coba Lapangan *
+                </Label>
                 <Textarea
-                  className="mt-2 h-24 text-xs bg-slate-50 border-slate-200"
-                  placeholder="Jelaskan tujuan pengujian, parameter evaluasi daya tahan, atau urgensi operasional di gerai..."
+                  className="mt-2 h-24 text-xs bg-slate-50 border-slate-200 leading-relaxed"
+                  placeholder="Jelaskan tujuan pengujian lapangan, parameter evaluasi daya tahan fisik, atau urgensi operasional di gerai..."
                   value={alasanTrial}
                   onChange={(e) => setAlasanTrial(e.target.value)}
                 />
@@ -926,15 +980,143 @@ export function ModalTambahTrial({
             </div>
           </div>
 
-          {/* Live Preview Deskripsi Otomatis */}
-          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-1">
-            <div className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Deskripsi Standar Otomatis (Live Preview):</span>
+          {/* SEKSI 4: FOTO / LAMPIRAN SPESIFIKASI MATERIAL (BAGIAN MANDIRI) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+              <ImageIcon className="w-4 h-4 text-purple-600" />
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                4. Foto / Lampiran Spesifikasi Material
+              </h4>
             </div>
-            <p className="font-mono text-slate-700 text-xs leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              {deskripsiOtomatis}
-            </p>
+
+            <div>
+              <Label className="text-xs font-bold text-slate-700">
+                Unggah Foto Fisik / Brosur Spesifikasi
+              </Label>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
+              {lampiranPreview ? (
+                <div className="mt-2 relative p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={lampiranPreview}
+                      alt="Preview Lampiran"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 text-xs">
+                    <span className="font-bold text-slate-900 block truncate text-sm">{lampiranName}</span>
+                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Foto spesifikasi siap diunggah
+                    </span>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Foto akan tersimpan dan tampil di Tab 1 Detail Item Trial.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Hapus foto"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-2 p-6 border-2 border-dashed border-slate-200 hover:border-red-400 bg-slate-50 hover:bg-red-50/20 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+                >
+                  <Upload className="w-7 h-7 text-slate-400 mb-1.5" />
+                  <span className="text-xs font-bold text-slate-800">Pilih atau Tarik Foto Spesifikasi ke Sini</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5">
+                    Mendukung format gambar JPG, PNG, atau WebP (Maksimal 5MB)
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SEKSI 5: KODE MASTER & DESKRIPSI OTOMATIS (STANDAR SPARTA) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+              <FileText className="w-4 h-4 text-red-600" />
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                5. Kode Master &amp; Deskripsi Otomatis
+              </h4>
+            </div>
+
+            {/* Warning Duplikat jika ada */}
+            {kodeData.isDuplicate && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Peringatan: Item Serupa Terdeteksi!</span>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Spesifikasi fisik dan lokasi material ini identik dengan item{" "}
+                    <strong>{kodeData.duplicateItem?.kode}</strong> ({kodeData.duplicateItem?.kodeMaster}).
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Kode Item</Label>
+                <Input
+                  value={kodeItem}
+                  disabled
+                  readOnly
+                  className="h-9 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-600 cursor-not-allowed border-slate-200"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <Label className="text-xs font-semibold text-slate-700">Kode Master Item</Label>
+                <Input
+                  value={kodeMaster}
+                  disabled
+                  readOnly
+                  className="h-9 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Deskripsi Standar Otomatis</span>
+                </Label>
+                <button
+                  type="button"
+                  onClick={handleCopyDescription}
+                  className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer font-medium"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-600 font-semibold">Tersalin</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Salin</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700 leading-relaxed font-mono min-h-[44px]">
+                {deskripsiOtomatis || "-"}
+              </div>
+            </div>
           </div>
         </div>
 
