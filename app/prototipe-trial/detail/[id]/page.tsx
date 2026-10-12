@@ -23,8 +23,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft,
-  FileText,
-  Clock,
   Layers,
   CheckCircle2,
   AlertTriangle,
@@ -201,16 +199,16 @@ export default function DetailTrialItemPage() {
 
         {/* Tab Navigasi Konten */}
         <div className="flex items-center gap-1 border-b border-slate-200 bg-white px-3 pt-2 rounded-t-xl overflow-x-auto scrollbar-none">
-          {[
+          {([
             { id: 'spek', label: '1. Spesifikasi & Maker', icon: <Layers className="w-3.5 h-3.5" /> },
             { id: 'koefisien', label: '2. Harga & Koefisien S&B', icon: <Calculator className="w-3.5 h-3.5" /> },
             { id: 'dokumen', label: '3. Dokumen Trial (PDF)', icon: <FileCheck className="w-3.5 h-3.5" /> },
             { id: 'evaluasi', label: '4. Evaluasi Kuorum 3 Tim', icon: <Vote className="w-3.5 h-3.5" /> },
             { id: 'history', label: '5. Riwayat Audit', icon: <History className="w-3.5 h-3.5" /> },
-          ].map((t) => (
+          ] as const).map((t) => (
             <button
               key={t.id}
-              onClick={() => setActiveTab(t.id as any)}
+              onClick={() => setActiveTab(t.id)}
               className={`px-3.5 py-2 text-xs font-bold shrink-0 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                 activeTab === t.id
                   ? 'border-red-600 text-red-600 bg-red-50/50 rounded-t-lg'
@@ -283,13 +281,39 @@ export default function DetailTrialItemPage() {
                 </div>
               </div>
               <div>
-                <span className="text-slate-500 font-medium">Lampiran Dokumen Maker</span>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <Paperclip className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="font-semibold text-blue-700 underline cursor-pointer text-xs">
-                    {item.lampiranMakerName || 'Tidak ada berkas'}
-                  </span>
-                </div>
+                <span className="text-slate-500 font-medium">Lampiran Dokumen / Foto Maker</span>
+                {item.lampiranMakerUrl ? (
+                  <div className="mt-2 flex items-center gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="w-12 h-12 rounded overflow-hidden border border-slate-200 bg-white shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.lampiranMakerUrl}
+                        alt="Foto Maker"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-semibold text-slate-800 text-xs block truncate">
+                        {item.lampiranMakerName || 'Foto Spesifikasi'}
+                      </span>
+                      <a
+                        href={item.lampiranMakerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-blue-600 hover:underline font-medium"
+                      >
+                        Lihat Foto Penuh ↗
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-slate-500 text-xs">
+                      {item.lampiranMakerName || 'Tidak ada berkas'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
