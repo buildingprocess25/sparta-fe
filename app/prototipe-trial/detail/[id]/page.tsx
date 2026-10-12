@@ -36,6 +36,7 @@ import {
   Vote,
   Sparkles,
   ExternalLink,
+  FileText,
 } from 'lucide-react';
 
 export default function DetailTrialItemPage() {
@@ -280,18 +281,72 @@ export default function DetailTrialItemPage() {
                   )}
                 </div>
               </div>
-              <div>
-                <span className="text-slate-500 font-medium">Lampiran Dokumen / Foto Maker</span>
-                {item.lampiranMakerUrl ? (
+              <div className={item.lampiranMakerList && item.lampiranMakerList.length > 1 ? "sm:col-span-2" : ""}>
+                <span className="text-slate-500 font-medium">
+                  Lampiran Dokumen / Foto Maker {item.lampiranMakerList && item.lampiranMakerList.length > 1 ? `(${item.lampiranMakerList.length} Berkas)` : ""}
+                </span>
+                {item.lampiranMakerList && item.lampiranMakerList.length > 0 ? (
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {item.lampiranMakerList.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex items-center gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                      >
+                        {file.url.startsWith("data:image/") ? (
+                          <div className="w-10 h-10 rounded overflow-hidden border border-slate-200 bg-white shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4" />
+                            <span className="text-[7px] font-bold uppercase">
+                              {file.name.split(".").pop() || "DOC"}
+                            </span>
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 text-xs">
+                          <span
+                            className="font-semibold text-slate-800 block truncate"
+                            title={file.name}
+                          >
+                            {file.name}
+                          </span>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-blue-600 hover:underline font-medium"
+                          >
+                            Lihat / Unduh ↗
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : item.lampiranMakerUrl ? (
                   <div className="mt-2 flex items-center gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                    <div className="w-12 h-12 rounded overflow-hidden border border-slate-200 bg-white shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.lampiranMakerUrl}
-                        alt="Foto Maker"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    {item.lampiranMakerUrl.startsWith("data:image/") ? (
+                      <div className="w-12 h-12 rounded overflow-hidden border border-slate-200 bg-white shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.lampiranMakerUrl}
+                          alt="Foto Maker"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
+                        <span className="text-[8px] font-bold uppercase">
+                          {item.lampiranMakerName?.split(".").pop() || "DOC"}
+                        </span>
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <span className="font-semibold text-slate-800 text-xs block truncate">
                         {item.lampiranMakerName || 'Foto Spesifikasi'}
@@ -302,7 +357,7 @@ export default function DetailTrialItemPage() {
                         rel="noreferrer"
                         className="text-[11px] text-blue-600 hover:underline font-medium"
                       >
-                        Lihat Foto Penuh ↗
+                        Lihat Berkas Penuh ↗
                       </a>
                     </div>
                   </div>

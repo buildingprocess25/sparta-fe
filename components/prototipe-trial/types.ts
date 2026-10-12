@@ -38,6 +38,14 @@ export interface KoefisienItem {
   jenis: 'UPAH' | 'MATERIAL' | 'BONGKARAN';
 }
 
+export interface LampiranFileItem {
+  id: string;
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+}
+
 export interface FormEvaluasiTim {
   tim: 'TIM_PP' | 'TIM_BMES' | 'TIM_SB';
   namaPenilai: string;
@@ -84,6 +92,7 @@ export interface TrialItem {
   isTermasukBongkaran: boolean;
   lampiranMakerName?: string;
   lampiranMakerUrl?: string;
+  lampiranMakerList?: LampiranFileItem[];
   makerRole: 'MAKER_SENIOR' | 'MAKER_JUNIOR' | 'PP_MANAGER';
   makerNama: string;
   tanggalPengajuan: string;

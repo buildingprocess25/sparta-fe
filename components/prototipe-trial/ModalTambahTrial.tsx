@@ -50,7 +50,7 @@ import {
   FileText,
 } from "lucide-react";
 import type { StylesConfig } from "react-select";
-import { TrialItem, TrialStatus, RoleTrial } from "./types";
+import { TrialItem, TrialStatus, RoleTrial, LampiranFileItem } from "./types";
 import { addTrialItem, useTrialStore } from "./store";
 import {
   getKodeData,
@@ -518,6 +518,22 @@ const DEFAULT_CATATAN_OPTIONS = [
   { label: "Self-Leveling Anti-Chemical", value: "Self-Leveling Anti-Chemical" },
 ];
 
+interface UploadedFileItem {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  isImage: boolean;
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (!bytes || bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export function ModalTambahTrial({
   isOpen,
   onClose,
@@ -557,9 +573,8 @@ export function ModalTambahTrial({
   const [estimasiHarga, setEstimasiHarga] = useState<number>(125000);
   const [isTermasukBongkaran, setIsTermasukBongkaran] = useState(false);
 
-  // Lampiran Gambar Nyata
-  const [lampiranName, setLampiranName] = useState("");
-  const [lampiranPreview, setLampiranPreview] = useState<string | null>(null);
+  // Lampiran Berkas (Mendukung Multi-Upload / Bulking)
+  const [lampiranList, setLampiranList] = useState<UploadedFileItem[]>([]);
 
   // Nilai Gabungan Ukuran, Tebal, dan Toleransi
   const combinedUkuran = useMemo(() => {
@@ -687,32 +702,67 @@ export function ModalTambahTrial({
     }
   };
 
-  // Handler Upload Dokumen & Gambar
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handler Upload Dokumen & Gambar (Mendukung Multi-Upload / Bulking)
+  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Ukuran berkas maksimal adalah 10MB.");
-      return;
+    const fileArray = Array.from(files);
+    const newItems: UploadedFileItem[] = [];
+
+    fileArray.forEach((file) => {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`Berkas "${file.name}" melebihi batas maksimal 10MB.`);
+        return;
+      }
+
+      const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      const isImg = file.type.startsWith("image/");
+
+      if (isImg) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setLampiranList((prev) => [
+            ...prev,
+            {
+              id: fileId,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              url: reader.result as string,
+              isImage: true,
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const url = URL.createObjectURL(file);
+        newItems.push({
+          id: fileId,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          url,
+          isImage: false,
+        });
+      }
+    });
+
+    if (newItems.length > 0) {
+      setLampiranList((prev) => [...prev, ...newItems]);
     }
 
-    setLampiranName(file.name);
-    const isImg = file.type.startsWith("image/");
-    if (isImg) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLampiranPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setLampiranPreview(URL.createObjectURL(file));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  const handleRemoveImage = () => {
-    setLampiranName("");
-    setLampiranPreview(null);
+  const handleRemoveFile = (id: string) => {
+    setLampiranList((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleClearAllFiles = () => {
+    setLampiranList([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -744,6 +794,22 @@ export function ModalTambahTrial({
     const finalKodeItem = kodeItem.trim() || kodeData.kodeItem;
     const finalKodeMaster = kodeMaster.trim() || kodeData.kodeMaster;
 
+    const firstFile = lampiranList[0];
+    const lampiranMakerName =
+      lampiranList.length === 1
+        ? lampiranList[0].name
+        : lampiranList.length > 1
+          ? `${lampiranList[0].name} (+${lampiranList.length - 1} berkas)`
+          : undefined;
+    const lampiranMakerUrl = firstFile?.url;
+    const lampiranMakerList: LampiranFileItem[] = lampiranList.map((f) => ({
+      id: f.id,
+      name: f.name,
+      url: f.url,
+      size: f.size,
+      type: f.type,
+    }));
+
     const newItem: TrialItem = {
       id: `trial-${Date.now()}`,
       kode: finalKodeItem,
@@ -768,8 +834,9 @@ export function ModalTambahTrial({
       durasiHari,
       estimasiHargaMaker: Number(estimasiHarga) || 0,
       isTermasukBongkaran,
-      lampiranMakerName: lampiranName || undefined,
-      lampiranMakerUrl: lampiranPreview || undefined,
+      lampiranMakerName,
+      lampiranMakerUrl,
+      lampiranMakerList: lampiranMakerList.length > 0 ? lampiranMakerList : undefined,
       makerRole: makerOption.role as RoleTrial,
       makerNama: makerOption.value,
       tanggalPengajuan: today,
@@ -893,8 +960,8 @@ export function ModalTambahTrial({
             </div>
           </div>
 
-          {/* SEKSI 1: SPESIFIKASI FISIK MATERIAL (REACT-SELECT & TITLE CASE) */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+          {/* SEKSI 1: SPESIFIKASI MATERIAL (DIBAGI MENJADI 3 SUB-BAGIAN TERSTRUKTUR) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-5">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-blue-600" />
@@ -903,337 +970,384 @@ export function ModalTambahTrial({
                 </h4>
               </div>
               <span className="text-[11px] text-slate-400">
-                Ketik atau pilih dari daftar yang tersedia
+                Ketik atau pilih dari opsi yang tersedia
               </span>
             </div>
 
-            {/* Baris 1: Kategori, Material & Merk */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Kategori Pekerjaan *
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Pilih atau ketik kategori..."
-                    options={DEFAULT_KATEGORI_OPTIONS}
-                    value={
-                      kategori ? { label: kategori, value: kategori } : null
-                    }
-                    onChange={(opt) =>
-                      setKategori(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) => setKategori(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
+            {/* Sub-bagian 1.A: Identitas & Klasifikasi Pokok */}
+            <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center justify-center">
+                    A
+                  </span>
+                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Identitas &amp; Klasifikasi Material
+                  </h5>
                 </div>
+                <span className="text-[10px] text-slate-400 font-medium">*Wajib diisi</span>
               </div>
 
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Nama Material / Item *
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Contoh: Keramik Lantai..."
-                    options={DEFAULT_MATERIAL_OPTIONS}
-                    value={
-                      namaItem ? { label: namaItem, value: namaItem } : null
-                    }
-                    onChange={handleMaterialSelect}
-                    onCreateOption={(val) => setNamaItem(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Kategori Pekerjaan *
+                  </Label>
+                  <div className="mt-1.5">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="Pilih/ketik kategori..."
+                      options={DEFAULT_KATEGORI_OPTIONS}
+                      value={
+                        kategori ? { label: kategori, value: kategori } : null
+                      }
+                      onChange={(opt) =>
+                        setKategori(opt ? formatTitleCase(opt.value) : "")
+                      }
+                      onCreateOption={(val) => setKategori(formatTitleCase(val))}
+                      styles={comboboxStyles}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Merk / Brand *
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Contoh: Sandimas / Roman..."
-                    options={DEFAULT_MERK_OPTIONS}
-                    value={merk ? { label: merk, value: merk } : null}
-                    onChange={(opt) =>
-                      setMerk(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) => setMerk(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Nama Material / Item *
+                  </Label>
+                  <div className="mt-1.5">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="Contoh: Keramik Lantai..."
+                      options={DEFAULT_MATERIAL_OPTIONS}
+                      value={
+                        namaItem ? { label: namaItem, value: namaItem } : null
+                      }
+                      onChange={handleMaterialSelect}
+                      onCreateOption={(val) => setNamaItem(formatTitleCase(val))}
+                      styles={comboboxStyles}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Merk / Brand *
+                  </Label>
+                  <div className="mt-1.5">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="Contoh: Sandimas / Roman..."
+                      options={DEFAULT_MERK_OPTIONS}
+                      value={merk ? { label: merk, value: merk } : null}
+                      onChange={(opt) =>
+                        setMerk(opt ? formatTitleCase(opt.value) : "")
+                      }
+                      onCreateOption={(val) => setMerk(formatTitleCase(val))}
+                      styles={comboboxStyles}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Tipe / Motif
+                  </Label>
+                  <div className="mt-1.5">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="Contoh: Sicily Grey..."
+                      options={DEFAULT_TIPE_OPTIONS}
+                      value={tipe ? { label: tipe, value: tipe } : null}
+                      onChange={(opt) =>
+                        setTipe(opt ? formatTitleCase(opt.value) : "")
+                      }
+                      onCreateOption={(val) => setTipe(formatTitleCase(val))}
+                      styles={comboboxStyles}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Baris 2: Ukuran, Warna, Tipe, Permukaan */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Ukuran / Dimensi
-                </Label>
-                <div className="flex gap-1.5 mt-1.5">
-                  <div className="flex-1 min-w-0">
+            {/* Sub-bagian 1.B: Dimensi & Karakteristik Fisik */}
+            <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">
+                    B
+                  </span>
+                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Dimensi &amp; Karakteristik Fisik
+                  </h5>
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  Ukuran, ketebalan, toleransi &amp; tampilan
+                </span>
+              </div>
+
+              {/* Baris 1: Ukuran, Ketebalan, Toleransi */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Ukuran / Dimensi
+                  </Label>
+                  <div className="flex gap-1.5 mt-1.5">
+                    <div className="flex-1 min-w-0">
+                      <CreatableSelect
+                        isClearable
+                        placeholder="60x60..."
+                        options={DEFAULT_UKURAN_OPTIONS}
+                        value={
+                          ukuranNilai
+                            ? { label: ukuranNilai, value: ukuranNilai }
+                            : null
+                        }
+                        onChange={(opt) => setUkuranNilai(opt ? opt.value : "")}
+                        onCreateOption={(val) => setUkuranNilai(val)}
+                        styles={comboboxStyles}
+                      />
+                    </div>
+                    <div className="w-22 shrink-0">
+                      <CreatableSelect
+                        placeholder="cm"
+                        options={SATUAN_UKURAN_OPTIONS}
+                        value={
+                          ukuranSatuan
+                            ? { label: ukuranSatuan, value: ukuranSatuan }
+                            : null
+                        }
+                        onChange={(opt) => setUkuranSatuan(opt ? opt.value : "cm")}
+                        onCreateOption={(val) => setUkuranSatuan(val)}
+                        styles={unitComboboxStyles}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Ketebalan
+                  </Label>
+                  <div className="flex gap-1.5 mt-1.5">
+                    <div className="flex-1 min-w-0">
+                      <CreatableSelect
+                        isClearable
+                        placeholder="9..."
+                        options={DEFAULT_TEBAL_OPTIONS}
+                        value={
+                          tebalNilai
+                            ? { label: tebalNilai, value: tebalNilai }
+                            : null
+                        }
+                        onChange={(opt) => setTebalNilai(opt ? opt.value : "")}
+                        onCreateOption={(val) => setTebalNilai(val)}
+                        styles={comboboxStyles}
+                      />
+                    </div>
+                    <div className="w-22 shrink-0">
+                      <CreatableSelect
+                        placeholder="mm"
+                        options={SATUAN_TEBAL_OPTIONS}
+                        value={
+                          tebalSatuan
+                            ? { label: tebalSatuan, value: tebalSatuan }
+                            : null
+                        }
+                        onChange={(opt) => setTebalSatuan(opt ? opt.value : "mm")}
+                        onCreateOption={(val) => setTebalSatuan(val)}
+                        styles={unitComboboxStyles}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Toleransi
+                  </Label>
+                  <div className="flex gap-1.5 mt-1.5">
+                    <div className="flex-1 min-w-0">
+                      <CreatableSelect
+                        isClearable
+                        placeholder="0.5..."
+                        options={DEFAULT_TOLERANSI_OPTIONS}
+                        value={
+                          toleransiNilai
+                            ? { label: toleransiNilai, value: toleransiNilai }
+                            : null
+                        }
+                        onChange={(opt) =>
+                          setToleransiNilai(opt ? opt.value : "")
+                        }
+                        onCreateOption={(val) => setToleransiNilai(val)}
+                        styles={comboboxStyles}
+                      />
+                    </div>
+                    <div className="w-22 shrink-0">
+                      <CreatableSelect
+                        placeholder="mm"
+                        options={SATUAN_TOLERANSI_OPTIONS}
+                        value={
+                          toleransiSatuan
+                            ? { label: toleransiSatuan, value: toleransiSatuan }
+                            : null
+                        }
+                        onChange={(opt) =>
+                          setToleransiSatuan(opt ? opt.value : "mm")
+                        }
+                        onCreateOption={(val) => setToleransiSatuan(val)}
+                        styles={unitComboboxStyles}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Baris 2: Warna & Finishing Permukaan */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 border-t border-slate-200/60">
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Warna
+                  </Label>
+                  <div className="mt-1.5">
                     <CreatableSelect
                       isClearable
-                      placeholder="60x60..."
-                      options={DEFAULT_UKURAN_OPTIONS}
-                      value={
-                        ukuranNilai
-                          ? { label: ukuranNilai, value: ukuranNilai }
-                          : null
+                      placeholder="Contoh: Grey Rock..."
+                      options={DEFAULT_WARNA_OPTIONS}
+                      value={warna ? { label: warna, value: warna } : null}
+                      onChange={(opt) =>
+                        setWarna(opt ? formatTitleCase(opt.value) : "")
                       }
-                      onChange={(opt) => setUkuranNilai(opt ? opt.value : "")}
-                      onCreateOption={(val) => setUkuranNilai(val)}
+                      onCreateOption={(val) => setWarna(formatTitleCase(val))}
                       styles={comboboxStyles}
                     />
                   </div>
-                  <div className="w-22 shrink-0">
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Finishing Permukaan
+                  </Label>
+                  <div className="mt-1.5">
                     <CreatableSelect
-                      placeholder="cm"
-                      options={SATUAN_UKURAN_OPTIONS}
+                      isClearable
+                      placeholder="Contoh: Matte Anti-Slip..."
+                      options={DEFAULT_PERMUKAAN_OPTIONS}
                       value={
-                        ukuranSatuan
-                          ? { label: ukuranSatuan, value: ukuranSatuan }
-                          : null
+                        permukaan ? { label: permukaan, value: permukaan } : null
                       }
-                      onChange={(opt) => setUkuranSatuan(opt ? opt.value : "cm")}
-                      onCreateOption={(val) => setUkuranSatuan(val)}
-                      styles={unitComboboxStyles}
+                      onChange={(opt) =>
+                        setPermukaan(opt ? formatTitleCase(opt.value) : "")
+                      }
+                      onCreateOption={(val) => setPermukaan(formatTitleCase(val))}
+                      styles={comboboxStyles}
                     />
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Warna
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Contoh: Grey Rock..."
-                    options={DEFAULT_WARNA_OPTIONS}
-                    value={warna ? { label: warna, value: warna } : null}
-                    onChange={(opt) =>
-                      setWarna(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) => setWarna(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Tipe / Motif
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Contoh: Sicily Grey..."
-                    options={DEFAULT_TIPE_OPTIONS}
-                    value={tipe ? { label: tipe, value: tipe } : null}
-                    onChange={(opt) =>
-                      setTipe(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) => setTipe(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Finishing Permukaan
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Contoh: Matte Anti-Slip..."
-                    options={DEFAULT_PERMUKAAN_OPTIONS}
-                    value={
-                      permukaan ? { label: permukaan, value: permukaan } : null
-                    }
-                    onChange={(opt) =>
-                      setPermukaan(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) => setPermukaan(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
                 </div>
               </div>
             </div>
 
-            {/* Baris 3: Ketebalan, Toleransi, Posisi, Area */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Ketebalan
-                </Label>
-                <div className="flex gap-1.5 mt-1.5">
-                  <div className="flex-1 min-w-0">
-                    <CreatableSelect
-                      isClearable
-                      placeholder="9..."
-                      options={DEFAULT_TEBAL_OPTIONS}
-                      value={
-                        tebalNilai
-                          ? { label: tebalNilai, value: tebalNilai }
-                          : null
-                      }
-                      onChange={(opt) => setTebalNilai(opt ? opt.value : "")}
-                      onCreateOption={(val) => setTebalNilai(val)}
-                      styles={comboboxStyles}
-                    />
-                  </div>
-                  <div className="w-22 shrink-0">
-                    <CreatableSelect
-                      placeholder="mm"
-                      options={SATUAN_TEBAL_OPTIONS}
-                      value={
-                        tebalSatuan
-                          ? { label: tebalSatuan, value: tebalSatuan }
-                          : null
-                      }
-                      onChange={(opt) => setTebalSatuan(opt ? opt.value : "mm")}
-                      onCreateOption={(val) => setTebalSatuan(val)}
-                      styles={unitComboboxStyles}
-                    />
-                  </div>
+            {/* Sub-bagian 1.C: Penempatan Lokasi & Satuan Kerja */}
+            <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-md bg-teal-100 text-teal-700 text-[11px] font-bold flex items-center justify-center">
+                    C
+                  </span>
+                  <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    Penempatan Lokasi &amp; Satuan Kerja
+                  </h5>
                 </div>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  Implementasi penempatan gerai &amp; unit satuan
+                </span>
               </div>
 
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Toleransi
-                </Label>
-                <div className="flex gap-1.5 mt-1.5">
-                  <div className="flex-1 min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Posisi Implementasi
+                  </Label>
+                  <div className="mt-1.5">
                     <CreatableSelect
                       isClearable
-                      placeholder="0.5..."
-                      options={DEFAULT_TOLERANSI_OPTIONS}
+                      placeholder="Pilih posisi..."
+                      options={DEFAULT_POSISI_OPTIONS}
                       value={
-                        toleransiNilai
-                          ? { label: toleransiNilai, value: toleransiNilai }
+                        implementasi
+                          ? { label: implementasi, value: implementasi }
                           : null
                       }
                       onChange={(opt) =>
-                        setToleransiNilai(opt ? opt.value : "")
+                        setImplementasi(opt ? formatTitleCase(opt.value) : "")
                       }
-                      onCreateOption={(val) => setToleransiNilai(val)}
+                      onCreateOption={(val) =>
+                        setImplementasi(formatTitleCase(val))
+                      }
                       styles={comboboxStyles}
                     />
                   </div>
-                  <div className="w-22 shrink-0">
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Lokasi / Area Toko
+                  </Label>
+                  <div className="mt-1.5">
                     <CreatableSelect
-                      placeholder="mm"
-                      options={SATUAN_TOLERANSI_OPTIONS}
-                      value={
-                        toleransiSatuan
-                          ? { label: toleransiSatuan, value: toleransiSatuan }
-                          : null
-                      }
+                      isClearable
+                      placeholder="Pilih area..."
+                      options={DEFAULT_AREA_OPTIONS}
+                      value={lokasi ? { label: lokasi, value: lokasi } : null}
                       onChange={(opt) =>
-                        setToleransiSatuan(opt ? opt.value : "mm")
+                        setLokasi(opt ? formatTitleCase(opt.value) : "")
                       }
-                      onCreateOption={(val) => setToleransiSatuan(val)}
-                      styles={unitComboboxStyles}
+                      onCreateOption={(val) => setLokasi(formatTitleCase(val))}
+                      styles={comboboxStyles}
                     />
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Posisi Implementasi
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Pilih posisi..."
-                    options={DEFAULT_POSISI_OPTIONS}
-                    value={
-                      implementasi
-                        ? { label: implementasi, value: implementasi }
-                        : null
-                    }
-                    onChange={(opt) =>
-                      setImplementasi(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) =>
-                      setImplementasi(formatTitleCase(val))
-                    }
-                    styles={comboboxStyles}
-                  />
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Satuan Pekerjaan
+                  </Label>
+                  <div className="mt-1.5">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="m2 / unit / m1..."
+                      options={DEFAULT_SATUAN_OPTIONS}
+                      value={satuan ? { label: satuan, value: satuan } : null}
+                      onChange={(opt) =>
+                        setSatuan(opt ? opt.value.toLowerCase() : "")
+                      }
+                      onCreateOption={(val) => setSatuan(val.toLowerCase())}
+                      styles={comboboxStyles}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Lokasi / Area Toko
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Pilih area..."
-                    options={DEFAULT_AREA_OPTIONS}
-                    value={lokasi ? { label: lokasi, value: lokasi } : null}
-                    onChange={(opt) =>
-                      setLokasi(opt ? formatTitleCase(opt.value) : "")
-                    }
-                    onCreateOption={(val) => setLokasi(formatTitleCase(val))}
-                    styles={comboboxStyles}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Baris 4: Satuan dan Catatan Spesifikasi Tambahan */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Satuan Pekerjaan
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="m2 / unit / m1 / m3..."
-                    options={DEFAULT_SATUAN_OPTIONS}
-                    value={satuan ? { label: satuan, value: satuan } : null}
-                    onChange={(opt) =>
-                      setSatuan(opt ? opt.value.toLowerCase() : "")
-                    }
-                    onCreateOption={(val) => setSatuan(val.toLowerCase())}
-                    styles={comboboxStyles}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold text-slate-700">
-                  Catatan Spesifikasi (Opsional)
-                </Label>
-                <div className="mt-1.5">
-                  <CreatableSelect
-                    isClearable
-                    placeholder="Pilih atau ketik catatan teknis / SNI..."
-                    options={DEFAULT_CATATAN_OPTIONS}
-                    value={
-                      informasiTambahan
-                        ? { label: informasiTambahan, value: informasiTambahan }
-                        : null
-                    }
-                    onChange={(opt) =>
-                      setInformasiTambahan(opt ? opt.value : "")
-                    }
-                    onCreateOption={(val) => setInformasiTambahan(val)}
-                    styles={comboboxStyles}
-                  />
+                <div>
+                  <Label className="text-xs font-bold text-slate-700">
+                    Catatan Spesifikasi (Opsional)
+                  </Label>
+                  <div className="mt-1.5">
+                    <CreatableSelect
+                      isClearable
+                      placeholder="Pilih/ketik catatan teknis..."
+                      options={DEFAULT_CATATAN_OPTIONS}
+                      value={
+                        informasiTambahan
+                          ? { label: informasiTambahan, value: informasiTambahan }
+                          : null
+                      }
+                      onChange={(opt) =>
+                        setInformasiTambahan(opt ? opt.value : "")
+                      }
+                      onCreateOption={(val) => setInformasiTambahan(val)}
+                      styles={comboboxStyles}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1339,11 +1453,11 @@ export function ModalTambahTrial({
               {/* Alasan / Urgensi Trial Lapangan */}
               <div>
                 <Label className="text-xs font-bold text-slate-700">
-                  Alasan &amp; Urgensi Uji Coba Lapangan *
+                  Alasan*
                 </Label>
                 <Textarea
                   className="mt-2 h-24 text-xs bg-slate-50 border-slate-200 leading-relaxed"
-                  placeholder="Jelaskan tujuan pengujian lapangan, parameter evaluasi daya tahan fisik, atau urgensi operasional di gerai..."
+                  placeholder="Jelaskan tujuan pengujian lapangan"
                   value={alasanTrial}
                   onChange={(e) => setAlasanTrial(e.target.value)}
                 />
@@ -1351,78 +1465,121 @@ export function ModalTambahTrial({
             </div>
           </div>
 
-          {/* SEKSI 4: LAMPIRAN DOKUMEN & FOTO SPESIFIKASI MATERIAL (BAGIAN MANDIRI) */}
+          {/* SEKSI 4: LAMPIRAN DOKUMEN & FOTO SPESIFIKASI MATERIAL (BULK UPLOAD) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-              <FileText className="w-4 h-4 text-purple-600" />
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                4. Lampiran Dokumen &amp; Foto Spesifikasi Material
-              </h4>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-600" />
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                  4. Lampiran Dokumen &amp; Foto Spesifikasi Material
+                </h4>
+              </div>
+              {lampiranList.length > 0 && (
+                <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                  {lampiranList.length} Berkas Terpilih
+                </span>
+              )}
             </div>
 
             <div>
-              <Label className="text-xs font-bold text-slate-700">
-                Unggah Berkas Dokumen / Foto Spesifikasi
-              </Label>
               <input
                 type="file"
                 ref={fileInputRef}
+                multiple
                 accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
-                onChange={handleFileChange}
+                onChange={handleFilesChange}
                 className="hidden"
               />
 
-              {lampiranName ? (
-                <div className="mt-2 relative p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
-                  {lampiranPreview && lampiranPreview.startsWith("data:image/") ? (
-                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={lampiranPreview}
-                        alt="Preview Lampiran"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
-                      <FileText className="w-7 h-7" />
-                      <span className="text-[9px] font-bold uppercase mt-0.5">
-                        {lampiranName.split(".").pop() || "DOC"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0 text-xs">
-                    <span className="font-bold text-slate-900 block truncate text-sm">
-                      {lampiranName}
-                    </span>
-                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Berkas dokumen/foto siap diunggah
-                    </span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Berkas akan tersimpan dan tampil pada detail spesifikasi item trial.
-                    </p>
+              {/* Area Unggah (Dropzone / Tombol Upload Bulking) */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-5 border-2 border-dashed border-slate-200 hover:border-purple-400 bg-slate-50 hover:bg-purple-50/20 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+              >
+                <Upload className="w-7 h-7 text-slate-400 mb-1.5" />
+                <span className="text-xs font-bold text-slate-800">
+                  Pilih atau Tarik Berkas Dokumen &amp; Foto ke Sini (Bisa Banyak / Bulk)
+                </span>
+                <span className="text-[11px] text-slate-400 mt-0.5">
+                  Mendukung unggah banyak berkas sekaligus: PDF, Word, Excel, JPG, PNG, WebP (Maks. 10MB per berkas)
+                </span>
+              </div>
+
+              {/* Daftar Berkas Terunggah */}
+              {lampiranList.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
+                    <span>Daftar Berkas Terlampir ({lampiranList.length})</span>
+                    <button
+                      type="button"
+                      onClick={handleClearAllFiles}
+                      className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Hapus Semua
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="Hapus berkas"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-2 p-6 border-2 border-dashed border-slate-200 hover:border-red-400 bg-slate-50 hover:bg-red-50/20 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
-                >
-                  <Upload className="w-7 h-7 text-slate-400 mb-1.5" />
-                  <span className="text-xs font-bold text-slate-800">
-                    Pilih atau Tarik Berkas Dokumen / Foto ke Sini
-                  </span>
-                  <span className="text-[11px] text-slate-400 mt-0.5">
-                    Mendukung berkas PDF, Word, Excel, atau Foto JPG, PNG, WebP (Maksimal 10MB)
-                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto p-1">
+                    {lampiranList.map((file) => (
+                      <div
+                        key={file.id}
+                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3 relative group hover:border-slate-300 transition-colors"
+                      >
+                        {file.isImage ? (
+                          <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg border border-red-200 bg-red-50 text-red-600 flex flex-col items-center justify-center shrink-0">
+                            <FileText className="w-5 h-5" />
+                            <span className="text-[8px] font-bold uppercase mt-0.5">
+                              {file.name.split(".").pop() || "DOC"}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0 text-xs">
+                          <span
+                            className="font-bold text-slate-900 block truncate"
+                            title={file.name}
+                          >
+                            {file.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            {formatFileSize(file.size)} &bull;{" "}
+                            {file.isImage ? "Foto/Gambar" : "Dokumen"}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(file.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                          title="Hapus berkas ini"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500 px-1">
+                    <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {lampiranList.length} berkas siap disimpan
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-purple-600 hover:underline font-medium cursor-pointer"
+                    >
+                      + Tambah Berkas Lain
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
