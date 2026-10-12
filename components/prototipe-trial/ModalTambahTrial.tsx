@@ -955,7 +955,7 @@ export function ModalTambahTrial({
             <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
                 <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  Identitas &amp; Klasifikasi Material
+                  Klasifikasi Material
                 </h5>
                 <span className="text-[10px] text-slate-400 font-medium">*Wajib diisi</span>
               </div>
@@ -1225,7 +1225,7 @@ export function ModalTambahTrial({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <Label className="text-xs font-bold text-slate-700">
                     Posisi Implementasi
@@ -1269,18 +1269,18 @@ export function ModalTambahTrial({
                     />
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <Label className="text-xs font-bold text-slate-700">
-                    Catatan Spesifikasi (Opsional)
-                  </Label>
-                  <Input
-                    placeholder="Contoh: Standar SNI, Anti Rayap..."
-                    value={informasiTambahan}
-                    onChange={(e) => setInformasiTambahan(e.target.value)}
-                    className="mt-1.5 h-9 text-xs bg-white border-slate-200"
-                  />
-                </div>
+              <div>
+                <Label className="text-xs font-bold text-slate-700">
+                  Catatan (Opsional)
+                </Label>
+                <Textarea
+                  className="mt-1.5 h-20 text-xs bg-white border-slate-200 leading-relaxed"
+                  placeholder="Ketik catatan teknis, standar SNI, atau informasi spesifikasi tambahan..."
+                  value={informasiTambahan}
+                  onChange={(e) => setInformasiTambahan(e.target.value)}
+                />
               </div>
             </div>
           </div>
