@@ -83,6 +83,8 @@ export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit): Pr
 
     // Bypass dev tunnel and ngrok warning pages.
     headers.set("ngrok-skip-browser-warning", "69420");
+    headers.set("X-Tunnel-Skip-AntiPhishing-Page", "true");
+    headers.set("bypass-tunnel-reminder", "true");
 
     const response = await globalThis.fetch(input, {
         cache: "no-store",

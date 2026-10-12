@@ -1756,7 +1756,6 @@ export default function DetailProjekPlanning() {
                               <select value={newProyek} onChange={e => setNewProyek(e.target.value)} className="w-full h-9 rounded-md border border-slate-200 bg-white text-sm px-3">
                                 <option value="">-- Tetap ({data.proyek}) --</option>
                                 <option value="Reguler">Toko Baru (Reguler)</option>
-                                <option value="Renovasi">Renovasi (Umum)</option>
                                 <option value="Renovasi Perluasan">Renovasi Perluasan</option>
                                 <option value="Renovasi Perpanjangan">Renovasi Perpanjangan</option>
                                 <option value="Renovasi Toko Tutup">Renovasi Toko Tutup</option>

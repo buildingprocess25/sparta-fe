@@ -275,7 +275,7 @@ export default function DashboardNavigation({
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-slate-800 leading-none">Performance Kontraktor</span>
-                    <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Evaluasi & kinerja mitra</span>
+                    <span className="text-[10px] font-medium text-slate-500 mt-1.5 leading-none">Evaluasi & kinerja kontraktor</span>
                   </div>
                 </div>
               </Link>

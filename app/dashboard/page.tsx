@@ -2818,7 +2818,7 @@ function DashboardPageContent() {
     };
 
     const canAccessPerformanceDashboard = (Boolean(user?.isSuperHuman) || userInfo.cabang === 'HEAD OFFICE' || userInfo.roles.some((role: string) => role.toUpperCase().includes('REGIONAL MANAGER'))) && !isPerformanceDashboardBlockedRole(userInfo.roles);
-    const canAccessContractorPerformance = user?.email?.toLowerCase() === 'wildan.fadillah@nusaputra.ac.id';
+    const canAccessContractorPerformance = Boolean(user?.isSuperHuman);
     const canSeeAllMonitoringBranches = userInfo.cabang === 'HEAD OFFICE' || canViewAllBranches(userInfo.roles, user?.isSuperHuman ?? false);
 
     const shouldShowFinancialBenchmarkCards = !isCompanyScopedUser;

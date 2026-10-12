@@ -7,11 +7,15 @@ export type ContractorPerformancePeriod =
 export type ContractorJobType = "ALL" | "PROJECT" | "MAINTENANCE";
 
 export interface ContractorGlobalSummary {
+    total_denda: number;
+    total_keterlambatan: number;
     avg_denda: number;
     avg_keterlambatan: number;
     sp_aktif_count: number;
     avg_kerja_tambah: number;
     avg_kerja_kurang: number;
+    total_kerja_tambah: number;
+    total_kerja_kurang: number;
 }
 
 export interface ContractorChartPoint {
@@ -35,10 +39,17 @@ export function useContractorDashboard() {
     const [summary, setSummary] = useState<ContractorGlobalSummary | null>(null);
     const [charts, setCharts] = useState<ContractorChartPoint[]>([]);
     const [leaderboard, setLeaderboard] = useState<ContractorLeaderboardRow[]>([]);
-    const [filters, setFilters] = useState<{ cabang: string; job_type: string; period: ContractorPerformancePeriod; search?: string }>({
+    const [allSpHistory, setAllSpHistory] = useState<any[]>([]);
+    const [balanceChart, setBalanceChart] = useState<any[]>([]);
+    const [availableCabangs, setAvailableCabangs] = useState<string[]>([]);
+    const [availableKontraktors, setAvailableKontraktors] = useState<string[]>([]);
+    const [filters, setFilters] = useState<{ cabang: string; job_type: string; period: ContractorPerformancePeriod; search?: string; proyek?: string; bangunan?: string; kontraktor?: string }>({
         cabang: 'ALL',
         job_type: 'ALL',
-        period: 'THIS_YEAR'
+        period: 'ALL_TIME',
+        proyek: 'ALL',
+        bangunan: 'ALL',
+        kontraktor: 'ALL'
     });
 
     const fetchData = useCallback(async () => {
@@ -50,11 +61,19 @@ export function useContractorDashboard() {
                 period: filters.period
             });
             if (filters.search) queryParams.append('search', filters.search);
+            if (filters.proyek) queryParams.append('proyek', filters.proyek);
+            if (filters.bangunan) queryParams.append('bangunan', filters.bangunan);
+            if (filters.kontraktor && filters.kontraktor !== 'ALL') queryParams.append('kontraktor', filters.kontraktor);
 
-            const [summaryRes, chartsRes, leaderboardRes] = await Promise.all([
-                apiFetch(`${API_URL}/api/dashboard/contractor/summary?${queryParams.toString()}`),
-                apiFetch(`${API_URL}/api/dashboard/contractor/charts?${queryParams.toString()}`),
-                apiFetch(`${API_URL}/api/dashboard/contractor/leaderboard?${queryParams.toString()}`)
+            const baseUrl = API_URL.replace(/\/$/, "");
+            const [summaryRes, chartsRes, leaderboardRes, spAllRes, balanceChartRes, cabangsRes, kontraktorsRes] = await Promise.all([
+                apiFetch(`${baseUrl}/api/dashboard/contractor/summary?${queryParams.toString()}`),
+                apiFetch(`${baseUrl}/api/dashboard/contractor/charts?${queryParams.toString()}`),
+                apiFetch(`${baseUrl}/api/dashboard/contractor/leaderboard?${queryParams.toString()}`),
+                apiFetch(`${baseUrl}/api/dashboard/contractor/all-sp-history?${queryParams.toString()}`),
+                apiFetch(`${baseUrl}/api/dashboard/contractor/balance-chart?${queryParams.toString()}`),
+                apiFetch(`${baseUrl}/api/dashboard/contractor/filters/cabang`),
+                apiFetch(`${baseUrl}/api/dashboard/contractor/filters/kontraktor?cabang=${encodeURIComponent(filters.cabang || '')}`)
             ]);
 
             if (summaryRes.ok) {
@@ -69,6 +88,23 @@ export function useContractorDashboard() {
                 const data = await leaderboardRes.json();
                 setLeaderboard(data.data);
             }
+            if (spAllRes.ok) {
+                const data = await spAllRes.json();
+                setAllSpHistory(data.data);
+            }
+            if (balanceChartRes.ok) {
+                const data = await balanceChartRes.json();
+                setBalanceChart(data.data);
+            }
+            if (cabangsRes.ok) {
+                const data = await cabangsRes.json();
+                setAvailableCabangs(data.data || []);
+            }
+            if (kontraktorsRes.ok) {
+                const data = await kontraktorsRes.json();
+                setAvailableKontraktors(data.data || []);
+            }
+
         } catch (error) {
             console.error("Failed to fetch contractor dashboard data", error);
         } finally {
@@ -85,6 +121,10 @@ export function useContractorDashboard() {
         summary,
         charts,
         leaderboard,
+        allSpHistory,
+        balanceChart,
+        availableCabangs,
+        availableKontraktors,
         filters,
         setFilters
     };

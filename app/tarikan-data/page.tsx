@@ -256,6 +256,20 @@ export default function TarikanDataPage() {
                 if (periodMode === "months" && selectedMonths.size > 0 && !dates.some((date) => date.getFullYear() === selectedYear && selectedMonths.has(date.getMonth() + 1))) return false;
             }
 
+            // Filter Pekerjaan Beanspot
+            if (filterBeanspot !== "all") {
+                const hasBeanspot = collectProjectWorkItems(project).includes("PEKERJAAN BEANSPOT");
+                if (filterBeanspot === "yes" && !hasBeanspot) return false;
+                if (filterBeanspot === "no" && hasBeanspot) return false;
+            }
+
+            // Filter Jenis Proyek
+            if (jenisProyek !== "all") {
+                const jp = String(project?.toko?.proyek || project?.project_planning?.[0]?.jenis_proyek || "").toLowerCase();
+                if (jenisProyek === "reguler" && jp !== "reguler") return false;
+                if (jenisProyek === "renovasi" && jp !== "renovasi") return false;
+            }
+
             if (!query) return true;
             return [project?.toko?.nama_toko, project?.toko?.nomor_ulok, project?.toko?.kode_toko, project?.toko?.cabang, project?.toko?.lingkup_pekerjaan]
                 .map(normalizeText)

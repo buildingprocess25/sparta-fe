@@ -3227,18 +3227,27 @@ export default function DaftarDokumenPage() {
                                                                         </Badge>
                                                                     )}
                                                                 </div>
-                                                                <p className="text-sm text-slate-600 truncate mt-0.5">
-                                                                    {selectedKategori === 'RAB'
-                                                                        ? doc.nama_toko
-                                                                        : (selectedKategori === 'SPK' ? (doc.nama_kontraktor || doc.nama_toko) : doc.nama_toko)
+                                                                <p className="text-sm font-medium text-slate-700 truncate mt-0.5">
+                                                                    {selectedKategori === 'SPK' || selectedKategori === 'PERTAMBAHAN_SPK'
+                                                                        ? (doc.nama_kontraktor || doc.nama_toko)
+                                                                        : doc.nama_toko
                                                                     }
-                                                                    {doc.cabang && doc.cabang !== '-' && ` • Cabang: ${doc.cabang}`}
                                                                 </p>
-                                                                <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                                                                <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+                                                                    {(selectedKategori === 'SPK' || selectedKategori === 'PERTAMBAHAN_SPK') && doc.nama_toko && doc.nama_toko !== '-' && (
+                                                                        <span className="text-[11px] font-semibold text-slate-700 bg-slate-100/80 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                                                                            <Building2 className="w-3 h-3 text-slate-500" /> {doc.nama_toko}
+                                                                        </span>
+                                                                    )}
+                                                                    {doc.cabang && doc.cabang !== '-' && (
+                                                                        <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md">
+                                                                            <MapPin className="w-3 h-3 text-slate-400" /> {doc.cabang}
+                                                                        </span>
+                                                                    )}
                                                                     <span className="text-xs text-slate-400 flex items-center gap-1">
                                                                         <CalendarDays className="w-3 h-3" />
                                                                         {doc.tipe === 'OPNAME_FINAL'
-                                                                            ? `Tanggal KTK: ${doc.tanggal_kerja_tambah_kurang ? formatDate(doc.tanggal_kerja_tambah_kurang) : 'Belum disetujui Direktur'}`
+                                                                            ? `KTK: ${doc.tanggal_kerja_tambah_kurang ? formatDate(doc.tanggal_kerja_tambah_kurang) : 'Pending'}`
                                                                             : formatDate(doc.created_at)}
                                                                     </span>
                                                                     {doc.email_pembuat !== '-' && (
@@ -3248,7 +3257,7 @@ export default function DaftarDokumenPage() {
                                                                     )}
                                                                     {doc.proyek && doc.proyek !== '-' && (
                                                                         <span className="text-xs text-slate-400 flex items-center gap-1">
-                                                                            <Building2 className="w-3 h-3" /> {doc.proyek}
+                                                                            <Hash className="w-3 h-3" /> {doc.proyek}
                                                                         </span>
                                                                     )}
                                                                 </div>

@@ -4,7 +4,7 @@ import { API_URL } from '@/lib/constants';
 import { formatRupiah } from '@/lib/utils';
 import { CheckCircle2, Clock, Activity, HardHat, FileCheck, Search, FileText, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
 
-export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: string; lingkup_pekerjaan?: string | null }) {
+export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan, hideHeader }: { nomor_ulok: string; lingkup_pekerjaan?: string | null; hideHeader?: boolean }) {
     const [project, setProject] = useState<any>(null);
     const [projects, setProjects] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -342,29 +342,31 @@ export function KpiTimeline({ nomor_ulok, lingkup_pekerjaan }: { nomor_ulok: str
     });
 
     const getColorClasses = (color: string, isActive: boolean, isCompleted: boolean) => {
-        if (!isActive) return { bg: 'bg-slate-100', text: 'text-slate-400', border: 'border-slate-200', dot: 'bg-slate-300' };
+        if (!isActive) return { bg: 'bg-slate-100', text: 'text-slate-400', border: 'border-slate-200 border-l-[6px] border-l-slate-300', dot: 'bg-slate-300' };
         const maps: any = {
-            indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200', dot: 'bg-indigo-500' },
-            blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', dot: 'bg-blue-500' },
-            cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-200', dot: 'bg-cyan-500' },
-            orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200', dot: 'bg-orange-500' },
-            purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200', dot: 'bg-purple-500' },
-            sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200', dot: 'bg-sky-500' },
-            emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-            teal: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200', dot: 'bg-teal-500' },
-            slate: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-500' }
+            indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200 border-l-[6px] border-l-indigo-500', dot: 'bg-indigo-500' },
+            blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200 border-l-[6px] border-l-blue-500', dot: 'bg-blue-500' },
+            cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-200 border-l-[6px] border-l-cyan-500', dot: 'bg-cyan-500' },
+            orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200 border-l-[6px] border-l-orange-500', dot: 'bg-orange-500' },
+            purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200 border-l-[6px] border-l-purple-500', dot: 'bg-purple-500' },
+            sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200 border-l-[6px] border-l-sky-500', dot: 'bg-sky-500' },
+            emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200 border-l-[6px] border-l-emerald-500', dot: 'bg-emerald-500' },
+            teal: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200 border-l-[6px] border-l-teal-500', dot: 'bg-teal-500' },
+            slate: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200 border-l-[6px] border-l-slate-400', dot: 'bg-slate-500' }
         };
         return maps[color] || maps.slate;
     };
 
     return (
         <div className="w-full flex flex-col items-center">
-            <div className="mb-4 flex items-center justify-between gap-3 w-full">
-                <div className="flex items-center gap-3">
-                    <div className="h-6 w-1.5 shrink-0 rounded-full bg-red-500" />
-                    <h4 className="text-xl font-bold tracking-tight text-slate-900">Timeline Projek</h4>
+            {!hideHeader && (
+                <div className="mb-4 flex items-center justify-between gap-3 w-full">
+                    <div className="flex items-center gap-3">
+                        <div className="h-6 w-1.5 shrink-0 rounded-full bg-red-500" />
+                        <h4 className="text-xl font-bold tracking-tight text-slate-900">Timeline Projek</h4>
+                    </div>
                 </div>
-            </div>
+            )}
             
             <div className="w-full max-w-4xl relative pb-10 mt-6">
                 <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-slate-100 -translate-x-1/2 rounded-full hidden md:block"></div>
