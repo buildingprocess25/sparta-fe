@@ -792,7 +792,7 @@ function LayerDetail({ data, metric }: { data: any, metric?: string }) {
     if (!data) return <EmptyState />;
 
     const showEvaluasi = metric === 'evaluasi_toko' || metric === 'search_all';
-    const showKeuangan = metric !== 'evaluasi_toko' || metric === 'search_all';
+    const showKeuangan = metric !== 'evaluasi_toko';
 
     // Evaluasi Calcs
     let nilaiAkhir = '0', desain = '0%', kualitas = '0%', spek = '0%';
@@ -830,7 +830,7 @@ function LayerDetail({ data, metric }: { data: any, metric?: string }) {
                             {data.cabang}
                         </span>
                         <span className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider">
-                            {(metric === 'avg_denda' || metric === 'total_denda') && metric !== 'search_all' ? 'SIPIL + ME' : data.lingkup_pekerjaan}
+                            {(metric === 'avg_denda' || metric === 'total_denda') ? 'SIPIL + ME' : data.lingkup_pekerjaan}
                         </span>
                     </div>
                     <h2 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight leading-tight">

@@ -40,7 +40,7 @@ export default function ContractorPerformanceDashboard() {
             // Bypass Ranking, go direct to Ulok List for the logged-in contractor
             setModalLayer('ULOK_LIST');
             setModalMetric(metric);
-            setModalKontraktor(user.namaPt || user.namaLengkap);
+            setModalKontraktor(user?.namaPt || user?.namaLengkap);
             setIsModalOpen(true);
             return;
         }
@@ -605,6 +605,12 @@ function ModernMetricCard({
             border: "border-slate-200/70",
             iconBg: "bg-indigo-50 text-indigo-600",
             hover: "hover:border-indigo-300 hover:shadow-[0_8px_30px_rgb(79,70,229,0.08)] hover:-translate-y-1",
+        },
+        emerald: {
+            bg: "bg-white",
+            border: "border-slate-200/70",
+            iconBg: "bg-emerald-50 text-emerald-600",
+            hover: "hover:border-emerald-300 hover:shadow-[0_8px_30px_rgb(16,185,129,0.08)] hover:-translate-y-1",
         },
         teal: {
             bg: "bg-white",
