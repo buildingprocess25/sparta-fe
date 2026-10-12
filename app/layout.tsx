@@ -46,12 +46,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={cn("font-sans", geistSans.variable)}>
+    <html lang="id" className={cn("font-sans", geistSans.variable, geistMono.variable)}>
       <head>
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         <GlobalAlertProvider>
           <SessionProvider>

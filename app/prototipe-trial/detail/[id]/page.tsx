@@ -13,6 +13,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TrialNavbar } from '@/components/prototipe-trial/TrialNavbar';
 import { TrialTimelineBar } from '@/components/prototipe-trial/TrialTimelineBar';
+import { ModalTambahTrial } from '@/components/prototipe-trial/ModalTambahTrial';
 import { useTrialStore } from '@/components/prototipe-trial/store';
 import {
   TRIAL_STATUS_MAP,
@@ -37,6 +38,7 @@ import {
   Sparkles,
   ExternalLink,
   FileText,
+  Edit3,
 } from 'lucide-react';
 
 export default function DetailTrialItemPage() {
@@ -61,6 +63,7 @@ export default function DetailTrialItemPage() {
   const [activeTab, setActiveTab] = useState<'spek' | 'koefisien' | 'dokumen' | 'evaluasi' | 'history'>('spek');
   const [revisiCatatan, setRevisiCatatan] = useState('');
   const [isRevisiModalOpen, setIsRevisiModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [revisiTargetAction, setRevisiTargetAction] = useState<string>('');
 
   const item = useMemo(() => {
@@ -189,14 +192,47 @@ export default function DetailTrialItemPage() {
 
         {/* Peringatan Revisi Jika Ada */}
         {item.revisiCatatan && (
-          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-xs text-rose-900">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold">Catatan Revisi dari {item.revisiOleh || 'Approver'}:</span>
-              <p className="mt-0.5 text-rose-800">{item.revisiCatatan}</p>
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start justify-between gap-3 text-xs text-rose-900">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Catatan Revisi dari {item.revisiOleh || 'Approver'}:</span>
+                <p className="mt-0.5 text-rose-800">{item.revisiCatatan}</p>
+              </div>
             </div>
+            {item.status === 'TRIAL_REVISI_MAKER' && (
+              <Button
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shrink-0 cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 mr-1" />
+                <span>Perbaiki Sekarang</span>
+              </Button>
+            )}
           </div>
         )}
+
+        {/* Banner Status Draf */}
+        {/* {item.status === 'TRIAL_DRAFT' && (
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-3 text-xs text-blue-900">
+            <div className="flex items-center gap-2.5">
+              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+              <div>
+                <span className="font-bold">Item Masih Berstatus Draf</span>
+                <p className="text-blue-700 text-[11px]">Pengajuan ini belum dikirimkan ke alur persetujuan. Anda dapat mengedit dan melanjutkannya kapan saja.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsEditModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shrink-0 cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5 mr-1" />
+              <span>Edit &amp; Lanjutkan Draf</span>
+            </Button>
+          </div>
+        )} */}
 
         {/* Tab Navigasi Konten */}
         <div className="flex items-center gap-1 border-b border-slate-200 bg-white px-3 pt-2 rounded-t-xl overflow-x-auto scrollbar-none">
@@ -683,6 +719,18 @@ export default function DetailTrialItemPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Aksi Maker saat Draf atau Perlu Revisi */}
+            {(item.status === 'TRIAL_DRAFT' || item.status === 'TRIAL_REVISI_MAKER') && (
+              <Button
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 mr-1" />
+                <span>{item.status === 'TRIAL_DRAFT' ? 'Edit & Lanjutkan Draf' : 'Perbaiki Pengajuan'}</span>
+              </Button>
+            )}
+
             {/* Aksi PP Manager */}
             {item.status === 'TRIAL_PENDING_PP_MGR' && (
               <>
@@ -814,6 +862,14 @@ export default function DetailTrialItemPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Edit / Lanjutkan Draf Item Trial */}
+      <ModalTambahTrial
+        key={item ? `edit-${item.id}` : 'edit-trial-detail'}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        itemToEdit={item}
+      />
     </div>
   );
 }

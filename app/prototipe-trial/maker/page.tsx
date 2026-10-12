@@ -19,17 +19,16 @@ import { Badge } from '@/components/ui/badge';
 import {
   Plus,
   Search,
-  FileText,
   Clock,
   ArrowRight,
-  Filter,
-  Check,
   Paperclip,
+  Edit3,
 } from 'lucide-react';
 
 export default function MakerTrialPage() {
   const { items, mounted } = useTrialStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<TrialItem | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'PENDING' | 'REVISI'>('ALL');
 
@@ -81,7 +80,10 @@ export default function MakerTrialPage() {
           </div>
 
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setItemToEdit(null);
+              setIsModalOpen(true);
+            }}
             className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs px-4 h-9 shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -93,14 +95,14 @@ export default function MakerTrialPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             {[
-              { id: 'ALL', label: 'Semua Item' },
-              { id: 'PENDING', label: 'Menunggu Persetujuan' },
-              { id: 'REVISI', label: 'Perlu Revisi' },
-              { id: 'DRAFT', label: 'Draf' },
+              { id: 'ALL' as const, label: 'Semua Item' },
+              { id: 'PENDING' as const, label: 'Menunggu Persetujuan' },
+              { id: 'REVISI' as const, label: 'Perlu Revisi' },
+              { id: 'DRAFT' as const, label: 'Draf' },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setStatusFilter(tab.id as any)}
+                onClick={() => setStatusFilter(tab.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer ${
                   statusFilter === tab.id
                     ? 'bg-slate-900 text-white shadow-2xs'
@@ -205,13 +207,28 @@ export default function MakerTrialPage() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <Link
-                            href={`/prototipe-trial/detail/${item.id}`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-red-600 hover:bg-red-50 rounded-md border border-slate-200 transition-colors"
-                          >
-                            <span>Detail</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </Link>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(item.status === 'TRIAL_DRAFT' || item.status === 'TRIAL_REVISI_MAKER') && (
+                              <button
+                                onClick={() => {
+                                  setItemToEdit(item);
+                                  setIsModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
+                                title="Edit Draf / Perbaiki Pengajuan"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>Edit Draf</span>
+                              </button>
+                            )}
+                            <Link
+                              href={`/prototipe-trial/detail/${item.id}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-red-600 hover:bg-red-50 rounded-md border border-slate-200 transition-colors"
+                            >
+                              <span>Detail</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -229,10 +246,15 @@ export default function MakerTrialPage() {
         </div>
       </main>
 
-      {/* Modal Input Pengajuan Trial */}
+      {/* Modal Input / Edit Pengajuan Trial */}
       <ModalTambahTrial
+        key={itemToEdit ? `edit-${itemToEdit.id}` : 'tambah-item-trial'}
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setItemToEdit(null);
+        }}
+        itemToEdit={itemToEdit}
         nextIndex={nextIndex}
       />
     </div>
