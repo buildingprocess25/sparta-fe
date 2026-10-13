@@ -43,7 +43,7 @@ export default function DetailPPManagerTrialPage() {
 
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isReviseModalOpen, setIsReviseModalOpen] = useState(false);
-  const [approveNote, setApproveNote] = useState('Kelayakan fisik material telah diverifikasi dan memenuhi standar uji coba gerai.');
+  const [approveNote, setApproveNote] = useState('Kelayakan fisik material telah diverifikasi dan memenuhi standar');
   const [reviseNote, setReviseNote] = useState('');
   const [reviseError, setReviseError] = useState('');
 
@@ -100,7 +100,7 @@ export default function DetailPPManagerTrialPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col pb-24">
       <TrialNavbar subtitle={`Review PP Manager: ${item.kode}`} />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-5">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-5">
         {/* Header Standar Peran PP Manager */}
         <TrialDetailHeader
           item={item}
@@ -139,22 +139,6 @@ export default function DetailPPManagerTrialPage() {
         {/* Timeline Visual Alur Sparta */}
         <TrialTimelineBar item={item} />
 
-        {/* Alert Callout jika item sedang dalam status pending PP Mgr */}
-        {isPending && (
-          <div className="bg-amber-50/70 border-2 border-amber-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
-            <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-sm font-bold text-amber-950">
-                Persetujuan Kelayakan Teknis (Approver 1)
-              </h2>
-              <p className="text-xs text-amber-900/80 leading-relaxed">
-                Tinjau kesesuaian material fisik, spesifikasi teknis, estimasi harga awal, dan opsi pekerjaan bongkaran sebelum item dialihkan ke B&M General Manager. Jika terdapat spesifikasi yang kurang lengkap, kembalikan ke Maker dengan catatan perbaikan.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Kartu Spesifikasi Fisik & Inisiasi Trial */}
         <TrialSpesifikasiCard item={item} />
@@ -198,7 +182,7 @@ export default function DetailPPManagerTrialPage() {
                   className="bg-white border-amber-300 text-amber-700 hover:bg-amber-50 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Minta Revisi Maker</span>
+                  <span>Minta Revisi</span>
                 </Button>
 
                 <Button
@@ -259,7 +243,7 @@ export default function DetailPPManagerTrialPage() {
               onClick={handleConfirmApprove}
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
             >
-              Setujui & Teruskan ke BM GM
+              Setujui
             </Button>
           </DialogFooter>
         </DialogContent>

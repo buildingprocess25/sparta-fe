@@ -66,7 +66,7 @@ export default function PPManagerAntreanPage() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
       <TrialNavbar subtitle="Verifikasi Kelayakan Teknis (PP Manager)" />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8 space-y-6">
+      <main className="flex-1 w-full max-w-400 mx-auto p-4 sm:p-6 md:p-8 space-y-6">
         {/* Header Hero Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-start gap-3.5">
@@ -90,10 +90,6 @@ export default function PPManagerAntreanPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50/70 p-3 rounded-xl border border-amber-200/80">
-            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Pengajuan oleh PP Manager otomatis membypass tahap ini ke B&M GM.</span>
-          </div>
         </div>
 
         {/* Tab & Pencarian */}

@@ -73,7 +73,7 @@ export function TrialTimelineBar({
     },
     {
       id: "step-3",
-      label: "Review BM General Manager",
+      label: "Review B&M General Manager",
       state: [
         "TRIAL_PENDING_SB_CONFIG",
         "TRIAL_PENDING_BM_REG_CONFIG",

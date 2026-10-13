@@ -198,7 +198,7 @@ export default function DetailBMGeneralManagerTrialPage() {
                   className="bg-white border-purple-300 text-purple-700 hover:bg-purple-50 text-xs font-semibold px-4 py-2 rounded-lg gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Minta Revisi Maker</span>
+                  <span>Minta Revisi</span>
                 </Button>
 
                 <Button
@@ -259,7 +259,7 @@ export default function DetailBMGeneralManagerTrialPage() {
               onClick={handleConfirmApprove}
               className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold cursor-pointer"
             >
-              Setujui & Teruskan ke S&B
+              Setujui
             </Button>
           </DialogFooter>
         </DialogContent>
